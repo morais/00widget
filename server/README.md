@@ -13,7 +13,10 @@ A Cloudflare Worker that accepts webhook-style updates from any agent and fans o
 ```bash
 cd server
 npm install
+cp wrangler.toml.sample wrangler.toml   # gitignored — your local config
 ```
+
+`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (KV namespace id, anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
 
 ### 1. Create a KV namespace
 
@@ -21,7 +24,7 @@ npm install
 npx wrangler kv:namespace create ZW_KV
 ```
 
-Copy the `id` it prints into `wrangler.toml` under `[[kv_namespaces]]`.
+Copy the `id` it prints into your local `wrangler.toml` under `[[kv_namespaces]]`.
 
 ### 2. Configure local secrets
 

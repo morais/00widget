@@ -1,0 +1,19 @@
+name = "zerowidget-server"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret config. Secrets (API_KEYS, APNS_*) come from `wrangler secret put`
+# or `.dev.vars` locally — see server/README.md.
+[vars]
+APNS_ENV = "sandbox"
+
+# Create the KV namespace first:
+#   npx wrangler kv:namespace create ZW_KV
+# Then paste the returned id below.
+[[kv_namespaces]]
+binding = "ZW_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[observability]
+enabled = true

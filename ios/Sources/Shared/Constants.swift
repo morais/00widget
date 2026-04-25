@@ -1,8 +1,20 @@
 import Foundation
 
 public enum ZeroWidgetConstants {
-    public static let appGroupIdentifier = "group.com.example.zerowidget"
-    public static let bundleIdentifier = "com.example.zerowidget"
+    /// The App Group identifier shared between the app and widget targets.
+    ///
+    /// The value comes from the `ZWAppGroupIdentifier` key in each target's
+    /// `Info.plist`, which `project.yml` writes from a single source. The
+    /// fallback is the public placeholder so the app still launches against
+    /// the unedited project.yml.sample.
+    public static var appGroupIdentifier: String {
+        Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier") as? String
+            ?? "group.com.example.zerowidget"
+    }
+
+    public static var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "com.example.zerowidget"
+    }
 
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
