@@ -86,7 +86,7 @@ When working on a real device with a configured Team ID, none of this applies �
 
 ## Branding
 
-Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The committed `branding-sheet.png` is high enough resolution for docs and READMEs but not for a 1024×1024 iOS app icon; the brand README lists the high-res files still needed (`mark-1024.png`, vector sources) before the app icon slot can be filled.
+Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The committed assets include opaque + transparent 1024 PNGs, the wordmark lockup, and the SVG vector sources — re-export raster sizes from the SVGs. iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Color palette is documented in `docs/brand/README.md` and is sourced from the SVG `<linearGradient>` definitions, not eyeballed.
 
 ## Things to watch
 

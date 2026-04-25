@@ -2,7 +2,9 @@
 
 The official brand assets and usage rules.
 
-![00Widget brand sheet](./branding-sheet.png)
+<p align="center">
+  <img src="./wordmark-horizontal.png" alt="00Widget — Widgets for all your agents." width="640">
+</p>
 
 ## Tagline
 
@@ -14,46 +16,37 @@ Use this exact wording — no rephrasing. It appears in:
 - `ios/Resources/App/Info.plist` (CFBundleDisplayName tagline area)
 - store listings, social cards
 
-## Logo
+## Assets in this directory
 
-The mark is a stylised claw clutching a widget card with a rising trend line, paired with the wordmark **00Widget** (the `00` is in the brand blue, `Widget` in dark navy).
-
-### Variants in the sheet
-
-- **Hero**: full mark + wordmark + tagline (top-left). Use for landing pages.
-- **Horizontal lockup**: icon + wordmark side-by-side. Use for navigation bars, GitHub social cards.
-- **App icon**: rounded-square frame, three contrasts (light, dark navy, mono). Use for iOS, macOS, web favicons.
-- **Banner strips**: dark / cream / dark variants for headers.
-- **Reduced sizes**: bottom row, for confirming the mark survives at small dimensions.
+| File                            | Size       | Background  | Use                                   |
+| ------------------------------- | ---------- | ----------- | ------------------------------------- |
+| `mark-1024.png`                 | 1024×1024  | Opaque      | iOS App Icon (no transparency allowed). Already wired into `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. |
+| `mark-transparent-1024.png`     | 1024×1024  | Transparent | Mark on arbitrary backgrounds — buttons, badges, dark headers. |
+| `wordmark-horizontal.png`       | 2400×800   | Transparent | Horizontal lockup of icon + "00Widget" + tagline. README hero, social cards, navigation lockups. |
+| `mark.svg` / `mark-transparent.svg` | vector | —           | Source of truth for the icon. Re-export raster sizes from these. |
+| `wordmark.svg` / `wordmark-horizontal.svg` | vector | —    | Source of truth for the lockup. |
+| `branding-sheet.png`            | 1536×1024  | —           | Reference contact sheet showing all variants together. |
 
 ## Color palette
 
-Sampled from the brand sheet (treat as approximate until vector source lands):
+Sourced from the SVG `<linearGradient>` definitions — these are the authoritative values, not eyeballed samples.
 
-| Role            | Approx hex   | Usage                                  |
-| --------------- | ------------ | -------------------------------------- |
-| Brand blue      | `#1F8BFF`    | "00" wordmark, primary accents, links  |
-| Dark navy       | `#0E1A2E`    | "Widget" wordmark, body text on light  |
-| Cream           | `#F5EFE3`    | Light banner background                |
-| Trend teal      | `#1FB89A`    | Trend-line accent inside the mark      |
-| Purple accent   | `#5C4BD9`    | Card-row accent inside the mark        |
-| Card blue       | `#2D7CF7`    | Card-row accent inside the mark        |
-
-## What's here vs what we need
-
-The committed `branding-sheet.png` is **a 1536×1024 contact sheet**. It's high enough resolution for documentation, READMEs, and GitHub social cards, but too low to upscale into a crisp 1024×1024 iOS app icon.
-
-**Still needed:**
-
-- `mark-1024.png` — icon-only (claw + widget card, no text), 1024×1024, with transparent background. Source for the iOS app icon.
-- `wordmark-horizontal.png` — icon + "00Widget" wordmark side-by-side, transparent background, ≥2400px wide. Source for navigation lockups.
-- `mark.svg` and `wordmark.svg` — vector source. Future-proofing for arbitrary scales.
-
-When those land in this directory, replace the placeholder app icon at `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/` and remove the `TODO(brand)` markers.
+| Role               | Stops                              | Usage                                   |
+| ------------------ | ---------------------------------- | --------------------------------------- |
+| Brand blue         | `#22A8FF` → `#0968E8`              | "00" wordmark, primary CTAs, card row   |
+| Trend teal         | `#24D6B5` → `#11A789`              | Trend-line accent inside the mark       |
+| Accent purple      | `#8B5CF6` → `#5B35DB`              | Card row accent inside the mark         |
+| Claw metal         | `#FFFFFF` → `#D8DEE8` → `#8291A6`  | Claw fill                               |
+| Deep navy          | `#06152A`                          | "Widget" wordmark, card stroke, dark text |
+| Mid navy           | `#243A57`                          | Tagline, secondary text                 |
+| Outline navy       | `#0C2340` (heavy) / `#304765` (highlight) | Claw outline, hierarchy lines    |
+| Card surface       | `#F8FBFF`                          | Card background inside the mark         |
+| Card row gray      | `#D4DAE2`                          | Inactive row in the mark                |
 
 ## Usage rules
 
 - **Do not** rephrase the tagline.
-- **Do not** recolor the mark (no purple-only versions, no rainbow). Use the supplied light/dark/mono variants as-is.
+- **Do not** recolor the mark. Use the supplied light/dark/mono variants as-is. If you need a new variant, re-export from the SVG sources.
 - **Do** keep clearspace around the mark equal to half the height of the "0" in `00Widget`.
 - **Do not** stretch — preserve aspect ratio always.
+- **Do not** use the transparent mark on a background that competes with the trend-teal or brand-blue accents (use a near-black or near-white surface).

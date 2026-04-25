@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/brand/branding-sheet.png" alt="00Widget — Widgets for all your agents." width="800">
+  <img src="./docs/brand/wordmark-horizontal.png" alt="00Widget — Widgets for all your agents." width="640">
 </p>
 
 # 00Widget
