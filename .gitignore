@@ -5,6 +5,10 @@ server/.env
 *.p8
 *.pem
 
+# Per-developer config (resource ids, real bundle ids, etc.)
+# Committed source-of-truth lives in *.sample siblings.
+server/wrangler.toml
+
 # Node / Cloudflare
 node_modules/
 server/.wrangler/
@@ -22,9 +26,14 @@ ios/Pods/
 xcuserdata/
 *.xcscmblueprint
 *.xcsettings
-# Info.plist files are written by XcodeGen from project.yml and are not source.
+# Info.plist + entitlements files are written by XcodeGen from project.yml.
+# project.yml itself is per-developer (Team ID, bundle ids, App Group);
+# the committed source-of-truth is project.yml.sample.
+ios/project.yml
 ios/Resources/App/Info.plist
 ios/Resources/Widgets/Info.plist
+ios/Resources/App/ZeroWidget.entitlements
+ios/Resources/Widgets/Widgets.entitlements
 
 # macOS
 .DS_Store

@@ -48,6 +48,13 @@ done
 
 cd "$(dirname "$0")/.."
 
+if [[ ! -f project.yml ]]; then
+  echo "ios/project.yml not found — copy from the committed template:"
+  echo "  cp ios/project.yml.sample ios/project.yml"
+  echo "Then edit it (DEVELOPMENT_TEAM, bundle ids, App Group) per ios/README.md."
+  exit 1
+fi
+
 echo "→ regenerating Xcode project"
 xcodegen >/dev/null
 

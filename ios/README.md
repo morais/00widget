@@ -9,32 +9,39 @@ SwiftUI app, WidgetKit extension, and Live Activity for iOS 18+.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`
 - An Apple Developer account (required for App Groups, APNs, and running on device)
 
-## Generate the Xcode project
+## First-time setup
 
-The `.xcodeproj` is not checked in — it's regenerated from `project.yml`.
+`project.yml` is gitignored — it holds per-developer values (Team ID, bundle ids, App Group). The committed source-of-truth is `project.yml.sample`.
 
 ```
 cd ios
+cp project.yml.sample project.yml
+```
+
+Then edit `project.yml`:
+
+1. Change **`DEVELOPMENT_TEAM`** under `settings.base` to your Apple Developer Team ID.
+2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerowidget*` to a reverse-DNS prefix your team owns.
+3. Replace the **App Group** `group.com.example.zerowidget` with one your team owns — it appears **three times** in `project.yml`:
+   - `targets.ZeroWidgetApp.entitlements.properties.com.apple.security.application-groups`
+   - `targets.ZeroWidgetApp.info.properties.ZWAppGroupIdentifier`
+   - `targets.ZeroWidgetWidgets.entitlements.properties.com.apple.security.application-groups`
+   - `targets.ZeroWidgetWidgets.info.properties.ZWAppGroupIdentifier`
+
+   `Constants.swift` reads the App Group from `Info.plist` at runtime via the `ZWAppGroupIdentifier` key, so you don't have to edit any Swift sources.
+
+4. Generate the Xcode project:
+
+```
 xcodegen
 open ZeroWidget.xcodeproj
 ```
 
-Run this again any time files are added/moved or `project.yml` changes.
+Re-run `xcodegen` any time you add/move files or change `project.yml`. The `.xcodeproj`, both `Info.plist` files, and both `.entitlements` files are gitignored — they're all regenerated from `project.yml`.
 
-## Configure your team
+In Xcode, open *Signing & Capabilities* on both the app and widget targets, confirm **App Groups** points at your App Group, and **Push Notifications** is enabled on the app target.
 
-Before running on device, edit `project.yml`:
-
-1. Change **`DEVELOPMENT_TEAM`** under `settings.base` to your Apple Developer Team ID.
-2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerowidget*` to a reverse-DNS prefix your team owns.
-3. Rename the **App Group** `group.com.example.zerowidget` to one your team owns. Update the three places it appears:
-   - `project.yml` (twice, in each target's entitlements)
-   - `Resources/App/ZeroWidget.entitlements`
-   - `Resources/Widgets/Widgets.entitlements`
-   - `Sources/Shared/Constants.swift` (`appGroupIdentifier`)
-4. Re-run `xcodegen`.
-
-In Xcode, open *Signing & Capabilities* on both the app and widget targets, make sure **App Groups** is checked and pointing at your App Group, and **Push Notifications** is enabled on the app target.
+If `project.yml.sample` ever gets updated upstream, re-merge into your local `project.yml` (or re-copy and re-apply your edits).
 
 ## Branding
 

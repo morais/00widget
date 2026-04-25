@@ -61,16 +61,27 @@ Always gitignored:
 - `examples/env.sh` (real `BASE_URL` + `API_KEY`)
 - `server/.dev.vars` (Wrangler local secrets, including `APNS_PRIVATE_KEY`)
 - `*.p8`, `*.pem` (APNs private keys)
-- `ios/*.xcodeproj/` (regenerated artifact)
-- `ios/Resources/*/Info.plist` (written by XcodeGen)
+- `ios/*.xcodeproj/` (XcodeGen output)
+- `ios/Resources/*/Info.plist` and `*.entitlements` (XcodeGen writes these from `project.yml`)
 - `node_modules/`, `.wrangler/`, `build/`, `DerivedData/`, `.env`
 
-Placeholder values that must stay in committed code:
+### Per-developer config — `.sample` template pattern
+
+Two files would otherwise go dirty in every developer's working tree because they hold per-developer values (KV namespace ids, Apple Developer Team ID, real bundle ids, App Group). They're **gitignored**, with a committed `.sample` sibling acting as the source-of-truth:
+
+| Gitignored real file       | Committed template            |
+| -------------------------- | ----------------------------- |
+| `server/wrangler.toml`     | `server/wrangler.toml.sample` |
+| `ios/project.yml`          | `ios/project.yml.sample`      |
+
+First-time setup is `cp <name>.sample <name>` and then edit. If you change anything that should apply to everyone (route paths, target structure, etc.), edit the `.sample` and copy it forward.
+
+The App Group identifier is consumed in three places in iOS, but you only edit `project.yml` — both targets' Info.plist receive `ZWAppGroupIdentifier` from `project.yml`'s `info.properties`, and `Constants.swift` reads it at runtime via `Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier")` with the `group.com.example.zerowidget` placeholder as fallback. **Don't reintroduce a hardcoded App Group string in Swift.**
+
+Placeholder values that must stay in committed `.sample` files (and source code fallbacks):
 - Bundle id: `com.example.zerowidget`
 - App Group: `group.com.example.zerowidget`
 - Wrangler `[[kv_namespaces]] id`: `REPLACE_WITH_KV_NAMESPACE_ID`
-
-The READMEs (`ios/README.md`, `server/README.md`) walk users through replacing these locally without mutating committed files.
 
 ## Simulator builds without an Apple Developer team
 

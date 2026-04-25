@@ -37,6 +37,7 @@ targets:
         NSSupportsLiveActivitiesFrequentUpdates: true
         UIBackgroundModes:
           - remote-notification
+        ZWAppGroupIdentifier: group.com.example.zerowidget   # must match the app-group entitlement below
     entitlements:
       path: Resources/App/ZeroWidget.entitlements
       properties:
@@ -67,6 +68,7 @@ targets:
         CFBundleDisplayName: 00Widget
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        ZWAppGroupIdentifier: group.com.example.zerowidget   # must match the app target's value
     entitlements:
       path: Resources/Widgets/Widgets.entitlements
       properties:
