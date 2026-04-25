@@ -51,6 +51,14 @@ Pick an iOS 18 device/simulator and run the **ZeroWidgetApp** scheme. On first l
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.
 3. In the Activities tab, tap **Start sample activity** to see the Live Activity on the Lock Screen / Dynamic Island.
 
+### Building for the simulator without an Apple Developer team
+
+```
+ios/scripts/build-sim.sh --launch --base-url https://your-worker.workers.dev
+```
+
+That script handles the signing/entitlements quirks that prevent App Groups from working on sim builds without a configured Team ID. See AGENTS.md for the underlying reasoning.
+
 ## APNs
 
 The iOS app **does not** hold the APNs private key. It only:
