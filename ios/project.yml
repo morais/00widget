@@ -1,0 +1,78 @@
+name: ZeroWidget
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: 5.10
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""                         # TODO: set to your Apple Developer Team ID
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+
+targets:
+  ZeroWidgetApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/App
+      - path: Sources/Shared
+    resources:
+      - path: Resources/App/Assets.xcassets
+    info:
+      path: Resources/App/Info.plist
+      properties:
+        CFBundleDisplayName: 00Widget
+        UILaunchScreen:
+          {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        UIBackgroundModes:
+          - remote-notification
+    entitlements:
+      path: Resources/App/ZeroWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.example.zerowidget
+        aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerowidget
+        INFOPLIST_KEY_UIApplicationSupportsMultipleScenes: NO
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: ZeroWidgetWidgets
+        embed: true
+
+  ZeroWidgetWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/Widgets
+      - path: Sources/Shared
+    resources:
+      - path: Resources/Widgets/Assets.xcassets
+    info:
+      path: Resources/Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: 00Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Resources/Widgets/Widgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.example.zerowidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerowidget.widgets
+        INFOPLIST_KEY_CFBundleDisplayName: 00Widget

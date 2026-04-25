@@ -1,0 +1,164 @@
+import Foundation
+
+public struct APIClientError: Error, LocalizedError {
+    public let status: Int
+    public let message: String
+    public var errorDescription: String? { "HTTP \(status): \(message)" }
+}
+
+public struct APIClientConfig {
+    public var baseURL: URL
+    public var apiKey: String
+
+    public init(baseURL: URL, apiKey: String) {
+        self.baseURL = baseURL
+        self.apiKey = apiKey
+    }
+
+    public static func fromSettings() -> APIClientConfig? {
+        let defaults = UserDefaults.standard
+        guard
+            let urlString = defaults.string(forKey: ZeroWidgetConstants.UserDefaultsKeys.serverBaseURL),
+            let url = URL(string: urlString),
+            let key = KeychainStore.get(ZeroWidgetConstants.KeychainKeys.apiKey),
+            !key.isEmpty
+        else { return nil }
+        return APIClientConfig(baseURL: url, apiKey: key)
+    }
+}
+
+public struct CardsListResponse: Codable {
+    public let cards: [DashboardCard]
+}
+
+public struct PendingActivitiesResponse: Codable {
+    public let activities: [LiveActivitySession]
+}
+
+public struct EmptyBody: Codable {}
+
+public final class APIClient {
+    public let config: APIClientConfig
+    public let session: URLSession
+
+    public init(config: APIClientConfig, session: URLSession = .shared) {
+        self.config = config
+        self.session = session
+    }
+
+    public func health() async throws -> Bool {
+        var req = URLRequest(url: config.baseURL.appendingPathComponent("health"))
+        req.httpMethod = "GET"
+        let (_, resp) = try await session.data(for: req)
+        return (resp as? HTTPURLResponse)?.statusCode == 200
+    }
+
+    public func fetchCards() async throws -> [DashboardCard] {
+        let resp: CardsListResponse = try await request("GET", path: "/v1/cards")
+        return resp.cards
+    }
+
+    public func upsertCard(_ card: DashboardCard) async throws {
+        let _: EmptyBody = try await request("POST", path: "/v1/cards/upsert", body: card)
+    }
+
+    public func deleteCard(id: String) async throws {
+        let _: EmptyBody = try await request("DELETE", path: "/v1/cards/\(id)")
+    }
+
+    public func registerDevice(deviceId: String, apnsDeviceToken: String?, appVersion: String) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let apnsDeviceToken: String?
+            let appVersion: String
+            let platform: String
+        }
+        let body = Body(deviceId: deviceId, apnsDeviceToken: apnsDeviceToken, appVersion: appVersion, platform: "ios")
+        let _: EmptyBody = try await request("POST", path: "/v1/devices/register", body: body)
+    }
+
+    public func registerWidgetPushToken(deviceId: String, widgetKind: String, widgetPushToken: String) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let widgetKind: String
+            let widgetPushToken: String
+        }
+        let body = Body(deviceId: deviceId, widgetKind: widgetKind, widgetPushToken: widgetPushToken)
+        let _: EmptyBody = try await request("POST", path: "/v1/widgets/register-push-token", body: body)
+    }
+
+    public func registerLiveActivity(
+        deviceId: String,
+        localActivityId: String,
+        externalActivityId: String,
+        kind: LiveActivityKind,
+        pushToken: String
+    ) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let localActivityId: String
+            let externalActivityId: String
+            let kind: String
+            let pushToken: String
+        }
+        let body = Body(
+            deviceId: deviceId,
+            localActivityId: localActivityId,
+            externalActivityId: externalActivityId,
+            kind: kind.rawValue,
+            pushToken: pushToken
+        )
+        let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register", body: body)
+    }
+
+    public func pendingActivities() async throws -> [LiveActivitySession] {
+        let resp: PendingActivitiesResponse = try await request("GET", path: "/v1/live-activities/pending")
+        return resp.activities
+    }
+
+    public func runAction(id: String, cardId: String?, source: String) async throws {
+        struct Context: Codable { let cardId: String? }
+        struct Body: Codable {
+            let source: String
+            let context: Context
+        }
+        let body = Body(source: source, context: Context(cardId: cardId))
+        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run", body: body)
+    }
+
+    // MARK: - Internal
+
+    private func request<T: Decodable>(
+        _ method: String,
+        path: String,
+        body: Encodable? = nil
+    ) async throws -> T {
+        var req = URLRequest(url: config.baseURL.appendingPathComponent(path))
+        req.httpMethod = method
+        req.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body {
+            req.httpBody = try CardCache.jsonEncoder().encode(AnyEncodable(body))
+        }
+
+        let (data, resp) = try await session.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            let message = String(data: data, encoding: .utf8) ?? ""
+            throw APIClientError(status: status, message: message)
+        }
+        if T.self == EmptyBody.self {
+            return EmptyBody() as! T
+        }
+        return try CardCache.jsonDecoder().decode(T.self, from: data)
+    }
+}
+
+struct AnyEncodable: Encodable {
+    private let encodeFunc: (Encoder) throws -> Void
+    init(_ wrapped: Encodable) {
+        self.encodeFunc = { try wrapped.encode(to: $0) }
+    }
+    func encode(to encoder: Encoder) throws { try encodeFunc(encoder) }
+}

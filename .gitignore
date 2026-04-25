@@ -1,0 +1,35 @@
+# Secrets — never commit
+examples/env.sh
+server/.dev.vars
+server/.env
+*.p8
+*.pem
+
+# Node / Cloudflare
+node_modules/
+server/.wrangler/
+server/dist/
+.npm/
+.yarn/
+
+# Xcode / XcodeGen
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/build/
+ios/DerivedData/
+ios/Pods/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xcsettings
+# Info.plist files are written by XcodeGen from project.yml and are not source.
+ios/Resources/App/Info.plist
+ios/Resources/Widgets/Info.plist
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp

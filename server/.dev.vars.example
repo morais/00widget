@@ -1,0 +1,15 @@
+# Copy this file to .dev.vars (gitignored) and fill in real values for local dev.
+# In production these are set with `wrangler secret put <NAME>`.
+
+# Comma-separated bearer API keys accepted by the Worker.
+API_KEYS="dev-key-1"
+
+# APNs token-based auth — leave blank if you're not sending push notifications locally.
+APNS_TEAM_ID=""
+APNS_KEY_ID=""
+# The private key in PEM form. Wrap in double quotes and preserve \n line breaks.
+# Example: APNS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIGTA...\n-----END PRIVATE KEY-----\n"
+APNS_PRIVATE_KEY=""
+APNS_BUNDLE_ID="com.example.zerowidget"
+# "sandbox" for debug builds, "production" for App Store / TestFlight.
+APNS_ENV="sandbox"
