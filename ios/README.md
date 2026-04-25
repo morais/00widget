@@ -36,6 +36,12 @@ Before running on device, edit `project.yml`:
 
 In Xcode, open *Signing & Capabilities* on both the app and widget targets, make sure **App Groups** is checked and pointing at your App Group, and **Push Notifications** is enabled on the app target.
 
+## Branding
+
+The brand sheet and usage rules live in `docs/brand/`. Tagline is "Widgets for all your agents." — keep this exact wording.
+
+**TODO(brand):** the app icon slot at `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/` is empty pending a clean 1024×1024 icon-only PNG (claw + widget card, no text, transparent background). Drop `Icon-1024.png` in there and add an `images` entry to `Contents.json` once available.
+
 ## Targets
 
 - **ZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.

@@ -84,6 +84,10 @@ The script's recipe: build with ad-hoc signing → re-sign the app and the widge
 
 When working on a real device with a configured Team ID, none of this applies — Xcode handles signing/entitlements via the project settings.
 
+## Branding
+
+Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The committed `branding-sheet.png` is high enough resolution for docs and READMEs but not for a 1024×1024 iOS app icon; the brand README lists the high-res files still needed (`mark-1024.png`, vector sources) before the app icon slot can be filled.
+
 ## Things to watch
 
 - **APNs payload shapes are marked `TODO(apns):` in `server/src/apns.ts`.** Apple has shifted ActivityKit / WidgetKit payload field names and header values across iOS releases. Before changing those helpers, re-check the live docs:

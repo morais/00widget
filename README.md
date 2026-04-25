@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs/brand/branding-sheet.png" alt="00Widget — Widgets for all your agents." width="800">
+</p>
+
 # 00Widget
 
 **Widgets for all your agents.**
@@ -66,6 +70,7 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - `ios/README.md` — Xcode setup, entitlements, signing.
 - `server/README.md` — Worker deploy, KV binding, APNs secrets.
 - `examples/README.md` — publishing state from any shell or agent.
+- `docs/brand/README.md` — logo, colors, tagline rules.
 
 ## Status
 
