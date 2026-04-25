@@ -70,3 +70,7 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 ## Status
 
 All seven milestones scaffolded. Code paths that require real APNs credentials or Apple-docs-verified payload shapes are marked `TODO(apns):` so they can be finalized against the latest ActivityKit / WidgetKit documentation.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
