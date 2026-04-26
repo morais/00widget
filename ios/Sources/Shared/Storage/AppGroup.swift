@@ -2,9 +2,9 @@ import Foundation
 import os
 
 public enum AppGroup {
-    public static let identifier = ZeroWidgetConstants.appGroupIdentifier
+    public static let identifier = ZeroZeroWidgetConstants.appGroupIdentifier
 
-    private static let log = Logger(subsystem: "com.example.zerowidget", category: "AppGroup")
+    private static let log = Logger(subsystem: "com.example.zerozerowidget", category: "AppGroup")
 
     public static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)

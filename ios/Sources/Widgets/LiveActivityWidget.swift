@@ -2,9 +2,9 @@ import WidgetKit
 import SwiftUI
 import ActivityKit
 
-struct ZeroWidgetLiveActivityWidget: Widget {
+struct ZeroZeroWidgetLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: ZeroWidgetActivityAttributes.self) { context in
+        ActivityConfiguration(for: ZeroZeroWidgetActivityAttributes.self) { context in
             LockScreenView(attributes: context.attributes, state: context.state)
                 .activityBackgroundTint(.black.opacity(0.6))
                 .activitySystemActionForegroundColor(.white)
@@ -76,8 +76,8 @@ struct ZeroWidgetLiveActivityWidget: Widget {
 }
 
 private struct LockScreenView: View {
-    let attributes: ZeroWidgetActivityAttributes
-    let state: ZeroWidgetActivityAttributes.ContentState
+    let attributes: ZeroZeroWidgetActivityAttributes
+    let state: ZeroZeroWidgetActivityAttributes.ContentState
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {

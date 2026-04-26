@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ZeroWidgetConstants {
+public enum ZeroZeroWidgetConstants {
     /// The App Group identifier shared between the app and widget targets.
     ///
     /// The value comes from the `ZWAppGroupIdentifier` key in each target's
@@ -9,21 +9,21 @@ public enum ZeroWidgetConstants {
     /// the unedited project.yml.sample.
     public static var appGroupIdentifier: String {
         Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier") as? String
-            ?? "group.com.example.zerowidget"
+            ?? "group.com.example.zerozerowidget"
     }
 
     public static var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.example.zerowidget"
+        Bundle.main.bundleIdentifier ?? "com.example.zerozerowidget"
     }
 
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 
     public enum WidgetKinds {
-        public static let metric = "ZeroWidgetMetricWidget"
-        public static let status = "ZeroWidgetStatusWidget"
-        public static let list = "ZeroWidgetListWidget"
-        public static let progress = "ZeroWidgetProgressWidget"
+        public static let metric = "ZeroZeroWidgetMetricWidget"
+        public static let status = "ZeroZeroWidgetStatusWidget"
+        public static let list = "ZeroZeroWidgetListWidget"
+        public static let progress = "ZeroZeroWidgetProgressWidget"
 
         public static let all: [String] = [metric, status, list, progress]
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build, sign, install, and optionally launch ZeroWidgetApp on the iOS Simulator
+# Build, sign, install, and optionally launch ZeroZeroWidgetApp on the iOS Simulator
 # without requiring an Apple Developer team.
 #
 # Why this script exists (lessons from the first sim run):
@@ -34,8 +34,8 @@ set -euo pipefail
 DEVICE="${SIM_DEVICE:-iPhone 17 Pro}"
 LAUNCH=0
 BASE_URL="${ZW_BASE_URL:-}"
-APP_GROUP="group.com.example.zerowidget"
-BUNDLE_ID="com.example.zerowidget"
+APP_GROUP="group.com.example.zerozerowidget"
+BUNDLE_ID="com.example.zerozerowidget"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -64,8 +64,8 @@ open -a Simulator
 
 echo "→ building"
 xcodebuild \
-  -project ZeroWidget.xcodeproj \
-  -scheme ZeroWidgetApp \
+  -project ZeroZeroWidget.xcodeproj \
+  -scheme ZeroZeroWidgetApp \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -configuration Debug \
   -derivedDataPath build \
@@ -73,8 +73,8 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   build >/dev/null
 
-APP="build/Build/Products/Debug-iphonesimulator/ZeroWidgetApp.app"
-WIDGETEXT="$APP/PlugIns/ZeroWidgetWidgets.appex"
+APP="build/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetApp.app"
+WIDGETEXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
 
 echo "→ re-signing with sim-only entitlements (App Groups, no aps-environment)"
 SIM_ENT="$(mktemp -t zw-sim-ent).plist"

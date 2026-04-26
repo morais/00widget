@@ -2,7 +2,7 @@ import Foundation
 #if canImport(ActivityKit)
 import ActivityKit
 
-public struct ZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
+public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     public struct ContentState: Codable, Hashable, Sendable {
         public var subtitle: String?
         public var state: String
@@ -49,9 +49,9 @@ public struct ZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     }
 }
 
-public extension ZeroWidgetActivityAttributes {
-    static func from(_ session: LiveActivitySession) -> (ZeroWidgetActivityAttributes, ContentState) {
-        let attrs = ZeroWidgetActivityAttributes(
+public extension ZeroZeroWidgetActivityAttributes {
+    static func from(_ session: LiveActivitySession) -> (ZeroZeroWidgetActivityAttributes, ContentState) {
+        let attrs = ZeroZeroWidgetActivityAttributes(
             externalActivityId: session.externalActivityId,
             kind: session.kind,
             title: session.title,

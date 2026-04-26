@@ -32,7 +32,7 @@ export function makeEnv(overrides: Partial<Env> = {}): Env {
     APNS_TEAM_ID: undefined,
     APNS_KEY_ID: undefined,
     APNS_PRIVATE_KEY: undefined,
-    APNS_BUNDLE_ID: "com.example.zerowidget",
+    APNS_BUNDLE_ID: "com.example.zerozerowidget",
     APNS_ENV: "sandbox",
     ...overrides,
   };

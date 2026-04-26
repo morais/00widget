@@ -2,12 +2,12 @@ import WidgetKit
 import SwiftUI
 
 @main
-struct ZeroWidgetWidgetBundle: WidgetBundle {
+struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
     var body: some Widget {
         MetricWidget()
         StatusWidget()
         ListWidget()
         ProgressWidget()
-        ZeroWidgetLiveActivityWidget()
+        ZeroZeroWidgetLiveActivityWidget()
     }
 }

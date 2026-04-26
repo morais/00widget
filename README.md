@@ -52,7 +52,7 @@ Requires macOS with Xcode 16+, iOS 18 simulator or device, and [XcodeGen](https:
 brew install xcodegen
 cd ios
 xcodegen
-open ZeroWidget.xcodeproj
+open ZeroZeroWidget.xcodeproj
 ```
 
 In Xcode, change the bundle id and App Group to values your Apple Developer team owns (see `ios/README.md`), then run.

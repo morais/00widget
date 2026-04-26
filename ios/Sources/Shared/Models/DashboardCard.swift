@@ -90,7 +90,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
 
     private static func decodeDate(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) throws -> Date? {
         if let s = try container.decodeIfPresent(String.self, forKey: key) {
-            return ZeroWidgetDateFormat.parse(s)
+            return ZeroZeroWidgetDateFormat.parse(s)
         }
         if let t = try container.decodeIfPresent(TimeInterval.self, forKey: key) {
             return Date(timeIntervalSince1970: t)
@@ -99,7 +99,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-public enum ZeroWidgetDateFormat {
+public enum ZeroZeroWidgetDateFormat {
     public static let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
