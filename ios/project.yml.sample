@@ -2,7 +2,7 @@ name: ZeroZeroWidget
 options:
   bundleIdPrefix: com.example
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -14,7 +14,7 @@ settings:
     DEVELOPMENT_TEAM: ""                         # TODO: set to your Apple Developer Team ID
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: NO
-    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
 
 targets:
   ZeroZeroWidgetApp:

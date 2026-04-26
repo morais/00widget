@@ -19,6 +19,6 @@ struct ProgressWidget: Widget {
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryRectangular, .accessoryCircular
         ])
-        // .pushHandler(ZeroZeroWidgetPushHandler.self) — iOS 26+, see MetricWidget.swift
+        .pushHandler(ZeroZeroWidgetPushHandler.self)
     }
 }

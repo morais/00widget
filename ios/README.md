@@ -1,11 +1,11 @@
 # 00Widget — iOS
 
-SwiftUI app, WidgetKit extension, and Live Activity for iOS 18+.
+SwiftUI app, WidgetKit extension, and Live Activity for iOS 26+.
 
 ## Prerequisites
 
-- macOS with Xcode 16 or later
-- An iOS 18 simulator or a real device running iOS 18+
+- macOS with Xcode 26 or later
+- An iOS 26 simulator or a real device running iOS 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`
 - An Apple Developer account (required for App Groups, APNs, and running on device)
 
@@ -58,7 +58,7 @@ The shared Swift sources (`Sources/Shared/`) are compiled into both targets as s
 
 ## Running
 
-Pick an iOS 18 device/simulator and run the **ZeroZeroWidgetApp** scheme. On first launch:
+Pick an iOS 26 device/simulator and run the **ZeroZeroWidgetApp** scheme. On first launch:
 
 1. Go to the **Settings** tab and enter a server base URL and API key. You can also just use the **Generate sample cards** button on the Dashboard to try widgets without a backend.
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.

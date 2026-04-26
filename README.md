@@ -14,7 +14,7 @@ The server never sends UI — only structured state conforming to a small set of
 
 ```
 00widget/
-  ios/          # SwiftUI app + WidgetKit extension + Live Activity (iOS 18+)
+  ios/          # SwiftUI app + WidgetKit extension + Live Activity (iOS 26+)
   server/       # Cloudflare Worker (TypeScript) — REST API + APNs fan-out
   examples/     # curl scripts showing how any agent can publish state
 ```
@@ -46,7 +46,7 @@ cp env.example.sh env.sh         # edit BASE_URL and API_KEY
 
 ### 3. iOS
 
-Requires macOS with Xcode 16+, iOS 18 simulator or device, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Requires macOS with Xcode 26+, iOS 26 simulator or device, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```
 brew install xcodegen
@@ -108,7 +108,7 @@ Working end-to-end. Cards publish, Live Activities start/update/end, push-to-sta
 
 **Push-to-start (ActivityKit, iOS 17.2+)** — fully implemented. iOS observes `Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates` from `didFinishLaunchingWithOptions`, registers via `POST /v1/live-activities/register-start-token`. The backend's `POST /v1/live-activities/start` sends the start event to all registered devices and falls back to the pending-queue path if no token is registered (or if the APNs delivery fails). End-to-end verification needs `.p8` credentials configured on the Worker.
 
-**WidgetKit `pushHandler`** — turned out to be **iOS 26+** in the Xcode 26 SDK, not iOS 18 as the docs implied. Server-side (`sendWidgetReloadPush` with `aps.content-changed: true`) and the App-Group token bridge (`WidgetPushTokenStore`, `AppEnvironment.registerPendingWidgetTokens`) are in place. To activate, bump `IPHONEOS_DEPLOYMENT_TARGET` to `26.0` in `project.yml.sample`, write a `WidgetPushHandler` conformer that calls `WidgetPushTokenStore.record(...)`, and append `.pushHandler(YourHandler.self)` to each widget — the comment in `MetricWidget.swift` walks through it. iOS 18 fallback is timeline refresh every 15 minutes.
+**WidgetKit `pushHandler` (iOS 26+)** — fully implemented. Each widget configuration calls `.pushHandler(ZeroZeroWidgetPushHandler.self)`. The handler runs in the widget extension when iOS issues a push token, writes the per-kind token into the App-Group-shared `WidgetPushTokenStore`, and the host app picks up + registers each token via `POST /v1/widgets/register-push-token` on next launch. Backend pushes carry `aps.content-changed: true`, which iOS responds to by reloading the matching widget timelines. End-to-end verification also needs `.p8` credentials.
 
 ## License
 
