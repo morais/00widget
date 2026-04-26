@@ -104,7 +104,12 @@ Constraints:
 
 ## Status
 
-All seven milestones scaffolded. Code paths that require real APNs credentials or Apple-docs-verified payload shapes are marked `TODO(apns):` so they can be finalized against the latest ActivityKit / WidgetKit documentation.
+Working end-to-end. Cards published from any HTTP client land on iOS widgets via the deployed Worker. Live Activities can be started from the app, with backend update/end going out over APNs once the operator configures the `.p8` key.
+
+APNs payload shapes are verified against Apple's current docs (date-stamped in `server/src/apns.ts`). Two iOS-side niceties are deferred — they'd shrink update latency further but aren't required for the system to work:
+
+- **WidgetKit `pushHandler` (iOS 18+)** — server-driven widget reloads under 15 minutes. Backend already accepts the token; widget extension isn't observing yet. Timeline refresh is the fallback.
+- **ActivityKit push-to-start (iOS 17.2+)** — start a Live Activity from the server without the app polling `/pending`. Backend would send the start event itself.
 
 ## License
 

@@ -39,7 +39,9 @@ export async function startLiveActivity(
   const parsed = StartLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   await storage.putPendingActivity(env, auth.apiKeyHash, parsed.data.externalActivityId, parsed.data);
-  // TODO(apns): for v2, if we have an APNs push-to-start token, send a start event here.
+  // Future: if iOS-side push-to-start tokens (Activity.pushToStartTokenUpdates,
+  // iOS 17.2+) are observed and registered, we could send a `start` APNs push
+  // here instead of waiting for the app to discover the pending activity.
   return json({ ok: true, pending: true });
 }
 

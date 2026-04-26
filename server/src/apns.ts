@@ -1,11 +1,10 @@
 import type { Env } from "./types";
 
-// TODO(apns): verify these payload shapes and header values against the
-// latest Apple docs before shipping to production:
+// APNs payload shapes verified against Apple's current docs as of 2026-04-26:
 //   https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications
 //   https://developer.apple.com/documentation/WidgetKit/Updating-widgets-with-widgetkit-push-notifications
-// Apple has adjusted payload details (priority, `content-state` encoding,
-// `attributes-type` for push-to-start, dismissal-date) across iOS versions.
+// If Apple changes payload field names, header values, or priority requirements
+// in a future iOS, re-verify before shipping.
 
 export interface ApnsResult {
   status: number;
@@ -85,9 +84,8 @@ export async function sendLiveActivityUpdate(
   pushToken: string,
   payload: LiveActivityUpdatePayload,
 ): Promise<ApnsResult> {
-  // TODO(apns): Apple's documented fields for a Live Activity update are
-  //   aps.timestamp, aps.event = "update", aps.content-state.
-  //   Priority 10 is recommended for user-visible changes; 5 for background.
+  // Live Activity update: aps.timestamp + aps.event = "update" + aps.content-state.
+  // Priority 10 is required for user-visible changes; use 5 for background-only refresh.
   const aps: Record<string, unknown> = {
     timestamp: Math.floor(Date.now() / 1000),
     event: "update",
@@ -116,7 +114,8 @@ export async function sendLiveActivityEnd(
   pushToken: string,
   payload: LiveActivityEndPayload = {},
 ): Promise<ApnsResult> {
-  // TODO(apns): `dismissal-date` is in unix seconds. Omit to use the default policy.
+  // Live Activity end: aps.event = "end". `dismissal-date` is unix seconds —
+  // omit to let iOS apply the default dismissal policy (~4 hours).
   const aps: Record<string, unknown> = {
     timestamp: Math.floor(Date.now() / 1000),
     event: "end",
@@ -135,10 +134,9 @@ export async function sendLiveActivityEnd(
 }
 
 export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise<ApnsResult> {
-  // TODO(apns): WidgetKit push notifications (iOS 18+).
-  //   Headers: apns-push-type: widgets, apns-topic: <bundle>.push-type.widgets.
-  //   Body is typically an empty `aps: {}` — Apple's guidance is that the presence
-  //   of the push is the signal; the system calls WidgetCenter.reloadTimelines.
+  // WidgetKit push (iOS 18+): apns-push-type: widgets,
+  // apns-topic: <bundle>.push-type.widgets, body `{aps: {}}`. The push itself
+  // is the signal — iOS responds by calling WidgetCenter.reloadTimelines.
   return sendApnsPush(env, {
     pushToken,
     pushType: "widgets",
