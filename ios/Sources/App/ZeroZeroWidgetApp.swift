@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 @main
-struct ZeroWidgetApp: App {
+struct ZeroZeroWidgetApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var env = AppEnvironment()
 

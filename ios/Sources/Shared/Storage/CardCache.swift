@@ -23,7 +23,7 @@ public enum CardCache {
         d.dateDecodingStrategy = .custom { decoder in
             let c = try decoder.singleValueContainer()
             if let s = try? c.decode(String.self),
-               let date = ZeroWidgetDateFormat.parse(s) {
+               let date = ZeroZeroWidgetDateFormat.parse(s) {
                 return date
             }
             if let t = try? c.decode(TimeInterval.self) {
@@ -35,7 +35,7 @@ public enum CardCache {
     }
 
     public static func load() -> CardCachePayload {
-        guard let data = AppGroup.read(ZeroWidgetConstants.cardsCacheFilename) else {
+        guard let data = AppGroup.read(ZeroZeroWidgetConstants.cardsCacheFilename) else {
             return CardCachePayload(cards: [])
         }
         if let payload = try? jsonDecoder().decode(CardCachePayload.self, from: data) {
@@ -50,7 +50,7 @@ public enum CardCache {
     public static func save(_ cards: [DashboardCard]) throws {
         let payload = CardCachePayload(cards: cards)
         let data = try jsonEncoder().encode(payload)
-        try AppGroup.writeAtomic(data, to: ZeroWidgetConstants.cardsCacheFilename)
+        try AppGroup.writeAtomic(data, to: ZeroZeroWidgetConstants.cardsCacheFilename)
     }
 
     public static func card(withId id: String) -> DashboardCard? {
@@ -58,6 +58,6 @@ public enum CardCache {
     }
 
     public static func clear() {
-        AppGroup.delete(ZeroWidgetConstants.cardsCacheFilename)
+        AppGroup.delete(ZeroZeroWidgetConstants.cardsCacheFilename)
     }
 }

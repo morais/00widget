@@ -8,7 +8,7 @@ import os
 public final class LiveActivityController: ObservableObject {
     public static let shared = LiveActivityController()
 
-    private let log = Logger(subsystem: "com.example.zerowidget", category: "LiveActivity")
+    private let log = Logger(subsystem: "com.example.zerozerowidget", category: "LiveActivity")
 
     #if canImport(ActivityKit)
     @Published public private(set) var activeIds: [String] = []
@@ -31,7 +31,7 @@ public final class LiveActivityController: ObservableObject {
 
     #if canImport(ActivityKit)
     public func start(_ session: LiveActivitySession) async throws {
-        let (attrs, state) = ZeroWidgetActivityAttributes.from(session)
+        let (attrs, state) = ZeroZeroWidgetActivityAttributes.from(session)
         let content = ActivityContent(state: state, staleDate: session.staleAt)
         let activity = try Activity.request(attributes: attrs, content: content, pushType: .token)
         log.info("Started activity \(activity.id, privacy: .public) for \(session.externalActivityId, privacy: .public)")
@@ -40,8 +40,8 @@ public final class LiveActivityController: ObservableObject {
     }
 
     public func update(_ session: LiveActivitySession, alert: AlertConfiguration? = nil) async {
-        for activity in Activity<ZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == session.externalActivityId {
-            let (_, state) = ZeroWidgetActivityAttributes.from(session)
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == session.externalActivityId {
+            let (_, state) = ZeroZeroWidgetActivityAttributes.from(session)
             let content = ActivityContent(state: state, staleDate: session.staleAt)
             if let alert {
                 await activity.update(content, alertConfiguration: alert)
@@ -51,8 +51,8 @@ public final class LiveActivityController: ObservableObject {
         }
     }
 
-    public func end(externalActivityId: String, finalState: ZeroWidgetActivityAttributes.ContentState? = nil) async {
-        for activity in Activity<ZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == externalActivityId {
+    public func end(externalActivityId: String, finalState: ZeroZeroWidgetActivityAttributes.ContentState? = nil) async {
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == externalActivityId {
             let content = finalState.map { ActivityContent(state: $0, staleDate: nil) }
             await activity.end(content, dismissalPolicy: .default)
         }
@@ -61,7 +61,7 @@ public final class LiveActivityController: ObservableObject {
         refreshActiveIds()
     }
 
-    private func observePushToken(activity: Activity<ZeroWidgetActivityAttributes>, session: LiveActivitySession) {
+    private func observePushToken(activity: Activity<ZeroZeroWidgetActivityAttributes>, session: LiveActivitySession) {
         let externalId = session.externalActivityId
         let kind = session.kind
         let localActivityId = activity.id
@@ -103,7 +103,7 @@ public final class LiveActivityController: ObservableObject {
     }
 
     private func refreshActiveIds() {
-        activeIds = Activity<ZeroWidgetActivityAttributes>.activities.map { $0.attributes.externalActivityId }
+        activeIds = Activity<ZeroZeroWidgetActivityAttributes>.activities.map { $0.attributes.externalActivityId }
     }
     #endif
 }

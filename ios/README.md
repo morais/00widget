@@ -21,12 +21,12 @@ cp project.yml.sample project.yml
 Then edit `project.yml`:
 
 1. Change **`DEVELOPMENT_TEAM`** under `settings.base` to your Apple Developer Team ID.
-2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerowidget*` to a reverse-DNS prefix your team owns.
-3. Replace the **App Group** `group.com.example.zerowidget` with one your team owns — it appears **three times** in `project.yml`:
-   - `targets.ZeroWidgetApp.entitlements.properties.com.apple.security.application-groups`
-   - `targets.ZeroWidgetApp.info.properties.ZWAppGroupIdentifier`
-   - `targets.ZeroWidgetWidgets.entitlements.properties.com.apple.security.application-groups`
-   - `targets.ZeroWidgetWidgets.info.properties.ZWAppGroupIdentifier`
+2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerozerowidget*` to a reverse-DNS prefix your team owns.
+3. Replace the **App Group** `group.com.example.zerozerowidget` with one your team owns — it appears **three times** in `project.yml`:
+   - `targets.ZeroZeroWidgetApp.entitlements.properties.com.apple.security.application-groups`
+   - `targets.ZeroZeroWidgetApp.info.properties.ZWAppGroupIdentifier`
+   - `targets.ZeroZeroWidgetWidgets.entitlements.properties.com.apple.security.application-groups`
+   - `targets.ZeroZeroWidgetWidgets.info.properties.ZWAppGroupIdentifier`
 
    `Constants.swift` reads the App Group from `Info.plist` at runtime via the `ZWAppGroupIdentifier` key, so you don't have to edit any Swift sources.
 
@@ -34,7 +34,7 @@ Then edit `project.yml`:
 
 ```
 xcodegen
-open ZeroWidget.xcodeproj
+open ZeroZeroWidget.xcodeproj
 ```
 
 Re-run `xcodegen` any time you add/move files or change `project.yml`. The `.xcodeproj`, both `Info.plist` files, and both `.entitlements` files are gitignored — they're all regenerated from `project.yml`.
@@ -51,14 +51,14 @@ The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appi
 
 ## Targets
 
-- **ZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.
-- **ZeroWidgetWidgets** — widget extension containing four widget kinds (`Metric`, `Status`, `List`, `Progress`) and the Live Activity (`ZeroWidgetLiveActivityWidget`).
+- **ZeroZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.
+- **ZeroZeroWidgetWidgets** — widget extension containing four widget kinds (`Metric`, `Status`, `List`, `Progress`) and the Live Activity (`ZeroZeroWidgetLiveActivityWidget`).
 
 The shared Swift sources (`Sources/Shared/`) are compiled into both targets as source files rather than a framework — keeps the extension small and avoids dynamic-linking overhead.
 
 ## Running
 
-Pick an iOS 18 device/simulator and run the **ZeroWidgetApp** scheme. On first launch:
+Pick an iOS 18 device/simulator and run the **ZeroZeroWidgetApp** scheme. On first launch:
 
 1. Go to the **Settings** tab and enter a server base URL and API key. You can also just use the **Generate sample cards** button on the Dashboard to try widgets without a backend.
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.

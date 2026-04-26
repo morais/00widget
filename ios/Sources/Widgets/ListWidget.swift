@@ -2,7 +2,7 @@ import WidgetKit
 import SwiftUI
 
 struct ListWidget: Widget {
-    let kind: String = "ZeroWidgetListWidget"
+    let kind: String = "ZeroZeroWidgetListWidget"
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(

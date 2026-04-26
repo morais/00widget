@@ -6,7 +6,7 @@ import Combine
 public final class AppEnvironment: ObservableObject {
     @Published public var serverBaseURL: String {
         didSet {
-            UserDefaults.standard.set(serverBaseURL, forKey: ZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+            UserDefaults.standard.set(serverBaseURL, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
         }
     }
 
@@ -21,16 +21,16 @@ public final class AppEnvironment: ObservableObject {
 
     public init() {
         let defaults = UserDefaults.standard
-        self.serverBaseURL = defaults.string(forKey: ZeroWidgetConstants.UserDefaultsKeys.serverBaseURL) ?? ""
-        self.apiKey = KeychainStore.get(ZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
-        if let t = defaults.object(forKey: ZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
+        self.serverBaseURL = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL) ?? ""
+        self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
+        if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
         self.cards = CardCache.load().cards
     }
 
     public func saveApiKey() {
-        try? KeychainStore.set(apiKey, for: ZeroWidgetConstants.KeychainKeys.apiKey)
+        try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
     }
 
     public func apiClient() -> APIClient? {
@@ -53,7 +53,7 @@ public final class AppEnvironment: ObservableObject {
             cards = fetched
             lastSyncAt = Date()
             lastSyncError = nil
-            UserDefaults.standard.set(lastSyncAt, forKey: ZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
+            UserDefaults.standard.set(lastSyncAt, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
         } catch {
             lastSyncError = error.localizedDescription
         }

@@ -15,7 +15,7 @@ function apnsEnv() {
     APNS_TEAM_ID: "TEAMID1234",
     APNS_KEY_ID: "KEYID12345",
     APNS_PRIVATE_KEY: TEST_P8,
-    APNS_BUNDLE_ID: "com.example.zerowidget",
+    APNS_BUNDLE_ID: "com.example.zerozerowidget",
     APNS_ENV: "sandbox",
   });
 }
@@ -83,7 +83,7 @@ describe("APNs payload construction", () => {
     expect(captured).toHaveLength(1);
     const [req] = captured;
     expect(req.url).toBe("https://api.sandbox.push.apple.com/3/device/devicetokenhex");
-    expect(req.headers["apns-topic"]).toBe("com.example.zerowidget.push-type.liveactivity");
+    expect(req.headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.liveactivity");
     expect(req.headers["apns-push-type"]).toBe("liveactivity");
     expect(req.headers["apns-priority"]).toBe("10");
     expect(req.headers.authorization).toMatch(/^bearer eyJ/);
@@ -111,7 +111,7 @@ describe("APNs payload construction", () => {
 
     expect(captured).toHaveLength(1);
     expect(captured[0].headers["apns-push-type"]).toBe("widgets");
-    expect(captured[0].headers["apns-topic"]).toBe("com.example.zerowidget.push-type.widgets");
+    expect(captured[0].headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.widgets");
     expect(captured[0].body).toEqual({ aps: {} });
   });
 

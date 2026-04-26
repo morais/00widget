@@ -2,7 +2,7 @@ import WidgetKit
 import SwiftUI
 
 struct StatusWidget: Widget {
-    let kind: String = "ZeroWidgetStatusWidget"
+    let kind: String = "ZeroZeroWidgetStatusWidget"
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(

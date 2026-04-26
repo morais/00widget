@@ -44,8 +44,8 @@ npx tsc --noEmit          # typecheck (also exposed as npm run typecheck)
 npx wrangler dev          # local dev on :8787, reads .dev.vars
 
 # iOS
-cd ios && xcodegen        # produces ZeroWidget.xcodeproj
-open ZeroWidget.xcodeproj # then Run on iOS 18 device/simulator
+cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
+open ZeroZeroWidget.xcodeproj # then Run on iOS 18 device/simulator
 
 # End-to-end smoke
 cd examples && cp env.example.sh env.sh   # then edit env.sh
@@ -76,11 +76,11 @@ Two files would otherwise go dirty in every developer's working tree because the
 
 First-time setup is `cp <name>.sample <name>` and then edit. If you change anything that should apply to everyone (route paths, target structure, etc.), edit the `.sample` and copy it forward.
 
-The App Group identifier is consumed in three places in iOS, but you only edit `project.yml` — both targets' Info.plist receive `ZWAppGroupIdentifier` from `project.yml`'s `info.properties`, and `Constants.swift` reads it at runtime via `Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier")` with the `group.com.example.zerowidget` placeholder as fallback. **Don't reintroduce a hardcoded App Group string in Swift.**
+The App Group identifier is consumed in three places in iOS, but you only edit `project.yml` — both targets' Info.plist receive `ZWAppGroupIdentifier` from `project.yml`'s `info.properties`, and `Constants.swift` reads it at runtime via `Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier")` with the `group.com.example.zerozerowidget` placeholder as fallback. **Don't reintroduce a hardcoded App Group string in Swift.**
 
 Placeholder values that must stay in committed `.sample` files (and source code fallbacks):
-- Bundle id: `com.example.zerowidget`
-- App Group: `group.com.example.zerowidget`
+- Bundle id: `com.example.zerozerowidget`
+- App Group: `group.com.example.zerozerowidget`
 - Wrangler `[[kv_namespaces]] id`: `REPLACE_WITH_KV_NAMESPACE_ID`
 
 ## Simulator builds without an Apple Developer team
@@ -129,5 +129,5 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 | Layer    | Check                                                     |
 | -------- | --------------------------------------------------------- |
 | Backend  | `cd server && npx tsc --noEmit && npm test`               |
-| iOS      | `cd ios && xcodegen && xcodebuild -scheme ZeroWidgetApp -destination 'generic/platform=iOS Simulator'` (requires full Xcode, not just CLT) |
+| iOS      | `cd ios && xcodegen && xcodebuild -scheme ZeroZeroWidgetApp -destination 'generic/platform=iOS Simulator'` (requires full Xcode, not just CLT) |
 | End-to-end (push) | requires a real Apple Developer account, an APNs `.p8`, and a physical device — flag this in the PR description if it wasn't tested |
