@@ -70,7 +70,37 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - `ios/README.md` — Xcode setup, entitlements, signing.
 - `server/README.md` — Worker deploy, KV binding, APNs secrets.
 - `examples/README.md` — publishing state from any shell or agent.
+- `docs/INTEGRATION.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.
+
+## Pointing an agent at 00Widget from another project
+
+If you're inside another repo (say, a CI pipeline or a home-automation script) and want to make Claude Code / Codex publish state to your 00Widget instance, paste this into the agent — it's self-contained:
+
+```
+Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
+
+Read the integration contract: https://github.com/morais/00widget/blob/main/docs/INTEGRATION.md
+That single document is everything you need — don't pull in the rest of the 00Widget repo.
+
+Operator-supplied env vars:
+  00WIDGET_BASE_URL=https://<their-worker>.workers.dev
+  00WIDGET_API_KEY=<bearer token>
+
+Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET /v1/cards` before writing any code.
+
+Then:
+1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
+2. For each, pick a template (metric/status/progress/list/action) per INTEGRATION.md's decision matrix.
+3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable `id`. No SDK, no class hierarchy.
+4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
+
+Constraints:
+- Use a stable `id` per logical thing — never embed timestamps or run ids.
+- Never put secrets or PII in card fields. They render on the Lock Screen.
+- Always end Live Activities. Never make destructive actions auto-run from widgets.
+- Don't publish more than ~once a minute per card unless the value actually changed.
+```
 
 ## Status
 

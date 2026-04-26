@@ -1,0 +1,318 @@
+# Integrating with 00Widget
+
+You're an agent (Claude Code, Codex, etc.) working on a project that wants to **publish state to 00Widget** so it shows up on the operator's iOS widgets, Lock Screen, and Dynamic Island.
+
+This document is the entire contract you need. You do **not** need to read the rest of this repo. The 00Widget app and backend handle rendering — you just publish structured JSON.
+
+## TL;DR
+
+- Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`.
+- `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
+- Use a **stable `id`** per card so re-publishing updates instead of duplicating.
+- Pick a `template` (`metric`, `status`, `progress`, `list`, `action`) that matches the shape of the data you're surfacing.
+- Don't add a heavy SDK. A single `fetch` is enough.
+
+## Get the operator to give you
+
+| Env var              | Example                                              | Where it comes from                |
+| -------------------- | ---------------------------------------------------- | ---------------------------------- |
+| `00WIDGET_BASE_URL`  | `https://<their-worker>.<their-account>.workers.dev` | The operator's deployed Worker URL |
+| `00WIDGET_API_KEY`   | a long random string                                 | One entry in the Worker's `API_KEYS` secret |
+
+Verify both before doing anything else:
+
+```sh
+curl -s "$00WIDGET_BASE_URL/health"
+# → {"ok":true}
+
+curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/cards"
+# → {"cards":[...]}    (200, possibly empty)
+# → {"error":"invalid API key"}   (401, key is wrong)
+```
+
+If `/health` returns 200 but `/v1/cards` returns 401, the URL is right and the key is wrong. Ask the operator for the correct key — don't try to guess.
+
+## Data model
+
+A **DashboardCard** is one tile on a widget. Wire format:
+
+```json
+{
+  "id": "string (stable per logical thing)",
+  "template": "metric | status | progress | list | action | timer",
+  "title": "string",
+  "subtitle": "string?",
+  "value": "string?",
+  "unit": "string?",
+  "status": "unknown | good | warning | critical | running | finished | paused | offline",
+  "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
+  "updatedAt": "ISO-8601 string? (server fills in if omitted)",
+  "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
+  "deepLink": "URL? (tapping the card opens this in the iOS app)",
+  "items": "DashboardItem[]? (only for template=list)",
+  "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
+}
+```
+
+**DashboardItem** (rows inside a `list` card):
+
+```json
+{
+  "id": "string",
+  "title": "string",
+  "subtitle": "string?",
+  "value": "string?",
+  "unit": "string?",
+  "status": "DashboardStatus?"
+}
+```
+
+**ActionDefinition** (buttons on an `action` card):
+
+```json
+{
+  "id": "string",
+  "label": "string",
+  "role": "normal | destructive (default: normal)",
+  "confirm": "boolean (default: false)",
+  "payload": "Record<string,string>? (server-side context, not shown)"
+}
+```
+
+Only `role: normal` + `confirm: false` actions can run from widgets. Anything else routes through the iOS app for confirmation. Don't make destructive actions auto-runnable.
+
+## Choosing a template
+
+Pick one based on the *shape* of the data, not the domain:
+
+| Source feels like…                    | Template   | Required fields                            |
+| ------------------------------------- | ---------- | ------------------------------------------ |
+| One headline number                   | `metric`   | `title`, `value`, usually `unit`, `status` |
+| A state badge with a short subtitle   | `status`   | `title`, `status`, `subtitle`              |
+| Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
+| 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
+| One or more buttons                   | `action`   | `title`, `actions[]`                       |
+| A countdown                           | `timer`    | `title`, `value` (target ISO date)         |
+
+If unsure, default to `status` — it degrades gracefully on every widget size.
+
+## Publishing a card
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "id": "build-status",
+    "template": "status",
+    "title": "Build",
+    "subtitle": "main is green",
+    "status": "good",
+    "icon": "checkmark.seal"
+  }'
+```
+
+200 with `{ "card": {...} }` means it landed. Re-POST with the same `id` to update — there's no separate update endpoint and no need to delete first.
+
+### Stable ids
+
+The `id` field is the dedupe key. Pick a slug that's stable across runs of your code:
+
+- `solar-home`, `washer-cycle`, `car-charge`, `school-balance-<child>`, `build-status-<repo>`
+- **Don't** put timestamps or run ids in there — every publish would create a new card.
+- **Do** namespace if you might collide with another integration: `myapp-build-status` rather than `build-status`.
+
+## Live Activities
+
+Use a Live Activity instead of a card when:
+
+- The thing has a **defined start and end** (a charge cycle, a build, a delivery, a meeting, a job).
+- The user benefits from seeing it on the Lock Screen / Dynamic Island while it's happening.
+- It will end on its own within ~hours.
+
+Otherwise, stick with cards — they're cheaper and don't compete for screen real estate.
+
+### Start (queue a pending activity)
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "externalActivityId": "ci-build-2026-04-26-1234",
+    "kind": "job",
+    "title": "CI build #1234",
+    "subtitle": "running tests",
+    "state": "running",
+    "progress": 0.2,
+    "staleAt": "2026-04-26T19:00:00Z"
+  }'
+```
+
+The iOS app polls `/v1/live-activities/pending` and starts the activity locally on the device. Once it starts, it registers a per-activity APNs push token with the backend, which is how subsequent updates reach the device.
+
+### Update
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "externalActivityId": "ci-build-2026-04-26-1234",
+    "state": "running",
+    "subtitle": "linting",
+    "progress": 0.6
+  }'
+```
+
+Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly.
+
+### End
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/end" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "externalActivityId": "ci-build-2026-04-26-1234",
+    "finalTitle": "CI build #1234",
+    "finalSubtitle": "passed in 4m 12s",
+    "finalState": "finished"
+  }'
+```
+
+Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
+
+## Actions
+
+If your card has buttons, define them as `actions` on the card:
+
+```json
+{
+  "id": "boiler",
+  "template": "action",
+  "title": "Boiler",
+  "subtitle": "Manual override",
+  "value": "Ready",
+  "status": "good",
+  "icon": "flame",
+  "actions": [
+    { "id": "boiler-boost-1h", "label": "Boost 1h" }
+  ]
+}
+```
+
+When the user taps the button, your project's webhook (configured by the operator) receives a `POST` to `/v1/actions/<actionId>/run` with body:
+
+```json
+{ "source": "widget|app|external", "context": { "cardId": "boiler" } }
+```
+
+In v1 the backend just logs and returns 200 — wiring action ids to your project's webhooks is something the operator does on the backend. Until then, treat actions as fire-and-forget visual buttons.
+
+## Errors
+
+- `401 {"error":"..."}` — bad or missing bearer token. Don't retry with the same key.
+- `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
+- `404` — endpoint or card id doesn't exist.
+- `5xx` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
+
+The API never returns secrets in errors and is safe to log.
+
+## Snippets
+
+### TypeScript / JavaScript (Node, Bun, Workers, browser)
+
+```ts
+async function upsertCard(card: Record<string, unknown>) {
+  const res = await fetch(`${process.env.WIDGET_BASE_URL}/v1/cards/upsert`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.WIDGET_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(card),
+  });
+  if (!res.ok) throw new Error(`upsert failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+await upsertCard({
+  id: "build-status",
+  template: "status",
+  title: "Build",
+  subtitle: "main is green",
+  status: "good",
+  icon: "checkmark.seal",
+});
+```
+
+### Python
+
+```py
+import os, requests
+
+def upsert_card(card):
+    r = requests.post(
+        f"{os.environ['WIDGET_BASE_URL']}/v1/cards/upsert",
+        headers={"Authorization": f"Bearer {os.environ['WIDGET_API_KEY']}"},
+        json=card,
+        timeout=10,
+    )
+    r.raise_for_status()
+    return r.json()
+```
+
+### Go
+
+```go
+func UpsertCard(card map[string]any) error {
+    body, _ := json.Marshal(card)
+    req, _ := http.NewRequest("POST", baseURL+"/v1/cards/upsert", bytes.NewReader(body))
+    req.Header.Set("Authorization", "Bearer "+apiKey)
+    req.Header.Set("Content-Type", "application/json")
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil { return err }
+    defer resp.Body.Close()
+    if resp.StatusCode >= 300 { return fmt.Errorf("upsert: %d", resp.StatusCode) }
+    return nil
+}
+```
+
+### Swift (host app, not the 00Widget app)
+
+```swift
+struct WidgetClient {
+    let baseURL: URL
+    let apiKey: String
+
+    func upsert(_ card: [String: Any]) async throws {
+        var req = URLRequest(url: baseURL.appendingPathComponent("/v1/cards/upsert"))
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: card)
+        let (_, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+    }
+}
+```
+
+## Don'ts
+
+- **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
+- **Don't** create a new card id per publish. Re-use the same `id` to update.
+- **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
+- **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
+- **Don't** make destructive actions auto-run from widgets. Set `confirm: true` or `role: destructive` and let the iOS app handle confirmation.
+- **Don't** publish more than ~once a minute per card unless the value genuinely changed. Each publish triggers a widget reload via APNs.
+
+## Where to look for more
+
+- The full public API surface is documented in [`server/README.md`](../server/README.md).
+- The data model in TypeScript (zod) lives at [`server/src/types.ts`](../server/src/types.ts).
+- The same model in Swift (for reference) lives at [`ios/Sources/Shared/Models/`](../ios/Sources/Shared/Models/).
+
+If you're integrating from a project that doesn't have an obvious place to call from, prefer the smallest possible code path: a single function that builds the card JSON and POSTs it. Resist the urge to wrap this in a class hierarchy.
