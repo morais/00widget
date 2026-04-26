@@ -19,8 +19,10 @@ struct MetricWidget: Widget {
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
         ])
-        // TODO(apns): iOS 18+ supports WidgetConfiguration.pushHandler for WidgetKit push notifications.
-        // Wire pushHandler here once backend token registration is ready in production.
+        // Future: WidgetConfiguration.pushHandler (iOS 18+) for sub-15-minute
+        // server-driven reloads. Backend already accepts the token at
+        // /v1/widgets/register-push-token; iOS-side observation isn't wired yet.
+        // Until then, timeline refreshes (every 15min) are the update path.
     }
 }
 
