@@ -3,7 +3,10 @@
 The official brand assets and usage rules.
 
 <p align="center">
-  <img src="./wordmark-horizontal.png" alt="00Widget — Widgets for all your agents." width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./wordmark-horizontal-dark.svg">
+    <img src="./wordmark-horizontal.svg" alt="00Widget — Widgets for all your agents." width="640">
+  </picture>
 </p>
 
 ## Tagline
@@ -22,9 +25,10 @@ Use this exact wording — no rephrasing. It appears in:
 | ------------------------------- | ---------- | ----------- | ------------------------------------- |
 | `mark-1024.png`                 | 1024×1024  | Opaque      | iOS App Icon (no transparency allowed). Already wired into `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. |
 | `mark-transparent-1024.png`     | 1024×1024  | Transparent | Mark on arbitrary backgrounds — buttons, badges, dark headers. |
-| `wordmark-horizontal.png`       | 2400×800   | Transparent | Horizontal lockup of icon + "00Widget" + tagline. README hero, social cards, navigation lockups. |
+| `wordmark-horizontal.png`       | 2400×800   | Transparent | Horizontal lockup of icon + "00Widget" + tagline. PNG fallback for environments that don't render SVG (Slack, email, OG-image previewers). |
 | `mark.svg` / `mark-transparent.svg` | vector | —           | Source of truth for the icon. Re-export raster sizes from these. |
-| `wordmark.svg` / `wordmark-horizontal.svg` | vector | —    | Source of truth for the lockup. |
+| `wordmark.svg` / `wordmark-horizontal.svg` | vector | —    | Source of truth for the lockup (light-mode text). README hero. |
+| `wordmark-horizontal-dark.svg`  | vector     | —           | Dark-mode variant of the horizontal lockup — light text colors so it stays legible on GitHub dark theme. Paired with the light SVG via `<picture media="(prefers-color-scheme: dark)">`. |
 | `branding-sheet.png`            | 1536×1024  | —           | Reference contact sheet showing all variants together. |
 
 ## Color palette
