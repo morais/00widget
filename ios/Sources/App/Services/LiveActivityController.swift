@@ -13,11 +13,13 @@ public final class LiveActivityController: ObservableObject {
     #if canImport(ActivityKit)
     @Published public private(set) var activeIds: [String] = []
     private var pushTokenTasks: [String: Task<Void, Never>] = [:]
+    private var pushToStartTask: Task<Void, Never>?
     #endif
 
     public init() {
         #if canImport(ActivityKit)
         refreshActiveIds()
+        observePushToStartToken()
         #endif
     }
 
@@ -104,6 +106,36 @@ public final class LiveActivityController: ObservableObject {
 
     private func refreshActiveIds() {
         activeIds = Activity<ZeroZeroWidgetActivityAttributes>.activities.map { $0.attributes.externalActivityId }
+    }
+
+    /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes (iOS 17.2+).
+    /// One token represents the device's ability to be sent a `start` APNs event for
+    /// this attribute type — the backend uses it to start a Live Activity without
+    /// the app needing to be open. Tokens fire on first launch after install/reboot.
+    private func observePushToStartToken() {
+        pushToStartTask?.cancel()
+        pushToStartTask = Task { [weak self] in
+            for await tokenData in Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates {
+                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                self?.log.info("push-to-start token received")
+                await self?.registerStartToken(pushToken: hex)
+            }
+        }
+    }
+
+    private func registerStartToken(pushToken: String) async {
+        guard let config = APIClientConfig.fromSettings() else { return }
+        let client = APIClient(config: config)
+        let deviceId = DeviceRegistration.deviceId()
+        do {
+            try await client.registerLiveActivityStartToken(
+                deviceId: deviceId,
+                attributesType: "ZeroZeroWidgetActivityAttributes",
+                pushToken: pushToken
+            )
+        } catch {
+            log.error("Failed to register start token: \(error.localizedDescription, privacy: .public)")
+        }
     }
     #endif
 }

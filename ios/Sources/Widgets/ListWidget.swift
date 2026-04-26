@@ -16,6 +16,7 @@ struct ListWidget: Widget {
         .configurationDisplayName("List")
         .description("Show the list of items of a 00Widget card.")
         .supportedFamilies([.systemMedium, .systemLarge])
+        // .pushHandler(ZeroZeroWidgetPushHandler.self) — iOS 26+, see MetricWidget.swift
     }
 }
 

@@ -19,10 +19,14 @@ struct MetricWidget: Widget {
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
         ])
-        // Future: WidgetConfiguration.pushHandler (iOS 18+) for sub-15-minute
-        // server-driven reloads. Backend already accepts the token at
-        // /v1/widgets/register-push-token; iOS-side observation isn't wired yet.
-        // Until then, timeline refreshes (every 15min) are the update path.
+        // To enable WidgetKit push: bump deployment target to iOS 26.0, then
+        // (a) add a struct conforming to WidgetPushHandler that calls
+        //     WidgetPushTokenStore.record(widgetKind:pushToken:) for each
+        //     token it receives, and (b) append .pushHandler(YourHandler.self)
+        // here. The backend (sendWidgetReloadPush) and the App-Group token
+        // bridge (WidgetPushTokenStore + AppEnvironment.registerPendingWidget-
+        // Tokens) are already in place — only the call site is SDK-gated.
+        // The iOS 18 fallback is timeline refresh every 15 minutes.
     }
 }
 

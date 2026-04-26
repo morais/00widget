@@ -93,7 +93,7 @@ describe("APNs payload construction", () => {
     expect(body.aps["content-state"].state).toBe("running");
   });
 
-  it("widget reload push uses widgets push-type and empty aps", async () => {
+  it("widget reload push uses widgets push-type and content-changed: true", async () => {
     __resetApnsJwtCache();
     const captured: CapturedRequest[] = [];
     const fetcher = capturingFetch(captured);
@@ -105,14 +105,45 @@ describe("APNs payload construction", () => {
       pushType: "widgets",
       topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
       priority: 5,
-      payload: { aps: {} },
+      payload: { aps: { "content-changed": true } },
       fetcher,
     });
 
     expect(captured).toHaveLength(1);
     expect(captured[0].headers["apns-push-type"]).toBe("widgets");
     expect(captured[0].headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.widgets");
-    expect(captured[0].body).toEqual({ aps: {} });
+    expect(captured[0].body).toEqual({ aps: { "content-changed": true } });
+  });
+
+  it("live activity start: includes attributes-type, attributes, content-state", async () => {
+    __resetApnsJwtCache();
+    const captured: CapturedRequest[] = [];
+    const fetcher = capturingFetch(captured);
+    const env = apnsEnv();
+    const { sendApnsPush } = await import("../src/apns");
+
+    await sendApnsPush(env, {
+      pushToken: "starttokenhex",
+      pushType: "liveactivity",
+      topic: `${env.APNS_BUNDLE_ID}.push-type.liveactivity`,
+      priority: 10,
+      payload: {
+        aps: {
+          timestamp: 1_700_000_000,
+          event: "start",
+          "attributes-type": "ZeroZeroWidgetActivityAttributes",
+          attributes: { externalActivityId: "abc", kind: "appliance", title: "Washer" },
+          "content-state": { state: "running", updatedAt: "2026-04-26T08:00:00Z" },
+        },
+      },
+      fetcher,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0].body as { aps: { event: string; "attributes-type": string; attributes: { kind: string } } };
+    expect(body.aps.event).toBe("start");
+    expect(body.aps["attributes-type"]).toBe("ZeroZeroWidgetActivityAttributes");
+    expect(body.aps.attributes.kind).toBe("appliance");
   });
 
   it("exposes live activity end helper with event=end and optional dismissal-date", () => {

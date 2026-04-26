@@ -111,6 +111,20 @@ public final class APIClient {
         let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register", body: body)
     }
 
+    public func registerLiveActivityStartToken(
+        deviceId: String,
+        attributesType: String,
+        pushToken: String
+    ) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let attributesType: String
+            let pushToken: String
+        }
+        let body = Body(deviceId: deviceId, attributesType: attributesType, pushToken: pushToken)
+        let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register-start-token", body: body)
+    }
+
     public func pendingActivities() async throws -> [LiveActivitySession] {
         let resp: PendingActivitiesResponse = try await request("GET", path: "/v1/live-activities/pending")
         return resp.activities
