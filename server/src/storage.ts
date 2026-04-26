@@ -9,6 +9,8 @@ export const keys = {
   activity: (hash: string, externalId: string) => `activity:${hash}:${externalId}`,
   pendingActivity: (hash: string, externalId: string) =>
     `pending-activity:${hash}:${externalId}`,
+  startToken: (hash: string, deviceId: string, attributesType: string) =>
+    `start-token:${hash}:${deviceId}:${attributesType}`,
 };
 
 export interface DeviceRecord {
@@ -129,6 +131,36 @@ export async function putPendingActivity(
   record: unknown,
 ): Promise<void> {
   await env.ZW_KV.put(keys.pendingActivity(hash, externalId), JSON.stringify(record));
+}
+
+export async function putStartToken(
+  env: Env,
+  hash: string,
+  deviceId: string,
+  attributesType: string,
+  pushToken: string,
+): Promise<void> {
+  await env.ZW_KV.put(keys.startToken(hash, deviceId, attributesType), pushToken);
+}
+
+export async function listStartTokens(
+  env: Env,
+  hash: string,
+  attributesType: string,
+): Promise<string[]> {
+  const prefix = `start-token:${hash}:`;
+  const tokens: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.ZW_KV.list({ prefix, cursor });
+    for (const k of page.keys) {
+      if (!k.name.endsWith(`:${attributesType}`)) continue;
+      const token = await env.ZW_KV.get(k.name);
+      if (token) tokens.push(token);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return tokens;
 }
 
 export async function listPendingActivities(env: Env, hash: string): Promise<unknown[]> {

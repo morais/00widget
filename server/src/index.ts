@@ -30,6 +30,9 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/live-activities\/register\/?$/, (req, env, auth) =>
     liveActivities.registerLiveActivity(req, env, auth),
   ),
+  authed("POST", /^\/v1\/live-activities\/register-start-token\/?$/, (req, env, auth) =>
+    liveActivities.registerLiveActivityStartToken(req, env, auth),
+  ),
   authed("POST", /^\/v1\/live-activities\/start\/?$/, (req, env, auth) =>
     liveActivities.startLiveActivity(req, env, auth),
   ),

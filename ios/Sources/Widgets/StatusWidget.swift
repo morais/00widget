@@ -19,5 +19,6 @@ struct StatusWidget: Widget {
             .systemSmall, .systemMedium,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
         ])
+        // .pushHandler(ZeroZeroWidgetPushHandler.self) — iOS 26+, see MetricWidget.swift
     }
 }

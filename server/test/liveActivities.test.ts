@@ -93,4 +93,62 @@ describe("live activities", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("registers a push-to-start token and reports it on /start", async () => {
+    const env = makeEnv();
+
+    const reg = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register-start-token", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "dev-1",
+          attributesType: "ZeroZeroWidgetActivityAttributes",
+          pushToken: "startbeef",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(reg.status).toBe(200);
+
+    const start = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-2",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(start.status).toBe(200);
+    const body = (await start.json()) as { pushToStartAttempted: number; apnsResults: unknown[] };
+    // We have 1 token registered, so /start tries to push-start it once
+    // (and falls back to apns-not-configured because no .p8 in tests).
+    expect(body.pushToStartAttempted).toBe(1);
+    expect(body.apnsResults).toHaveLength(1);
+  });
+
+  it("falls back to pending-only when no start tokens are registered", async () => {
+    const env = makeEnv();
+    const start = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-3",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(start.status).toBe(200);
+    const body = (await start.json()) as { pushToStartAttempted: number };
+    expect(body.pushToStartAttempted).toBe(0);
+  });
 });

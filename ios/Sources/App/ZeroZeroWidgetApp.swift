@@ -12,6 +12,7 @@ struct ZeroZeroWidgetApp: App {
                 .environmentObject(env)
                 .onAppear {
                     delegate.env = env
+                    Task { await env.registerPendingWidgetTokens() }
                 }
         }
     }
@@ -24,6 +25,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Touch the singleton early so its push-to-start observer is established
+        // in didFinishLaunchingWithOptions — Apple's docs say tokens only fire
+        // when observation is set up this early in the launch lifecycle.
+        Task { @MainActor in _ = LiveActivityController.shared }
         return true
     }
 

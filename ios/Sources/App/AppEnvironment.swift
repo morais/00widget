@@ -102,6 +102,28 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Picks up widget push tokens that the widget extension recorded into the
+    /// shared App Group file (via `WidgetPushHandler`), and registers each with
+    /// the backend. Re-registration is idempotent on the server, so we don't
+    /// bother tracking which tokens have been sent before.
+    public func registerPendingWidgetTokens() async {
+        guard let client = apiClient() else { return }
+        let entries = WidgetPushTokenStore.load()
+        guard !entries.isEmpty else { return }
+        let deviceId = DeviceRegistration.deviceId()
+        for entry in entries {
+            do {
+                try await client.registerWidgetPushToken(
+                    deviceId: deviceId,
+                    widgetKind: entry.widgetKind,
+                    widgetPushToken: entry.pushToken
+                )
+            } catch {
+                lastSyncError = "widget token register: \(error.localizedDescription)"
+            }
+        }
+    }
+
     public func testConnection() async -> Bool {
         guard let client = apiClient() else { return false }
         return (try? await client.health()) == true

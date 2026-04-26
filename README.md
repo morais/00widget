@@ -104,12 +104,11 @@ Constraints:
 
 ## Status
 
-Working end-to-end. Cards published from any HTTP client land on iOS widgets via the deployed Worker. Live Activities can be started from the app, with backend update/end going out over APNs once the operator configures the `.p8` key.
+Working end-to-end. Cards publish, Live Activities start/update/end, push-to-start is wired, and APNs payloads are verified against Apple's current docs (date-stamped in `server/src/apns.ts`).
 
-APNs payload shapes are verified against Apple's current docs (date-stamped in `server/src/apns.ts`). Two iOS-side niceties are deferred — they'd shrink update latency further but aren't required for the system to work:
+**Push-to-start (ActivityKit, iOS 17.2+)** — fully implemented. iOS observes `Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates` from `didFinishLaunchingWithOptions`, registers via `POST /v1/live-activities/register-start-token`. The backend's `POST /v1/live-activities/start` sends the start event to all registered devices and falls back to the pending-queue path if no token is registered (or if the APNs delivery fails). End-to-end verification needs `.p8` credentials configured on the Worker.
 
-- **WidgetKit `pushHandler` (iOS 18+)** — server-driven widget reloads under 15 minutes. Backend already accepts the token; widget extension isn't observing yet. Timeline refresh is the fallback.
-- **ActivityKit push-to-start (iOS 17.2+)** — start a Live Activity from the server without the app polling `/pending`. Backend would send the start event itself.
+**WidgetKit `pushHandler`** — turned out to be **iOS 26+** in the Xcode 26 SDK, not iOS 18 as the docs implied. Server-side (`sendWidgetReloadPush` with `aps.content-changed: true`) and the App-Group token bridge (`WidgetPushTokenStore`, `AppEnvironment.registerPendingWidgetTokens`) are in place. To activate, bump `IPHONEOS_DEPLOYMENT_TARGET` to `26.0` in `project.yml.sample`, write a `WidgetPushHandler` conformer that calls `WidgetPushTokenStore.record(...)`, and append `.pushHandler(YourHandler.self)` to each widget — the comment in `MetricWidget.swift` walks through it. iOS 18 fallback is timeline refresh every 15 minutes.
 
 ## License
 

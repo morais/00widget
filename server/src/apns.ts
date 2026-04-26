@@ -103,6 +103,42 @@ export async function sendLiveActivityUpdate(
   });
 }
 
+export interface LiveActivityStartPayload {
+  attributesType: string;
+  attributes: Record<string, unknown>;
+  contentState: Record<string, unknown>;
+  staleAt?: string;
+  alert?: { title: string; body?: string };
+}
+
+export async function sendLiveActivityStart(
+  env: Env,
+  pushToken: string,
+  payload: LiveActivityStartPayload,
+): Promise<ApnsResult> {
+  // Push-to-start (iOS 17.2+): aps.event = "start" + attributes-type + attributes
+  // + content-state. The token comes from Activity<Attrs>.pushToStartTokenUpdates
+  // and is per-attribute-type (one token represents the ability to start any
+  // instance of that ActivityAttributes).
+  const aps: Record<string, unknown> = {
+    timestamp: Math.floor(Date.now() / 1000),
+    event: "start",
+    "attributes-type": payload.attributesType,
+    attributes: payload.attributes,
+    "content-state": payload.contentState,
+  };
+  if (payload.staleAt) aps["stale-date"] = Math.floor(new Date(payload.staleAt).getTime() / 1000);
+  if (payload.alert) aps.alert = payload.alert;
+
+  return sendApnsPush(env, {
+    pushToken,
+    pushType: "liveactivity",
+    topic: `${env.APNS_BUNDLE_ID}.push-type.liveactivity`,
+    priority: 10,
+    payload: { aps },
+  });
+}
+
 export interface LiveActivityEndPayload {
   finalContentState?: Record<string, unknown>;
   dismissalDate?: string;
@@ -135,14 +171,14 @@ export async function sendLiveActivityEnd(
 
 export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise<ApnsResult> {
   // WidgetKit push (iOS 18+): apns-push-type: widgets,
-  // apns-topic: <bundle>.push-type.widgets, body `{aps: {}}`. The push itself
-  // is the signal — iOS responds by calling WidgetCenter.reloadTimelines.
+  // apns-topic: <bundle>.push-type.widgets. Apple's docs require
+  // `aps.content-changed: true` to signal that timelines should reload.
   return sendApnsPush(env, {
     pushToken,
     pushType: "widgets",
     topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
     priority: 5,
-    payload: { aps: {} },
+    payload: { aps: { "content-changed": true } },
   });
 }
 

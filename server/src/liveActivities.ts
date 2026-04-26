@@ -1,15 +1,24 @@
 import type { Env } from "./types";
 import {
   RegisterLiveActivitySchema,
+  RegisterLiveActivityStartTokenSchema,
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
   EndLiveActivitySchema,
 } from "./types";
 import * as storage from "./storage";
-import { sendLiveActivityUpdate, sendLiveActivityEnd } from "./apns";
+import {
+  sendLiveActivityStart,
+  sendLiveActivityUpdate,
+  sendLiveActivityEnd,
+} from "./apns";
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
+
+// The Swift attributes type the iOS app declares. iOS 18+ rejects start
+// pushes whose attributes-type doesn't match a registered ActivityAttributes.
+const DEFAULT_ATTRIBUTES_TYPE = "ZeroZeroWidgetActivityAttributes";
 
 export async function registerLiveActivity(
   req: Request,
@@ -30,6 +39,19 @@ export async function registerLiveActivity(
   return json({ ok: true });
 }
 
+export async function registerLiveActivityStartToken(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  const body = await parseJson(req);
+  const parsed = RegisterLiveActivityStartTokenSchema.safeParse(body);
+  if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const d = parsed.data;
+  await storage.putStartToken(env, auth.apiKeyHash, d.deviceId, d.attributesType, d.pushToken);
+  return json({ ok: true });
+}
+
 export async function startLiveActivity(
   req: Request,
   env: Env,
@@ -38,11 +60,51 @@ export async function startLiveActivity(
   const body = await parseJson(req);
   const parsed = StartLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
-  await storage.putPendingActivity(env, auth.apiKeyHash, parsed.data.externalActivityId, parsed.data);
-  // Future: if iOS-side push-to-start tokens (Activity.pushToStartTokenUpdates,
-  // iOS 17.2+) are observed and registered, we could send a `start` APNs push
-  // here instead of waiting for the app to discover the pending activity.
-  return json({ ok: true, pending: true });
+  const d = parsed.data;
+
+  // Try push-to-start first. If any device has registered a start token for
+  // ZeroZeroWidgetActivityAttributes, send the start event over APNs.
+  const startTokens = await storage.listStartTokens(env, auth.apiKeyHash, DEFAULT_ATTRIBUTES_TYPE);
+  const apnsResults: unknown[] = [];
+  if (startTokens.length > 0) {
+    const attributes: Record<string, unknown> = {
+      externalActivityId: d.externalActivityId,
+      kind: d.kind,
+      title: d.title,
+    };
+    if (d.deepLink) attributes.deepLink = d.deepLink;
+
+    const contentState: Record<string, unknown> = {
+      state: d.state,
+      updatedAt: new Date().toISOString(),
+    };
+    if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
+    if (d.value !== undefined) contentState.value = d.value;
+    if (d.unit !== undefined) contentState.unit = d.unit;
+    if (d.progress !== undefined) contentState.progress = d.progress;
+    if (d.staleAt) contentState.staleAt = d.staleAt;
+
+    for (const token of startTokens) {
+      const result = await sendLiveActivityStart(env, token, {
+        attributesType: DEFAULT_ATTRIBUTES_TYPE,
+        attributes,
+        contentState,
+        staleAt: d.staleAt,
+      });
+      apnsResults.push(result);
+    }
+  }
+
+  // Always also queue as pending so the app can discover and start it locally
+  // (push-to-start delivery isn't guaranteed; pending is the durable fallback).
+  await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, d);
+
+  return json({
+    ok: true,
+    pending: true,
+    pushToStartAttempted: startTokens.length,
+    apnsResults,
+  });
 }
 
 export async function pendingActivities(

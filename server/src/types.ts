@@ -81,6 +81,12 @@ export const RegisterLiveActivitySchema = z.object({
   pushToken: z.string().min(1),
 });
 
+export const RegisterLiveActivityStartTokenSchema = z.object({
+  deviceId: z.string().min(1),
+  attributesType: z.string().min(1),
+  pushToken: z.string().min(1),
+});
+
 export const StartLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1),
   kind: LiveActivityKindSchema,
@@ -134,6 +140,7 @@ export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
 export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>;
 export type RegisterWidgetPushToken = z.infer<typeof RegisterWidgetPushTokenSchema>;
 export type RegisterLiveActivity = z.infer<typeof RegisterLiveActivitySchema>;
+export type RegisterLiveActivityStartToken = z.infer<typeof RegisterLiveActivityStartTokenSchema>;
 export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
