@@ -61,6 +61,7 @@ export async function startLiveActivity(
   const parsed = StartLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
+  const now = new Date().toISOString();
 
   // Try push-to-start first. If any device has registered a start token for
   // ZeroZeroWidgetActivityAttributes, send the start event over APNs.
@@ -76,7 +77,7 @@ export async function startLiveActivity(
 
     const contentState: Record<string, unknown> = {
       state: d.state,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
     if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
     if (d.value !== undefined) contentState.value = d.value;
@@ -97,7 +98,11 @@ export async function startLiveActivity(
 
   // Always also queue as pending so the app can discover and start it locally
   // (push-to-start delivery isn't guaranteed; pending is the durable fallback).
-  await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, d);
+  await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, {
+    ...d,
+    startedAt: now,
+    updatedAt: now,
+  });
 
   return json({
     ok: true,
