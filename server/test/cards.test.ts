@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
 import { DashboardCardSchema } from "../src/types";
+import { sha256Hex } from "../src/auth";
 import { makeEnv, authedRequest } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
@@ -89,6 +90,29 @@ describe("cards endpoints", () => {
     );
     const data2 = (await list2.json()) as { cards: unknown[] };
     expect(data2.cards).toHaveLength(0);
+  });
+
+  it("lists cards by storage prefix instead of relying on the legacy index", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await env.ZW_KV.put(
+      `card:${hash}:unindexed`,
+      JSON.stringify({
+        id: "unindexed",
+        template: "status",
+        title: "Unindexed",
+        status: "good",
+      }),
+    );
+
+    const list = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(list.status).toBe(200);
+    const data = (await list.json()) as { cards: Array<{ id: string }> };
+    expect(data.cards.map((c) => c.id)).toContain("unindexed");
   });
 
   it("health is public", async () => {

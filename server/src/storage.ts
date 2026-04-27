@@ -36,12 +36,6 @@ export interface PendingActivityRecord extends StartLiveActivity {
 
 export async function putCard(env: Env, hash: string, card: DashboardCard): Promise<void> {
   await env.ZW_KV.put(keys.card(hash, card.id), JSON.stringify(card));
-  const indexRaw = await env.ZW_KV.get(keys.cardsIndex(hash));
-  const ids: string[] = indexRaw ? JSON.parse(indexRaw) : [];
-  if (!ids.includes(card.id)) {
-    ids.push(card.id);
-    await env.ZW_KV.put(keys.cardsIndex(hash), JSON.stringify(ids));
-  }
 }
 
 export async function getCard(env: Env, hash: string, id: string): Promise<DashboardCard | null> {
@@ -51,16 +45,18 @@ export async function getCard(env: Env, hash: string, id: string): Promise<Dashb
 }
 
 export async function listCards(env: Env, hash: string): Promise<DashboardCard[]> {
-  const indexRaw = await env.ZW_KV.get(keys.cardsIndex(hash));
-  if (!indexRaw) return [];
-  const ids: string[] = JSON.parse(indexRaw);
-  const cards = await Promise.all(
-    ids.map(async (id) => {
-      const raw = await env.ZW_KV.get(keys.card(hash, id));
-      return raw ? (JSON.parse(raw) as DashboardCard) : null;
-    }),
-  );
-  return cards.filter((c): c is DashboardCard => c !== null);
+  const prefix = `card:${hash}:`;
+  const cards: DashboardCard[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.ZW_KV.list({ prefix, cursor });
+    for (const k of page.keys) {
+      const raw = await env.ZW_KV.get(k.name);
+      if (raw) cards.push(JSON.parse(raw) as DashboardCard);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return cards;
 }
 
 export async function deleteCard(env: Env, hash: string, id: string): Promise<void> {
