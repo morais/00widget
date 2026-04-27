@@ -23,7 +23,6 @@ targets:
     sources:
       - path: Sources/App
       - path: Sources/Shared
-    resources:
       - path: Resources/App/Assets.xcassets
     info:
       path: Resources/App/Info.plist
@@ -60,7 +59,6 @@ targets:
     sources:
       - path: Sources/Widgets
       - path: Sources/Shared
-    resources:
       - path: Resources/Widgets/Assets.xcassets
     info:
       path: Resources/Widgets/Info.plist
