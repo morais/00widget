@@ -22,7 +22,7 @@ Then edit `project.yml`:
 
 1. Change **`DEVELOPMENT_TEAM`** under `settings.base` to your Apple Developer Team ID.
 2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerozerowidget*` to a reverse-DNS prefix your team owns.
-3. Replace the **App Group** `group.com.example.zerozerowidget` with one your team owns — it appears **three times** in `project.yml`:
+3. Replace the **App Group** `group.com.example.zerozerowidget` with one your team owns — it appears **four times** in `project.yml`:
    - `targets.ZeroZeroWidgetApp.entitlements.properties.com.apple.security.application-groups`
    - `targets.ZeroZeroWidgetApp.info.properties.ZWAppGroupIdentifier`
    - `targets.ZeroZeroWidgetWidgets.entitlements.properties.com.apple.security.application-groups`
@@ -30,7 +30,9 @@ Then edit `project.yml`:
 
    `Constants.swift` reads the App Group from `Info.plist` at runtime via the `ZWAppGroupIdentifier` key, so you don't have to edit any Swift sources.
 
-4. Generate the Xcode project:
+4. Replace the shared **Keychain access group** `$(AppIdentifierPrefix)com.example.zerozerowidget` if you changed the bundle id prefix. The app stores the API key there so widget App Intents can run safe actions.
+
+5. Generate the Xcode project:
 
 ```
 xcodegen
@@ -78,7 +80,7 @@ The iOS app **does not** hold the APNs private key. It only:
 
 - Registers its APNs device token with the backend (`POST /v1/devices/register`).
 - Observes `Activity.pushTokenUpdates` and registers the per-activity token (`POST /v1/live-activities/register`).
-- Will register a widget push token with the backend (`POST /v1/widgets/register-push-token`) once wired through `WidgetConfiguration.pushHandler` — see the `TODO(apns)` in `MetricWidget.swift`.
+- Registers WidgetKit push tokens with the backend (`POST /v1/widgets/register-push-token`) after the widget extension records them through `WidgetConfiguration.pushHandler`.
 
 The APNs `.p8` key lives only on the backend. See `server/README.md`.
 
