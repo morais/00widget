@@ -1,5 +1,7 @@
 import type { Env } from "../src/types";
 
+type FakeRow = Record<string, string>;
+
 export class FakeKV {
   private store = new Map<string, string>();
 
@@ -25,8 +27,226 @@ export class FakeKV {
   }
 }
 
+class FakeD1Statement {
+  constructor(
+    private readonly owner: FakeD1,
+    private readonly sql: string,
+    private readonly values: unknown[] = [],
+  ) {}
+
+  bind(...values: unknown[]): FakeD1Statement {
+    return new FakeD1Statement(this.owner, this.sql, values);
+  }
+
+  async run(): Promise<D1Result> {
+    this.owner.run(this.sql, this.values);
+    return { success: true, meta: {} } as D1Result;
+  }
+
+  async first<T = unknown>(): Promise<T | null> {
+    const rows = this.owner.all(this.sql, this.values);
+    return (rows[0] as T | undefined) ?? null;
+  }
+
+  async all<T = unknown>(): Promise<D1Result<T>> {
+    return { results: this.owner.all(this.sql, this.values) as T[], success: true, meta: {} } as D1Result<T>;
+  }
+}
+
+export class FakeD1 {
+  private cards = new Map<string, FakeRow>();
+  private devices = new Map<string, FakeRow>();
+  private widgetTokens = new Map<string, FakeRow>();
+  private activities = new Map<string, FakeRow>();
+  private pendingActivities = new Map<string, FakeRow>();
+  private startTokens = new Map<string, FakeRow>();
+
+  prepare(sql: string): D1PreparedStatement {
+    return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
+  }
+
+  run(sql: string, values: unknown[]): void {
+    const normalized = normalizeSql(sql);
+    if (normalized.startsWith("INSERT OR REPLACE INTO cards")) {
+      const [tenant_id, api_key_hash, id, json, updated_at] = values.map(String);
+      this.cards.set(`${tenant_id}:${id}`, { tenant_id, api_key_hash, id, json, updated_at });
+      return;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO devices")) {
+      const [tenant_id, api_key_hash, device_id, json, updated_at] = values.map(String);
+      this.devices.set(`${tenant_id}:${device_id}`, {
+        tenant_id,
+        api_key_hash,
+        device_id,
+        json,
+        updated_at,
+      });
+      return;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO widget_tokens")) {
+      const [tenant_id, api_key_hash, device_id, widget_kind, token, updated_at] =
+        values.map(String);
+      this.widgetTokens.set(`${tenant_id}:${device_id}:${widget_kind}`, {
+        tenant_id,
+        api_key_hash,
+        device_id,
+        widget_kind,
+        token,
+        updated_at,
+      });
+      return;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO activities")) {
+      const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
+      this.activities.set(`${tenant_id}:${external_id}`, {
+        tenant_id,
+        api_key_hash,
+        external_id,
+        json,
+        updated_at,
+      });
+      return;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO pending_activities")) {
+      const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
+      this.pendingActivities.set(`${tenant_id}:${external_id}`, {
+        tenant_id,
+        api_key_hash,
+        external_id,
+        json,
+        updated_at,
+      });
+      return;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO start_tokens")) {
+      const [tenant_id, api_key_hash, device_id, attributes_type, token, updated_at] =
+        values.map(String);
+      this.startTokens.set(`${tenant_id}:${device_id}:${attributes_type}`, {
+        tenant_id,
+        api_key_hash,
+        device_id,
+        attributes_type,
+        token,
+        updated_at,
+      });
+      return;
+    }
+    if (normalized.startsWith("DELETE FROM cards")) {
+      const [tenant_id, id] = values.map(String);
+      this.cards.delete(`${tenant_id}:${id}`);
+      return;
+    }
+    if (normalized.startsWith("DELETE FROM activities")) {
+      const [tenant_id, external_id] = values.map(String);
+      this.activities.delete(`${tenant_id}:${external_id}`);
+      return;
+    }
+    if (normalized.startsWith("DELETE FROM pending_activities")) {
+      const [tenant_id, external_id] = values.map(String);
+      this.pendingActivities.delete(`${tenant_id}:${external_id}`);
+      return;
+    }
+    throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
+  }
+
+  all(sql: string, values: unknown[]): FakeRow[] {
+    const normalized = normalizeSql(sql);
+    if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
+      const [tenant_id, id] = values.map(String);
+      return pick(this.cards.get(`${tenant_id}:${id}`), ["json"]);
+    }
+    if (normalized === "SELECT json FROM cards WHERE tenant_id = ? ORDER BY id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.cards, tenant_id).sort(by("id")).map((row) => ({ json: row.json }));
+    }
+    if (normalized === "SELECT token FROM widget_tokens WHERE tenant_id = ? ORDER BY device_id, widget_kind") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.widgetTokens, tenant_id)
+        .sort(by("device_id", "widget_kind"))
+        .map((row) => ({ token: row.token }));
+    }
+    if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ?") {
+      const [tenant_id, external_id] = values.map(String);
+      return pick(this.activities.get(`${tenant_id}:${external_id}`), ["json"]);
+    }
+    if (normalized === "SELECT json FROM pending_activities WHERE tenant_id = ? AND external_id = ?") {
+      const [tenant_id, external_id] = values.map(String);
+      return pick(this.pendingActivities.get(`${tenant_id}:${external_id}`), ["json"]);
+    }
+    if (normalized === "SELECT token FROM start_tokens WHERE tenant_id = ? AND attributes_type = ? ORDER BY device_id") {
+      const [tenant_id, attributes_type] = values.map(String);
+      return byTenant(this.startTokens, tenant_id)
+        .filter((row) => row.attributes_type === attributes_type)
+        .sort(by("device_id"))
+        .map((row) => ({ token: row.token }));
+    }
+    if (normalized === "SELECT api_key_hash, id, json FROM cards ORDER BY api_key_hash, id") {
+      return [...this.cards.values()].sort(by("api_key_hash", "id")).map(select("api_key_hash", "id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, json FROM devices ORDER BY api_key_hash, device_id") {
+      return [...this.devices.values()]
+        .sort(by("api_key_hash", "device_id"))
+        .map(select("api_key_hash", "device_id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, widget_kind, token FROM widget_tokens ORDER BY api_key_hash, device_id, widget_kind") {
+      return [...this.widgetTokens.values()]
+        .sort(by("api_key_hash", "device_id", "widget_kind"))
+        .map(select("api_key_hash", "device_id", "widget_kind", "token"));
+    }
+    if (normalized === "SELECT api_key_hash, external_id, json FROM activities ORDER BY api_key_hash, external_id") {
+      return [...this.activities.values()]
+        .sort(by("api_key_hash", "external_id"))
+        .map(select("api_key_hash", "external_id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, external_id, json FROM pending_activities ORDER BY api_key_hash, external_id") {
+      return [...this.pendingActivities.values()]
+        .sort(by("api_key_hash", "external_id"))
+        .map(select("api_key_hash", "external_id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, attributes_type, token FROM start_tokens ORDER BY api_key_hash, device_id, attributes_type") {
+      return [...this.startTokens.values()]
+        .sort(by("api_key_hash", "device_id", "attributes_type"))
+        .map(select("api_key_hash", "device_id", "attributes_type", "token"));
+    }
+    if (normalized === "SELECT json FROM pending_activities WHERE tenant_id = ? ORDER BY external_id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.pendingActivities, tenant_id)
+        .sort(by("external_id"))
+        .map((row) => ({ json: row.json }));
+    }
+    throw new Error(`Unhandled FakeD1 all SQL: ${normalized}`);
+  }
+}
+
+function normalizeSql(sql: string): string {
+  return sql.replace(/\s+/g, " ").trim();
+}
+
+function byTenant(rows: Map<string, FakeRow>, tenantId: string): FakeRow[] {
+  return [...rows.values()].filter((row) => row.tenant_id === tenantId);
+}
+
+function by(...fields: string[]): (a: FakeRow, b: FakeRow) => number {
+  return (a, b) => {
+    for (const field of fields) {
+      const result = a[field].localeCompare(b[field]);
+      if (result !== 0) return result;
+    }
+    return 0;
+  };
+}
+
+function select(...fields: string[]): (row: FakeRow) => FakeRow {
+  return (row) => Object.fromEntries(fields.map((field) => [field, row[field]]));
+}
+
+function pick(row: FakeRow | undefined, fields: string[]): FakeRow[] {
+  return row ? [select(...fields)(row)] : [];
+}
+
 export function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
+    ZW_DB: new FakeD1() as unknown as D1Database,
     ZW_KV: new FakeKV() as unknown as KVNamespace,
     API_KEYS: "test-key",
     APNS_TEAM_ID: undefined,

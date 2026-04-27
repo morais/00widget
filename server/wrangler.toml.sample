@@ -7,13 +7,26 @@ compatibility_flags = ["nodejs_compat"]
 # or `.dev.vars` locally — see server/README.md.
 [vars]
 APNS_ENV = "sandbox"
+# Set to "true" only during the one-time KV -> D1 migration window.
+STORAGE_LEGACY_KV_FALLBACK = "false"
 
+# KV is kept only as a legacy migration fallback. New writes go to D1.
 # Create the KV namespace first:
 #   npx wrangler kv:namespace create ZW_KV
 # Then paste the returned id below.
 [[kv_namespaces]]
 binding = "ZW_KV"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Create the D1 database first:
+#   npx wrangler d1 create zerozerowidget
+# Then paste the returned database_id below and run migrations:
+#   npx wrangler d1 migrations apply zerozerowidget --remote
+[[d1_databases]]
+binding = "ZW_DB"
+database_name = "zerozerowidget"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
 
 [observability]
 enabled = true

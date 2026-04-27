@@ -147,8 +147,10 @@ export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
 export type RunAction = z.infer<typeof RunActionSchema>;
 
 export interface Env {
+  ZW_DB?: D1Database;
   ZW_KV: KVNamespace;
   API_KEYS: string;
+  STORAGE_LEGACY_KV_FALLBACK?: string;
   APNS_TEAM_ID?: string;
   APNS_KEY_ID?: string;
   APNS_PRIVATE_KEY?: string;

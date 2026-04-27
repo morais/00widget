@@ -16,15 +16,25 @@ npm install
 cp wrangler.toml.sample wrangler.toml   # gitignored — your local config
 ```
 
-`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (KV namespace id, anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
+`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (D1 database id, legacy KV namespace id, anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
 
-### 1. Create a KV namespace
+### 1. Create storage
 
 ```
+npx wrangler d1 create zerozerowidget
 npx wrangler kv:namespace create ZW_KV
 ```
 
-Copy the `id` it prints into your local `wrangler.toml` under `[[kv_namespaces]]`.
+Copy the D1 `database_id` into `[[d1_databases]]` and the KV `id` into `[[kv_namespaces]]` in your local `wrangler.toml`. KV is only kept as a legacy read-through migration fallback; new writes use D1.
+
+Apply the schema locally or remotely before running against that database:
+
+```
+npx wrangler d1 migrations apply zerozerowidget --local
+npx wrangler d1 migrations apply zerozerowidget --remote
+```
+
+For a one-time production migration from the old KV layout, temporarily set `STORAGE_LEGACY_KV_FALLBACK = "true"` in `wrangler.toml`. With that enabled, reads that find no D1 rows for a tenant/resource list fall back to legacy KV and backfill D1. Set it back to `"false"` after the active tenants have been read or otherwise migrated; leaving it enabled makes empty tenants pay for avoidable KV lookups.
 
 ### 2. Configure local secrets
 
@@ -67,7 +77,7 @@ npx wrangler secret put APNS_BUNDLE_ID
 
 ## Admin dashboard (Sign in with Apple)
 
-A read-only HTML dashboard at **`/admin`** lists every card, device, push token, Live Activity, pending activity, and push-to-start token in KV — across all API keys. Access is gated by Sign in with Apple, restricted to a configured list of admin emails.
+A read-only HTML dashboard at **`/admin`** lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all API keys. Access is gated by Sign in with Apple, restricted to a configured list of admin emails.
 
 ### What you need to set up at developer.apple.com
 
@@ -136,16 +146,20 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is g
 
 ## Storage layout
 
-All KV keys are prefixed with `<apiKeyHash>` where `apiKeyHash = hex(sha256(apiKey))`, so keys are isolated per credential.
+Primary storage is D1. Every table is scoped by `tenant_id`, which is currently derived as `hex(sha256(apiKey))`, and also stores `api_key_hash` for audit/backward compatibility. This keeps current credential isolation while leaving room for a future `tenants`/`api_keys` mapping where multiple API keys belong to the same tenant.
 
-```
-card:<h>:<cardId>
-device:<h>:<deviceId>
-widget-token:<h>:<deviceId>:<widgetKind>
-activity:<h>:<externalActivityId>
-pending-activity:<h>:<externalActivityId>
-start-token:<h>:<deviceId>:<attributesType>
-```
+Tables:
+
+| Table | Primary key | Purpose |
+| ----- | ----------- | ------- |
+| `cards` | `(tenant_id, id)` | Dashboard cards. |
+| `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
+| `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens. |
+| `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
+| `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
+| `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
+
+The Worker still binds `ZW_KV` during migration. If `STORAGE_LEGACY_KV_FALLBACK = "true"` and D1 has no rows for a specific tenant/resource list, reads fall back to legacy KV keys and opportunistically backfill D1. New writes are D1-only to avoid keeping KV operation costs on the hot path.
 
 ## Tests
 
