@@ -28,6 +28,12 @@ struct MetricWidgetView: View {
     let entry: CardTimelineEntry
 
     var body: some View {
+        content
+            .widgetURL(entry.card?.deepLink)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if let card = entry.card {
             CardView(card: card, context: contextFor(family: family))
         } else {
