@@ -103,7 +103,7 @@ A read-only HTML console at `/admin` lists every card, device, push token, Live 
 ## Documentation
 
 - `ios/README.md` — Xcode setup, entitlements, signing.
-- `server/README.md` — Worker deploy, D1/KV bindings, APNs secrets, admin dashboard.
+- `server/README.md` — Worker deploy, D1 binding, APNs secrets, admin dashboard.
 - `examples/README.md` — publishing state from any shell or agent.
 - `docs/INTEGRATION.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.

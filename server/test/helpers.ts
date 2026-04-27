@@ -2,31 +2,6 @@ import type { Env } from "../src/types";
 
 type FakeRow = Record<string, string>;
 
-export class FakeKV {
-  private store = new Map<string, string>();
-
-  async get(key: string): Promise<string | null> {
-    return this.store.get(key) ?? null;
-  }
-
-  async put(key: string, value: string): Promise<void> {
-    this.store.set(key, value);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.store.delete(key);
-  }
-
-  async list(options?: { prefix?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean }> {
-    const prefix = options?.prefix ?? "";
-    const names = [...this.store.keys()].filter((k) => k.startsWith(prefix)).sort();
-    return {
-      keys: names.map((name) => ({ name })),
-      list_complete: true,
-    };
-  }
-}
-
 class FakeD1Statement {
   constructor(
     private readonly owner: FakeD1,
@@ -247,7 +222,6 @@ function pick(row: FakeRow | undefined, fields: string[]): FakeRow[] {
 export function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
     ZW_DB: new FakeD1() as unknown as D1Database,
-    ZW_KV: new FakeKV() as unknown as KVNamespace,
     API_KEYS: "test-key",
     APNS_TEAM_ID: undefined,
     APNS_KEY_ID: undefined,

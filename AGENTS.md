@@ -39,7 +39,7 @@ The `.xcodeproj` is **gitignored** — regenerate with `cd ios && xcodegen` when
 ```
 # Backend
 cd server && npm install
-npm test                  # vitest, runs in plain Node with FakeD1 + FakeKV
+npm test                  # vitest, runs in plain Node with FakeD1
 npx tsc --noEmit          # typecheck (also exposed as npm run typecheck)
 npx wrangler dev          # local dev on :8787, reads .dev.vars
 
@@ -67,7 +67,7 @@ Always gitignored:
 
 ### Per-developer config — `.sample` template pattern
 
-Two files would otherwise go dirty in every developer's working tree because they hold per-developer values (D1/KV ids, Apple Developer Team ID, real bundle ids, App Group). They're **gitignored**, with a committed `.sample` sibling acting as the source-of-truth:
+Two files would otherwise go dirty in every developer's working tree because they hold per-developer values (D1 ids, Apple Developer Team ID, real bundle ids, App Group). They're **gitignored**, with a committed `.sample` sibling acting as the source-of-truth:
 
 | Gitignored real file       | Committed template            |
 | -------------------------- | ----------------------------- |
@@ -81,7 +81,6 @@ The App Group identifier is consumed by both targets' Info.plists and entitlemen
 Placeholder values that must stay in committed `.sample` files (and source code fallbacks):
 - Bundle id: `com.example.zerozerowidget`
 - App Group: `group.com.example.zerozerowidget`
-- Wrangler `[[kv_namespaces]] id`: `REPLACE_WITH_KV_NAMESPACE_ID`
 - Wrangler `[[d1_databases]] database_id`: `REPLACE_WITH_D1_DATABASE_ID`
 
 ## Simulator builds without an Apple Developer team
