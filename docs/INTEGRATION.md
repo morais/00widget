@@ -309,6 +309,51 @@ struct WidgetClient {
 - **Don't** make destructive actions auto-run from widgets. Set `confirm: true` or `role: destructive` and let the iOS app handle confirmation.
 - **Don't** publish more than ~once a minute per card unless the value genuinely changed. Each publish triggers a widget reload via APNs.
 
+## Notes for Cloudflare Workers callers
+
+The 00Widget backend runs on Cloudflare Workers. If the project you're integrating from is *also* a Cloudflare Worker (or a Pages Function), two things change:
+
+### Prefer a Service Binding when same-account
+
+If the integrating Worker and the 00Widget Worker live in the same Cloudflare account, set up a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) rather than calling the public URL. It's faster (no DNS, no TLS), uses the internal Cloudflare network, and skips egress.
+
+In `wrangler.toml` of the *caller*:
+
+```toml
+[[services]]
+binding = "ZEROZEROWIDGET"
+service = "zerozerowidget-server"
+```
+
+Then in code:
+
+```ts
+const res = await env.ZEROZEROWIDGET.fetch(
+  new Request("https://zerozerowidget/v1/cards/upsert", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.WIDGET_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(card),
+  }),
+);
+```
+
+The hostname in the URL is irrelevant — Service Bindings route by binding name. Auth headers and JSON bodies are unchanged.
+
+### Sub-request budget
+
+Every Worker invocation has a sub-request quota (50 on free, 1000 on paid). Each `fetch` or Service Binding call to 00Widget consumes one. If your Worker is already making a lot of outbound calls, one upsert per state change is fine; **don't** publish on a hot loop.
+
+### CPU time
+
+Network awaiting (waiting for 00Widget's response) doesn't count against your Worker's CPU limit, but JSON serialization of a giant `DashboardCard` does. The card schema is small enough that this is never a concern in practice — flagged here only so you don't worry about it.
+
+### Non-Cloudflare callers
+
+If you're integrating from Vercel, Lambda, a Cloudflare Pages static site (no functions), a shell script, or anything else, none of the above applies. Just `fetch` the public URL.
+
 ## Where to look for more
 
 - The full public API surface is documented in [`server/README.md`](../server/README.md).
