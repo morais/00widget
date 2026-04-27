@@ -1,5 +1,5 @@
 import type { Env } from "./types";
-import { DashboardCardSchema } from "./types";
+import { DashboardCardSchema, type DashboardCard } from "./types";
 import * as storage from "./storage";
 import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest } from "./http";
@@ -18,9 +18,13 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
   };
   await storage.putCard(env, auth.apiKeyHash, card);
 
-  // Fan out a WidgetKit reload push to every registered widget token.
+  // Fan out a WidgetKit reload push only to widgets that can render this card.
   // Failures are logged but not surfaced to the caller.
-  const tokens = await storage.listWidgetTokens(env, auth.apiKeyHash);
+  const tokens = await storage.listWidgetTokensForKind(
+    env,
+    auth.apiKeyHash,
+    widgetKindForCard(card),
+  );
   for (const token of tokens) {
     const result = await sendWidgetReloadPush(env, token);
     if (result.status !== 200 && result.status !== 0) {
@@ -62,5 +66,20 @@ export async function parseJson(req: Request): Promise<unknown> {
     return await req.json();
   } catch {
     return null;
+  }
+}
+
+function widgetKindForCard(card: DashboardCard): string {
+  switch (card.template) {
+    case "status":
+      return "ZeroZeroWidgetStatusWidget";
+    case "progress":
+      return "ZeroZeroWidgetProgressWidget";
+    case "list":
+      return "ZeroZeroWidgetListWidget";
+    case "metric":
+    case "timer":
+    case "action":
+      return "ZeroZeroWidgetMetricWidget";
   }
 }

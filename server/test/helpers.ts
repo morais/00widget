@@ -140,6 +140,13 @@ export class FakeD1 {
         .sort(by("device_id", "widget_kind"))
         .map((row) => ({ token: row.token }));
     }
+    if (normalized === "SELECT token FROM widget_tokens WHERE tenant_id = ? AND widget_kind = ? ORDER BY device_id") {
+      const [tenant_id, widget_kind] = values.map(String);
+      return byTenant(this.widgetTokens, tenant_id)
+        .filter((row) => row.widget_kind === widget_kind)
+        .sort(by("device_id"))
+        .map((row) => ({ token: row.token }));
+    }
     if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ?") {
       const [tenant_id, external_id] = values.map(String);
       return pick(this.activities.get(`${tenant_id}:${external_id}`), ["json"]);

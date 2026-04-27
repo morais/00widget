@@ -131,6 +131,21 @@ export async function listWidgetTokens(env: Env, hash: string): Promise<string[]
   return rows.results.map((row) => row.token);
 }
 
+export async function listWidgetTokensForKind(
+  env: Env,
+  hash: string,
+  widgetKind: string,
+): Promise<string[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT token FROM widget_tokens
+     WHERE tenant_id = ? AND widget_kind = ?
+     ORDER BY device_id`,
+  )
+    .bind(tenantId(hash), widgetKind)
+    .all<TokenRow>();
+  return rows.results.map((row) => row.token);
+}
+
 export async function putActivity(
   env: Env,
   hash: string,
