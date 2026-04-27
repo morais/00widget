@@ -1,4 +1,5 @@
 import SwiftUI
+import AppIntents
 
 public enum CardRenderContext {
     case app
@@ -79,6 +80,9 @@ public struct CardView: View {
                 } else {
                     bigValue
                 }
+            case .action:
+                actionSummary
+                actionButtons(max: 1)
             case .list:
                 listRows(max: 3)
             default:
@@ -100,6 +104,9 @@ public struct CardView: View {
             switch card.template {
             case .list:
                 listRows(max: 3)
+            case .action:
+                actionSummary
+                actionButtons(max: 2)
             case .progress:
                 if let p = card.progressValue {
                     ProgressRow(progress: p, label: card.subtitle)
@@ -132,6 +139,9 @@ public struct CardView: View {
             switch card.template {
             case .list:
                 listRows(max: 6)
+            case .action:
+                actionSummary
+                actionButtons(max: 4)
             default:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -218,6 +228,18 @@ public struct CardView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.08)))
     }
 
+    private var actionSummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            bigValue
+            if let subtitle = card.subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+    }
+
     @ViewBuilder
     private func listRows(max: Int) -> some View {
         if let items = card.items, !items.isEmpty {
@@ -236,6 +258,30 @@ public struct CardView: View {
             }
         } else {
             Text("No items").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func actionButtons(max: Int) -> some View {
+        if let actions = card.actions, !actions.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(actions.prefix(max)) { action in
+                    if action.isSafeFromWidget {
+                        Button(intent: RunDashboardActionIntent(actionId: action.id, cardId: card.id)) {
+                            Text(action.label)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else if let deepLink = card.deepLink {
+                        Link(destination: deepLink) {
+                            Text(action.label)
+                                .font(.caption)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
         }
     }
 }

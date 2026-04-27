@@ -37,11 +37,14 @@ targets:
         UIBackgroundModes:
           - remote-notification
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app-group entitlement below
+        ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.example.zerozerowidget
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.example.zerozerowidget
         aps-environment: development
     settings:
       base:
@@ -67,11 +70,14 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app target's value
+        ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
     entitlements:
       path: Resources/Widgets/Widgets.entitlements
       properties:
         com.apple.security.application-groups:
           - group.com.example.zerozerowidget
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.example.zerozerowidget
         aps-environment: development                  # required for WidgetKit push (iOS 18+)
     settings:
       base:
