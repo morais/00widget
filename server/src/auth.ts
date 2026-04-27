@@ -36,6 +36,20 @@ export class AuthError extends Error {
   }
 }
 
+/// Validates an API key against the comma-separated `API_KEYS` env var.
+/// Used by the admin dashboard's API-token login path, which receives the
+/// key in a form body rather than an Authorization header.
+export function isValidApiKey(env: Env, provided: string): boolean {
+  const trimmed = provided.trim();
+  if (!trimmed) return false;
+  const allowed = (env.API_KEYS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return false;
+  return allowed.some((k) => constantTimeEqual(k, trimmed));
+}
+
 function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;

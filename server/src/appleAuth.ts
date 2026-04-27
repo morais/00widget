@@ -16,10 +16,20 @@ import type { Env } from "./types";
 //    matches one in ADMIN_EMAILS.
 // 4. We mint an HMAC-signed session cookie and redirect to /admin.
 
+export type AdminAuthMethod = "apple" | "api-token";
+
 export interface AdminSession {
+  // For "apple": Apple's email claim. For "api-token": a label like "api-token".
   email: string;
+  // Defaults to "apple" if missing, for backward compatibility with cookies
+  // minted before the API-token login fallback existed.
+  method?: AdminAuthMethod;
   iat: number;
   exp: number;
+}
+
+export function apiTokenLoginEnabled(env: Env): boolean {
+  return env.ADMIN_API_TOKEN_LOGIN !== "false";
 }
 
 const COOKIE_NAME = "zw_admin";
@@ -147,9 +157,18 @@ export async function validateAppleIdToken(
 
 // ---------- Session cookie (HMAC-signed) ----------
 
-export async function makeSessionCookie(env: Env, email: string): Promise<string> {
+export async function makeSessionCookie(
+  env: Env,
+  email: string,
+  method: AdminAuthMethod = "apple",
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const session: AdminSession = { email: email.toLowerCase(), iat: now, exp: now + SESSION_TTL_SECONDS };
+  const session: AdminSession = {
+    email: email.toLowerCase(),
+    method,
+    iat: now,
+    exp: now + SESSION_TTL_SECONDS,
+  };
   const payload = b64url(JSON.stringify(session));
   const sig = await hmacSha256Hex(env.SESSION_SECRET!, payload);
   const value = `${payload}.${sig}`;
@@ -185,7 +204,21 @@ export async function readSessionCookie(env: Env, req: Request): Promise<AdminSe
   }
   const now = Math.floor(Date.now() / 1000);
   if (session.exp < now) return null;
-  if (!isAdminEmail(env, session.email)) return null;
+  // Validation depends on how the user signed in:
+  //   apple    → the email must still be in ADMIN_EMAILS (the operator may
+  //              have rotated the list since the cookie was minted)
+  //   api-token → the cookie was minted only after a successful API key
+  //              check, and the cookie itself is HMAC-signed; we trust it.
+  //              If the operator later disables api-token login, existing
+  //              sessions stop being honored.
+  const method: AdminAuthMethod = session.method ?? "apple";
+  if (method === "apple") {
+    if (!isAdminEmail(env, session.email)) return null;
+  } else if (method === "api-token") {
+    if (!apiTokenLoginEnabled(env)) return null;
+  } else {
+    return null;
+  }
   return session;
 }
 

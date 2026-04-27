@@ -1,5 +1,6 @@
 import type { Env } from "./types";
 import {
+  apiTokenLoginEnabled,
   appleSignInConfigured,
   buildAuthorizeURL,
   clearSessionCookie,
@@ -8,15 +9,26 @@ import {
   randomToken,
   readSessionCookie,
   validateAppleIdToken,
+  type AdminAuthMethod,
+  type AdminSession,
 } from "./appleAuth";
+import { isValidApiKey } from "./auth";
 import * as storage from "./storage";
 
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
+const API_TOKEN_LABEL = "api-token";
 
 // ---------- Routes ----------
 
 export async function handleAdminLogin(_req: Request, env: Env): Promise<Response> {
+  const apple = appleSignInConfigured(env);
+  const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS);
+  if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
+  return htmlResponse(renderLoginPage(env, { apple, apiToken }));
+}
+
+export async function handleAdminLoginApple(_req: Request, env: Env): Promise<Response> {
   if (!appleSignInConfigured(env)) {
     return htmlResponse(renderConfigError(env), 500);
   }
@@ -26,6 +38,30 @@ export async function handleAdminLogin(_req: Request, env: Env): Promise<Respons
   const headers = new Headers({ Location: url });
   headers.append("Set-Cookie", oauthCookie(STATE_COOKIE, state));
   headers.append("Set-Cookie", oauthCookie(NONCE_COOKIE, nonce));
+  return new Response(null, { status: 302, headers });
+}
+
+export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<Response> {
+  if (!apiTokenLoginEnabled(env)) {
+    return htmlResponse(renderError("API-token login is disabled (ADMIN_API_TOKEN_LOGIN=false)."), 403);
+  }
+  if (!env.SESSION_SECRET) {
+    return htmlResponse(renderError("SESSION_SECRET is not set."), 500);
+  }
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return htmlResponse(renderError("missing form body"), 400);
+  }
+  const apiKey = String(form.get("apiKey") ?? "");
+  if (!apiKey) return htmlResponse(renderError("API token is required"), 400);
+  if (!isValidApiKey(env, apiKey)) {
+    return htmlResponse(renderError("Invalid API token."), 401);
+  }
+  const cookie = await makeSessionCookie(env, API_TOKEN_LABEL, "api-token");
+  const headers = new Headers({ Location: "/admin" });
+  headers.append("Set-Cookie", cookie);
   return new Response(null, { status: 302, headers });
 }
 
@@ -87,7 +123,9 @@ export async function handleAdminLogout(_req: Request, _env: Env): Promise<Respo
 }
 
 export async function handleAdminDashboard(req: Request, env: Env): Promise<Response> {
-  if (!appleSignInConfigured(env)) return htmlResponse(renderConfigError(env), 500);
+  const apple = appleSignInConfigured(env);
+  const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS) && Boolean(env.SESSION_SECRET);
+  if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
   const session = await readSessionCookie(env, req);
   if (!session) {
     return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
@@ -118,7 +156,7 @@ export async function handleAdminDashboard(req: Request, env: Env): Promise<Resp
 // ---------- HTML rendering ----------
 
 interface DashboardData {
-  session: { email: string; iat: number; exp: number };
+  session: AdminSession;
   cards: storage.ScopedEntry<unknown>[];
   devices: storage.ScopedEntry<unknown>[];
   widgetTokens: storage.ScopedEntry<string>[];
@@ -128,13 +166,17 @@ interface DashboardData {
 }
 
 function renderDashboard(d: DashboardData): string {
+  const method: AdminAuthMethod = d.session.method ?? "apple";
+  const signedInAs = method === "api-token"
+    ? `Signed in <strong>via API token</strong>`
+    : `Signed in as <strong>${esc(d.session.email)}</strong>`;
   return baseHTML(
     "00Widget · Admin",
     `
     <header>
       <h1>00Widget · Admin</h1>
       <div class="meta">
-        Signed in as <strong>${esc(d.session.email)}</strong>
+        ${signedInAs}
         · <a href="/admin/logout">log out</a>
       </div>
     </header>
@@ -146,6 +188,36 @@ function renderDashboard(d: DashboardData): string {
     ${renderPendingSection(d.pending)}
     ${renderStartTokensSection(d.startTokens)}
     `,
+  );
+}
+
+function renderLoginPage(_env: Env, opts: { apple: boolean; apiToken: boolean }): string {
+  const appleBlock = opts.apple
+    ? `<a class="button button-apple" href="/admin/login/apple">Sign in with Apple</a>`
+    : `<p class="muted">Sign in with Apple is not configured.</p>`;
+
+  const apiTokenBlock = opts.apiToken
+    ? `<form method="post" action="/admin/login/api-token" class="api-token-form">
+         <label for="apiKey">API token</label>
+         <input id="apiKey" type="password" name="apiKey" autocomplete="off" autofocus required>
+         <button type="submit" class="button">Sign in with API token</button>
+         <p class="muted">Fallback while Sign in with Apple isn't configured. Disable by setting <code>ADMIN_API_TOKEN_LOGIN=false</code>.</p>
+       </form>`
+    : "";
+
+  const separator = opts.apple && opts.apiToken
+    ? `<div class="divider"><span>or</span></div>`
+    : "";
+
+  return baseHTML(
+    "00Widget · Admin · Sign in",
+    `<header><h1>00Widget · Admin</h1></header>
+     <section class="login">
+       <h2>Sign in</h2>
+       ${appleBlock}
+       ${separator}
+       ${apiTokenBlock}
+     </section>`,
   );
 }
 
@@ -279,18 +351,29 @@ function renderError(message: string): string {
 }
 
 function renderConfigError(env: Env): string {
-  const missing: string[] = [];
-  if (!env.APPLE_SIGN_IN_CLIENT_ID) missing.push("APPLE_SIGN_IN_CLIENT_ID");
-  if (!env.APPLE_SIGN_IN_REDIRECT_URI) missing.push("APPLE_SIGN_IN_REDIRECT_URI");
-  if (!env.ADMIN_EMAILS) missing.push("ADMIN_EMAILS");
-  if (!env.SESSION_SECRET) missing.push("SESSION_SECRET");
+  const apple: string[] = [];
+  if (!env.APPLE_SIGN_IN_CLIENT_ID) apple.push("APPLE_SIGN_IN_CLIENT_ID");
+  if (!env.APPLE_SIGN_IN_REDIRECT_URI) apple.push("APPLE_SIGN_IN_REDIRECT_URI");
+  if (!env.ADMIN_EMAILS) apple.push("ADMIN_EMAILS");
+  if (!env.SESSION_SECRET) apple.push("SESSION_SECRET");
+
+  const apiToken: string[] = [];
+  if (!env.API_KEYS) apiToken.push("API_KEYS");
+  if (!env.SESSION_SECRET) apiToken.push("SESSION_SECRET");
+  const apiTokenDisabled = !apiTokenLoginEnabled(env);
+
   return baseHTML(
     "00Widget · Admin not configured",
     `<header><h1>00Widget · Admin</h1></header>
      <section><h2>Admin not configured</h2>
-     <p>Set the following Wrangler secrets and redeploy:</p>
-     <ul>${missing.map((k) => `<li><code>${esc(k)}</code></li>`).join("")}</ul>
-     <p>Setup walkthrough: <code>server/README.md</code> → "Admin dashboard (Sign in with Apple)".</p></section>`,
+     <p>Enable at least one sign-in method by setting its required Wrangler secrets and redeploying.</p>
+     <h3>Sign in with Apple</h3>
+     <ul>${apple.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>
+     <h3>API-token fallback</h3>
+     ${apiTokenDisabled
+        ? `<p class="muted">Disabled by <code>ADMIN_API_TOKEN_LOGIN=false</code>.</p>`
+        : `<ul>${apiToken.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>`}
+     <p>Setup walkthrough: <code>server/README.md</code> → "Admin dashboard".</p></section>`,
   );
 }
 
@@ -356,6 +439,17 @@ function baseHTML(title: string, body: string): string {
   .status-critical { color: var(--crit); }
   .status-running { color: var(--accent); }
   .status-offline, .status-unknown { color: var(--offline); }
+  .login { max-width: 420px; margin: 24px auto; }
+  .login h2 { margin-bottom: 16px; }
+  .login label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+  .login input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .button { display: inline-block; padding: 10px 18px; margin-top: 12px; border-radius: 6px; background: var(--accent); color: white; border: 0; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
+  .api-token-form { display: flex; flex-direction: column; gap: 4px; }
+  .api-token-form .button { align-self: stretch; text-align: center; }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .muted { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
