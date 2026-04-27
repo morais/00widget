@@ -30,8 +30,12 @@ describe("live activities", () => {
       executionCtx,
     );
     expect(pending.status).toBe(200);
-    const data = (await pending.json()) as { activities: unknown[] };
+    const data = (await pending.json()) as {
+      activities: Array<{ updatedAt?: string; startedAt?: string }>;
+    };
     expect(data.activities).toHaveLength(1);
+    expect(Date.parse(data.activities[0].updatedAt ?? "")).not.toBeNaN();
+    expect(Date.parse(data.activities[0].startedAt ?? "")).not.toBeNaN();
   });
 
   it("registers a push token and ends without APNs configured", async () => {
