@@ -140,11 +140,11 @@ All KV keys are prefixed with `<apiKeyHash>` where `apiKeyHash = hex(sha256(apiK
 
 ```
 card:<h>:<cardId>
-cards-index:<h>
 device:<h>:<deviceId>
 widget-token:<h>:<deviceId>:<widgetKind>
 activity:<h>:<externalActivityId>
 pending-activity:<h>:<externalActivityId>
+start-token:<h>:<deviceId>:<attributesType>
 ```
 
 ## Tests
@@ -163,4 +163,4 @@ The Worker constructs payloads that match the documented ActivityKit / WidgetKit
 - **Live Activity end** — same headers, `event: "end"`, optional `dismissal-date`.
 - **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`.
 
-These shapes are marked `TODO(apns):` in `src/apns.ts` as a reminder to cross-check against the latest Apple documentation before deploying to production — push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.
+These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

@@ -76,7 +76,7 @@ Two files would otherwise go dirty in every developer's working tree because the
 
 First-time setup is `cp <name>.sample <name>` and then edit. If you change anything that should apply to everyone (route paths, target structure, etc.), edit the `.sample` and copy it forward.
 
-The App Group identifier is consumed in three places in iOS, but you only edit `project.yml` — both targets' Info.plist receive `ZWAppGroupIdentifier` from `project.yml`'s `info.properties`, and `Constants.swift` reads it at runtime via `Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier")` with the `group.com.example.zerozerowidget` placeholder as fallback. **Don't reintroduce a hardcoded App Group string in Swift.**
+The App Group identifier is consumed by both targets' Info.plists and entitlements, but you only edit `project.yml` — both targets receive `ZWAppGroupIdentifier` from `project.yml`'s `info.properties`, and `Constants.swift` reads it at runtime via `Bundle.main.object(forInfoDictionaryKey: "ZWAppGroupIdentifier")` with the `group.com.example.zerozerowidget` placeholder as fallback. The shared Keychain access group is also configured in `project.yml` so widget App Intents can read the API key. **Don't reintroduce hardcoded App Group or Keychain group strings in Swift.**
 
 Placeholder values that must stay in committed `.sample` files (and source code fallbacks):
 - Bundle id: `com.example.zerozerowidget`
@@ -101,10 +101,10 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 ## Things to watch
 
-- **APNs payload shapes are marked `TODO(apns):` in `server/src/apns.ts`.** Apple has shifted ActivityKit / WidgetKit payload field names and header values across iOS releases. Before changing those helpers, re-check the live docs:
+- **APNs payload shapes are date-stamped in `server/src/apns.ts`.** Apple has shifted ActivityKit / WidgetKit payload field names and header values across iOS releases. Before changing those helpers, re-check the live docs:
   - https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications
   - https://developer.apple.com/documentation/WidgetKit/Updating-widgets-with-widgetkit-push-notifications
-- **App Group identifier appears in 4 places** (`Constants.swift`, both `.entitlements`, `project.yml`). When changing it, edit all four and rerun `xcodegen`.
+- **App Group and shared Keychain identifiers come from `project.yml`.** The generated Info.plists and entitlements must match across the app and widget targets; edit `project.yml.sample` for shared changes and rerun `xcodegen`.
 - **The iOS app never holds the APNs `.p8`.** Only the backend has it, as a Wrangler secret. Don't introduce code that reads APNs private material on-device.
 - **Destructive actions don't run from widgets.** `RunDashboardActionIntent` checks `ActionDefinition.isSafeFromWidget` and silently no-ops for `role == .destructive` or `confirm == true`. Route those to the app via `deepLink` instead — don't loosen this without explicit user signoff.
 - **KV per-key isolation.** Every storage key starts with `<sha256(apiKey)>` so multiple credentials don't see each other's data. New endpoints must call `requireAuth(...)` and prefix keys with `auth.apiKeyHash`.
@@ -122,7 +122,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - Backend: every endpoint has a zod schema and at least one test (positive and negative path).
 - iOS: prefer extending `Sources/Shared/` over duplicating models or rendering between the app and widget targets.
 - Don't introduce a new framework dependency on either side without a clear reason — the Worker hand-rolls its router specifically to stay framework-free.
-- Comments: only when the *why* isn't obvious. The `TODO(apns):` markers and the App Group invariants are the kinds of comments worth keeping.
+- Comments: only when the *why* isn't obvious. The APNs verification date and the App Group/Keychain invariants are the kinds of comments worth keeping.
 
 ## Verification before declaring a change done
 
