@@ -1,4 +1,4 @@
-import type { Env, DashboardCard } from "./types";
+import type { Env, DashboardCard, StartLiveActivity } from "./types";
 
 export const keys = {
   card: (hash: string, id: string) => `card:${hash}:${id}`,
@@ -27,6 +27,11 @@ export interface ActivityRecord {
   kind: string;
   updatedAt: string;
   lastState?: unknown;
+}
+
+export interface PendingActivityRecord extends StartLiveActivity {
+  startedAt: string;
+  updatedAt: string;
 }
 
 export async function putCard(env: Env, hash: string, card: DashboardCard): Promise<void> {
@@ -128,9 +133,26 @@ export async function putPendingActivity(
   env: Env,
   hash: string,
   externalId: string,
-  record: unknown,
+  record: PendingActivityRecord,
 ): Promise<void> {
   await env.ZW_KV.put(keys.pendingActivity(hash, externalId), JSON.stringify(record));
+}
+
+export async function getPendingActivity(
+  env: Env,
+  hash: string,
+  externalId: string,
+): Promise<PendingActivityRecord | null> {
+  const raw = await env.ZW_KV.get(keys.pendingActivity(hash, externalId));
+  return raw ? (JSON.parse(raw) as PendingActivityRecord) : null;
+}
+
+export async function deletePendingActivity(
+  env: Env,
+  hash: string,
+  externalId: string,
+): Promise<void> {
+  await env.ZW_KV.delete(keys.pendingActivity(hash, externalId));
 }
 
 export async function putStartToken(
@@ -221,15 +243,15 @@ export async function listAllStartTokens(env: Env): Promise<ScopedEntry<string>[
 
 // ---------- Per-API-key (existing) ----------
 
-export async function listPendingActivities(env: Env, hash: string): Promise<unknown[]> {
+export async function listPendingActivities(env: Env, hash: string): Promise<PendingActivityRecord[]> {
   const prefix = `pending-activity:${hash}:`;
-  const out: unknown[] = [];
+  const out: PendingActivityRecord[] = [];
   let cursor: string | undefined;
   do {
     const page = await env.ZW_KV.list({ prefix, cursor });
     for (const k of page.keys) {
       const raw = await env.ZW_KV.get(k.name);
-      if (raw) out.push(JSON.parse(raw));
+      if (raw) out.push(JSON.parse(raw) as PendingActivityRecord);
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
