@@ -44,15 +44,6 @@ Constraints:
 If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in INTEGRATION.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.
 ```
 
-### Caveat if your caller is also a Cloudflare Worker
-
-The 00Widget backend is itself a Cloudflare Worker. If the project you're integrating from is *also* on Cloudflare (Worker, Pages Function), there are two things worth knowing:
-
-- **Same Cloudflare account** — prefer a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) to the 00Widget Worker over a public HTTPS fetch. It's lower-latency, skips public DNS + TLS, and the request doesn't traverse the internet. The `Authorization: Bearer` semantics are unchanged — call `env.ZEROZEROWIDGET.fetch(new Request(...))` exactly like any other fetch.
-- **Sub-request budget** — every call to 00Widget (`fetch` or Service Binding) counts against the originating Worker's sub-request limit (50 on free, 1000 on paid). Batch publishes where possible; one upsert per state-change is correct, several per second is wasteful.
-
-Cross-account, free-tier dashboards, or non-Cloudflare callers (Vercel, Lambda, a shell script) don't have these concerns — just hit the public URL.
-
 ## Anatomy
 
 ```
