@@ -98,7 +98,12 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 
 ## Admin dashboard
 
-A read-only HTML console at `/admin` lists every card, device, push token, Live Activity, pending activity, and push-to-start token across all API keys. Access is gated by **Sign in with Apple**, restricted to emails you configure in `ADMIN_EMAILS`. Setup walkthrough is in `server/README.md` → "Admin dashboard (Sign in with Apple)".
+A read-only HTML console at `/admin` lists every card, device, push token, Live Activity, pending activity, and push-to-start token across all API keys. Two sign-in methods (either is sufficient):
+
+- **Sign in with Apple** — restricted to emails in `ADMIN_EMAILS`.
+- **API-token fallback** — paste any value from `API_KEYS` into the form. Enabled by default; flip `ADMIN_API_TOKEN_LOGIN=false` once Apple is wired up.
+
+Setup walkthrough: `server/README.md` → "Admin dashboard".
 
 ## Documentation
 

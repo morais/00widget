@@ -14,9 +14,16 @@ APNS_BUNDLE_ID="com.example.zerowidget"
 # "sandbox" for debug builds, "production" for App Store / TestFlight.
 APNS_ENV="sandbox"
 
-# --- Admin dashboard (Sign in with Apple) ---
-# All four are required to enable /admin. Setup walkthrough is in server/README.md.
+# --- Admin dashboard ---
+# Two sign-in methods, either is sufficient. Setup walkthrough: server/README.md.
+#
+# Sign in with Apple — required for production. All four below.
 APPLE_SIGN_IN_CLIENT_ID=""              # Services ID, e.g. com.example.zerozerowidget.signin
 APPLE_SIGN_IN_REDIRECT_URI=""           # full URL of /admin/auth/apple/callback
 ADMIN_EMAILS=""                         # comma-separated emails allowed to sign in
 SESSION_SECRET=""                       # any random 32+ char string; rotates the admin cookie
+#
+# API-token fallback — needs SESSION_SECRET (above) and the existing API_KEYS.
+# Useful while waiting for an Apple Developer account. Set ADMIN_API_TOKEN_LOGIN
+# to "false" to disable; any other value (or unset) keeps it enabled.
+ADMIN_API_TOKEN_LOGIN=""

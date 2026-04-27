@@ -109,10 +109,37 @@ describe("admin routes (no Apple call required)", () => {
     expect(body).toContain("APPLE_SIGN_IN_CLIENT_ID");
   });
 
-  it("/admin/login redirects to appleid.apple.com when configured", async () => {
+  it("/admin/login renders the login page with both methods when configured", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
       new Request("https://x/admin/login"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Sign in with Apple");
+    expect(body).toContain("/admin/login/apple");
+    expect(body).toContain("/admin/login/api-token");
+  });
+
+  it("/admin/login hides API-token form when ADMIN_API_TOKEN_LOGIN=false", async () => {
+    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/login"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Sign in with Apple");
+    expect(body).not.toContain("/admin/login/api-token");
+  });
+
+  it("/admin/login/apple redirects to appleid.apple.com", async () => {
+    const env = adminEnv();
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/login/apple"),
       env,
       ctx,
     );
@@ -122,11 +149,101 @@ describe("admin routes (no Apple call required)", () => {
     expect(loc).toContain(`client_id=${encodeURIComponent("com.example.zerozerowidget.signin")}`);
     expect(loc).toContain("response_type=code+id_token");
     expect(loc).toContain("response_mode=form_post");
-    // State + nonce cookies set
     const setCookies = res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie") ?? ""];
     const joined = setCookies.join(";");
     expect(joined).toContain("zw_admin_state=");
     expect(joined).toContain("zw_admin_nonce=");
+  });
+
+  it("/admin/login/api-token mints a session for a valid key", async () => {
+    const env = adminEnv();
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const req = new Request("https://x/admin/login/api-token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/admin");
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("zw_admin=");
+  });
+
+  it("/admin/login/api-token rejects an invalid key", async () => {
+    const env = adminEnv();
+    const form = new URLSearchParams({ apiKey: "wrong" });
+    const req = new Request("https://x/admin/login/api-token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("/admin/login/api-token returns 403 when disabled", async () => {
+    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const req = new Request("https://x/admin/login/api-token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(403);
+  });
+
+  it("api-token cookie is honored on /admin", async () => {
+    const env = adminEnv();
+    // Mint a cookie via the api-token login...
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const loginRes = await (handler.fetch as any)(
+      new Request("https://x/admin/login/api-token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      }),
+      env,
+      ctx,
+    );
+    const setCookie = loginRes.headers.get("set-cookie") ?? "";
+    const cookieValue = setCookie.split(";")[0];
+
+    // ...then use it to access /admin.
+    const dashRes = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie: cookieValue } }),
+      env,
+      ctx,
+    );
+    expect(dashRes.status).toBe(200);
+    const body = await dashRes.text();
+    expect(body).toContain("Signed in");
+    expect(body).toContain("via API token");
+  });
+
+  it("api-token cookie stops working after ADMIN_API_TOKEN_LOGIN is disabled", async () => {
+    const enabled = adminEnv();
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const loginRes = await (handler.fetch as any)(
+      new Request("https://x/admin/login/api-token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      }),
+      enabled,
+      ctx,
+    );
+    const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
+
+    const disabled = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+    const dashRes = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie: cookieValue } }),
+      disabled,
+      ctx,
+    );
+    expect(dashRes.status).toBe(302);
+    expect(dashRes.headers.get("location")).toBe("/admin/login");
   });
 
   it("/admin/logout clears the session and redirects to login", async () => {
