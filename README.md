@@ -13,6 +13,46 @@ A reusable iOS companion app and Cloudflare Worker backend that lets your web ap
 
 The server never sends UI — only structured state conforming to a small set of templates. The iOS app renders that state through predefined SwiftUI views.
 
+## Pointing an agent at 00Widget from another project
+
+If you're inside another repo (say, a CI pipeline or a home-automation script) and want to make Claude Code / Codex publish state to your 00Widget instance, paste this into the agent — it's self-contained:
+
+```
+Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
+
+Read the integration contract: https://github.com/morais/00widget/blob/main/docs/INTEGRATION.md
+That single document is everything you need — don't pull in the rest of the 00Widget repo.
+
+Operator-supplied env vars:
+  00WIDGET_BASE_URL=https://<their-worker>.workers.dev
+  00WIDGET_API_KEY=<bearer token>
+
+Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET /v1/cards` before writing any code.
+
+Then:
+1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
+2. For each, pick a template (metric/status/progress/list/action) per INTEGRATION.md's decision matrix.
+3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable `id`. No SDK, no class hierarchy.
+4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
+
+Constraints:
+- Use a stable `id` per logical thing — never embed timestamps or run ids.
+- Never put secrets or PII in card fields. They render on the Lock Screen.
+- Always end Live Activities. Never make destructive actions auto-run from widgets.
+- Don't publish more than ~once a minute per card unless the value actually changed.
+
+If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in INTEGRATION.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.
+```
+
+### Caveat if your caller is also a Cloudflare Worker
+
+The 00Widget backend is itself a Cloudflare Worker. If the project you're integrating from is *also* on Cloudflare (Worker, Pages Function), there are two things worth knowing:
+
+- **Same Cloudflare account** — prefer a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) to the 00Widget Worker over a public HTTPS fetch. It's lower-latency, skips public DNS + TLS, and the request doesn't traverse the internet. The `Authorization: Bearer` semantics are unchanged — call `env.ZEROZEROWIDGET.fetch(new Request(...))` exactly like any other fetch.
+- **Sub-request budget** — every call to 00Widget (`fetch` or Service Binding) counts against the originating Worker's sub-request limit (50 on free, 1000 on paid). Batch publishes where possible; one upsert per state-change is correct, several per second is wasteful.
+
+Cross-account, free-tier dashboards, or non-Cloudflare callers (Vercel, Lambda, a shell script) don't have these concerns — just hit the public URL.
+
 ## Anatomy
 
 ```
@@ -75,35 +115,6 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - `examples/README.md` — publishing state from any shell or agent.
 - `docs/INTEGRATION.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.
-
-## Pointing an agent at 00Widget from another project
-
-If you're inside another repo (say, a CI pipeline or a home-automation script) and want to make Claude Code / Codex publish state to your 00Widget instance, paste this into the agent — it's self-contained:
-
-```
-Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
-
-Read the integration contract: https://github.com/morais/00widget/blob/main/docs/INTEGRATION.md
-That single document is everything you need — don't pull in the rest of the 00Widget repo.
-
-Operator-supplied env vars:
-  00WIDGET_BASE_URL=https://<their-worker>.workers.dev
-  00WIDGET_API_KEY=<bearer token>
-
-Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET /v1/cards` before writing any code.
-
-Then:
-1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
-2. For each, pick a template (metric/status/progress/list/action) per INTEGRATION.md's decision matrix.
-3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable `id`. No SDK, no class hierarchy.
-4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
-
-Constraints:
-- Use a stable `id` per logical thing — never embed timestamps or run ids.
-- Never put secrets or PII in card fields. They render on the Lock Screen.
-- Always end Live Activities. Never make destructive actions auto-run from widgets.
-- Don't publish more than ~once a minute per card unless the value actually changed.
-```
 
 ## Status
 
