@@ -16,16 +16,15 @@ npm install
 cp wrangler.toml.sample wrangler.toml   # gitignored — your local config
 ```
 
-`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (D1 database id, legacy KV namespace id, anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
+`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (D1 database id and anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
 
 ### 1. Create storage
 
 ```
 npx wrangler d1 create zerozerowidget
-npx wrangler kv:namespace create ZW_KV
 ```
 
-Copy the D1 `database_id` into `[[d1_databases]]` and the KV `id` into `[[kv_namespaces]]` in your local `wrangler.toml`. KV is only kept as a legacy read-through migration fallback; new writes use D1.
+Copy the D1 `database_id` into `[[d1_databases]]` in your local `wrangler.toml`.
 
 Apply the schema locally or remotely before running against that database:
 
@@ -33,8 +32,6 @@ Apply the schema locally or remotely before running against that database:
 npx wrangler d1 migrations apply zerozerowidget --local
 npx wrangler d1 migrations apply zerozerowidget --remote
 ```
-
-For a one-time production migration from the old KV layout, temporarily set `STORAGE_LEGACY_KV_FALLBACK = "true"` in `wrangler.toml`. With that enabled, reads that find no D1 rows for a tenant/resource list fall back to legacy KV and backfill D1. Set it back to `"false"` after the active tenants have been read or otherwise migrated; leaving it enabled makes empty tenants pay for avoidable KV lookups.
 
 ### 2. Configure local secrets
 
@@ -159,7 +156,7 @@ Tables:
 | `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
 
-The Worker still binds `ZW_KV` during migration. If `STORAGE_LEGACY_KV_FALLBACK = "true"` and D1 has no rows for a specific tenant/resource list, reads fall back to legacy KV keys and opportunistically backfill D1. New writes are D1-only to avoid keeping KV operation costs on the hot path.
+The Worker uses D1 only. There is no KV compatibility layer because this project has no legacy production data to migrate.
 
 ## Tests
 
