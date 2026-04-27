@@ -154,4 +154,10 @@ export interface Env {
   APNS_PRIVATE_KEY?: string;
   APNS_BUNDLE_ID?: string;
   APNS_ENV?: "sandbox" | "production";
+
+  // Admin dashboard (Sign in with Apple)
+  APPLE_SIGN_IN_CLIENT_ID?: string;       // Services ID, e.g. com.example.zerozerowidget.signin
+  APPLE_SIGN_IN_REDIRECT_URI?: string;    // full URL of /admin/auth/apple/callback
+  ADMIN_EMAILS?: string;                  // comma-separated allowed emails
+  SESSION_SECRET?: string;                // HMAC secret for the admin session cookie
 }

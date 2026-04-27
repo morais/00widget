@@ -6,6 +6,7 @@ import * as devices from "./devices";
 import * as widgets from "./widgets";
 import * as liveActivities from "./liveActivities";
 import * as actions from "./actions";
+import * as admin from "./admin";
 
 interface Route {
   method: string;
@@ -48,6 +49,11 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m) =>
     actions.runAction(req, env, auth, m[1]),
   ),
+  // Admin dashboard — Apple Sign-In gated, no API-key auth.
+  { method: "GET", pattern: /^\/admin\/login\/?$/, handler: (req, env) => admin.handleAdminLogin(req, env) },
+  { method: "POST", pattern: /^\/admin\/auth\/apple\/callback\/?$/, handler: (req, env) => admin.handleAdminCallback(req, env) },
+  { method: "GET", pattern: /^\/admin\/logout\/?$/, handler: (req, env) => admin.handleAdminLogout(req, env) },
+  { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
 
 type AuthedHandler = (

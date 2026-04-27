@@ -65,6 +65,41 @@ npx wrangler secret put APNS_BUNDLE_ID
 
 `APNS_ENV` lives in `wrangler.toml` as a plain var (`sandbox` or `production`).
 
+## Admin dashboard (Sign in with Apple)
+
+A read-only HTML dashboard at **`/admin`** lists every card, device, push token, Live Activity, pending activity, and push-to-start token in KV — across all API keys. Access is gated by Sign in with Apple, restricted to a configured list of admin emails.
+
+### What you need to set up at developer.apple.com
+
+1. **Services ID** (the `client_id` Apple uses to identify the web app).
+   Identifiers → "+" → **Services IDs** → e.g. `com.example.zerozerowidget.signin` (must differ from your iOS bundle id).
+   Enable **Sign in with Apple** → **Configure**:
+   - Primary App ID: your iOS app's App ID (the one Apple Sign-In is enabled on).
+   - Domains: your Worker hostname, e.g. `zerozerowidget-server.morais-pedro.workers.dev`.
+   - Return URLs: `https://<your-worker-host>/admin/auth/apple/callback`.
+2. **Sign-In key** (the `.p8` Apple uses to sign authorization JWTs *to* your server — note: this Worker doesn't currently use the key, only the public-key JWKS, but Apple requires it on the Services ID anyway).
+   Keys → "+" → enable **Sign in with Apple**, link to the same Primary App ID, download the `.p8`.
+3. **Enable Sign in with Apple** on your **App ID** if it isn't already.
+
+### Wrangler secrets
+
+```
+npx wrangler secret put APPLE_SIGN_IN_CLIENT_ID     # the Services ID, e.g. com.example.zerozerowidget.signin
+npx wrangler secret put APPLE_SIGN_IN_REDIRECT_URI  # https://<host>/admin/auth/apple/callback
+npx wrangler secret put ADMIN_EMAILS                # comma-separated list, e.g. you@example.com
+npx wrangler secret put SESSION_SECRET              # any random 32+ char string (used to sign the session cookie)
+```
+
+If any of those are missing the `/admin` page renders a "not configured" view listing what's missing — it does not crash and the public API stays unaffected.
+
+### How the flow works
+
+`GET /admin/login` redirects to `https://appleid.apple.com/auth/authorize` with `response_mode=form_post`. Apple posts the result back to `/admin/auth/apple/callback`. The Worker validates the `id_token` against Apple's JWKS (RS256), confirms the email is in `ADMIN_EMAILS`, and sets a 24-hour HMAC-signed `HttpOnly; Secure` session cookie. `GET /admin` reads the cookie and renders the dashboard. `GET /admin/logout` clears it.
+
+### Privacy email relay
+
+If the admin chose "Hide My Email" on first sign-in, Apple returns a relay address like `abc123@privaterelay.appleid.com`. Add that exact address to `ADMIN_EMAILS` rather than the underlying Apple ID — the Worker only sees the relay.
+
 ## APNs setup
 
 1. Log in to [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles → Keys → "+".
@@ -92,8 +127,12 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
 | POST   | `/v1/actions/:id/run`                        | Run an action (v1: logs and returns).  |
+| GET    | `/admin/login`                               | Redirects to Sign in with Apple.       |
+| POST   | `/admin/auth/apple/callback`                 | Apple form-post callback.              |
+| GET    | `/admin/logout`                              | Clears the admin session cookie.       |
+| GET    | `/admin`                                     | Read-only ops dashboard (HTML).        |
 
-All endpoints except `/health` require `Authorization: Bearer <api-key>`.
+All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
 
 ## Storage layout
 
