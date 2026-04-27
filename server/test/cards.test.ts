@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
 import { DashboardCardSchema } from "../src/types";
+import { sha256Hex } from "../src/auth";
 import { makeEnv, authedRequest } from "./helpers";
+import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
 
@@ -109,5 +111,29 @@ describe("cards endpoints", () => {
       executionCtx,
     );
     expect(res.status).toBe(400);
+  });
+
+  it("filters widget push tokens by widget kind", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+
+    await storage.putWidgetToken(
+      env,
+      hash,
+      "device-1",
+      "ZeroZeroWidgetMetricWidget",
+      "metric-token",
+    );
+    await storage.putWidgetToken(
+      env,
+      hash,
+      "device-2",
+      "ZeroZeroWidgetListWidget",
+      "list-token",
+    );
+
+    await expect(
+      storage.listWidgetTokensForKind(env, hash, "ZeroZeroWidgetMetricWidget"),
+    ).resolves.toEqual(["metric-token"]);
   });
 });
