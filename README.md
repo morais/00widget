@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/brand/wordmark-horizontal-dark.svg">
-    <img src="./docs/brand/wordmark-horizontal.svg" alt="00Widget — Widgets for all your agents." width="640">
-  </picture>
+  <img src="./docs/brand/wordmark-horizontal.png" alt="00Widget — Widgets for all your agents." width="720">
 </p>
 
 # 00Widget
