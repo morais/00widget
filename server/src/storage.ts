@@ -53,46 +53,53 @@ function parseJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
 }
 
-function tenantId(apiKeyHash: string): string {
-  return apiKeyHash;
-}
-
-async function upsertCardD1(env: Env, hash: string, card: DashboardCard): Promise<void> {
+async function upsertCardD1(
+  env: Env,
+  tenantId: string,
+  apiKeyHash: string,
+  card: DashboardCard,
+): Promise<void> {
   await env.ZW_DB.prepare(
     `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, card.id, json(card), card.updatedAt ?? nowIso())
+    .bind(tenantId, apiKeyHash, card.id, json(card), card.updatedAt ?? nowIso())
     .run();
 }
 
-export async function putCard(env: Env, hash: string, card: DashboardCard): Promise<void> {
-  await upsertCardD1(env, hash, card);
+export async function putCard(
+  env: Env,
+  tenantId: string,
+  apiKeyHash: string,
+  card: DashboardCard,
+): Promise<void> {
+  await upsertCardD1(env, tenantId, apiKeyHash, card);
 }
 
-export async function getCard(env: Env, hash: string, id: string): Promise<DashboardCard | null> {
+export async function getCard(env: Env, tenantId: string, id: string): Promise<DashboardCard | null> {
   const row = await env.ZW_DB.prepare(`SELECT json FROM cards WHERE tenant_id = ? AND id = ?`)
-    .bind(tenantId(hash), id)
+    .bind(tenantId, id)
     .first<JsonRow>();
   return row ? parseJson<DashboardCard>(row.json) : null;
 }
 
-export async function listCards(env: Env, hash: string): Promise<DashboardCard[]> {
+export async function listCards(env: Env, tenantId: string): Promise<DashboardCard[]> {
   const rows = await env.ZW_DB.prepare(`SELECT json FROM cards WHERE tenant_id = ? ORDER BY id`)
-    .bind(tenantId(hash))
+    .bind(tenantId)
     .all<JsonRow>();
   return rows.results.map((row) => parseJson<DashboardCard>(row.json));
 }
 
-export async function deleteCard(env: Env, hash: string, id: string): Promise<void> {
+export async function deleteCard(env: Env, tenantId: string, id: string): Promise<void> {
   await env.ZW_DB.prepare(`DELETE FROM cards WHERE tenant_id = ? AND id = ?`)
-    .bind(tenantId(hash), id)
+    .bind(tenantId, id)
     .run();
 }
 
 export async function putDevice(
   env: Env,
-  hash: string,
+  tenantId: string,
+  apiKeyHash: string,
   deviceId: string,
   record: DeviceRecord,
 ): Promise<void> {
@@ -100,13 +107,14 @@ export async function putDevice(
     `INSERT OR REPLACE INTO devices (tenant_id, api_key_hash, device_id, json, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, deviceId, json(record), record.updatedAt)
+    .bind(tenantId, apiKeyHash, deviceId, json(record), record.updatedAt)
     .run();
 }
 
 export async function putWidgetToken(
   env: Env,
-  hash: string,
+  tenantId: string,
+  apiKeyHash: string,
   deviceId: string,
   widgetKind: string,
   token: string,
@@ -116,24 +124,24 @@ export async function putWidgetToken(
      (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, deviceId, widgetKind, token, nowIso())
+    .bind(tenantId, apiKeyHash, deviceId, widgetKind, token, nowIso())
     .run();
 }
 
-export async function listWidgetTokens(env: Env, hash: string): Promise<string[]> {
+export async function listWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT token FROM widget_tokens
      WHERE tenant_id = ?
      ORDER BY device_id, widget_kind`,
   )
-    .bind(tenantId(hash))
+    .bind(tenantId)
     .all<TokenRow>();
   return rows.results.map((row) => row.token);
 }
 
 export async function listWidgetTokensForKind(
   env: Env,
-  hash: string,
+  tenantId: string,
   widgetKind: string,
 ): Promise<string[]> {
   const rows = await env.ZW_DB.prepare(
@@ -141,14 +149,15 @@ export async function listWidgetTokensForKind(
      WHERE tenant_id = ? AND widget_kind = ?
      ORDER BY device_id`,
   )
-    .bind(tenantId(hash), widgetKind)
+    .bind(tenantId, widgetKind)
     .all<TokenRow>();
   return rows.results.map((row) => row.token);
 }
 
 export async function putActivity(
   env: Env,
-  hash: string,
+  tenantId: string,
+  apiKeyHash: string,
   externalId: string,
   record: ActivityRecord,
 ): Promise<void> {
@@ -156,32 +165,33 @@ export async function putActivity(
     `INSERT OR REPLACE INTO activities (tenant_id, api_key_hash, external_id, json, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, externalId, json(record), record.updatedAt)
+    .bind(tenantId, apiKeyHash, externalId, json(record), record.updatedAt)
     .run();
 }
 
 export async function getActivity(
   env: Env,
-  hash: string,
+  tenantId: string,
   externalId: string,
 ): Promise<ActivityRecord | null> {
   const row = await env.ZW_DB.prepare(
     `SELECT json FROM activities WHERE tenant_id = ? AND external_id = ?`,
   )
-    .bind(tenantId(hash), externalId)
+    .bind(tenantId, externalId)
     .first<JsonRow>();
   return row ? parseJson<ActivityRecord>(row.json) : null;
 }
 
-export async function deleteActivity(env: Env, hash: string, externalId: string): Promise<void> {
+export async function deleteActivity(env: Env, tenantId: string, externalId: string): Promise<void> {
   await env.ZW_DB.prepare(`DELETE FROM activities WHERE tenant_id = ? AND external_id = ?`)
-    .bind(tenantId(hash), externalId)
+    .bind(tenantId, externalId)
     .run();
 }
 
 export async function putPendingActivity(
   env: Env,
-  hash: string,
+  tenantId: string,
+  apiKeyHash: string,
   externalId: string,
   record: PendingActivityRecord,
 ): Promise<void> {
@@ -190,36 +200,37 @@ export async function putPendingActivity(
      (tenant_id, api_key_hash, external_id, json, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, externalId, json(record), record.updatedAt)
+    .bind(tenantId, apiKeyHash, externalId, json(record), record.updatedAt)
     .run();
 }
 
 export async function getPendingActivity(
   env: Env,
-  hash: string,
+  tenantId: string,
   externalId: string,
 ): Promise<PendingActivityRecord | null> {
   const row = await env.ZW_DB.prepare(
     `SELECT json FROM pending_activities WHERE tenant_id = ? AND external_id = ?`,
   )
-    .bind(tenantId(hash), externalId)
+    .bind(tenantId, externalId)
     .first<JsonRow>();
   return row ? parseJson<PendingActivityRecord>(row.json) : null;
 }
 
 export async function deletePendingActivity(
   env: Env,
-  hash: string,
+  tenantId: string,
   externalId: string,
 ): Promise<void> {
   await env.ZW_DB.prepare(`DELETE FROM pending_activities WHERE tenant_id = ? AND external_id = ?`)
-    .bind(tenantId(hash), externalId)
+    .bind(tenantId, externalId)
     .run();
 }
 
 export async function putStartToken(
   env: Env,
-  hash: string,
+  tenantId: string,
+  apiKeyHash: string,
   deviceId: string,
   attributesType: string,
   pushToken: string,
@@ -229,13 +240,13 @@ export async function putStartToken(
      (tenant_id, api_key_hash, device_id, attributes_type, token, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId(hash), hash, deviceId, attributesType, pushToken, nowIso())
+    .bind(tenantId, apiKeyHash, deviceId, attributesType, pushToken, nowIso())
     .run();
 }
 
 export async function listStartTokens(
   env: Env,
-  hash: string,
+  tenantId: string,
   attributesType: string,
 ): Promise<string[]> {
   const rows = await env.ZW_DB.prepare(
@@ -243,7 +254,7 @@ export async function listStartTokens(
      WHERE tenant_id = ? AND attributes_type = ?
      ORDER BY device_id`,
   )
-    .bind(tenantId(hash), attributesType)
+    .bind(tenantId, attributesType)
     .all<TokenRow>();
   return rows.results.map((row) => row.token);
 }
@@ -334,12 +345,12 @@ export async function listAllStartTokens(env: Env): Promise<ScopedEntry<string>[
 
 export async function listPendingActivities(
   env: Env,
-  hash: string,
+  tenantId: string,
 ): Promise<PendingActivityRecord[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT json FROM pending_activities WHERE tenant_id = ? ORDER BY external_id`,
   )
-    .bind(tenantId(hash))
+    .bind(tenantId)
     .all<JsonRow>();
   return rows.results.map((row) => parseJson<PendingActivityRecord>(row.json));
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import handler from "../src/index";
 import { DashboardCardSchema } from "../src/types";
 import { sha256Hex } from "../src/auth";
-import { makeEnv, authedRequest } from "./helpers";
+import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
@@ -93,6 +93,58 @@ describe("cards endpoints", () => {
     expect(data2.cards).toHaveLength(0);
   });
 
+  it("isolates cards with the same id across tenants", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "tenant-a-token", "tenant-a");
+    await seedApiKey(env, "tenant-b-token", "tenant-b");
+
+    const cardA = {
+      id: "shared-card",
+      template: "metric",
+      title: "Tenant A",
+      value: "1",
+    };
+    const cardB = {
+      id: "shared-card",
+      template: "metric",
+      title: "Tenant B",
+      value: "2",
+    };
+
+    expect(
+      (await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/upsert", { method: "POST", body: JSON.stringify(cardA) }, "tenant-a-token"),
+        env,
+        executionCtx,
+      )).status,
+    ).toBe(200);
+    expect(
+      (await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/upsert", { method: "POST", body: JSON.stringify(cardB) }, "tenant-b-token"),
+        env,
+        executionCtx,
+      )).status,
+    ).toBe(200);
+
+    const listA = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }, "tenant-a-token"),
+      env,
+      executionCtx,
+    );
+    const listB = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }, "tenant-b-token"),
+      env,
+      executionCtx,
+    );
+
+    expect(((await listA.json()) as { cards: Array<{ title: string }> }).cards).toMatchObject([
+      { title: "Tenant A" },
+    ]);
+    expect(((await listB.json()) as { cards: Array<{ title: string }> }).cards).toMatchObject([
+      { title: "Tenant B" },
+    ]);
+  });
+
   it("health is public", async () => {
     const env = makeEnv();
     const res = await (handler.fetch as any)(new Request("https://x/health"), env, executionCtx);
@@ -117,23 +169,24 @@ describe("cards endpoints", () => {
     const env = makeEnv();
     const hash = await sha256Hex("test-key");
 
-    await storage.putWidgetToken(
-      env,
-      hash,
-      "device-1",
-      "ZeroZeroWidgetMetricWidget",
-      "metric-token",
-    );
-    await storage.putWidgetToken(
-      env,
-      hash,
-      "device-2",
-      "ZeroZeroWidgetListWidget",
-      "list-token",
-    );
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetMetricWidget", "metric-token");
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetListWidget", "list-token");
 
     await expect(
-      storage.listWidgetTokensForKind(env, hash, "ZeroZeroWidgetMetricWidget"),
+      storage.listWidgetTokensForKind(env, "test-tenant", "ZeroZeroWidgetMetricWidget"),
     ).resolves.toEqual(["metric-token"]);
+  });
+
+  it("filters widget push tokens by tenant and widget kind", async () => {
+    const env = makeEnv();
+    const hashA = await sha256Hex("tenant-a-token");
+    const hashB = await sha256Hex("tenant-b-token");
+
+    await storage.putWidgetToken(env, "tenant-a", hashA, "device-a", "ZeroZeroWidgetMetricWidget", "metric-a");
+    await storage.putWidgetToken(env, "tenant-b", hashB, "device-b", "ZeroZeroWidgetMetricWidget", "metric-b");
+
+    await expect(
+      storage.listWidgetTokensForKind(env, "tenant-a", "ZeroZeroWidgetMetricWidget"),
+    ).resolves.toEqual(["metric-a"]);
   });
 });

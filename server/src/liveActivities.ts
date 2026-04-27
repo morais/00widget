@@ -29,14 +29,14 @@ export async function registerLiveActivity(
   const parsed = RegisterLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
-  await storage.putActivity(env, auth.apiKeyHash, d.externalActivityId, {
+  await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     pushToken: d.pushToken,
     deviceId: d.deviceId,
     localActivityId: d.localActivityId,
     kind: d.kind,
     updatedAt: new Date().toISOString(),
   });
-  await storage.deletePendingActivity(env, auth.apiKeyHash, d.externalActivityId);
+  await storage.deletePendingActivity(env, auth.tenantId, d.externalActivityId);
   return json({ ok: true });
 }
 
@@ -49,7 +49,7 @@ export async function registerLiveActivityStartToken(
   const parsed = RegisterLiveActivityStartTokenSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
-  await storage.putStartToken(env, auth.apiKeyHash, d.deviceId, d.attributesType, d.pushToken);
+  await storage.putStartToken(env, auth.tenantId, auth.apiKeyHash, d.deviceId, d.attributesType, d.pushToken);
   return json({ ok: true });
 }
 
@@ -66,7 +66,7 @@ export async function startLiveActivity(
 
   // Try push-to-start first. If any device has registered a start token for
   // ZeroZeroWidgetActivityAttributes, send the start event over APNs.
-  const startTokens = await storage.listStartTokens(env, auth.apiKeyHash, DEFAULT_ATTRIBUTES_TYPE);
+  const startTokens = await storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE);
   const apnsResults: unknown[] = [];
   if (startTokens.length > 0) {
     const attributes: Record<string, unknown> = {
@@ -99,7 +99,7 @@ export async function startLiveActivity(
 
   // Always also queue as pending so the app can discover and start it locally
   // (push-to-start delivery isn't guaranteed; pending is the durable fallback).
-  await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, {
+  await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     ...d,
     startedAt: now,
     updatedAt: now,
@@ -118,7 +118,7 @@ export async function pendingActivities(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const activities = await storage.listPendingActivities(env, auth.apiKeyHash);
+  const activities = await storage.listPendingActivities(env, auth.tenantId);
   return json({ activities });
 }
 
@@ -131,7 +131,7 @@ export async function updateLiveActivity(
   const parsed = UpdateLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
-  const record = await storage.getActivity(env, auth.apiKeyHash, d.externalActivityId);
+  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
   const now = new Date().toISOString();
 
   const contentState: Record<string, unknown> = {};
@@ -151,15 +151,15 @@ export async function updateLiveActivity(
       staleAt: d.staleAt,
       alert: d.alert,
     });
-    await storage.putActivity(env, auth.apiKeyHash, d.externalActivityId, {
+    await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
       ...record,
       updatedAt: now,
       lastState: contentState,
     });
   } else {
-    const pending = await storage.getPendingActivity(env, auth.apiKeyHash, d.externalActivityId);
+    const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
     if (pending) {
-      await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, {
+      await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
         ...pending,
         title: d.title ?? pending.title,
         subtitle: d.subtitle ?? pending.subtitle,
@@ -185,7 +185,7 @@ export async function endLiveActivity(
   const parsed = EndLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
-  const record = await storage.getActivity(env, auth.apiKeyHash, d.externalActivityId);
+  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
 
   let apnsResult: unknown = null;
   if (record?.pushToken) {
@@ -197,7 +197,7 @@ export async function endLiveActivity(
       dismissalDate: d.dismissalDate,
     });
   }
-  await storage.deleteActivity(env, auth.apiKeyHash, d.externalActivityId);
-  await storage.deletePendingActivity(env, auth.apiKeyHash, d.externalActivityId);
+  await storage.deleteActivity(env, auth.tenantId, d.externalActivityId);
+  await storage.deletePendingActivity(env, auth.tenantId, d.externalActivityId);
   return json({ ok: true, apnsResult });
 }

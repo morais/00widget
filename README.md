@@ -57,7 +57,7 @@ If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Wor
 ```
 cd server
 npm install
-cp .dev.vars.example .dev.vars   # fill in API_KEYS; leave APNS_* blank for local
+cp .dev.vars.example .dev.vars   # fill in API_KEYS + SESSION_SECRET; leave APNS_* blank for local
 npx wrangler dev
 ```
 
@@ -101,7 +101,9 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 A read-only HTML console at `/admin` lists every card, device, push token, Live Activity, pending activity, and push-to-start token across all API keys. Two sign-in methods (either is sufficient):
 
 - **Sign in with Apple** — restricted to emails in `ADMIN_EMAILS`.
-- **API-token fallback** — paste any value from `API_KEYS` into the form. Enabled by default; flip `ADMIN_API_TOKEN_LOGIN=false` once Apple is wired up.
+- **API-token fallback** — paste any bootstrap value from `API_KEYS` into the form. Enabled by default; flip `ADMIN_API_TOKEN_LOGIN=false` once Apple is wired up.
+
+Create tenant API tokens from `/admin`; those generated tokens are what the iOS app and agents use for `/v1/*`.
 
 Setup walkthrough: `server/README.md` → "Admin dashboard".
 

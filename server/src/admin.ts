@@ -12,7 +12,15 @@ import {
   type AdminAuthMethod,
   type AdminSession,
 } from "./appleAuth";
-import { isValidApiKey } from "./auth";
+import {
+  createApiKey,
+  isValidApiKey,
+  listApiKeys,
+  listTenants,
+  revokeApiKey,
+  type ApiKeyRecord,
+  type TenantRecord,
+} from "./auth";
 import * as storage from "./storage";
 
 const STATE_COOKIE = "zw_admin_state";
@@ -122,23 +130,80 @@ export async function handleAdminLogout(_req: Request, _env: Env): Promise<Respo
   return new Response(null, { status: 302, headers });
 }
 
+export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+
+  let input: { tenantId?: string; tenantName?: string; label?: string };
+  try {
+    input = await parseCreateApiKeyInput(req);
+  } catch (err) {
+    return htmlResponse(renderError((err as Error).message), 400);
+  }
+
+  const created = await createApiKey(env, input);
+  if (wantsJson(req)) {
+    return new Response(JSON.stringify(created), {
+      status: 201,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+  return htmlResponse(
+    baseHTML(
+      "00Widget · API token created",
+      `<header><h1>API token created</h1><div class="meta"><a href="/admin">back to admin</a></div></header>
+       <section>
+         <h2>Copy this token now</h2>
+         <p class="muted">It is stored only as a SHA-256 hash and cannot be recovered later.</p>
+         <pre>${esc(created.token)}</pre>
+         <table><tbody>
+           <tr><th>Tenant</th><td>${esc(created.tenant.name)} <code>${esc(created.tenant.id)}</code></td></tr>
+           <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
+           <tr><th>API key id</th><td><code>${esc(created.apiKey.id)}</code></td></tr>
+         </tbody></table>
+       </section>`,
+    ),
+    201,
+  );
+}
+
+export async function handleAdminRevokeApiKey(
+  req: Request,
+  env: Env,
+  apiKeyId: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const revoked = await revokeApiKey(env, apiKeyId);
+  if (wantsJson(req)) {
+    return new Response(JSON.stringify({ ok: revoked }), {
+      status: revoked ? 200 : 404,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+  return new Response(null, { status: 302, headers: { Location: "/admin" } });
+}
+
 export async function handleAdminDashboard(req: Request, env: Env): Promise<Response> {
   const apple = appleSignInConfigured(env);
   const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS) && Boolean(env.SESSION_SECRET);
   if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
-  const session = await readSessionCookie(env, req);
+  const session = await requireAdminSession(req, env);
   if (!session) {
     return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
   }
 
-  const [cards, devices, widgetTokens, activities, pending, startTokens] = await Promise.all([
-    storage.listAllCards(env),
-    storage.listAllDevices(env),
-    storage.listAllWidgetTokens(env),
-    storage.listAllActivities(env),
-    storage.listAllPendingActivities(env),
-    storage.listAllStartTokens(env),
-  ]);
+  const [cards, devices, widgetTokens, activities, pending, startTokens, tenants, apiKeys] =
+    await Promise.all([
+      storage.listAllCards(env),
+      storage.listAllDevices(env),
+      storage.listAllWidgetTokens(env),
+      storage.listAllActivities(env),
+      storage.listAllPendingActivities(env),
+      storage.listAllStartTokens(env),
+      listTenants(env),
+      listApiKeys(env),
+    ]);
 
   return htmlResponse(
     renderDashboard({
@@ -149,6 +214,8 @@ export async function handleAdminDashboard(req: Request, env: Env): Promise<Resp
       activities,
       pending,
       startTokens,
+      tenants,
+      apiKeys,
     }),
   );
 }
@@ -163,6 +230,8 @@ interface DashboardData {
   activities: storage.ScopedEntry<unknown>[];
   pending: storage.ScopedEntry<unknown>[];
   startTokens: storage.ScopedEntry<string>[];
+  tenants: TenantRecord[];
+  apiKeys: ApiKeyRecord[];
 }
 
 function renderDashboard(d: DashboardData): string {
@@ -181,6 +250,7 @@ function renderDashboard(d: DashboardData): string {
       </div>
     </header>
 
+    ${renderApiKeyAdminSection(d.tenants, d.apiKeys)}
     ${renderCardsSection(d.cards)}
     ${renderTokenSection("Devices", d.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
     ${renderWidgetTokensSection(d.widgetTokens)}
@@ -188,6 +258,53 @@ function renderDashboard(d: DashboardData): string {
     ${renderPendingSection(d.pending)}
     ${renderStartTokensSection(d.startTokens)}
     `,
+  );
+}
+
+function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[]): string {
+  const tenantOptions = tenants
+    .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)} · ${esc(shortHash(tenant.id))}</option>`)
+    .join("");
+  const rows = apiKeys.map((key) => {
+    const tenant = tenants.find((t) => t.id === key.tenantId);
+    const active = key.revokedAt ? "revoked" : "active";
+    const action = key.revokedAt
+      ? ""
+      : `<form method="post" action="/admin/api-keys/${esc(key.id)}/revoke">
+           <button class="button button-small" type="submit">Revoke</button>
+         </form>`;
+    return `<tr>
+      <td><code>${esc(shortHash(key.id))}</code></td>
+      <td>${esc(tenant?.name ?? key.tenantId)}</td>
+      <td>${esc(key.label)}</td>
+      <td><code>${esc(shortHash(key.tokenHash))}</code></td>
+      <td>${esc(active)}</td>
+      <td class="ts">${esc(key.createdAt)}</td>
+      <td class="ts">${esc(key.lastUsedAt ?? "")}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join("");
+
+  return section(
+    `Tenants & API keys <span class="count">${tenants.length} tenants · ${apiKeys.length} keys</span>`,
+    `<form method="post" action="/admin/api-keys" class="api-key-form">
+       <label>Existing tenant
+         <select name="tenantId">
+           <option value="">Create a new tenant</option>
+           ${tenantOptions}
+         </select>
+       </label>
+       <label>New tenant name
+         <input type="text" name="tenantName" placeholder="Acme Inc">
+       </label>
+       <label>Token label
+         <input type="text" name="label" placeholder="Production iPhone">
+       </label>
+       <button class="button" type="submit">Create API token</button>
+     </form>
+     ${apiKeys.length === 0
+        ? `<p class="empty">No API keys created yet.</p>`
+        : `<table><thead><tr><th>id</th><th>tenant</th><th>label</th><th>token hash</th><th>state</th><th>created</th><th>last used</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
   );
 }
 
@@ -444,9 +561,14 @@ function baseHTML(title: string, body: string): string {
   .login label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
   .login input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .button { display: inline-block; padding: 10px 18px; margin-top: 12px; border-radius: 6px; background: var(--accent); color: white; border: 0; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .button-small { padding: 5px 9px; margin: 0; font-size: 12px; }
   .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
   .api-token-form { display: flex; flex-direction: column; gap: 4px; }
   .api-token-form .button { align-self: stretch; text-align: center; }
+  .api-key-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 16px; }
+  .api-key-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .api-key-form input, .api-key-form select { padding: 9px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; text-transform: none; letter-spacing: normal; }
+  @media (max-width: 780px) { .api-key-form { grid-template-columns: 1fr; } }
   .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .muted { color: var(--muted); font-size: 12px; }
@@ -465,6 +587,42 @@ function htmlResponse(body: string, status = 200): Response {
     status,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
+}
+
+async function requireAdminSession(req: Request, env: Env): Promise<AdminSession | null> {
+  return readSessionCookie(env, req);
+}
+
+async function parseCreateApiKeyInput(
+  req: Request,
+): Promise<{ tenantId?: string; tenantName?: string; label?: string }> {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = (await req.json()) as Record<string, unknown>;
+    return {
+      tenantId: stringField(data.tenantId),
+      tenantName: stringField(data.tenantName),
+      label: stringField(data.label),
+    };
+  }
+  const form = await req.formData();
+  return {
+    tenantId: stringField(form.get("tenantId")),
+    tenantName: stringField(form.get("tenantName")),
+    label: stringField(form.get("label")),
+  };
+}
+
+function stringField(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function wantsJson(req: Request): boolean {
+  const accept = req.headers.get("accept") ?? "";
+  const contentType = req.headers.get("content-type") ?? "";
+  return accept.includes("application/json") || contentType.includes("application/json");
 }
 
 function esc(s: string): string {

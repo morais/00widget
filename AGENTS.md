@@ -107,7 +107,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **App Group and shared Keychain identifiers come from `project.yml`.** The generated Info.plists and entitlements must match across the app and widget targets; edit `project.yml.sample` for shared changes and rerun `xcodegen`.
 - **The iOS app never holds the APNs `.p8`.** Only the backend has it, as a Wrangler secret. Don't introduce code that reads APNs private material on-device.
 - **Destructive actions don't run from widgets.** `RunDashboardActionIntent` checks `ActionDefinition.isSafeFromWidget` and silently no-ops for `role == .destructive` or `confirm == true`. Route those to the app via `deepLink` instead — don't loosen this without explicit user signoff.
-- **D1 tenant isolation.** Every storage table uses `tenant_id` in its primary key; v1 derives `tenant_id` from `auth.apiKeyHash`. New endpoints must call `requireAuth(...)` and scope queries through the storage layer or the derived tenant id.
+- **D1 tenant isolation.** Every app/agent token is stored hashed in `api_keys` and maps to a `tenant_id`; storage tables use `tenant_id` in their primary keys. New `/v1/*` endpoints must call `requireAuth(...)` and scope queries through `auth.tenantId`.
 
 ## Adding things
 

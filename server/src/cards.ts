@@ -16,13 +16,13 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
     ...parsed.data,
     updatedAt: parsed.data.updatedAt ?? new Date().toISOString(),
   };
-  await storage.putCard(env, auth.apiKeyHash, card);
+  await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
 
   // Fan out a WidgetKit reload push only to widgets that can render this card.
   // Failures are logged but not surfaced to the caller.
   const tokens = await storage.listWidgetTokensForKind(
     env,
-    auth.apiKeyHash,
+    auth.tenantId,
     widgetKindForCard(card),
   );
   for (const token of tokens) {
@@ -36,7 +36,7 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
 }
 
 export async function listCards(_req: Request, env: Env, auth: AuthContext): Promise<Response> {
-  const cards = await storage.listCards(env, auth.apiKeyHash);
+  const cards = await storage.listCards(env, auth.tenantId);
   return json({ cards }, 200);
 }
 
@@ -46,7 +46,7 @@ export async function getCard(
   auth: AuthContext,
   id: string,
 ): Promise<Response> {
-  const card = await storage.getCard(env, auth.apiKeyHash, id);
+  const card = await storage.getCard(env, auth.tenantId, id);
   if (!card) return json({ error: "not found" }, 404);
   return json(card, 200);
 }
@@ -57,7 +57,7 @@ export async function deleteCard(
   auth: AuthContext,
   id: string,
 ): Promise<Response> {
-  await storage.deleteCard(env, auth.apiKeyHash, id);
+  await storage.deleteCard(env, auth.tenantId, id);
   return json({ ok: true }, 200);
 }
 

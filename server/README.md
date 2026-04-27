@@ -39,7 +39,7 @@ npx wrangler d1 migrations apply zerozerowidget --remote
 cp .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` (gitignored) and set at least `API_KEYS`.
+Edit `.dev.vars` (gitignored) and set at least `API_KEYS` and `SESSION_SECRET` for local admin bootstrap. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
 
 ### 3. Run locally
 
@@ -51,7 +51,12 @@ Then:
 
 ```
 curl http://localhost:8787/health
-curl -H "Authorization: Bearer dev-key-1" http://localhost:8787/v1/cards
+```
+
+Then open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant, and use that generated token for `/v1/*` calls:
+
+```
+curl -H "Authorization: Bearer <generated-api-token>" http://localhost:8787/v1/cards
 ```
 
 ### 4. Deploy
@@ -64,6 +69,7 @@ For production, store secrets with `wrangler secret put`:
 
 ```
 npx wrangler secret put API_KEYS
+npx wrangler secret put SESSION_SECRET
 npx wrangler secret put APNS_TEAM_ID
 npx wrangler secret put APNS_KEY_ID
 npx wrangler secret put APNS_PRIVATE_KEY     # paste the PEM, including \n linebreaks
@@ -74,16 +80,18 @@ npx wrangler secret put APNS_BUNDLE_ID
 
 ## Admin dashboard
 
-A read-only HTML dashboard at **`/admin`** lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all API keys.
+An HTML dashboard at **`/admin`** creates tenant API tokens and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants.
 
 Two sign-in methods, either is sufficient:
 
 - **Sign in with Apple** — production; restricted by `ADMIN_EMAILS`. Setup below.
-- **API-token fallback** — uses one of the existing `API_KEYS` values. Enabled by default so the dashboard is reachable while you sort out Sign in with Apple. Disable with `ADMIN_API_TOKEN_LOGIN=false` once Apple is configured.
+- **API-token fallback** — uses one of the `API_KEYS` bootstrap values. Enabled by default so the dashboard is reachable while you sort out Sign in with Apple. Disable with `ADMIN_API_TOKEN_LOGIN=false` once Apple is configured.
 
 ### API-token fallback
 
 Visit `/admin/login`. Paste any value from `API_KEYS` into the API-token form and you're in. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set).
+
+Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a tenant API token, copy the raw token once, and give that generated token to the iOS app or publishing agent.
 
 To disable once Sign in with Apple is working:
 
@@ -157,6 +165,8 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | GET    | `/admin/login`                               | Login page (Apple + API-token forms).  |
 | GET    | `/admin/login/apple`                         | Redirects to Sign in with Apple.       |
 | POST   | `/admin/login/api-token`                     | API-token fallback login.              |
+| POST   | `/admin/api-keys`                            | Create a tenant API token.             |
+| POST   | `/admin/api-keys/:id/revoke`                 | Revoke a tenant API token.             |
 | POST   | `/admin/auth/apple/callback`                 | Apple form-post callback.              |
 | GET    | `/admin/logout`                              | Clears the admin session cookie.       |
 | GET    | `/admin`                                     | Read-only ops dashboard (HTML).        |
@@ -165,12 +175,14 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is g
 
 ## Storage layout
 
-Primary storage is D1. Every table is scoped by `tenant_id`, which is currently derived as `hex(sha256(apiKey))`, and also stores `api_key_hash` for audit/backward compatibility. This keeps current credential isolation while leaving room for a future `tenants`/`api_keys` mapping where multiple API keys belong to the same tenant.
+Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id`, and only `sha256(rawToken)` is stored. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
 
 Tables:
 
 | Table | Primary key | Purpose |
 | ----- | ----------- | ------- |
+| `tenants` | `id` | Customer/workspace tenants. |
+| `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
 | `cards` | `(tenant_id, id)` | Dashboard cards. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
 | `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens. |
