@@ -163,6 +163,64 @@ export async function listStartTokens(
   return tokens;
 }
 
+// ---------- Cross-API-key listing (admin dashboard) ----------
+
+export interface ScopedEntry<T> {
+  apiKeyHash: string;
+  key: string;
+  value: T;
+}
+
+async function listAll<T>(
+  env: Env,
+  prefix: string,
+  parse: (raw: string) => T,
+): Promise<ScopedEntry<T>[]> {
+  const out: ScopedEntry<T>[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.ZW_KV.list({ prefix, cursor });
+    for (const k of page.keys) {
+      const raw = await env.ZW_KV.get(k.name);
+      if (raw == null) continue;
+      const apiKeyHash = k.name.split(":")[1] ?? "";
+      out.push({ apiKeyHash, key: k.name, value: parse(raw) });
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return out;
+}
+
+export async function listAllCards(env: Env): Promise<ScopedEntry<DashboardCard>[]> {
+  return listAll(env, "card:", (raw) => JSON.parse(raw) as DashboardCard);
+}
+
+export async function listAllDevices(env: Env): Promise<ScopedEntry<DeviceRecord>[]> {
+  return listAll(env, "device:", (raw) => JSON.parse(raw) as DeviceRecord);
+}
+
+export async function listAllWidgetTokens(
+  env: Env,
+): Promise<ScopedEntry<string>[]> {
+  return listAll(env, "widget-token:", (raw) => raw);
+}
+
+export async function listAllActivities(
+  env: Env,
+): Promise<ScopedEntry<ActivityRecord>[]> {
+  return listAll(env, "activity:", (raw) => JSON.parse(raw) as ActivityRecord);
+}
+
+export async function listAllPendingActivities(env: Env): Promise<ScopedEntry<unknown>[]> {
+  return listAll(env, "pending-activity:", (raw) => JSON.parse(raw));
+}
+
+export async function listAllStartTokens(env: Env): Promise<ScopedEntry<string>[]> {
+  return listAll(env, "start-token:", (raw) => raw);
+}
+
+// ---------- Per-API-key (existing) ----------
+
 export async function listPendingActivities(env: Env, hash: string): Promise<unknown[]> {
   const prefix = `pending-activity:${hash}:`;
   const out: unknown[] = [];

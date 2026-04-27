@@ -99,10 +99,14 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - **LiveActivitySession** — a Lock Screen / Dynamic Island activity.
 - **ActionDefinition** — a button that runs a backend-defined action via `POST /v1/actions/:id/run`.
 
+## Admin dashboard
+
+A read-only HTML console at `/admin` lists every card, device, push token, Live Activity, pending activity, and push-to-start token across all API keys. Access is gated by **Sign in with Apple**, restricted to emails you configure in `ADMIN_EMAILS`. Setup walkthrough is in `server/README.md` → "Admin dashboard (Sign in with Apple)".
+
 ## Documentation
 
 - `ios/README.md` — Xcode setup, entitlements, signing.
-- `server/README.md` — Worker deploy, KV binding, APNs secrets.
+- `server/README.md` — Worker deploy, KV binding, APNs secrets, admin dashboard.
 - `examples/README.md` — publishing state from any shell or agent.
 - `docs/INTEGRATION.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.
