@@ -92,8 +92,8 @@ describe("cards endpoints", () => {
     expect(data2.cards).toHaveLength(0);
   });
 
-  it("lists cards by storage prefix instead of relying on the legacy index", async () => {
-    const env = makeEnv();
+  it("backfills cards from legacy KV when the migration fallback is enabled", async () => {
+    const env = makeEnv({ STORAGE_LEGACY_KV_FALLBACK: "true" });
     const hash = await sha256Hex("test-key");
     await env.ZW_KV.put(
       `card:${hash}:unindexed`,
@@ -113,6 +113,29 @@ describe("cards endpoints", () => {
     expect(list.status).toBe(200);
     const data = (await list.json()) as { cards: Array<{ id: string }> };
     expect(data.cards.map((c) => c.id)).toContain("unindexed");
+  });
+
+  it("does not scan legacy KV when the migration fallback is disabled", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await env.ZW_KV.put(
+      `card:${hash}:legacy-only`,
+      JSON.stringify({
+        id: "legacy-only",
+        template: "status",
+        title: "Legacy only",
+        status: "good",
+      }),
+    );
+
+    const list = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(list.status).toBe(200);
+    const data = (await list.json()) as { cards: Array<{ id: string }> };
+    expect(data.cards).toHaveLength(0);
   });
 
   it("health is public", async () => {
