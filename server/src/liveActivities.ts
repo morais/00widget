@@ -36,6 +36,7 @@ export async function registerLiveActivity(
     kind: d.kind,
     updatedAt: new Date().toISOString(),
   });
+  await storage.deletePendingActivity(env, auth.apiKeyHash, d.externalActivityId);
   return json({ ok: true });
 }
 
@@ -131,6 +132,7 @@ export async function updateLiveActivity(
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
   const record = await storage.getActivity(env, auth.apiKeyHash, d.externalActivityId);
+  const now = new Date().toISOString();
 
   const contentState: Record<string, unknown> = {};
   if (d.state !== undefined) contentState.state = d.state;
@@ -138,10 +140,11 @@ export async function updateLiveActivity(
   if (d.value !== undefined) contentState.value = d.value;
   if (d.unit !== undefined) contentState.unit = d.unit;
   if (d.progress !== undefined) contentState.progress = d.progress;
-  contentState.updatedAt = new Date().toISOString();
+  contentState.updatedAt = now;
   if (d.staleAt) contentState.staleAt = d.staleAt;
 
   let apnsResult: unknown = null;
+  let pendingUpdated = false;
   if (record?.pushToken) {
     apnsResult = await sendLiveActivityUpdate(env, record.pushToken, {
       contentState,
@@ -150,11 +153,27 @@ export async function updateLiveActivity(
     });
     await storage.putActivity(env, auth.apiKeyHash, d.externalActivityId, {
       ...record,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       lastState: contentState,
     });
+  } else {
+    const pending = await storage.getPendingActivity(env, auth.apiKeyHash, d.externalActivityId);
+    if (pending) {
+      await storage.putPendingActivity(env, auth.apiKeyHash, d.externalActivityId, {
+        ...pending,
+        title: d.title ?? pending.title,
+        subtitle: d.subtitle ?? pending.subtitle,
+        state: d.state ?? pending.state,
+        value: d.value ?? pending.value,
+        unit: d.unit ?? pending.unit,
+        progress: d.progress ?? pending.progress,
+        staleAt: d.staleAt ?? pending.staleAt,
+        updatedAt: now,
+      });
+      pendingUpdated = true;
+    }
   }
-  return json({ ok: true, apnsResult });
+  return json({ ok: true, apnsResult, pendingUpdated });
 }
 
 export async function endLiveActivity(
@@ -179,5 +198,6 @@ export async function endLiveActivity(
     });
   }
   await storage.deleteActivity(env, auth.apiKeyHash, d.externalActivityId);
+  await storage.deletePendingActivity(env, auth.apiKeyHash, d.externalActivityId);
   return json({ ok: true, apnsResult });
 }
