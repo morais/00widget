@@ -14,6 +14,13 @@ export async function registerWidgetPushToken(
   const parsed = RegisterWidgetPushTokenSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const { deviceId, widgetKind, widgetPushToken } = parsed.data;
-  await storage.putWidgetToken(env, auth.apiKeyHash, deviceId, widgetKind, widgetPushToken);
+  await storage.putWidgetToken(
+    env,
+    auth.tenantId,
+    auth.apiKeyHash,
+    deviceId,
+    widgetKind,
+    widgetPushToken,
+  );
   return json({ ok: true });
 }

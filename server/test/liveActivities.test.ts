@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
-import { makeEnv, authedRequest } from "./helpers";
+import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 
@@ -188,6 +188,50 @@ describe("live activities", () => {
       executionCtx,
     );
     expect(((await pending.json()) as { activities: unknown[] }).activities).toHaveLength(0);
+  });
+
+  it("isolates pending activities with the same external id across tenants", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "tenant-a-token", "tenant-a");
+    await seedApiKey(env, "tenant-b-token", "tenant-b");
+
+    for (const [token, title] of [
+      ["tenant-a-token", "Washer A"],
+      ["tenant-b-token", "Washer B"],
+    ] as const) {
+      const start = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/start", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "shared-activity",
+            kind: "appliance",
+            title,
+            state: "running",
+          }),
+        }, token),
+        env,
+        executionCtx,
+      );
+      expect(start.status).toBe(200);
+    }
+
+    const pendingA = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/pending", { method: "GET" }, "tenant-a-token"),
+      env,
+      executionCtx,
+    );
+    const pendingB = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/pending", { method: "GET" }, "tenant-b-token"),
+      env,
+      executionCtx,
+    );
+
+    expect(((await pendingA.json()) as { activities: Array<{ title: string }> }).activities).toMatchObject([
+      { title: "Washer A" },
+    ]);
+    expect(((await pendingB.json()) as { activities: Array<{ title: string }> }).activities).toMatchObject([
+      { title: "Washer B" },
+    ]);
   });
 
   it("validates body shape", async () => {

@@ -148,7 +148,7 @@ export type RunAction = z.infer<typeof RunActionSchema>;
 
 export interface Env {
   ZW_DB: D1Database;
-  API_KEYS: string;
+  API_KEYS?: string;
   APNS_TEAM_ID?: string;
   APNS_KEY_ID?: string;
   APNS_PRIVATE_KEY?: string;

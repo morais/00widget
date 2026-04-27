@@ -1,3 +1,4 @@
+import { sha256Hex } from "../src/auth";
 import type { Env } from "../src/types";
 
 type FakeRow = Record<string, string>;
@@ -14,8 +15,8 @@ class FakeD1Statement {
   }
 
   async run(): Promise<D1Result> {
-    this.owner.run(this.sql, this.values);
-    return { success: true, meta: {} } as D1Result;
+    const changes = this.owner.run(this.sql, this.values);
+    return { success: true, meta: { changes } } as D1Result;
   }
 
   async first<T = unknown>(): Promise<T | null> {
@@ -29,6 +30,8 @@ class FakeD1Statement {
 }
 
 export class FakeD1 {
+  private tenants = new Map<string, FakeRow>();
+  private apiKeys = new Map<string, FakeRow>();
   private cards = new Map<string, FakeRow>();
   private devices = new Map<string, FakeRow>();
   private widgetTokens = new Map<string, FakeRow>();
@@ -40,12 +43,66 @@ export class FakeD1 {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
   }
 
-  run(sql: string, values: unknown[]): void {
+  seedApiKeyHash(rawTokenHash: string, tenantId = "test-tenant", label = "test key"): void {
+    const now = "2026-01-01T00:00:00.000Z";
+    if (!this.tenants.has(tenantId)) {
+      this.tenants.set(tenantId, {
+        id: tenantId,
+        name: tenantId,
+        created_at: now,
+        disabled_at: "",
+      });
+    }
+    this.apiKeys.set(`key:${rawTokenHash}`, {
+      id: `key-${rawTokenHash.slice(0, 8)}`,
+      tenant_id: tenantId,
+      token_hash: rawTokenHash,
+      label,
+      created_at: now,
+      last_used_at: "",
+      revoked_at: "",
+    });
+  }
+
+  run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
+    if (normalized.startsWith("INSERT OR IGNORE INTO tenants")) {
+      const [id, name, created_at] = values.map(String);
+      if (this.tenants.has(id)) return 0;
+      this.tenants.set(id, { id, name, created_at, disabled_at: "" });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT INTO api_keys")) {
+      const [id, tenant_id, token_hash, label, created_at] = values.map(String);
+      this.apiKeys.set(id, {
+        id,
+        tenant_id,
+        token_hash,
+        label,
+        created_at,
+        last_used_at: "",
+        revoked_at: "",
+      });
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")) {
+      const [revoked_at, id] = values.map(String);
+      const row = this.apiKeys.get(id);
+      if (!row || row.revoked_at) return 0;
+      row.revoked_at = revoked_at;
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE api_keys SET last_used_at = ? WHERE id = ? AND revoked_at IS NULL")) {
+      const [last_used_at, id] = values.map(String);
+      const row = this.apiKeys.get(id);
+      if (!row || row.revoked_at) return 0;
+      row.last_used_at = last_used_at;
+      return 1;
+    }
     if (normalized.startsWith("INSERT OR REPLACE INTO cards")) {
       const [tenant_id, api_key_hash, id, json, updated_at] = values.map(String);
       this.cards.set(`${tenant_id}:${id}`, { tenant_id, api_key_hash, id, json, updated_at });
-      return;
+      return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO devices")) {
       const [tenant_id, api_key_hash, device_id, json, updated_at] = values.map(String);
@@ -56,7 +113,7 @@ export class FakeD1 {
         json,
         updated_at,
       });
-      return;
+      return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO widget_tokens")) {
       const [tenant_id, api_key_hash, device_id, widget_kind, token, updated_at] =
@@ -69,7 +126,7 @@ export class FakeD1 {
         token,
         updated_at,
       });
-      return;
+      return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO activities")) {
       const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
@@ -80,7 +137,7 @@ export class FakeD1 {
         json,
         updated_at,
       });
-      return;
+      return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO pending_activities")) {
       const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
@@ -91,7 +148,7 @@ export class FakeD1 {
         json,
         updated_at,
       });
-      return;
+      return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO start_tokens")) {
       const [tenant_id, api_key_hash, device_id, attributes_type, token, updated_at] =
@@ -104,28 +161,48 @@ export class FakeD1 {
         token,
         updated_at,
       });
-      return;
+      return 1;
     }
     if (normalized.startsWith("DELETE FROM cards")) {
       const [tenant_id, id] = values.map(String);
       this.cards.delete(`${tenant_id}:${id}`);
-      return;
+      return 1;
     }
     if (normalized.startsWith("DELETE FROM activities")) {
       const [tenant_id, external_id] = values.map(String);
       this.activities.delete(`${tenant_id}:${external_id}`);
-      return;
+      return 1;
     }
     if (normalized.startsWith("DELETE FROM pending_activities")) {
       const [tenant_id, external_id] = values.map(String);
       this.pendingActivities.delete(`${tenant_id}:${external_id}`);
-      return;
+      return 1;
     }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
   all(sql: string, values: unknown[]): FakeRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+      const [token_hash] = values.map(String);
+      const row = [...this.apiKeys.values()].find((candidate) => {
+        const tenant = this.tenants.get(candidate.tenant_id);
+        return candidate.token_hash === token_hash && !candidate.revoked_at && tenant && !tenant.disabled_at;
+      });
+      return row
+        ? [{ id: row.id, tenant_id: row.tenant_id, last_used_at: row.last_used_at }]
+        : [];
+    }
+    if (normalized === "SELECT id, name, created_at, disabled_at FROM tenants ORDER BY created_at DESC, name") {
+      return [...this.tenants.values()].sort(by("created_at", "name")).reverse();
+    }
+    if (normalized === "SELECT id, name, created_at, disabled_at FROM tenants WHERE id = ?") {
+      const [id] = values.map(String);
+      return pick(this.tenants.get(id), ["id", "name", "created_at", "disabled_at"]);
+    }
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC") {
+      return [...this.apiKeys.values()].sort(by("created_at")).reverse();
+    }
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
       const [tenant_id, id] = values.map(String);
       return pick(this.cards.get(`${tenant_id}:${id}`), ["json"]);
@@ -227,8 +304,10 @@ function pick(row: FakeRow | undefined, fields: string[]): FakeRow[] {
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): Env {
+  const db = new FakeD1();
+  db.seedApiKeyHash("62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef");
   return {
-    ZW_DB: new FakeD1() as unknown as D1Database,
+    ZW_DB: db as unknown as D1Database,
     API_KEYS: "test-key",
     APNS_TEAM_ID: undefined,
     APNS_KEY_ID: undefined,
@@ -237,6 +316,10 @@ export function makeEnv(overrides: Partial<Env> = {}): Env {
     APNS_ENV: "sandbox",
     ...overrides,
   };
+}
+
+export async function seedApiKey(env: Env, rawToken: string, tenantId: string): Promise<void> {
+  (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(await sha256Hex(rawToken), tenantId);
 }
 
 export function authedRequest(url: string, init: RequestInit = {}, apiKey = "test-key"): Request {

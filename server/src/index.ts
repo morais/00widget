@@ -54,6 +54,10 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/admin\/login\/apple\/?$/, handler: (req, env) => admin.handleAdminLoginApple(req, env) },
   { method: "POST", pattern: /^\/admin\/login\/api-token\/?$/, handler: (req, env) => admin.handleAdminLoginApiToken(req, env) },
   { method: "POST", pattern: /^\/admin\/auth\/apple\/callback\/?$/, handler: (req, env) => admin.handleAdminCallback(req, env) },
+  { method: "POST", pattern: /^\/admin\/api-keys\/?$/, handler: (req, env) => admin.handleAdminCreateApiKey(req, env) },
+  { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
+    admin.handleAdminRevokeApiKey(req, env, match[1]),
+  },
   { method: "GET", pattern: /^\/admin\/logout\/?$/, handler: (req, env) => admin.handleAdminLogout(req, env) },
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];

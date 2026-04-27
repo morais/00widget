@@ -15,6 +15,7 @@ export async function runAction(
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   // v1 behaviour: log and succeed. Wire this to a configured webhook per API key in v2.
   console.log("action.run", {
+    tenantId: auth.tenantId,
     apiKeyHash: auth.apiKeyHash,
     actionId,
     source: parsed.data.source,

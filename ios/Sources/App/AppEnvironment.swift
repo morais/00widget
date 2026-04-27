@@ -18,6 +18,7 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var apnsDeviceToken: String?
 
     public let liveActivityController = LiveActivityController.shared
+    private var apiKeyRegistrationTask: Task<Void, Never>?
 
     public init() {
         let defaults = UserDefaults.standard
@@ -30,7 +31,11 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func saveApiKey() {
+        let previous = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
+        guard apiKey != previous else { return }
+        clearTenantScopedState()
+        scheduleCredentialRegistration()
     }
 
     public func apiClient() -> APIClient? {
@@ -72,6 +77,26 @@ public final class AppEnvironment: ObservableObject {
     public func clearCache() {
         CardCache.clear()
         cards = []
+    }
+
+    private func clearTenantScopedState() {
+        CardCache.clear()
+        cards = []
+        pendingActivities = []
+        lastSyncAt = nil
+        lastSyncError = nil
+        UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
+    }
+
+    private func scheduleCredentialRegistration() {
+        apiKeyRegistrationTask?.cancel()
+        guard !apiKey.isEmpty else { return }
+        apiKeyRegistrationTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            await self.registerDevice()
+            await self.registerPendingWidgetTokens()
+        }
     }
 
     public func refreshPendingActivities() async {

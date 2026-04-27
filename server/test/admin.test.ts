@@ -246,6 +246,96 @@ describe("admin routes (no Apple call required)", () => {
     expect(dashRes.headers.get("location")).toBe("/admin/login");
   });
 
+  it("/admin/api-keys creates a tenant token and returns the raw token once", async () => {
+    const env = adminEnv();
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ tenantName: "Customer A", label: "iPhone" }),
+      }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      token: string;
+      tenant: { id: string; name: string };
+      apiKey: { id: string; tokenHash: string; label: string };
+    };
+    expect(body.token).toMatch(/^zw_/);
+    expect(body.tenant.name).toBe("Customer A");
+    expect(body.apiKey.label).toBe("iPhone");
+    expect(body.apiKey.tokenHash).not.toBe(body.token);
+
+    const dash = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const html = await dash.text();
+    expect(html).toContain("Customer A");
+    expect(html).not.toContain(body.token);
+  });
+
+  it("/admin/api-keys/:id/revoke revokes a generated token", async () => {
+    const env = adminEnv();
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const createRes = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ tenantName: "Customer B", label: "test" }),
+      }),
+      env,
+      ctx,
+    );
+    const created = (await createRes.json()) as { token: string; apiKey: { id: string } };
+
+    expect(
+      (await (handler.fetch as any)(
+        new Request("https://x/v1/cards", {
+          headers: { authorization: `Bearer ${created.token}` },
+        }),
+        env,
+        ctx,
+      )).status,
+    ).toBe(200);
+
+    const revokeRes = await (handler.fetch as any)(
+      new Request(`https://x/admin/api-keys/${created.apiKey.id}/revoke`, {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          cookie,
+        },
+      }),
+      env,
+      ctx,
+    );
+    expect(revokeRes.status).toBe(200);
+
+    expect(
+      (await (handler.fetch as any)(
+        new Request("https://x/v1/cards", {
+          headers: { authorization: `Bearer ${created.token}` },
+        }),
+        env,
+        ctx,
+      )).status,
+    ).toBe(401);
+  });
+
   it("/admin/logout clears the session and redirects to login", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
