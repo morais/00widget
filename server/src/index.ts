@@ -7,6 +7,7 @@ import * as widgets from "./widgets";
 import * as liveActivities from "./liveActivities";
 import * as actions from "./actions";
 import * as admin from "./admin";
+import * as landing from "./landing";
 
 interface Route {
   method: string;
@@ -20,6 +21,10 @@ const routes: Route[] = [
     pattern: /^\/health\/?$/,
     handler: async () => json({ ok: true }),
   },
+  // Public landing + integration docs.
+  { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
+  { method: "GET", pattern: /^\/integration\.md\/?$/, handler: (req) => landing.handleIntegrationMd(req) },
+  { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth) => cards.upsertCard(req, env, auth)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
