@@ -17,6 +17,15 @@ describe("public landing + integration endpoints", () => {
     expect(body).toContain("/integration.md");
   });
 
+  it("landing HTML wires a copy button to the agent prompt", async () => {
+    const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    const body = await res.text();
+    // Button + matching target + click handler all present.
+    expect(body).toContain('data-copy-target="agent-prompt"');
+    expect(body).toContain('id="agent-prompt"');
+    expect(body).toContain("navigator.clipboard.writeText");
+  });
+
   it("GET /integration.md returns INTEGRATION.md as text/markdown", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/integration.md"),
