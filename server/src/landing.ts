@@ -1,0 +1,190 @@
+import { integrationMarkdown } from "./generated/integrationDoc";
+
+// Public, unauthenticated routes:
+//   GET /              landing HTML — intro + agent prompt + link to docs
+//   GET /integration.md raw INTEGRATION.md (for agents that fetch directly)
+//   GET /llms.txt       short discovery doc pointing at /integration.md
+//
+// The agent prompt embedded below mirrors the README's
+// "Pointing an agent at 00Widget from another project" block — keep them in
+// sync when either changes.
+
+const AGENT_PROMPT = `Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
+
+Read the integration contract: https://api.00widget.com/integration.md
+That single document is everything you need — don't pull in the rest of the 00Widget repo.
+
+Operator-supplied env vars:
+  00WIDGET_BASE_URL=https://api.00widget.com
+  00WIDGET_API_KEY=<bearer token>
+
+Verify both work with \`curl $00WIDGET_BASE_URL/health\` and an authenticated \`GET /v1/cards\` before writing any code.
+
+Then:
+1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
+2. For each, pick a template (metric/status/progress/list/action) per the integration doc's decision matrix.
+3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable \`id\`. No SDK, no class hierarchy.
+4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
+
+Constraints:
+- Use a stable \`id\` per logical thing — never embed timestamps or run ids.
+- Never put secrets or PII in card fields. They render on the Lock Screen.
+- Always end Live Activities. Never make destructive actions auto-run from widgets.
+- Don't publish more than ~once a minute per card unless the value actually changed.
+
+If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in the integration doc — same-account integrations should use a Service Binding instead of a public HTTPS fetch.`;
+
+export async function handleLanding(_req: Request): Promise<Response> {
+  return new Response(renderLandingHTML(), {
+    status: 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+    },
+  });
+}
+
+export async function handleIntegrationMd(_req: Request): Promise<Response> {
+  return new Response(integrationMarkdown, {
+    status: 200,
+    headers: {
+      "content-type": "text/markdown; charset=utf-8",
+      "cache-control": "public, max-age=300",
+    },
+  });
+}
+
+export async function handleLlmsTxt(_req: Request): Promise<Response> {
+  const body = `# 00Widget
+
+Widgets for all your agents.
+
+A reusable iOS companion app and Cloudflare Worker backend that lets your web apps,
+automations, and agents publish structured state to iOS widgets, Live Activities,
+and the Dynamic Island.
+
+## Integration contract for AI agents
+
+The complete API contract is at https://api.00widget.com/integration.md — that one
+document is everything an integrating agent needs.
+
+## Endpoints worth knowing
+
+- GET  /health                      health check
+- POST /v1/cards/upsert              publish a dashboard card
+- GET  /v1/cards                     list cards
+- POST /v1/live-activities/start     queue/start a Live Activity
+- POST /v1/live-activities/update    update one
+- POST /v1/live-activities/end       end one
+
+All /v1/* endpoints require Authorization: Bearer <api-token>. Tokens are issued
+from the operator's /admin dashboard, not from this file.
+`;
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "public, max-age=300",
+    },
+  });
+}
+
+// ---------- HTML rendering ----------
+
+function renderLandingHTML(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00Widget — Widgets for all your agents</title>
+<meta name="description" content="A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS widgets, Live Activities, and the Dynamic Island.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f8fbff;
+    --fg: #06152a;
+    --muted: #56657a;
+    --line: #e2e7ee;
+    --accent: #0968e8;
+    --code-bg: #eef2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #06152a;
+      --fg: #f8fbff;
+      --muted: #98a8c0;
+      --line: #1a2b48;
+      --accent: #22a8ff;
+      --code-bg: #0c2340;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px; max-width: 760px; margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55; background: var(--bg); color: var(--fg);
+  }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 28px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.01em; }
+  .tagline { color: var(--muted); margin: 0 0 24px; font-size: 16px; }
+  h2 { font-size: 18px; font-weight: 700; margin: 32px 0 12px; }
+  p { margin: 0 0 12px; }
+  a { color: var(--accent); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre {
+    background: var(--code-bg); padding: 16px; border-radius: 8px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.5;
+    border: 1px solid var(--line); white-space: pre-wrap; word-break: break-word;
+  }
+  pre code { background: transparent; padding: 0; font-size: inherit; }
+  .copy-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  ul.endpoints { padding-left: 20px; margin: 0; }
+  ul.endpoints li { margin: 4px 0; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>00Widget</h1>
+  <p class="tagline">Widgets for all your agents.</p>
+</header>
+
+<p>A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS Home/Lock Screen widgets, Live Activities, and the Dynamic Island.</p>
+
+<p>The server never sends UI — only structured state conforming to a small set of templates. The iOS app renders that state through predefined SwiftUI views.</p>
+
+<h2>Pointing an agent at 00Widget from another project</h2>
+
+<p>If you're inside another repo (a CI pipeline, a home-automation script, a server-side agent) and want Claude Code / Codex to publish state here, paste this into the agent — it's self-contained:</p>
+
+<pre><code>${escapeHtml(AGENT_PROMPT)}</code></pre>
+
+<p class="copy-hint">The integration contract is also available at <a href="/integration.md"><code>/integration.md</code></a>.</p>
+
+<h2>API endpoints</h2>
+
+<ul class="endpoints">
+  <li><code>GET /health</code> — health check, no auth.</li>
+  <li><code>POST /v1/cards/upsert</code> — publish a dashboard card.</li>
+  <li><code>GET /v1/cards</code> — list cards for the API token.</li>
+  <li><code>POST /v1/live-activities/start</code> / <code>update</code> / <code>end</code> — Live Activity lifecycle.</li>
+  <li><code>POST /v1/actions/:id/run</code> — run an action by id.</li>
+</ul>
+
+<p>All <code>/v1/*</code> endpoints require <code>Authorization: Bearer &lt;api-token&gt;</code>. Tokens are issued from the operator's <a href="/admin"><code>/admin</code></a> dashboard.</p>
+
+<footer>
+  Source: <a href="https://github.com/morais/00widget">github.com/morais/00widget</a> · MIT
+</footer>
+</body>
+</html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
