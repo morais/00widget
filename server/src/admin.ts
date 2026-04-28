@@ -134,14 +134,25 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
   const session = await requireAdminSession(req, env);
   if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
 
-  let input: { tenantId?: string; tenantName?: string; label?: string };
+  let input: { tenantId?: string; ownerEmail?: string; label?: string };
   try {
     input = await parseCreateApiKeyInput(req);
   } catch (err) {
     return htmlResponse(renderError((err as Error).message), 400);
   }
 
-  const created = await createApiKey(env, input);
+  let created: Awaited<ReturnType<typeof createApiKey>>;
+  try {
+    created = await createApiKey(env, input);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "failed to create API key";
+    return wantsJson(req)
+      ? new Response(JSON.stringify({ error: message }), {
+          status: 400,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        })
+      : htmlResponse(renderError(message), 400);
+  }
   if (wantsJson(req)) {
     return new Response(JSON.stringify(created), {
       status: 201,
@@ -157,7 +168,8 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
          <p class="muted">It is stored only as a SHA-256 hash and cannot be recovered later.</p>
          <pre>${esc(created.token)}</pre>
          <table><tbody>
-           <tr><th>Tenant</th><td>${esc(created.tenant.name)} <code>${esc(created.tenant.id)}</code></td></tr>
+           <tr><th>Owner email</th><td>${esc(created.tenant.ownerEmail)}</td></tr>
+           <tr><th>Tenant id</th><td><code>${esc(created.tenant.id)}</code></td></tr>
            <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
            <tr><th>API key id</th><td><code>${esc(created.apiKey.id)}</code></td></tr>
          </tbody></table>
@@ -263,7 +275,7 @@ function renderDashboard(d: DashboardData): string {
 
 function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[]): string {
   const tenantOptions = tenants
-    .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.name)} · ${esc(shortHash(tenant.id))}</option>`)
+    .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.ownerEmail)} · ${esc(shortHash(tenant.id))}</option>`)
     .join("");
   const rows = apiKeys.map((key) => {
     const tenant = tenants.find((t) => t.id === key.tenantId);
@@ -275,7 +287,7 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
          </form>`;
     return `<tr>
       <td><code>${esc(shortHash(key.id))}</code></td>
-      <td>${esc(tenant?.name ?? key.tenantId)}</td>
+      <td>${esc(tenant?.ownerEmail ?? key.tenantId)}</td>
       <td>${esc(key.label)}</td>
       <td><code>${esc(shortHash(key.tokenHash))}</code></td>
       <td>${esc(active)}</td>
@@ -294,8 +306,8 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
            ${tenantOptions}
          </select>
        </label>
-       <label>New tenant name
-         <input type="text" name="tenantName" placeholder="Acme Inc">
+       <label>Owner email
+         <input type="email" name="ownerEmail" placeholder="owner@example.com">
        </label>
        <label>Token label
          <input type="text" name="label" placeholder="Production iPhone">
@@ -595,20 +607,20 @@ async function requireAdminSession(req: Request, env: Env): Promise<AdminSession
 
 async function parseCreateApiKeyInput(
   req: Request,
-): Promise<{ tenantId?: string; tenantName?: string; label?: string }> {
+): Promise<{ tenantId?: string; ownerEmail?: string; label?: string }> {
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const data = (await req.json()) as Record<string, unknown>;
     return {
       tenantId: stringField(data.tenantId),
-      tenantName: stringField(data.tenantName),
+      ownerEmail: stringField(data.ownerEmail),
       label: stringField(data.label),
     };
   }
   const form = await req.formData();
   return {
     tenantId: stringField(form.get("tenantId")),
-    tenantName: stringField(form.get("tenantName")),
+    ownerEmail: stringField(form.get("ownerEmail")),
     label: stringField(form.get("label")),
   };
 }

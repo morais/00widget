@@ -33,7 +33,10 @@ describe("requireAuth", () => {
 
   it("rejects revoked D1 API keys", async () => {
     const env = makeEnv();
-    const created = await createApiKey(env, { tenantName: "Revoked", label: "test" });
+    const created = await createApiKey(env, {
+      ownerEmail: "revoked@example.com",
+      label: "test",
+    });
     const req = new Request("https://x/", {
       headers: { authorization: `Bearer ${created.token}` },
     });

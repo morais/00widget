@@ -49,6 +49,7 @@ export class FakeD1 {
       this.tenants.set(tenantId, {
         id: tenantId,
         name: tenantId,
+        owner_email: `${tenantId}@example.com`,
         created_at: now,
         disabled_at: "",
       });
@@ -67,9 +68,16 @@ export class FakeD1 {
   run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
     if (normalized.startsWith("INSERT OR IGNORE INTO tenants")) {
-      const [id, name, created_at] = values.map(String);
+      const [id, name, owner_email, created_at] = values.map(String);
       if (this.tenants.has(id)) return 0;
-      this.tenants.set(id, { id, name, created_at, disabled_at: "" });
+      this.tenants.set(id, { id, name, owner_email, created_at, disabled_at: "" });
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE tenants SET owner_email = ? WHERE id = ?")) {
+      const [owner_email, id] = values.map(String);
+      const row = this.tenants.get(id);
+      if (!row || row.owner_email) return 0;
+      row.owner_email = owner_email;
       return 1;
     }
     if (normalized.startsWith("INSERT INTO api_keys")) {
@@ -193,12 +201,12 @@ export class FakeD1 {
         ? [{ id: row.id, tenant_id: row.tenant_id, last_used_at: row.last_used_at }]
         : [];
     }
-    if (normalized === "SELECT id, name, created_at, disabled_at FROM tenants ORDER BY created_at DESC, name") {
-      return [...this.tenants.values()].sort(by("created_at", "name")).reverse();
+    if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
+      return [...this.tenants.values()].sort(by("created_at", "owner_email")).reverse();
     }
-    if (normalized === "SELECT id, name, created_at, disabled_at FROM tenants WHERE id = ?") {
+    if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants WHERE id = ?") {
       const [id] = values.map(String);
-      return pick(this.tenants.get(id), ["id", "name", "created_at", "disabled_at"]);
+      return pick(this.tenants.get(id), ["id", "owner_email", "created_at", "disabled_at"]);
     }
     if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
