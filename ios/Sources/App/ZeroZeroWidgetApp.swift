@@ -14,7 +14,17 @@ struct ZeroZeroWidgetApp: App {
                     delegate.env = env
                     Task { await env.registerPendingWidgetTokens() }
                 }
+                .onOpenURL { url in
+                    openExternalDeepLink(url)
+                }
         }
+    }
+
+    private func openExternalDeepLink(_ url: URL) {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            return
+        }
+        UIApplication.shared.open(url)
     }
 }
 
