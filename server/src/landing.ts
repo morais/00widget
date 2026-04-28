@@ -140,6 +140,16 @@ function renderLandingHTML(): string {
   }
   pre code { background: transparent; padding: 0; font-size: inherit; }
   .copy-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .copy-wrap { position: relative; }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+    opacity: .85;
+  }
+  .copy-btn:hover { opacity: 1; }
+  .copy-btn[data-state="copied"] { color: var(--accent); border-color: var(--accent); }
   ul.endpoints { padding-left: 20px; margin: 0; }
   ul.endpoints li { margin: 4px 0; }
   footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
@@ -159,7 +169,10 @@ function renderLandingHTML(): string {
 
 <p>If you're inside another repo (a CI pipeline, a home-automation script, a server-side agent) and want Claude Code / Codex to publish state here, paste this into the agent — it's self-contained:</p>
 
-<pre><code>${escapeHtml(AGENT_PROMPT)}</code></pre>
+<div class="copy-wrap">
+  <button type="button" class="copy-btn" data-copy-target="agent-prompt" aria-label="Copy agent prompt">Copy</button>
+  <pre id="agent-prompt"><code>${escapeHtml(AGENT_PROMPT)}</code></pre>
+</div>
 
 <p class="copy-hint">The integration contract is also available at <a href="/integration.md"><code>/integration.md</code></a>.</p>
 
@@ -178,6 +191,36 @@ function renderLandingHTML(): string {
 <footer>
   Source: <a href="https://github.com/morais/00widget">github.com/morais/00widget</a> · MIT
 </footer>
+
+<script>
+  document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      var id = btn.getAttribute("data-copy-target");
+      var target = document.getElementById(id);
+      if (!target) return;
+      var text = target.innerText;
+      var original = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+      } catch (_) {
+        // Fallback for browsers without async clipboard support.
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); btn.textContent = "Copied"; }
+        catch (__) { btn.textContent = "Copy failed"; }
+        document.body.removeChild(ta);
+      }
+      btn.setAttribute("data-state", "copied");
+      setTimeout(function () {
+        btn.textContent = original;
+        btn.removeAttribute("data-state");
+      }, 1600);
+    });
+  });
+</script>
 </body>
 </html>`;
 }
