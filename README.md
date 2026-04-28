@@ -103,7 +103,7 @@ A read-only HTML console at `/admin` lists every card, device, push token, Live 
 - **Sign in with Apple** — restricted to emails in `ADMIN_EMAILS`.
 - **API-token fallback** — paste any bootstrap value from `API_KEYS` into the form. Enabled by default; flip `ADMIN_API_TOKEN_LOGIN=false` once Apple is wired up.
 
-Create tenant API tokens from `/admin`; those generated tokens are what the iOS app and agents use for `/v1/*`.
+Create tenant API tokens from `/admin` using the tenant owner email; those generated tokens are what the iOS app and agents use for `/v1/*`.
 
 Setup walkthrough: `server/README.md` → "Admin dashboard".
 

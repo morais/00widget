@@ -15,7 +15,7 @@ interface AuthRow {
 
 export interface TenantRecord {
   id: string;
-  name: string;
+  ownerEmail: string;
   createdAt: string;
   disabledAt?: string;
 }
@@ -32,7 +32,7 @@ export interface ApiKeyRecord {
 
 export interface CreateApiKeyInput {
   tenantId?: string;
-  tenantName?: string;
+  ownerEmail?: string;
   label?: string;
 }
 
@@ -93,24 +93,39 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   const tenantId = input.tenantId?.trim() || crypto.randomUUID();
   const existingTenant = input.tenantId
     ? await env.ZW_DB.prepare(
-        `SELECT id, name, created_at, disabled_at
+        `SELECT id, owner_email, created_at, disabled_at
          FROM tenants
          WHERE id = ?`,
       )
         .bind(tenantId)
-        .first<{ id: string; name: string; created_at: string; disabled_at: string | null }>()
+        .first<{
+          id: string;
+          owner_email: string | null;
+          created_at: string;
+          disabled_at: string | null;
+        }>()
     : null;
-  const tenantName = existingTenant?.name ?? input.tenantName?.trim() ?? "Untitled tenant";
+  const ownerEmail = normalizeEmail(existingTenant?.owner_email) || normalizeEmail(input.ownerEmail);
+  if (!ownerEmail) {
+    throw new Error("ownerEmail is required");
+  }
   const label = input.label?.trim() || "default";
   const token = `zw_${randomUrlToken(32)}`;
   const tokenHash = await sha256Hex(token);
   const apiKeyId = crypto.randomUUID();
 
   await env.ZW_DB.prepare(
-    `INSERT OR IGNORE INTO tenants (id, name, created_at)
-     VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO tenants (id, name, owner_email, created_at)
+     VALUES (?, ?, ?, ?)`,
   )
-    .bind(tenantId, tenantName, now)
+    .bind(tenantId, ownerEmail, ownerEmail, now)
+    .run();
+  await env.ZW_DB.prepare(
+    `UPDATE tenants
+     SET owner_email = ?
+     WHERE id = ? AND (owner_email IS NULL OR owner_email = '')`,
+  )
+    .bind(ownerEmail, tenantId)
     .run();
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys (id, tenant_id, token_hash, label, created_at)
@@ -122,7 +137,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   return {
     tenant: {
       id: tenantId,
-      name: tenantName,
+      ownerEmail,
       createdAt: existingTenant?.created_at ?? now,
       disabledAt: existingTenant?.disabled_at ?? undefined,
     },
@@ -151,13 +166,18 @@ export async function revokeApiKey(env: Env, id: string): Promise<boolean> {
 
 export async function listTenants(env: Env): Promise<TenantRecord[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT id, name, created_at, disabled_at
+    `SELECT id, owner_email, created_at, disabled_at
      FROM tenants
-     ORDER BY created_at DESC, name`,
-  ).all<{ id: string; name: string; created_at: string; disabled_at: string | null }>();
+     ORDER BY created_at DESC, owner_email`,
+  ).all<{
+    id: string;
+    owner_email: string | null;
+    created_at: string;
+    disabled_at: string | null;
+  }>();
   return rows.results.map((row) => ({
     id: row.id,
-    name: row.name,
+    ownerEmail: row.owner_email ?? "",
     createdAt: row.created_at,
     disabledAt: row.disabled_at ?? undefined,
   }));
@@ -195,6 +215,10 @@ function constantTimeEqual(a: string, b: string): boolean {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+function normalizeEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
 }
 
 async function touchApiKeyLastUsed(

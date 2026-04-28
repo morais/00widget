@@ -257,7 +257,7 @@ describe("admin routes (no Apple call required)", () => {
           "content-type": "application/json",
           cookie,
         },
-        body: JSON.stringify({ tenantName: "Customer A", label: "iPhone" }),
+        body: JSON.stringify({ ownerEmail: "customer-a@example.com", label: "iPhone" }),
       }),
       env,
       ctx,
@@ -266,11 +266,11 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as {
       token: string;
-      tenant: { id: string; name: string };
+      tenant: { id: string; ownerEmail: string };
       apiKey: { id: string; tokenHash: string; label: string };
     };
     expect(body.token).toMatch(/^zw_/);
-    expect(body.tenant.name).toBe("Customer A");
+    expect(body.tenant.ownerEmail).toBe("customer-a@example.com");
     expect(body.apiKey.label).toBe("iPhone");
     expect(body.apiKey.tokenHash).not.toBe(body.token);
 
@@ -280,7 +280,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     const html = await dash.text();
-    expect(html).toContain("Customer A");
+    expect(html).toContain("customer-a@example.com");
     expect(html).not.toContain(body.token);
   });
 
@@ -295,7 +295,7 @@ describe("admin routes (no Apple call required)", () => {
           "content-type": "application/json",
           cookie,
         },
-        body: JSON.stringify({ tenantName: "Customer B", label: "test" }),
+        body: JSON.stringify({ ownerEmail: "customer-b@example.com", label: "test" }),
       }),
       env,
       ctx,

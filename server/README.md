@@ -53,7 +53,7 @@ Then:
 curl http://localhost:8787/health
 ```
 
-Then open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant, and use that generated token for `/v1/*` calls:
+Then open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant owner email, and use that generated token for `/v1/*` calls:
 
 ```
 curl -H "Authorization: Bearer <generated-api-token>" http://localhost:8787/v1/cards
@@ -80,7 +80,7 @@ npx wrangler secret put APNS_BUNDLE_ID
 
 ## Admin dashboard
 
-An HTML dashboard at **`/admin`** creates tenant API tokens and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants.
+An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant owner email, and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants.
 
 Two sign-in methods, either is sufficient:
 
@@ -175,13 +175,13 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is g
 
 ## Storage layout
 
-Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id`, and only `sha256(rawToken)` is stored. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
+Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id`, and only `sha256(rawToken)` is stored. Tenants store an `owner_email` for ops/account ownership. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
 
 Tables:
 
 | Table | Primary key | Purpose |
 | ----- | ----------- | ------- |
-| `tenants` | `id` | Customer/workspace tenants. |
+| `tenants` | `id` | Customer/workspace tenants, including `owner_email`. |
 | `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
 | `cards` | `(tenant_id, id)` | Dashboard cards. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
