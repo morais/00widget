@@ -17,7 +17,7 @@ This document is the entire contract you need. You do **not** need to read the r
 
 Cards can open a destination when tapped via `deepLink`. If you want a card tap to open your app or website, set `deepLink` to an `https://...` URL, for example `"deepLink": "https://example.com/dashboard"`.
 
-On widgets, 00Widget passes `deepLink` to iOS as the widget URL. iOS opens the URL with the normal system behavior: a matching app/universal link if one is installed, otherwise Safari for `https://...`. It does not open an in-app web view inside 00Widget first. Inside the 00Widget app, the card is rendered as a normal link to the same URL. If `deepLink` is omitted, tapping the card itself does nothing.
+On Home Screen widgets, iOS first launches the containing 00Widget app with the widget URL. 00Widget then forwards `http`/`https` deep links to the system, so a universal link can open its matching app and a normal `https://...` URL opens in Safari. You may briefly see 00Widget during that handoff; it is not an in-app web view. Inside the 00Widget app, the card is rendered as a normal link to the same URL. If `deepLink` is omitted, a widget tap just opens 00Widget with no external destination.
 
 ## Operator checklist for agents
 
