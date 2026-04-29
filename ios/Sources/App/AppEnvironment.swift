@@ -16,6 +16,11 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var cards: [DashboardCard] = []
     @Published public private(set) var pendingActivities: [LiveActivitySession] = []
     @Published public private(set) var apnsDeviceToken: String?
+    @Published public var showActivitiesTab: Bool {
+        didSet {
+            UserDefaults.standard.set(showActivitiesTab, forKey: "zw.showActivitiesTab")
+        }
+    }
 
     public let liveActivityController = LiveActivityController.shared
     private var apiKeyRegistrationTask: Task<Void, Never>?
@@ -27,6 +32,7 @@ public final class AppEnvironment: ObservableObject {
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
+        self.showActivitiesTab = defaults.bool(forKey: "zw.showActivitiesTab")
         self.cards = CardCache.load().cards
     }
 
