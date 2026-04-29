@@ -37,7 +37,8 @@ public final class AppEnvironment: ObservableObject {
 
     public init() {
         let defaults = UserDefaults.standard
-        self.serverBaseURL = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL) ?? ""
+        self.serverBaseURL = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+            ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
