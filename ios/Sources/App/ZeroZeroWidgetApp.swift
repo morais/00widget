@@ -12,7 +12,7 @@ struct ZeroZeroWidgetApp: App {
                 .environmentObject(env)
                 .onAppear {
                     delegate.env = env
-                    Task { await env.registerPendingWidgetTokens() }
+                    Task { await env.startupSync() }
                 }
                 .onOpenURL { url in
                     openExternalDeepLink(url)
@@ -65,7 +65,7 @@ struct RootView: View {
     var body: some View {
         TabView {
             DashboardView()
-                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
+                .tabItem { Label("Widgets", systemImage: "square.grid.2x2") }
 
             LiveActivitiesView()
                 .tabItem { Label("Activities", systemImage: "waveform") }
