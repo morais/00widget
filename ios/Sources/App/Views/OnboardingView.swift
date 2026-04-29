@@ -35,9 +35,6 @@ struct OnboardingView: View {
                         Text(healthStatusText)
                             .foregroundStyle(healthStatusColor)
                     }
-                    Button("Register device") {
-                        Task { await env.registerDevice() }
-                    }
                 }
 
                 Section("Notifications") {
