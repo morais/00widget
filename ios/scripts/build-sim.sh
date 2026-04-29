@@ -28,12 +28,14 @@
 #   ios/scripts/build-sim.sh --launch                         # also launch
 #   ios/scripts/build-sim.sh --device "iPhone 17 Pro"         # pick a sim
 #   ios/scripts/build-sim.sh --base-url https://...           # seed UserDefaults
+#   ios/scripts/build-sim.sh --fresh                          # wipe app data first
 
 set -euo pipefail
 
 DEVICE="${SIM_DEVICE:-iPhone 17 Pro}"
 LAUNCH=0
 BASE_URL="${ZW_BASE_URL:-}"
+FRESH=0
 APP_GROUP="group.com.example.zerozerowidget"
 BUNDLE_ID="com.example.zerozerowidget"
 
@@ -42,6 +44,7 @@ while [[ $# -gt 0 ]]; do
     --launch) LAUNCH=1; shift ;;
     --device) DEVICE="$2"; shift 2 ;;
     --base-url) BASE_URL="$2"; shift 2 ;;
+    --fresh) FRESH=1; shift ;;
     *) echo "unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -95,7 +98,10 @@ codesign --force --sign - --entitlements "$SIM_ENT" "$APP"
 rm "$SIM_ENT"
 
 echo "→ installing"
-xcrun simctl uninstall booted "$BUNDLE_ID" 2>/dev/null || true
+if [[ "$FRESH" == "1" ]]; then
+  echo "→ removing existing install and app data"
+  xcrun simctl uninstall booted "$BUNDLE_ID" 2>/dev/null || true
+fi
 xcrun simctl install booted "$APP"
 
 if [[ -n "$BASE_URL" ]]; then
