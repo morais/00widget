@@ -11,6 +11,7 @@ struct DeveloperView: View {
                     KeyValue(key: "Device ID", value: DeviceRegistration.deviceId())
                     KeyValue(key: "Base URL", value: env.serverBaseURL)
                     KeyValue(key: "Cached cards", value: "\(env.cards.count)")
+                    KeyValue(key: "Activities tab", value: env.showActivitiesTab ? "visible" : "hidden")
                     KeyValue(key: "Active activities", value: "\(env.liveActivityController.activeIds.count)")
                     if let ts = env.lastSyncAt {
                         KeyValue(key: "Last sync", value: ts.formatted(.relative(presentation: .numeric)))
@@ -23,6 +24,7 @@ struct DeveloperView: View {
                 }
 
                 Section("Actions") {
+                    Toggle("Show Activities tab", isOn: $env.showActivitiesTab)
                     Button("Test backend connection") {
                         Task {
                             let ok = await env.testConnection()

@@ -67,8 +67,10 @@ struct RootView: View {
             DashboardView()
                 .tabItem { Label("Widgets", systemImage: "square.grid.2x2") }
 
-            LiveActivitiesView()
-                .tabItem { Label("Activities", systemImage: "waveform") }
+            if env.showActivitiesTab {
+                LiveActivitiesView()
+                    .tabItem { Label("Activities", systemImage: "waveform") }
+            }
 
             OnboardingView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
