@@ -16,6 +16,10 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.bundleIdentifier ?? "com.example.zerozerowidget"
     }
 
+    public static var defaultServerBaseURL: String {
+        Bundle.main.object(forInfoDictionaryKey: "ZWDefaultServerBaseURL") as? String ?? ""
+    }
+
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 

@@ -38,6 +38,7 @@ targets:
           - remote-notification
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app-group entitlement below
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
+        ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
