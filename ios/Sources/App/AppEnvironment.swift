@@ -2,6 +2,14 @@ import Foundation
 import SwiftUI
 import Combine
 
+public enum ConnectionHealthStatus: Equatable {
+    case unknown
+    case notConfigured
+    case checking
+    case ok
+    case failed
+}
+
 @MainActor
 public final class AppEnvironment: ObservableObject {
     @Published public var serverBaseURL: String {
@@ -16,6 +24,8 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var cards: [DashboardCard] = []
     @Published public private(set) var pendingActivities: [LiveActivitySession] = []
     @Published public private(set) var apnsDeviceToken: String?
+    @Published public private(set) var notificationsAuthorized = false
+    @Published public private(set) var connectionHealth: ConnectionHealthStatus = .unknown
     @Published public var showActivitiesTab: Bool {
         didSet {
             UserDefaults.standard.set(showActivitiesTab, forKey: "zw.showActivitiesTab")
@@ -75,9 +85,11 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func startupSync() async {
-        if apiClient() != nil {
+        await requestNotificationAuthorization()
+        if notificationsAuthorized, apiClient() != nil {
             DeviceRegistration.registerForRemoteNotifications()
         }
+        await refreshConnectionHealth()
         await registerDevice()
         await registerPendingWidgetTokens()
         await fetchCards()
@@ -109,7 +121,10 @@ public final class AppEnvironment: ObservableObject {
         apiKeyRegistrationTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled, let self else { return }
-            DeviceRegistration.registerForRemoteNotifications()
+            await self.refreshConnectionHealth()
+            if self.notificationsAuthorized {
+                DeviceRegistration.registerForRemoteNotifications()
+            }
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
         }
@@ -128,6 +143,19 @@ public final class AppEnvironment: ObservableObject {
         let hex = token.map { String(format: "%02x", $0) }.joined()
         apnsDeviceToken = hex
         Task { await registerDevice() }
+    }
+
+    public func refreshNotificationAuthorization() async {
+        notificationsAuthorized = await DeviceRegistration.notificationsAuthorized()
+    }
+
+    @discardableResult
+    public func requestNotificationAuthorization() async -> Bool {
+        notificationsAuthorized = await DeviceRegistration.requestNotificationAuthorization()
+        if notificationsAuthorized {
+            DeviceRegistration.registerForRemoteNotifications()
+        }
+        return notificationsAuthorized
     }
 
     public func registerDevice() async {
@@ -165,8 +193,19 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    @discardableResult
+    public func refreshConnectionHealth() async -> Bool {
+        guard let client = apiClient() else {
+            connectionHealth = .notConfigured
+            return false
+        }
+        connectionHealth = .checking
+        let ok = (try? await client.fetchCards()) != nil
+        connectionHealth = ok ? .ok : .failed
+        return ok
+    }
+
     public func testConnection() async -> Bool {
-        guard let client = apiClient() else { return false }
-        return (try? await client.health()) == true
+        await refreshConnectionHealth()
     }
 }

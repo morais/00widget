@@ -8,8 +8,19 @@ struct DeveloperView: View {
         NavigationStack {
             Form {
                 Section("State") {
+                    KeyValue(key: "App Group", value: AppGroup.isAvailable ? "available" : "unavailable")
                     KeyValue(key: "Device ID", value: DeviceRegistration.deviceId())
+                    KeyValue(key: "App version", value: DeviceRegistration.appVersion())
                     KeyValue(key: "Base URL", value: env.serverBaseURL)
+                    KeyValue(key: "Connection health", value: connectionHealthText)
+                    KeyValue(
+                        key: "Notifications",
+                        value: env.notificationsAuthorized ? "authorized" : "not authorized"
+                    )
+                    KeyValue(
+                        key: "APNs device token",
+                        value: env.apnsDeviceToken.map { String($0.prefix(16)) + "..." } ?? "not available"
+                    )
                     KeyValue(key: "Cached cards", value: "\(env.cards.count)")
                     KeyValue(key: "Activities tab", value: env.showActivitiesTab ? "visible" : "hidden")
                     KeyValue(key: "Active activities", value: "\(env.liveActivityController.activeIds.count)")
@@ -65,5 +76,15 @@ struct DeveloperView: View {
     private func append(_ line: String) {
         let ts = Date().formatted(.dateTime.hour().minute().second())
         logLines.append("[\(ts)] \(line)")
+    }
+
+    private var connectionHealthText: String {
+        switch env.connectionHealth {
+        case .unknown: return "unknown"
+        case .notConfigured: return "not configured"
+        case .checking: return "checking"
+        case .ok: return "ok"
+        case .failed: return "failed"
+        }
     }
 }

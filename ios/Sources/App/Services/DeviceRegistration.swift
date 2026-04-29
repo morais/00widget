@@ -26,6 +26,18 @@ public enum DeviceRegistration {
         }
     }
 
+    public static func notificationsAuthorized() async -> Bool {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        case .denied, .notDetermined:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
     @MainActor
     public static func registerForRemoteNotifications() {
         UIApplication.shared.registerForRemoteNotifications()
