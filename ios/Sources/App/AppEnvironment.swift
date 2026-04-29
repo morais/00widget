@@ -75,6 +75,9 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func startupSync() async {
+        if apiClient() != nil {
+            DeviceRegistration.registerForRemoteNotifications()
+        }
         await registerDevice()
         await registerPendingWidgetTokens()
         await fetchCards()
@@ -106,6 +109,7 @@ public final class AppEnvironment: ObservableObject {
         apiKeyRegistrationTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled, let self else { return }
+            DeviceRegistration.registerForRemoteNotifications()
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
         }
