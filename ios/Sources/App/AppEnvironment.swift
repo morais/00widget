@@ -68,6 +68,12 @@ public final class AppEnvironment: ObservableObject {
         cards = CardCache.load().cards
     }
 
+    public func startupSync() async {
+        await registerDevice()
+        await registerPendingWidgetTokens()
+        await fetchCards()
+    }
+
     public func generateSampleCards() {
         let samples = SampleDataFactory.makeCards()
         try? CardCache.save(samples)

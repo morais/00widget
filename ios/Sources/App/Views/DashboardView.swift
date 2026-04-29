@@ -6,14 +6,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("Dashboard")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { Task { await env.fetchCards() } } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                }
+                .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
         }
     }
