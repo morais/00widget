@@ -26,7 +26,7 @@ describe("public landing + integration endpoints", () => {
     expect(body).toContain("navigator.clipboard.writeText");
   });
 
-  it("GET /integration.md returns INTEGRATION.md as text/markdown", async () => {
+  it("GET /integration.md returns hosted integration markdown as text/markdown", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/integration.md"),
       makeEnv(),
@@ -35,10 +35,15 @@ describe("public landing + integration endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")?.startsWith("text/markdown")).toBe(true);
     const body = await res.text();
-    expect(body).toBe(integrationMarkdown);
-    // Sanity-check the embedded content matches what the file actually contains.
+    expect(body).not.toBe(integrationMarkdown);
     expect(body).toContain("# Integrating with 00Widget");
     expect(body).toContain("## TL;DR");
+    expect(body).toContain("00WIDGET_BASE_URL=https://x");
+    expect(body).toContain("do not ask the operator for the base URL");
+    expect(body).toContain("Ask the operator only for the API key");
+    expect(body).not.toContain(
+      "Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`",
+    );
   });
 
   it("GET /llms.txt returns a discovery document pointing at /integration.md", async () => {
