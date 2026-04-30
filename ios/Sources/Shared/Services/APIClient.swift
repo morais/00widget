@@ -35,6 +35,22 @@ public struct PendingActivitiesResponse: Codable {
     public let activities: [LiveActivitySession]
 }
 
+public struct AppleTokenResponse: Codable {
+    public struct Tenant: Codable {
+        public let id: String
+        public let ownerEmail: String
+    }
+
+    public struct APIKey: Codable {
+        public let id: String
+        public let label: String
+    }
+
+    public let tenant: Tenant
+    public let apiKey: APIKey
+    public let token: String
+}
+
 public struct EmptyBody: Codable {}
 
 public final class APIClient {
@@ -51,6 +67,30 @@ public final class APIClient {
         req.httpMethod = "GET"
         let (_, resp) = try await session.data(for: req)
         return (resp as? HTTPURLResponse)?.statusCode == 200
+    }
+
+    public static func createTokenFromApple(
+        baseURL: URL,
+        identityToken: String,
+        label: String
+    ) async throws -> AppleTokenResponse {
+        struct Body: Codable {
+            let identityToken: String
+            let label: String
+        }
+        var req = URLRequest(url: baseURL.appendingPathComponent("/v1/auth/apple/token"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.httpBody = try CardCache.jsonEncoder().encode(Body(identityToken: identityToken, label: label))
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            let message = String(data: data, encoding: .utf8) ?? ""
+            throw APIClientError(status: status, message: message)
+        }
+        return try CardCache.jsonDecoder().decode(AppleTokenResponse.self, from: data)
     }
 
     public func fetchCards() async throws -> [DashboardCard] {

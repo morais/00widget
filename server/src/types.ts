@@ -164,4 +164,9 @@ export interface Env {
   // (or unset) keeps it enabled. Useful while waiting for an Apple Developer
   // account; flip to "false" once Sign in with Apple is set up.
   ADMIN_API_TOKEN_LOGIN?: string;
+
+  // Optional iOS app login. When enabled, the app can exchange a native
+  // Sign in with Apple identity token for a tenant API token.
+  APPLE_APP_LOGIN_ENABLED?: string;       // set to "true" to enable
+  APPLE_APP_SIGN_IN_CLIENT_ID?: string;   // native app bundle id, e.g. com.example.zerozerowidget
 }

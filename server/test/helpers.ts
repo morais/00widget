@@ -38,6 +38,7 @@ export class FakeD1 {
   private activities = new Map<string, FakeRow>();
   private pendingActivities = new Map<string, FakeRow>();
   private startTokens = new Map<string, FakeRow>();
+  private appleAccounts = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -90,6 +91,18 @@ export class FakeD1 {
         created_at,
         last_used_at: "",
         revoked_at: "",
+      });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT INTO apple_accounts")) {
+      const [apple_sub, tenant_id, email, created_at, updated_at] = values.map(String);
+      const existing = this.appleAccounts.get(apple_sub);
+      this.appleAccounts.set(apple_sub, {
+        apple_sub,
+        tenant_id,
+        email,
+        created_at: existing?.created_at ?? created_at,
+        updated_at,
       });
       return 1;
     }
@@ -220,6 +233,10 @@ export class FakeD1 {
     }
     if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
+    }
+    if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
+      const [apple_sub] = values.map(String);
+      return pick(this.appleAccounts.get(apple_sub), ["apple_sub", "tenant_id", "email"]);
     }
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
       const [tenant_id, id] = values.map(String);

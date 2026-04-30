@@ -1,8 +1,11 @@
+import AuthenticationServices
 import SwiftUI
+import UIKit
 
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var healthCheckTask: Task<Void, Never>?
+    @State private var copiedToken = false
 
     var body: some View {
         NavigationStack {
@@ -13,13 +16,17 @@ struct OnboardingView: View {
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                    SecureField("API key", text: $env.apiKey)
-                        .textContentType(.password)
-                        .autocorrectionDisabled()
-                        .onChange(of: env.apiKey) { _, _ in
-                            env.saveApiKey()
-                            scheduleHealthCheck()
-                        }
+                    if ZeroZeroWidgetConstants.appleLoginEnabled {
+                        appleLoginControls
+                    } else {
+                        SecureField("API key", text: $env.apiKey)
+                            .textContentType(.password)
+                            .autocorrectionDisabled()
+                            .onChange(of: env.apiKey) { _, _ in
+                                env.saveApiKey()
+                                scheduleHealthCheck()
+                            }
+                    }
                     HStack {
                         Text("Health")
                         Spacer()
@@ -42,6 +49,72 @@ struct OnboardingView: View {
                 await env.refreshConnectionHealth()
             }
             .onChange(of: env.serverBaseURL) { _, _ in scheduleHealthCheck() }
+        }
+    }
+
+    @ViewBuilder
+    private var appleLoginControls: some View {
+        if let email = env.appleLoginEmail {
+            KeyValue(key: "Signed in", value: email)
+        }
+
+        SignInWithAppleButton(.signIn) { request in
+            request.requestedScopes = [.email]
+        } onCompletion: { result in
+            handleAppleSignIn(result)
+        }
+        .frame(height: 44)
+        .disabled(env.appleLoginInProgress)
+
+        if env.appleLoginInProgress {
+            ProgressView("Signing in...")
+        }
+
+        if !env.apiKey.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("API token")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(env.apiKey)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .lineLimit(4)
+                HStack {
+                    Button(copiedToken ? "Copied" : "Copy token") {
+                        UIPasteboard.general.string = env.apiKey
+                        copiedToken = true
+                    }
+                    Button("Clear token", role: .destructive) {
+                        env.clearApiKey()
+                        scheduleHealthCheck()
+                    }
+                }
+            }
+        }
+
+        if let error = env.appleLoginError {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+    }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let authorization):
+            guard
+                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = credential.identityToken,
+                let identityToken = String(data: tokenData, encoding: .utf8)
+            else {
+                return
+            }
+            Task {
+                await env.signInWithAppleIdentityToken(identityToken)
+                scheduleHealthCheck()
+            }
+        case .failure:
+            break
         }
     }
 

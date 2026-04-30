@@ -7,6 +7,7 @@ import * as widgets from "./widgets";
 import * as liveActivities from "./liveActivities";
 import * as actions from "./actions";
 import * as admin from "./admin";
+import * as appLogin from "./appLogin";
 import * as landing from "./landing";
 
 interface Route {
@@ -54,6 +55,9 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m) =>
     actions.runAction(req, env, auth, m[1]),
   ),
+  { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env) =>
+    appLogin.createTokenFromApple(req, env),
+  },
   // Admin dashboard — gated by Apple Sign-In or API-token cookie.
   { method: "GET", pattern: /^\/admin\/login\/?$/, handler: (req, env) => admin.handleAdminLogin(req, env) },
   { method: "GET", pattern: /^\/admin\/login\/apple\/?$/, handler: (req, env) => admin.handleAdminLoginApple(req, env) },
