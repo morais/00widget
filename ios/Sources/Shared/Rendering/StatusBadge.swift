@@ -22,12 +22,3 @@ public struct StatusBadge: View {
         }
     }
 }
-
-#Preview {
-    VStack(alignment: .leading) {
-        ForEach(DashboardStatus.allCases, id: \.self) { s in
-            StatusBadge(status: s)
-        }
-    }
-    .padding()
-}
