@@ -57,6 +57,10 @@ export function appleSignInConfigured(env: Env): boolean {
   );
 }
 
+export function appAppleLoginConfigured(env: Env): boolean {
+  return env.APPLE_APP_LOGIN_ENABLED === "true" && Boolean(env.APPLE_APP_SIGN_IN_CLIENT_ID);
+}
+
 export function buildAuthorizeURL(env: Env, state: string, nonce: string): string {
   const params = new URLSearchParams({
     client_id: env.APPLE_SIGN_IN_CLIENT_ID!,
@@ -119,6 +123,16 @@ export async function validateAppleIdToken(
   idToken: string,
   expectedNonce: string,
 ): Promise<AppleIdTokenClaims> {
+  return validateAppleIdTokenForAudience(env, idToken, env.APPLE_SIGN_IN_CLIENT_ID, expectedNonce);
+}
+
+export async function validateAppleIdTokenForAudience(
+  _env: Env,
+  idToken: string,
+  audience: string | undefined,
+  expectedNonce?: string,
+): Promise<AppleIdTokenClaims> {
+  if (!audience) throw new Error("missing Apple client id");
   const [headerB64, payloadB64, signatureB64] = idToken.split(".");
   if (!headerB64 || !payloadB64 || !signatureB64) {
     throw new Error("malformed id_token");
@@ -131,9 +145,9 @@ export async function validateAppleIdToken(
   const now = Math.floor(Date.now() / 1000);
 
   if (claims.iss !== "https://appleid.apple.com") throw new Error(`bad iss ${claims.iss}`);
-  if (claims.aud !== env.APPLE_SIGN_IN_CLIENT_ID) throw new Error(`bad aud ${claims.aud}`);
+  if (claims.aud !== audience) throw new Error(`bad aud ${claims.aud}`);
   if (claims.exp < now) throw new Error("id_token expired");
-  if (claims.nonce !== expectedNonce) throw new Error("nonce mismatch");
+  if (expectedNonce && claims.nonce !== expectedNonce) throw new Error("nonce mismatch");
 
   const jwks = await fetchAppleJwks();
   const jwk = jwks.find((k) => k.kid === header.kid);

@@ -39,6 +39,7 @@ targets:
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app-group entitlement below
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
+        ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
@@ -46,6 +47,8 @@ targets:
           - group.com.example.zerozerowidget
         keychain-access-groups:
           - $(AppIdentifierPrefix)com.example.zerozerowidget
+        com.apple.developer.applesignin:
+          - Default
         aps-environment: development
     settings:
       base:

@@ -135,6 +135,19 @@ If any of those are missing the `/admin` page renders a "not configured" view li
 
 If the admin chose "Hide My Email" on first sign-in, Apple returns a relay address like `abc123@privaterelay.appleid.com`. Add that exact address to `ADMIN_EMAILS` rather than the underlying Apple ID — the Worker only sees the relay.
 
+## iOS app login
+
+The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS, creates a tenant API token for the email Apple returned, and sends the raw token back once. The app stores that token in Keychain and shows it in Settings with a copy button so the same token can be pasted into agents.
+
+Required Worker secrets:
+
+```
+npx wrangler secret put APPLE_APP_LOGIN_ENABLED       # enter: true
+npx wrangler secret put APPLE_APP_SIGN_IN_CLIENT_ID   # native app bundle id, e.g. com.example.zerozerowidget
+```
+
+The iOS app target also needs the Sign in with Apple capability. In this repo that is configured from `ios/project.yml` / `ios/project.yml.sample` via `com.apple.developer.applesignin`, and the Settings UI is enabled with the `ZWAppleLoginEnabled` Info.plist flag.
+
 ## APNs setup
 
 1. Log in to [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles → Keys → "+".
@@ -162,6 +175,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
 | POST   | `/v1/actions/:id/run`                        | Run an action (v1: logs and returns).  |
+| POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
 | GET    | `/admin/login`                               | Login page (Apple + API-token forms).  |
 | GET    | `/admin/login/apple`                         | Redirects to Sign in with Apple.       |
 | POST   | `/admin/login/api-token`                     | API-token fallback login.              |

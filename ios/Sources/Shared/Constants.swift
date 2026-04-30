@@ -20,6 +20,10 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.object(forInfoDictionaryKey: "ZWDefaultServerBaseURL") as? String ?? ""
     }
 
+    public static var appleLoginEnabled: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "ZWAppleLoginEnabled") as? Bool ?? false
+    }
+
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 
@@ -37,6 +41,7 @@ public enum ZeroZeroWidgetConstants {
         public static let deviceId = "zw.deviceId"
         public static let lastSyncAt = "zw.lastSyncAt"
         public static let lastSyncError = "zw.lastSyncError"
+        public static let appleLoginEmail = "zw.appleLoginEmail"
     }
 
     public enum KeychainKeys {

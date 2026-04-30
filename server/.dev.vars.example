@@ -28,3 +28,8 @@ SESSION_SECRET=""                       # any random 32+ char string; rotates th
 # Useful while waiting for an Apple Developer account. Set ADMIN_API_TOKEN_LOGIN
 # to "false" to disable; any other value (or unset) keeps it enabled.
 ADMIN_API_TOKEN_LOGIN=""
+
+# Optional iOS app login. When enabled, the app can exchange a native Sign in
+# with Apple identity token for a tenant API token and show that token to the user.
+APPLE_APP_LOGIN_ENABLED=""              # set to "true" to enable
+APPLE_APP_SIGN_IN_CLIENT_ID=""          # native app bundle id, e.g. com.example.zerozerowidget

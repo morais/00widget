@@ -19,6 +19,9 @@ public final class AppEnvironment: ObservableObject {
     }
 
     @Published public var apiKey: String
+    @Published public private(set) var appleLoginEmail: String?
+    @Published public private(set) var appleLoginError: String?
+    @Published public private(set) var appleLoginInProgress = false
     @Published public private(set) var lastSyncAt: Date?
     @Published public private(set) var lastSyncError: String?
     @Published public private(set) var cards: [DashboardCard] = []
@@ -40,6 +43,7 @@ public final class AppEnvironment: ObservableObject {
         self.serverBaseURL = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
             ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
+        self.appleLoginEmail = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
@@ -53,6 +57,38 @@ public final class AppEnvironment: ObservableObject {
         guard apiKey != previous else { return }
         clearTenantScopedState()
         scheduleCredentialRegistration()
+    }
+
+    public func signInWithAppleIdentityToken(_ identityToken: String) async {
+        guard let url = URL(string: serverBaseURL) else {
+            appleLoginError = "Server URL is invalid"
+            return
+        }
+        appleLoginInProgress = true
+        appleLoginError = nil
+        defer { appleLoginInProgress = false }
+        do {
+            let response = try await APIClient.createTokenFromApple(
+                baseURL: url,
+                identityToken: identityToken,
+                label: DeviceRegistration.appVersion()
+            )
+            apiKey = response.token
+            appleLoginEmail = response.tenant.ownerEmail
+            UserDefaults.standard.set(response.tenant.ownerEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+            saveApiKey()
+            await refreshConnectionHealth()
+        } catch {
+            appleLoginError = error.localizedDescription
+        }
+    }
+
+    public func clearApiKey() {
+        apiKey = ""
+        appleLoginEmail = nil
+        appleLoginError = nil
+        UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+        saveApiKey()
     }
 
     public func apiClient() -> APIClient? {
