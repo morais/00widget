@@ -7,7 +7,7 @@ import {
   randomToken,
   appleSignInConfigured,
 } from "../src/appleAuth";
-import { makeEnv } from "./helpers";
+import { authedRequest, makeEnv, seedApiKey } from "./helpers";
 
 const ctx = {} as ExecutionContext;
 
@@ -282,6 +282,259 @@ describe("admin routes (no Apple call required)", () => {
     const html = await dash.text();
     expect(html).toContain("customer-a@example.com");
     expect(html).not.toContain(body.token);
+    expect(html).toContain("Select a tenant to view cards");
+    expect(html).not.toContain("Cards <span");
+  });
+
+  it("/admin/api-keys form creates tenants from the global dashboard and tokens from selected tenants", async () => {
+    const env = adminEnv();
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const createTenantRes = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie,
+        },
+        body: new URLSearchParams({
+          ownerEmail: "customer-form@example.com",
+          label: "default",
+        }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(createTenantRes.status).toBe(201);
+    const createTenantHtml = await createTenantRes.text();
+    expect(createTenantHtml).toContain("Copy this token now");
+    expect(createTenantHtml).toContain("back to tenant");
+
+    const match = /tenant=([^"]+)/.exec(createTenantHtml);
+    expect(match?.[1]).toBeTruthy();
+    const tenantId = decodeURIComponent(match![1]);
+
+    const selected = await (handler.fetch as any)(
+      new Request(`https://x/admin?tenant=${encodeURIComponent(tenantId)}`, {
+        headers: { cookie },
+      }),
+      env,
+      ctx,
+    );
+    const selectedHtml = await selected.text();
+    expect(selectedHtml).toContain("Create API token");
+    expect(selectedHtml).toContain(`name="tenantId" value="${tenantId}"`);
+    expect(selectedHtml).toContain("customer-form@example.com");
+  });
+
+  it("/admin/api-keys form rejects token creation without selecting a tenant", async () => {
+    const env = adminEnv();
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie,
+        },
+        body: new URLSearchParams({ label: "missing tenant" }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Select a tenant before creating an API token");
+  });
+
+  it("/admin scopes operational rows to the selected tenant", async () => {
+    const env = adminEnv();
+    await seedApiKey(env, "tenant-a-key", "tenant-a");
+    await seedApiKey(env, "tenant-b-key", "tenant-b");
+
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/cards/upsert",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: "tenant-a-card",
+            template: "status",
+            title: "Tenant A card",
+            status: "good",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/cards/upsert",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: "tenant-b-card",
+            template: "status",
+            title: "Tenant B card",
+            status: "warning",
+          }),
+        },
+        "tenant-b-key",
+      ),
+      env,
+      ctx,
+    );
+
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const unselected = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const unselectedHtml = await unselected.text();
+    expect(unselectedHtml).toContain("tenant-a@example.com");
+    expect(unselectedHtml).toContain("tenant-b@example.com");
+    expect(unselectedHtml).not.toContain("Tenant A card");
+    expect(unselectedHtml).not.toContain("Tenant B card");
+
+    const selected = await (handler.fetch as any)(
+      new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const selectedHtml = await selected.text();
+    expect(selectedHtml).toContain("Tenant A card");
+    expect(selectedHtml).not.toContain("Tenant B card");
+  });
+
+  it("/admin selected tenant can delete cards, widget tokens, and live activity state", async () => {
+    const env = adminEnv();
+    await seedApiKey(env, "tenant-a-key", "tenant-a");
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/cards/upsert",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: "tenant-a-card",
+            template: "status",
+            title: "Tenant A card",
+            status: "good",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/widgets/register-push-token",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: "device-a",
+            widgetKind: "metric",
+            widgetPushToken: "widget-token-a",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/live-activities/start",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "pending-a",
+            kind: "job",
+            title: "Pending A",
+            state: "queued",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/live-activities/register",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: "device-a",
+            localActivityId: "local-a",
+            externalActivityId: "activity-a",
+            kind: "job",
+            pushToken: "activity-token-a",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+    await (handler.fetch as any)(
+      authedRequest(
+        "https://x/v1/live-activities/register-start-token",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: "device-a",
+            attributesType: "ZeroZeroWidgetActivityAttributes",
+            pushToken: "start-token-a",
+          }),
+        },
+        "tenant-a-key",
+      ),
+      env,
+      ctx,
+    );
+
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const before = await (handler.fetch as any)(
+      new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const beforeHtml = await before.text();
+    expect(beforeHtml).toContain("Tenant A card");
+    expect(beforeHtml).toContain("device-a");
+    expect(beforeHtml).toContain("activity-a");
+    expect(beforeHtml).toContain("pending-a");
+    expect(beforeHtml).toContain("ZeroZeroWidgetActivityAttributes");
+
+    const deletePaths = [
+      "/admin/tenants/tenant-a/cards/tenant-a-card/delete",
+      "/admin/tenants/tenant-a/widget-tokens/device-a/metric/delete",
+      "/admin/tenants/tenant-a/live-activities/activity-a/delete",
+      "/admin/tenants/tenant-a/pending-live-activities/pending-a/delete",
+      "/admin/tenants/tenant-a/start-tokens/device-a/ZeroZeroWidgetActivityAttributes/delete",
+    ];
+    for (const path of deletePaths) {
+      const res = await (handler.fetch as any)(
+        new Request(`https://x${path}`, { method: "POST", headers: { cookie } }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/admin?tenant=tenant-a");
+    }
+
+    const after = await (handler.fetch as any)(
+      new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const afterHtml = await after.text();
+    expect(afterHtml).not.toContain("Tenant A card");
+    expect(afterHtml).not.toContain("activity-a");
+    expect(afterHtml).not.toContain("pending-a");
+    expect(afterHtml).not.toContain("ZeroZeroWidgetActivityAttributes");
   });
 
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {

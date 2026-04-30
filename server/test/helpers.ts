@@ -186,6 +186,16 @@ export class FakeD1 {
       this.pendingActivities.delete(`${tenant_id}:${external_id}`);
       return 1;
     }
+    if (normalized.startsWith("DELETE FROM widget_tokens")) {
+      const [tenant_id, device_id, widget_kind] = values.map(String);
+      this.widgetTokens.delete(`${tenant_id}:${device_id}:${widget_kind}`);
+      return 1;
+    }
+    if (normalized.startsWith("DELETE FROM start_tokens")) {
+      const [tenant_id, device_id, attributes_type] = values.map(String);
+      this.startTokens.delete(`${tenant_id}:${device_id}:${attributes_type}`);
+      return 1;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
@@ -250,8 +260,20 @@ export class FakeD1 {
     if (normalized === "SELECT api_key_hash, id, json FROM cards ORDER BY api_key_hash, id") {
       return [...this.cards.values()].sort(by("api_key_hash", "id")).map(select("api_key_hash", "id", "json"));
     }
+    if (normalized === "SELECT api_key_hash, id, json FROM cards WHERE tenant_id = ? ORDER BY api_key_hash, id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.cards, tenant_id)
+        .sort(by("api_key_hash", "id"))
+        .map(select("api_key_hash", "id", "json"));
+    }
     if (normalized === "SELECT api_key_hash, device_id, json FROM devices ORDER BY api_key_hash, device_id") {
       return [...this.devices.values()]
+        .sort(by("api_key_hash", "device_id"))
+        .map(select("api_key_hash", "device_id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, json FROM devices WHERE tenant_id = ? ORDER BY api_key_hash, device_id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.devices, tenant_id)
         .sort(by("api_key_hash", "device_id"))
         .map(select("api_key_hash", "device_id", "json"));
     }
@@ -260,8 +282,20 @@ export class FakeD1 {
         .sort(by("api_key_hash", "device_id", "widget_kind"))
         .map(select("api_key_hash", "device_id", "widget_kind", "token"));
     }
+    if (normalized === "SELECT api_key_hash, device_id, widget_kind, token FROM widget_tokens WHERE tenant_id = ? ORDER BY api_key_hash, device_id, widget_kind") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.widgetTokens, tenant_id)
+        .sort(by("api_key_hash", "device_id", "widget_kind"))
+        .map(select("api_key_hash", "device_id", "widget_kind", "token"));
+    }
     if (normalized === "SELECT api_key_hash, external_id, json FROM activities ORDER BY api_key_hash, external_id") {
       return [...this.activities.values()]
+        .sort(by("api_key_hash", "external_id"))
+        .map(select("api_key_hash", "external_id", "json"));
+    }
+    if (normalized === "SELECT api_key_hash, external_id, json FROM activities WHERE tenant_id = ? ORDER BY api_key_hash, external_id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.activities, tenant_id)
         .sort(by("api_key_hash", "external_id"))
         .map(select("api_key_hash", "external_id", "json"));
     }
@@ -270,8 +304,20 @@ export class FakeD1 {
         .sort(by("api_key_hash", "external_id"))
         .map(select("api_key_hash", "external_id", "json"));
     }
+    if (normalized === "SELECT api_key_hash, external_id, json FROM pending_activities WHERE tenant_id = ? ORDER BY api_key_hash, external_id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.pendingActivities, tenant_id)
+        .sort(by("api_key_hash", "external_id"))
+        .map(select("api_key_hash", "external_id", "json"));
+    }
     if (normalized === "SELECT api_key_hash, device_id, attributes_type, token FROM start_tokens ORDER BY api_key_hash, device_id, attributes_type") {
       return [...this.startTokens.values()]
+        .sort(by("api_key_hash", "device_id", "attributes_type"))
+        .map(select("api_key_hash", "device_id", "attributes_type", "token"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, attributes_type, token FROM start_tokens WHERE tenant_id = ? ORDER BY api_key_hash, device_id, attributes_type") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.startTokens, tenant_id)
         .sort(by("api_key_hash", "device_id", "attributes_type"))
         .map(select("api_key_hash", "device_id", "attributes_type", "token"));
     }
