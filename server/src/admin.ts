@@ -140,6 +140,9 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
   } catch (err) {
     return htmlResponse(renderError((err as Error).message), 400);
   }
+  if (!wantsJson(req) && !input.tenantId && !input.ownerEmail) {
+    return htmlResponse(renderError("Select a tenant before creating an API token."), 400);
+  }
 
   let created: Awaited<ReturnType<typeof createApiKey>>;
   try {
@@ -173,6 +176,7 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
            <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
            <tr><th>API key id</th><td><code>${esc(created.apiKey.id)}</code></td></tr>
          </tbody></table>
+         <p><a href="/admin?tenant=${enc(created.tenant.id)}">back to tenant</a></p>
        </section>`,
     ),
     201,
@@ -196,6 +200,73 @@ export async function handleAdminRevokeApiKey(
   return new Response(null, { status: 302, headers: { Location: "/admin" } });
 }
 
+export async function handleAdminDeleteCard(
+  req: Request,
+  env: Env,
+  tenantIdRaw: string,
+  cardIdRaw: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const tenantId = dec(tenantIdRaw);
+  await storage.deleteCard(env, tenantId, dec(cardIdRaw));
+  return redirectToTenant(tenantId);
+}
+
+export async function handleAdminDeleteWidgetToken(
+  req: Request,
+  env: Env,
+  tenantIdRaw: string,
+  deviceIdRaw: string,
+  widgetKindRaw: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const tenantId = dec(tenantIdRaw);
+  await storage.deleteWidgetToken(env, tenantId, dec(deviceIdRaw), dec(widgetKindRaw));
+  return redirectToTenant(tenantId);
+}
+
+export async function handleAdminDeleteLiveActivity(
+  req: Request,
+  env: Env,
+  tenantIdRaw: string,
+  externalActivityIdRaw: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const tenantId = dec(tenantIdRaw);
+  await storage.deleteActivity(env, tenantId, dec(externalActivityIdRaw));
+  return redirectToTenant(tenantId);
+}
+
+export async function handleAdminDeletePendingLiveActivity(
+  req: Request,
+  env: Env,
+  tenantIdRaw: string,
+  externalActivityIdRaw: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const tenantId = dec(tenantIdRaw);
+  await storage.deletePendingActivity(env, tenantId, dec(externalActivityIdRaw));
+  return redirectToTenant(tenantId);
+}
+
+export async function handleAdminDeleteStartToken(
+  req: Request,
+  env: Env,
+  tenantIdRaw: string,
+  deviceIdRaw: string,
+  attributesTypeRaw: string,
+): Promise<Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const tenantId = dec(tenantIdRaw);
+  await storage.deleteStartToken(env, tenantId, dec(deviceIdRaw), dec(attributesTypeRaw));
+  return redirectToTenant(tenantId);
+}
+
 export async function handleAdminDashboard(req: Request, env: Env): Promise<Response> {
   const apple = appleSignInConfigured(env);
   const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS) && Boolean(env.SESSION_SECRET);
@@ -205,29 +276,22 @@ export async function handleAdminDashboard(req: Request, env: Env): Promise<Resp
     return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
   }
 
-  const [cards, devices, widgetTokens, activities, pending, startTokens, tenants, apiKeys] =
-    await Promise.all([
-      storage.listAllCards(env),
-      storage.listAllDevices(env),
-      storage.listAllWidgetTokens(env),
-      storage.listAllActivities(env),
-      storage.listAllPendingActivities(env),
-      storage.listAllStartTokens(env),
-      listTenants(env),
-      listApiKeys(env),
-    ]);
+  const selectedTenantId = new URL(req.url).searchParams.get("tenant")?.trim() || undefined;
+  const [tenants, apiKeys] = await Promise.all([listTenants(env), listApiKeys(env)]);
+  const selectedTenant = selectedTenantId
+    ? tenants.find((tenant) => tenant.id === selectedTenantId)
+    : undefined;
+  const tenantRows = selectedTenant
+    ? await loadTenantRows(env, selectedTenant.id)
+    : emptyTenantRows();
 
   return htmlResponse(
     renderDashboard({
       session,
-      cards,
-      devices,
-      widgetTokens,
-      activities,
-      pending,
-      startTokens,
       tenants,
       apiKeys,
+      selectedTenant,
+      rows: tenantRows,
     }),
   );
 }
@@ -236,14 +300,10 @@ export async function handleAdminDashboard(req: Request, env: Env): Promise<Resp
 
 interface DashboardData {
   session: AdminSession;
-  cards: storage.ScopedEntry<unknown>[];
-  devices: storage.ScopedEntry<unknown>[];
-  widgetTokens: storage.ScopedEntry<string>[];
-  activities: storage.ScopedEntry<unknown>[];
-  pending: storage.ScopedEntry<unknown>[];
-  startTokens: storage.ScopedEntry<string>[];
   tenants: TenantRecord[];
   apiKeys: ApiKeyRecord[];
+  selectedTenant?: TenantRecord;
+  rows: TenantRows;
 }
 
 function renderDashboard(d: DashboardData): string {
@@ -263,22 +323,100 @@ function renderDashboard(d: DashboardData): string {
     </header>
 
     ${renderApiKeyAdminSection(d.tenants, d.apiKeys)}
-    ${renderCardsSection(d.cards)}
-    ${renderTokenSection("Devices", d.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
-    ${renderWidgetTokensSection(d.widgetTokens)}
-    ${renderActivitiesSection(d.activities)}
-    ${renderPendingSection(d.pending)}
-    ${renderStartTokensSection(d.startTokens)}
+    ${renderTenantDetail(d)}
     `,
   );
 }
 
+interface TenantRows {
+  cards: storage.ScopedEntry<unknown>[];
+  devices: storage.ScopedEntry<unknown>[];
+  widgetTokens: storage.ScopedEntry<string>[];
+  activities: storage.ScopedEntry<unknown>[];
+  pending: storage.ScopedEntry<unknown>[];
+  startTokens: storage.ScopedEntry<string>[];
+}
+
+async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
+  const [cards, devices, widgetTokens, activities, pending, startTokens] = await Promise.all([
+    storage.listTenantCards(env, tenantId),
+    storage.listTenantDevices(env, tenantId),
+    storage.listTenantWidgetTokens(env, tenantId),
+    storage.listTenantActivities(env, tenantId),
+    storage.listTenantPendingActivities(env, tenantId),
+    storage.listTenantStartTokens(env, tenantId),
+  ]);
+  return { cards, devices, widgetTokens, activities, pending, startTokens };
+}
+
+function emptyTenantRows(): TenantRows {
+  return {
+    cards: [],
+    devices: [],
+    widgetTokens: [],
+    activities: [],
+    pending: [],
+    startTokens: [],
+  };
+}
+
 function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[]): string {
-  const tenantOptions = tenants
-    .map((tenant) => `<option value="${esc(tenant.id)}">${esc(tenant.ownerEmail)} · ${esc(shortHash(tenant.id))}</option>`)
-    .join("");
+  const rows = tenants.map((tenant) => {
+    const tenantApiKeys = apiKeys.filter((key) => key.tenantId === tenant.id);
+    const active = tenantApiKeys.filter((key) => !key.revokedAt).length;
+    return `<tr>
+      <td><a href="/admin?tenant=${enc(tenant.id)}">${esc(tenant.ownerEmail || "(no owner email)")}</a></td>
+      <td><code>${esc(shortHash(tenant.id))}</code></td>
+      <td>${esc(String(active))}</td>
+      <td>${esc(String(tenantApiKeys.length - active))}</td>
+      <td class="ts">${esc(tenant.createdAt)}</td>
+      <td><a class="button button-small" href="/admin?tenant=${enc(tenant.id)}">View</a></td>
+    </tr>`;
+  }).join("");
+
+  return section(
+    `Tenants & API keys <span class="count">${tenants.length} tenants · ${apiKeys.length} keys</span>`,
+    `<form method="post" action="/admin/api-keys" class="api-key-form">
+       <label>Owner email
+         <input type="email" name="ownerEmail" placeholder="owner@example.com" required>
+       </label>
+       <input type="hidden" name="label" value="default">
+       <button class="button" type="submit">Create tenant</button>
+     </form>
+     ${tenants.length === 0
+        ? `<p class="empty">No tenants created yet.</p>`
+        : `<table><thead><tr><th>tenant</th><th>id</th><th>active keys</th><th>revoked keys</th><th>created</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
+  );
+}
+
+function renderTenantDetail(d: DashboardData): string {
+  if (!d.selectedTenant) {
+    if (d.tenants.length === 0) return "";
+    return section("Tenant detail", `<p class="empty">Select a tenant to view cards, devices, tokens, and Live Activities.</p>`);
+  }
+
+  const tenantApiKeys = d.apiKeys.filter((key) => key.tenantId === d.selectedTenant!.id);
+  return `
+    <section>
+      <h2>Tenant <span class="count">${esc(d.selectedTenant.ownerEmail || d.selectedTenant.id)}</span></h2>
+      <table><tbody>
+        <tr><th>tenant id</th><td><code>${esc(d.selectedTenant.id)}</code></td></tr>
+        <tr><th>owner email</th><td>${esc(d.selectedTenant.ownerEmail)}</td></tr>
+        <tr><th>created</th><td class="ts">${esc(d.selectedTenant.createdAt)}</td></tr>
+      </tbody></table>
+    </section>
+    ${renderTenantApiKeysSection(d.selectedTenant, tenantApiKeys)}
+    ${renderCardsSection(d.selectedTenant.id, d.rows.cards)}
+    ${renderTokenSection("Devices", d.rows.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
+    ${renderWidgetTokensSection(d.selectedTenant.id, d.rows.widgetTokens)}
+    ${renderActivitiesSection(d.selectedTenant.id, d.rows.activities)}
+    ${renderPendingSection(d.selectedTenant.id, d.rows.pending)}
+    ${renderStartTokensSection(d.selectedTenant.id, d.rows.startTokens)}
+  `;
+}
+
+function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[]): string {
   const rows = apiKeys.map((key) => {
-    const tenant = tenants.find((t) => t.id === key.tenantId);
     const active = key.revokedAt ? "revoked" : "active";
     const action = key.revokedAt
       ? ""
@@ -287,7 +425,6 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
          </form>`;
     return `<tr>
       <td><code>${esc(shortHash(key.id))}</code></td>
-      <td>${esc(tenant?.ownerEmail ?? key.tenantId)}</td>
       <td>${esc(key.label)}</td>
       <td><code>${esc(shortHash(key.tokenHash))}</code></td>
       <td>${esc(active)}</td>
@@ -296,27 +433,18 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
       <td>${action}</td>
     </tr>`;
   }).join("");
-
   return section(
-    `Tenants & API keys <span class="count">${tenants.length} tenants · ${apiKeys.length} keys</span>`,
-    `<form method="post" action="/admin/api-keys" class="api-key-form">
-       <label>Existing tenant
-         <select name="tenantId">
-           <option value="">Create a new tenant</option>
-           ${tenantOptions}
-         </select>
-       </label>
-       <label>Owner email
-         <input type="email" name="ownerEmail" placeholder="owner@example.com">
-       </label>
+    `API keys <span class="count">${apiKeys.length}</span>`,
+    `<form method="post" action="/admin/api-keys" class="api-key-form api-key-form-tenant">
+       <input type="hidden" name="tenantId" value="${esc(tenant.id)}">
        <label>Token label
          <input type="text" name="label" placeholder="Production iPhone">
        </label>
        <button class="button" type="submit">Create API token</button>
      </form>
      ${apiKeys.length === 0
-        ? `<p class="empty">No API keys created yet.</p>`
-        : `<table><thead><tr><th>id</th><th>tenant</th><th>label</th><th>token hash</th><th>state</th><th>created</th><th>last used</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
+      ? `<p class="empty">No API keys for this tenant.</p>`
+      : `<table><thead><tr><th>id</th><th>label</th><th>token hash</th><th>state</th><th>created</th><th>last used</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
   );
 }
 
@@ -350,23 +478,25 @@ function renderLoginPage(_env: Env, opts: { apple: boolean; apiToken: boolean })
   );
 }
 
-function renderCardsSection(cards: storage.ScopedEntry<unknown>[]): string {
+function renderCardsSection(tenantId: string, cards: storage.ScopedEntry<unknown>[]): string {
   if (cards.length === 0) return section("Cards", "<p class=\"empty\">No cards published yet.</p>");
   const rows = cards.map((entry) => {
     const c = entry.value as Record<string, unknown>;
+    const cardId = String(c.id ?? "");
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
-      <td><code>${esc(String(c.id ?? ""))}</code></td>
+      <td><code>${esc(cardId)}</code></td>
       <td>${esc(String(c.template ?? ""))}</td>
       <td>${esc(String(c.title ?? ""))}</td>
       <td><span class="status status-${esc(String(c.status ?? "unknown"))}">${esc(String(c.status ?? "unknown"))}</span></td>
       <td class="ts">${esc(String(c.updatedAt ?? ""))}</td>
       <td><details><summary>json</summary><pre>${esc(JSON.stringify(c, null, 2))}</pre></details></td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/cards/${enc(cardId)}/delete`, "Delete")}</td>
     </tr>`;
   }).join("");
   return section(
     `Cards <span class="count">${cards.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>id</th><th>template</th><th>title</th><th>status</th><th>updatedAt</th><th>raw</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>id</th><th>template</th><th>title</th><th>status</th><th>updatedAt</th><th>raw</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
@@ -394,24 +524,27 @@ function renderTokenSection(
   );
 }
 
-function renderWidgetTokensSection(entries: storage.ScopedEntry<string>[]): string {
+function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[]): string {
   if (entries.length === 0) return section("Widget push tokens", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const parts = entry.key.split(":"); // widget-token:hash:deviceId:kind
+    const deviceId = parts[2] ?? "";
+    const widgetKind = parts[3] ?? "";
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
-      <td><code>${esc(parts[2] ?? "")}</code></td>
-      <td><code>${esc(parts[3] ?? "")}</code></td>
+      <td><code>${esc(deviceId)}</code></td>
+      <td><code>${esc(widgetKind)}</code></td>
       <td><code class="tok">${esc(truncate(entry.value, 24))}</code></td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/widget-tokens/${enc(deviceId)}/${enc(widgetKind)}/delete`, "Delete")}</td>
     </tr>`;
   }).join("");
   return section(
     `Widget push tokens <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
-function renderActivitiesSection(entries: storage.ScopedEntry<unknown>[]): string {
+function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<unknown>[]): string {
   if (entries.length === 0) return section("Live Activities", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const v = entry.value as Record<string, unknown>;
@@ -423,51 +556,63 @@ function renderActivitiesSection(entries: storage.ScopedEntry<unknown>[]): strin
       <td><code>${esc(String(v.deviceId ?? ""))}</code></td>
       <td><code class="tok">${esc(truncate(String(v.pushToken ?? ""), 24))}</code></td>
       <td class="ts">${esc(String(v.updatedAt ?? ""))}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/live-activities/${enc(externalId)}/delete`, "Delete")}</td>
     </tr>`;
   }).join("");
   return section(
     `Live Activities <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>externalActivityId</th><th>kind</th><th>device</th><th>push token</th><th>updatedAt</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>externalActivityId</th><th>kind</th><th>device</th><th>push token</th><th>updatedAt</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
-function renderPendingSection(entries: storage.ScopedEntry<unknown>[]): string {
+function renderPendingSection(tenantId: string, entries: storage.ScopedEntry<unknown>[]): string {
   if (entries.length === 0) return section("Pending Live Activities", `<p class="empty">None queued.</p>`);
   const rows = entries.map((entry) => {
     const v = entry.value as Record<string, unknown>;
+    const externalId = String(v.externalActivityId ?? "");
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
-      <td><code>${esc(String(v.externalActivityId ?? ""))}</code></td>
+      <td><code>${esc(externalId)}</code></td>
       <td>${esc(String(v.kind ?? ""))}</td>
       <td>${esc(String(v.title ?? ""))}</td>
       <td>${esc(String(v.state ?? ""))}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/pending-live-activities/${enc(externalId)}/delete`, "Delete")}</td>
     </tr>`;
   }).join("");
   return section(
     `Pending Live Activities <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>externalActivityId</th><th>kind</th><th>title</th><th>state</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>externalActivityId</th><th>kind</th><th>title</th><th>state</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
-function renderStartTokensSection(entries: storage.ScopedEntry<string>[]): string {
+function renderStartTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[]): string {
   if (entries.length === 0) return section("Push-to-start tokens", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const parts = entry.key.split(":"); // start-token:hash:deviceId:attributesType
+    const deviceId = parts[2] ?? "";
+    const attributesType = parts[3] ?? "";
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
-      <td><code>${esc(parts[2] ?? "")}</code></td>
-      <td><code>${esc(parts[3] ?? "")}</code></td>
+      <td><code>${esc(deviceId)}</code></td>
+      <td><code>${esc(attributesType)}</code></td>
       <td><code class="tok">${esc(truncate(entry.value, 24))}</code></td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/start-tokens/${enc(deviceId)}/${enc(attributesType)}/delete`, "Delete")}</td>
     </tr>`;
   }).join("");
   return section(
     `Push-to-start tokens <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>device id</th><th>attributes type</th><th>token</th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>device id</th><th>attributes type</th><th>token</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
 function section(title: string, body: string): string {
   return `<section><h2>${title}</h2>${body}</section>`;
+}
+
+function deleteForm(action: string, label: string): string {
+  return `<form method="post" action="${esc(action)}">
+    <button class="button button-small button-danger" type="submit">${esc(label)}</button>
+  </form>`;
 }
 
 function renderError(message: string): string {
@@ -574,6 +719,7 @@ function baseHTML(title: string, body: string): string {
   .login input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .button { display: inline-block; padding: 10px 18px; margin-top: 12px; border-radius: 6px; background: var(--accent); color: white; border: 0; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
   .button-small { padding: 5px 9px; margin: 0; font-size: 12px; }
+  .button-danger { background: var(--crit); }
   .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
   .api-token-form { display: flex; flex-direction: column; gap: 4px; }
   .api-token-form .button { align-self: stretch; text-align: center; }
@@ -644,6 +790,18 @@ function esc(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function enc(s: string): string {
+  return encodeURIComponent(s);
+}
+
+function dec(s: string): string {
+  return decodeURIComponent(s);
+}
+
+function redirectToTenant(tenantId: string): Response {
+  return new Response(null, { status: 302, headers: { Location: `/admin?tenant=${enc(tenantId)}` } });
 }
 
 function shortHash(hash: string): string {

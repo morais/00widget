@@ -63,6 +63,21 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
     admin.handleAdminRevokeApiKey(req, env, match[1]),
   },
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/cards\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
+    admin.handleAdminDeleteCard(req, env, match[1], match[2]),
+  },
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/widget-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
+    admin.handleAdminDeleteWidgetToken(req, env, match[1], match[2], match[3]),
+  },
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/live-activities\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
+    admin.handleAdminDeleteLiveActivity(req, env, match[1], match[2]),
+  },
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/pending-live-activities\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
+    admin.handleAdminDeletePendingLiveActivity(req, env, match[1], match[2]),
+  },
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/start-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
+    admin.handleAdminDeleteStartToken(req, env, match[1], match[2], match[3]),
+  },
   { method: "GET", pattern: /^\/admin\/logout\/?$/, handler: (req, env) => admin.handleAdminLogout(req, env) },
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
