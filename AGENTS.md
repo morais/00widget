@@ -93,6 +93,8 @@ Use `ios/scripts/build-sim.sh` rather than rolling your own `xcodebuild` invocat
 
 The script's recipe: build with ad-hoc signing → re-sign the app and the widget extension with an App-Group-only entitlements file → install → optionally seed the server URL into UserDefaults via PlistBuddy. The API key still has to be pasted manually because it lives in Keychain.
 
+During iterative simulator work, prefer `ios/scripts/build-sim.sh --launch` so existing app data, Keychain values, notification permissions, and local settings survive. Use `--fresh` only when intentionally testing first-install behavior or reset/migration paths, because it uninstalls the app and makes iOS ask for permissions again.
+
 When working on a real device with a configured Team ID, none of this applies — Xcode handles signing/entitlements via the project settings.
 
 ## TestFlight submissions

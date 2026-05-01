@@ -12,13 +12,15 @@ public final class LiveActivityController: ObservableObject {
 
     #if canImport(ActivityKit)
     @Published public private(set) var activeIds: [String] = []
+    @Published public private(set) var activeSessions: [LiveActivitySession] = []
     private var pushTokenTasks: [String: Task<Void, Never>] = [:]
     private var pushToStartTask: Task<Void, Never>?
+    private var endingExternalIds = Set<String>()
     #endif
 
     public init() {
         #if canImport(ActivityKit)
-        refreshActiveIds()
+        refreshActiveActivities()
         observePushToStartToken()
         #endif
     }
@@ -31,14 +33,21 @@ public final class LiveActivityController: ObservableObject {
         #endif
     }
 
+    public func refresh() {
+        #if canImport(ActivityKit)
+        refreshActiveActivities()
+        #endif
+    }
+
     #if canImport(ActivityKit)
     public func start(_ session: LiveActivitySession) async throws {
+        endingExternalIds.remove(session.externalActivityId)
         let (attrs, state) = ZeroZeroWidgetActivityAttributes.from(session)
         let content = ActivityContent(state: state, staleDate: session.staleAt)
         let activity = try Activity.request(attributes: attrs, content: content, pushType: .token)
         log.info("Started activity \(activity.id, privacy: .public) for \(session.externalActivityId, privacy: .public)")
         observePushToken(activity: activity, session: session)
-        refreshActiveIds()
+        refreshActiveActivities()
     }
 
     public func update(_ session: LiveActivitySession, alert: AlertConfiguration? = nil) async {
@@ -51,16 +60,20 @@ public final class LiveActivityController: ObservableObject {
                 await activity.update(content)
             }
         }
+        refreshActiveActivities()
     }
 
     public func end(externalActivityId: String, finalState: ZeroZeroWidgetActivityAttributes.ContentState? = nil) async {
+        endingExternalIds.insert(externalActivityId)
         for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == externalActivityId {
             let content = finalState.map { ActivityContent(state: $0, staleDate: nil) }
             await activity.end(content, dismissalPolicy: .default)
         }
         pushTokenTasks[externalActivityId]?.cancel()
         pushTokenTasks.removeValue(forKey: externalActivityId)
-        refreshActiveIds()
+        refreshActiveActivities()
+        activeIds.removeAll { $0 == externalActivityId }
+        activeSessions.removeAll { $0.externalActivityId == externalActivityId }
     }
 
     private func observePushToken(activity: Activity<ZeroZeroWidgetActivityAttributes>, session: LiveActivitySession) {
@@ -104,8 +117,32 @@ public final class LiveActivityController: ObservableObject {
         }
     }
 
-    private func refreshActiveIds() {
-        activeIds = Activity<ZeroZeroWidgetActivityAttributes>.activities.map { $0.attributes.externalActivityId }
+    private func refreshActiveActivities() {
+        let allActivities = Activity<ZeroZeroWidgetActivityAttributes>.activities
+        let activityIds = Set(allActivities.map { $0.attributes.externalActivityId })
+        endingExternalIds = endingExternalIds.filter { activityIds.contains($0) }
+
+        let activities = allActivities.filter { !endingExternalIds.contains($0.attributes.externalActivityId) }
+        activeIds = activities.map { $0.attributes.externalActivityId }
+        activeSessions = activities.map { activity in
+            let attributes = activity.attributes
+            let state = activity.content.state
+            return LiveActivitySession(
+                externalActivityId: attributes.externalActivityId,
+                kind: attributes.kind,
+                title: attributes.title,
+                subtitle: state.subtitle,
+                state: state.state,
+                icon: state.icon ?? attributes.icon,
+                value: state.value,
+                unit: state.unit,
+                progress: state.progress,
+                endsAt: state.endsAt,
+                updatedAt: state.updatedAt,
+                staleAt: state.staleAt,
+                deepLink: attributes.deepLink
+            )
+        }
     }
 
     /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes (iOS 17.2+).

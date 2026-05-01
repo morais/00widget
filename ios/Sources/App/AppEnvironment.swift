@@ -49,7 +49,7 @@ public final class AppEnvironment: ObservableObject {
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
-        self.showActivitiesTab = defaults.bool(forKey: "zw.showActivitiesTab")
+        self.showActivitiesTab = defaults.object(forKey: "zw.showActivitiesTab") as? Bool ?? true
         self.cards = CardCache.load().cards
     }
 
