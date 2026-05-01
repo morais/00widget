@@ -194,19 +194,31 @@ export async function endLiveActivity(
   const parsed = EndLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
-  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
+  const finalContentState: Record<string, unknown> = {};
+  if (d.finalState) finalContentState.state = d.finalState;
+  if (d.finalSubtitle) finalContentState.subtitle = d.finalSubtitle;
+  const apnsResult = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
+    finalContentState: Object.keys(finalContentState).length ? finalContentState : undefined,
+    dismissalDate: d.dismissalDate,
+  });
+  return json({ ok: true, apnsResult });
+}
 
+// Send the APNs end push (if we still have a push token) and delete both the
+// activity row and any pending row. Used by the public end endpoint and by
+// the admin Delete button so the activity actually stops on the device.
+export async function endAndDeleteActivity(
+  env: Env,
+  tenantId: string,
+  externalActivityId: string,
+  endPayload: { finalContentState?: Record<string, unknown>; dismissalDate?: string } = {},
+): Promise<unknown> {
+  const record = await storage.getActivity(env, tenantId, externalActivityId);
   let apnsResult: unknown = null;
   if (record?.pushToken) {
-    const finalContentState: Record<string, unknown> = {};
-    if (d.finalState) finalContentState.state = d.finalState;
-    if (d.finalSubtitle) finalContentState.subtitle = d.finalSubtitle;
-    apnsResult = await sendLiveActivityEnd(env, record.pushToken, {
-      finalContentState: Object.keys(finalContentState).length ? finalContentState : undefined,
-      dismissalDate: d.dismissalDate,
-    });
+    apnsResult = await sendLiveActivityEnd(env, record.pushToken, endPayload);
   }
-  await storage.deleteActivity(env, auth.tenantId, d.externalActivityId);
-  await storage.deletePendingActivity(env, auth.tenantId, d.externalActivityId);
-  return json({ ok: true, apnsResult });
+  await storage.deleteActivity(env, tenantId, externalActivityId);
+  await storage.deletePendingActivity(env, tenantId, externalActivityId);
+  return apnsResult;
 }
