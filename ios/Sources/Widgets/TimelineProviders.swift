@@ -1,5 +1,6 @@
 import WidgetKit
 import Foundation
+import os
 
 public struct CardTimelineEntry: TimelineEntry {
     public let date: Date
@@ -17,6 +18,8 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     public typealias Intent = SelectCardIntent
     public typealias Entry = CardTimelineEntry
 
+    private static let log = Logger(subsystem: "com.example.zerozerowidget", category: "Timeline")
+
     public init() {}
 
     public func placeholder(in context: Context) -> CardTimelineEntry {
@@ -24,13 +27,30 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     }
 
     public func snapshot(for configuration: SelectCardIntent, in context: Context) async -> CardTimelineEntry {
-        entry(for: configuration.card?.id)
+        await refreshCacheIfPossible(reason: "snapshot")
+        return entry(for: configuration.card?.id)
     }
 
     public func timeline(for configuration: SelectCardIntent, in context: Context) async -> Timeline<CardTimelineEntry> {
+        await refreshCacheIfPossible(reason: "timeline")
         let entry = entry(for: configuration.card?.id)
         let refresh = Date().addingTimeInterval(15 * 60)
         return Timeline(entries: [entry], policy: .after(refresh))
+    }
+
+    private func refreshCacheIfPossible(reason: String) async {
+        guard let config = APIClientConfig.fromSettings() else {
+            Self.log.info("skipping card refresh for \(reason, privacy: .public): API config unavailable")
+            return
+        }
+
+        do {
+            let cards = try await APIClient(config: config).fetchCards()
+            try CardCache.save(cards)
+            Self.log.info("refreshed \(cards.count, privacy: .public) cards for \(reason, privacy: .public)")
+        } catch {
+            Self.log.error("card refresh failed for \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func entry(for cardId: String?) -> CardTimelineEntry {

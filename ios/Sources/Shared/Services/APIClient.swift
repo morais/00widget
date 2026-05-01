@@ -17,8 +17,10 @@ public struct APIClientConfig {
 
     public static func fromSettings() -> APIClientConfig? {
         let defaults = UserDefaults.standard
+        let urlString = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+            ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         guard
-            let urlString = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL),
+            !urlString.isEmpty,
             let url = URL(string: urlString),
             let key = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey),
             !key.isEmpty
