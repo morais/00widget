@@ -79,15 +79,9 @@ struct OnboardingView: View {
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
                     .lineLimit(4)
-                HStack {
-                    Button(copiedToken ? "Copied" : "Copy token") {
-                        UIPasteboard.general.string = env.apiKey
-                        copiedToken = true
-                    }
-                    Button("Clear token", role: .destructive) {
-                        env.clearApiKey()
-                        scheduleHealthCheck()
-                    }
+                Button(copiedToken ? "Copied" : "Copy token") {
+                    UIPasteboard.general.string = env.apiKey
+                    copiedToken = true
                 }
             }
         }
