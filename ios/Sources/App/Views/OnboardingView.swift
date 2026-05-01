@@ -6,16 +6,21 @@ struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedToken = false
+    @State private var copiedAgentConfig = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Server") {
-                    TextField("https://example.workers.dev", text: $env.serverBaseURL)
-                        .keyboardType(.URL)
-                        .textContentType(.URL)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                    if ZeroZeroWidgetConstants.appleLoginEnabled {
+                        KeyValue(key: "API URL", value: env.serverBaseURL)
+                    } else {
+                        TextField("https://example.workers.dev", text: $env.serverBaseURL)
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
                     if ZeroZeroWidgetConstants.appleLoginEnabled {
                         appleLoginControls
                     } else {
@@ -27,11 +32,13 @@ struct OnboardingView: View {
                                 scheduleHealthCheck()
                             }
                     }
-                    HStack {
-                        Text("Health")
-                        Spacer()
-                        Text(healthStatusText)
-                            .foregroundStyle(healthStatusColor)
+                    if env.connectionHealth != .notConfigured {
+                        HStack {
+                            Text("Health")
+                            Spacer()
+                            Text(healthStatusText)
+                                .foregroundStyle(healthStatusColor)
+                        }
                     }
                 }
 
@@ -54,23 +61,15 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private var appleLoginControls: some View {
-        if let email = env.appleLoginEmail {
-            KeyValue(key: "Signed in", value: email)
-        }
-
-        SignInWithAppleButton(.signIn) { request in
-            request.requestedScopes = [.email]
-        } onCompletion: { result in
-            handleAppleSignIn(result)
-        }
-        .frame(height: 44)
-        .disabled(env.appleLoginInProgress)
-
         if env.appleLoginInProgress {
             ProgressView("Signing in...")
         }
 
         if !env.apiKey.isEmpty {
+            if let email = env.appleLoginEmail {
+                KeyValue(key: "Signed in", value: email)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("API token")
                     .font(.caption)
@@ -84,6 +83,35 @@ struct OnboardingView: View {
                     copiedToken = true
                 }
             }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Agent config")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(agentConfig)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+                Button(copiedAgentConfig ? "Copied" : "Copy agent config") {
+                    UIPasteboard.general.string = agentConfig
+                    copiedAgentConfig = true
+                }
+            }
+
+            Button("Sign out", role: .destructive) {
+                env.clearApiKey()
+                copiedToken = false
+                copiedAgentConfig = false
+                scheduleHealthCheck()
+            }
+        } else {
+            SignInWithAppleButton(.signIn) { request in
+                request.requestedScopes = [.email]
+            } onCompletion: { result in
+                handleAppleSignIn(result)
+            }
+            .frame(height: 44)
+            .disabled(env.appleLoginInProgress)
         }
 
         if let error = env.appleLoginError {
@@ -137,6 +165,10 @@ struct OnboardingView: View {
             guard !Task.isCancelled else { return }
             await env.refreshConnectionHealth()
         }
+    }
+
+    private var agentConfig: String {
+        "Integrate with 00Widget. Use \(env.serverBaseURL) as the API base URL; it also has the integration instructions. Use this bearer token: \(env.apiKey)"
     }
 }
 

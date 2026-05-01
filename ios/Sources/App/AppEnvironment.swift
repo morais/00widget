@@ -40,8 +40,10 @@ public final class AppEnvironment: ObservableObject {
 
     public init() {
         let defaults = UserDefaults.standard
-        self.serverBaseURL = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
-            ?? ZeroZeroWidgetConstants.defaultServerBaseURL
+        let configuredServerBaseURL = ZeroZeroWidgetConstants.defaultServerBaseURL
+        self.serverBaseURL = ZeroZeroWidgetConstants.appleLoginEnabled
+            ? configuredServerBaseURL
+            : defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL) ?? configuredServerBaseURL
         self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         self.appleLoginEmail = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
