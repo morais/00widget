@@ -13,10 +13,11 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var content: some View {
-        if env.cards.isEmpty {
-            emptyState
-        } else {
-            ScrollView {
+        ScrollView {
+            if env.cards.isEmpty {
+                emptyState
+                    .frame(maxWidth: .infinity, minHeight: 420)
+            } else {
                 LazyVStack(spacing: 12) {
                     ForEach(env.cards) { card in
                         NavigationLink(value: card.id) {
@@ -27,10 +28,10 @@ struct DashboardView: View {
                 }
                 .padding()
             }
-            .navigationDestination(for: String.self) { id in
-                if let c = env.cards.first(where: { $0.id == id }) {
-                    CardDetailView(card: c)
-                }
+        }
+        .navigationDestination(for: String.self) { id in
+            if let c = env.cards.first(where: { $0.id == id }) {
+                CardDetailView(card: c)
             }
         }
     }
@@ -40,19 +41,16 @@ struct DashboardView: View {
             Image(systemName: "square.dashed")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No cards yet")
+            Text("No widgets yet")
                 .font(.headline)
             Text("Publish one from your agent, or tap below to generate local samples.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
-            Button("Generate sample cards") {
+            Button("Generate sample widgets") {
                 env.generateSampleCards()
             }
             .buttonStyle(.borderedProminent)
-            Button("Fetch from backend") {
-                Task { await env.fetchCards() }
-            }
         }
         .padding()
     }
