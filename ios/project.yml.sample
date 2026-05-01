@@ -32,6 +32,8 @@ targets:
           {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
         UIBackgroundModes:
@@ -82,6 +84,8 @@ targets:
       path: Resources/Widgets/Info.plist
       properties:
         CFBundleDisplayName: 00Widget
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app target's value
