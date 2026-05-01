@@ -39,6 +39,7 @@ export class FakeD1 {
   private pendingActivities = new Map<string, FakeRow>();
   private startTokens = new Map<string, FakeRow>();
   private appleAccounts = new Map<string, FakeRow>();
+  private webhookIntegrations = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -125,6 +126,11 @@ export class FakeD1 {
       this.cards.set(`${tenant_id}:${id}`, { tenant_id, api_key_hash, id, json, updated_at });
       return 1;
     }
+    if (normalized.startsWith("INSERT OR REPLACE INTO webhook_integrations")) {
+      const [tenant_id, api_key_hash, json, updated_at] = values.map(String);
+      this.webhookIntegrations.set(tenant_id, { tenant_id, api_key_hash, json, updated_at });
+      return 1;
+    }
     if (normalized.startsWith("INSERT OR REPLACE INTO devices")) {
       const [tenant_id, api_key_hash, device_id, json, updated_at] = values.map(String);
       this.devices.set(`${tenant_id}:${device_id}`, {
@@ -189,6 +195,11 @@ export class FakeD1 {
       this.cards.delete(`${tenant_id}:${id}`);
       return 1;
     }
+    if (normalized.startsWith("DELETE FROM webhook_integrations")) {
+      const [tenant_id] = values.map(String);
+      this.webhookIntegrations.delete(tenant_id);
+      return 1;
+    }
     if (normalized.startsWith("DELETE FROM activities")) {
       const [tenant_id, external_id] = values.map(String);
       this.activities.delete(`${tenant_id}:${external_id}`);
@@ -248,6 +259,10 @@ export class FakeD1 {
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
       const [tenant_id, id] = values.map(String);
       return pick(this.cards.get(`${tenant_id}:${id}`), ["json"]);
+    }
+    if (normalized === "SELECT json FROM webhook_integrations WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      return pick(this.webhookIntegrations.get(tenant_id), ["json"]);
     }
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? ORDER BY id") {
       const [tenant_id] = values.map(String);

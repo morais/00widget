@@ -33,6 +33,13 @@ export interface PendingActivityRecord extends StartLiveActivity {
   updatedAt: string;
 }
 
+export interface WebhookIntegrationRecord {
+  url: string;
+  signingSecret: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface JsonRow {
   json: string;
 }
@@ -93,6 +100,39 @@ export async function listCards(env: Env, tenantId: string): Promise<DashboardCa
 export async function deleteCard(env: Env, tenantId: string, id: string): Promise<void> {
   await env.ZW_DB.prepare(`DELETE FROM cards WHERE tenant_id = ? AND id = ?`)
     .bind(tenantId, id)
+    .run();
+}
+
+export async function getWebhookIntegration(
+  env: Env,
+  tenantId: string,
+): Promise<WebhookIntegrationRecord | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT json FROM webhook_integrations WHERE tenant_id = ?`,
+  )
+    .bind(tenantId)
+    .first<JsonRow>();
+  return row ? parseJson<WebhookIntegrationRecord>(row.json) : null;
+}
+
+export async function putWebhookIntegration(
+  env: Env,
+  tenantId: string,
+  apiKeyHash: string,
+  record: WebhookIntegrationRecord,
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `INSERT OR REPLACE INTO webhook_integrations
+     (tenant_id, api_key_hash, json, updated_at)
+     VALUES (?, ?, ?, ?)`,
+  )
+    .bind(tenantId, apiKeyHash, json(record), record.updatedAt)
+    .run();
+}
+
+export async function deleteWebhookIntegration(env: Env, tenantId: string): Promise<void> {
+  await env.ZW_DB.prepare(`DELETE FROM webhook_integrations WHERE tenant_id = ?`)
+    .bind(tenantId)
     .run();
 }
 

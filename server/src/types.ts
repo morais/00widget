@@ -134,6 +134,11 @@ export const RunActionSchema = z.object({
     .optional(),
 });
 
+export const WebhookIntegrationSchema = z.object({
+  url: z.string().url(),
+  rotateSecret: z.boolean().default(false),
+});
+
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
@@ -145,6 +150,7 @@ export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
 export type RunAction = z.infer<typeof RunActionSchema>;
+export type WebhookIntegration = z.infer<typeof WebhookIntegrationSchema>;
 
 export interface Env {
   ZW_DB: D1Database;

@@ -3,6 +3,7 @@ import SwiftUI
 struct CardDetailView: View {
     @EnvironmentObject var env: AppEnvironment
     let card: DashboardCard
+    @State private var pendingAction: ActionDefinition?
 
     var body: some View {
         ScrollView {
@@ -14,9 +15,10 @@ struct CardDetailView: View {
                         Text("Actions").font(.headline)
                         ForEach(actions) { action in
                             Button {
-                                Task {
-                                    guard let client = env.apiClient() else { return }
-                                    try? await client.runAction(id: action.id, cardId: card.id, source: "app")
+                                if action.confirm || action.role == .destructive {
+                                    pendingAction = action
+                                } else {
+                                    run(action)
                                 }
                             } label: {
                                 Label(action.label, systemImage: "bolt.fill")
@@ -61,6 +63,28 @@ struct CardDetailView: View {
             .padding()
         }
         .navigationTitle(card.title)
+        .confirmationDialog(
+            "Run action?",
+            isPresented: Binding(
+                get: { pendingAction != nil },
+                set: { if !$0 { pendingAction = nil } }
+            ),
+            presenting: pendingAction
+        ) { action in
+            Button(action.label, role: action.role == .destructive ? .destructive : nil) {
+                run(action)
+                pendingAction = nil
+            }
+        } message: { action in
+            Text("Run \(action.label) for \(card.title)?")
+        }
+    }
+
+    private func run(_ action: ActionDefinition) {
+        Task {
+            guard let client = env.apiClient() else { return }
+            try? await client.runAction(id: action.id, cardId: card.id, source: "app")
+        }
     }
 
     private var jsonString: String {

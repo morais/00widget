@@ -174,7 +174,10 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | GET    | `/v1/live-activities/pending`                | List pending activities for the app.   |
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
-| POST   | `/v1/actions/:id/run`                        | Run an action (v1: logs and returns).  |
+| GET    | `/v1/integrations/webhook`                   | Read the configured action webhook URL. |
+| PUT    | `/v1/integrations/webhook`                   | Create/update the action webhook and return its signing secret. |
+| DELETE | `/v1/integrations/webhook`                   | Disable action webhook delivery.       |
+| POST   | `/v1/actions/:id/run`                        | Deliver an action to the configured webhook. |
 | POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
 | GET    | `/admin/login`                               | Login page (Apple + API-token forms).  |
 | GET    | `/admin/login/apple`                         | Redirects to Sign in with Apple.       |
@@ -203,6 +206,7 @@ Tables:
 | `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
 | `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
+| `webhook_integrations` | `tenant_id` | Per-tenant action webhook URL and signing secret. |
 
 The Worker uses D1 only. There is no KV compatibility layer because this project has no legacy production data to migrate.
 
@@ -212,7 +216,7 @@ The Worker uses D1 only. There is no KV compatibility layer because this project
 npm test
 ```
 
-Covers auth, card CRUD, Live Activity registration, and APNs payload construction (no network calls).
+Covers auth, card CRUD, webhook action delivery, Live Activity registration, and APNs payload construction (no network calls except mocked webhook fetches).
 
 ## APNs payload notes
 

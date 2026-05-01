@@ -53,6 +53,15 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/live-activities\/end\/?$/, (req, env, auth) =>
     liveActivities.endLiveActivity(req, env, auth),
   ),
+  authed("GET", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+    actions.getWebhookIntegration(req, env, auth),
+  ),
+  authed("PUT", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+    actions.putWebhookIntegration(req, env, auth),
+  ),
+  authed("DELETE", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+    actions.deleteWebhookIntegration(req, env, auth),
+  ),
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m) =>
     actions.runAction(req, env, auth, m[1]),
   ),
