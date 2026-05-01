@@ -177,14 +177,25 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
     "title": "CI build #1234",
     "subtitle": "running tests",
     "state": "running",
+    "icon": "hammer",
     "progress": 0.2,
+    "endsAt": "2026-04-26T18:45:00Z",
     "staleAt": "2026-04-26T19:00:00Z"
   }'
 ```
 
 The iOS app polls `/v1/live-activities/pending` and starts the activity locally on the device. Once it starts, it registers a per-activity APNs push token with the backend, which is how subsequent updates reach the device. Calling `start` again with the same `externalActivityId` replaces the pending record for that id; if an activity is already registered, subsequent `update` calls address that registered activity by the same id.
 
-`state` is free-form text for your domain. The current iOS renderer displays it as text and does not reserve special rendering behavior for values like `paused` or `finished`; use `progress`, `value`, `unit`, and `kind` for visual structure.
+`state` is free-form text for your domain. The current iOS renderer displays it as text and does not reserve special rendering behavior for values like `paused` or `finished`; use `progress`, `value`, `unit`, `endsAt`, `icon`, and `kind` for visual structure.
+
+Live Activity rendering fields:
+
+- `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
+- `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
+- `progress`: optional `0.0`–`1.0` progress bar.
+- `endsAt`: optional ISO-8601 end time. When present, iOS renders a native countdown driven by the device clock; you do not need periodic updates just to tick time forward.
+
+For a time-bounded operation, prefer `endsAt` over server-ticked percentage updates. A "boosting until 21:30" activity can be `start` with `endsAt`, then `end` when finished or cancelled.
 
 ### Update
 
@@ -196,7 +207,8 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
     "externalActivityId": "ci-build-2026-04-26-1234",
     "state": "running",
     "subtitle": "linting",
-    "progress": 0.6
+    "progress": 0.6,
+    "endsAt": "2026-04-26T18:45:00Z"
   }'
 ```
 
