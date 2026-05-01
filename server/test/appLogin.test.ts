@@ -117,6 +117,38 @@ describe("app Apple login", () => {
     expect(secondBody.tenant.ownerEmail).toBe("customer@example.com");
   });
 
+  it("reuses an existing tenant with the same owner email on first Apple login", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: clientId,
+      email: "test-tenant@example.com",
+      sub: "new-apple-user",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const env = makeEnv({
+      APPLE_APP_LOGIN_ENABLED: "true",
+      APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+    });
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: token }),
+      }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { tenant: { id: string; ownerEmail: string } };
+    expect(body.tenant.id).toBe("test-tenant");
+    expect(body.tenant.ownerEmail).toBe("test-tenant@example.com");
+  });
+
 
   it("rejects tokens for the wrong app audience", async () => {
     const { token, jwk } = await makeAppleIdToken({

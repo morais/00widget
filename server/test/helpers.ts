@@ -231,6 +231,13 @@ export class FakeD1 {
       const [id] = values.map(String);
       return pick(this.tenants.get(id), ["id", "owner_email", "created_at", "disabled_at"]);
     }
+    if (normalized === "SELECT id, owner_email FROM tenants WHERE lower(owner_email) = ? AND disabled_at IS NULL ORDER BY created_at ASC LIMIT 1") {
+      const [owner_email] = values.map(String);
+      const row = [...this.tenants.values()]
+        .filter((candidate) => candidate.owner_email.toLowerCase() === owner_email && !candidate.disabled_at)
+        .sort(by("created_at"))[0];
+      return pick(row, ["id", "owner_email"]);
+    }
     if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
     }

@@ -42,10 +42,15 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   if (!email && !existingAccount) {
     return json({ error: "Apple did not return an email for this sign-in" }, 403);
   }
+  const existingTenant = existingAccount
+    ? null
+    : await getTenantByOwnerEmail(env, email);
+  const tenantId = existingAccount?.tenantId ?? existingTenant?.id;
+  const ownerEmail = existingAccount?.email ?? existingTenant?.email ?? email;
 
   const created = await createApiKey(env, {
-    tenantId: existingAccount?.tenantId,
-    ownerEmail: existingAccount?.email ?? email,
+    tenantId,
+    ownerEmail,
     label: input.label?.trim() || "iOS app",
   });
   await putAppleAccount(env, {
@@ -62,6 +67,11 @@ interface AppleAccountRecord {
   email: string;
 }
 
+interface TenantEmailRecord {
+  id: string;
+  email: string;
+}
+
 async function getAppleAccount(env: Env, appleSub: string): Promise<AppleAccountRecord | null> {
   const row = await env.ZW_DB.prepare(
     `SELECT apple_sub, tenant_id, email
@@ -73,6 +83,24 @@ async function getAppleAccount(env: Env, appleSub: string): Promise<AppleAccount
   return row
     ? { appleSub: row.apple_sub, tenantId: row.tenant_id, email: row.email }
     : null;
+}
+
+async function getTenantByOwnerEmail(
+  env: Env,
+  email: string | undefined,
+): Promise<TenantEmailRecord | null> {
+  if (!email) return null;
+  const row = await env.ZW_DB.prepare(
+    `SELECT id, owner_email
+     FROM tenants
+     WHERE lower(owner_email) = ?
+       AND disabled_at IS NULL
+     ORDER BY created_at ASC
+     LIMIT 1`,
+  )
+    .bind(email)
+    .first<{ id: string; owner_email: string }>();
+  return row ? { id: row.id, email: row.owner_email } : null;
 }
 
 async function putAppleAccount(env: Env, record: AppleAccountRecord): Promise<void> {
