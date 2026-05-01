@@ -22,6 +22,7 @@ import {
   type TenantRecord,
 } from "./auth";
 import * as storage from "./storage";
+import { endAndDeleteActivity } from "./liveActivities";
 
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
@@ -236,7 +237,7 @@ export async function handleAdminDeleteLiveActivity(
   const session = await requireAdminSession(req, env);
   if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
   const tenantId = dec(tenantIdRaw);
-  await storage.deleteActivity(env, tenantId, dec(externalActivityIdRaw));
+  await endAndDeleteActivity(env, tenantId, dec(externalActivityIdRaw));
   return redirectToTenant(tenantId);
 }
 
