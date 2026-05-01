@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
-import { integrationMarkdown } from "../src/generated/integrationDoc";
+import { llmsMarkdown } from "../src/generated/llmsDoc";
 import { makeEnv } from "./helpers";
 
 const ctx = {} as ExecutionContext;
 
-describe("public landing + integration endpoints", () => {
+describe("public landing + docs endpoints", () => {
   it("GET / returns the landing HTML with the agent prompt", async () => {
     const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
     expect(res.status).toBe(200);
@@ -14,7 +14,7 @@ describe("public landing + integration endpoints", () => {
     expect(body).toContain("Widgets for all your agents");
     expect(body).toContain("Pointing an agent at 00Widget from another project");
     expect(body).toContain("00WIDGET_BASE_URL");
-    expect(body).toContain("/integration.md");
+    expect(body).toContain("/llms.md");
   });
 
   it("landing HTML wires a copy button to the agent prompt", async () => {
@@ -26,16 +26,16 @@ describe("public landing + integration endpoints", () => {
     expect(body).toContain("navigator.clipboard.writeText");
   });
 
-  it("GET /integration.md returns hosted integration markdown as text/markdown", async () => {
+  it("GET /llms.md returns hosted agent markdown as text/markdown", async () => {
     const res = await (handler.fetch as any)(
-      new Request("https://x/integration.md"),
+      new Request("https://x/llms.md"),
       makeEnv(),
       ctx,
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")?.startsWith("text/markdown")).toBe(true);
     const body = await res.text();
-    expect(body).not.toBe(integrationMarkdown);
+    expect(body).not.toBe(llmsMarkdown);
     expect(body).toContain("# Integrating with 00Widget");
     expect(body).toContain("## TL;DR");
     expect(body).toContain("00WIDGET_BASE_URL=https://x");
@@ -46,7 +46,17 @@ describe("public landing + integration endpoints", () => {
     );
   });
 
-  it("GET /llms.txt returns a discovery document pointing at /integration.md", async () => {
+  it("GET /integration.md redirects to /llms.md for compatibility", async () => {
+    const res = await (handler.fetch as any)(
+      new Request("https://x/integration.md"),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("https://x/llms.md");
+  });
+
+  it("GET /llms.txt returns a discovery document pointing at /llms.md", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/llms.txt"),
       makeEnv(),
@@ -56,17 +66,17 @@ describe("public landing + integration endpoints", () => {
     expect(res.headers.get("content-type")?.startsWith("text/plain")).toBe(true);
     const body = await res.text();
     expect(body).toContain("00Widget");
-    expect(body).toContain("/integration.md");
+    expect(body).toContain("/llms.md");
   });
 
-  it("embedded integration markdown matches the source file", async () => {
+  it("embedded llms markdown matches the source file", async () => {
     // Drift guard. `pretest` runs sync-docs, so this should always pass; if it
     // doesn't, the source file has changed and you forgot to run `npm run sync-docs`.
     const fs = await import("node:fs");
     const path = await import("node:path");
     const url = await import("node:url");
     const here = path.dirname(url.fileURLToPath(import.meta.url));
-    const sourceMd = fs.readFileSync(path.resolve(here, "../../docs/INTEGRATION.md"), "utf8");
-    expect(integrationMarkdown).toBe(sourceMd);
+    const sourceMd = fs.readFileSync(path.resolve(here, "../../docs/llms.md"), "utf8");
+    expect(llmsMarkdown).toBe(sourceMd);
   });
 });

@@ -4,7 +4,7 @@
   "private": true,
   "description": "00Widget backend — Cloudflare Worker",
   "scripts": {
-    "sync-docs": "node scripts/sync-integration-md.mjs",
+    "sync-docs": "node scripts/sync-llms-md.mjs",
     "predev": "npm run sync-docs",
     "predeploy": "npm run sync-docs",
     "pretest": "npm run sync-docs",

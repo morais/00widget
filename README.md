@@ -17,7 +17,7 @@ If you're inside another repo (say, a CI pipeline or a home-automation script) a
 ```
 Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
 
-Read the integration contract: https://github.com/morais/00widget/blob/main/docs/INTEGRATION.md
+Read the integration contract: https://github.com/morais/00widget/blob/main/docs/llms.md
 That single document is everything you need — don't pull in the rest of the 00Widget repo.
 
 Operator-supplied env vars:
@@ -28,7 +28,7 @@ Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET
 
 Then:
 1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
-2. For each, pick a template (metric/status/progress/list/action) per INTEGRATION.md's decision matrix.
+2. For each, pick a template (metric/status/progress/list/action) per llms.md's decision matrix.
 3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable `id`. No SDK, no class hierarchy.
 4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
 
@@ -38,7 +38,7 @@ Constraints:
 - Always end Live Activities. Never make destructive actions auto-run from widgets.
 - Don't publish more than ~once a minute per card unless the value actually changed.
 
-If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in INTEGRATION.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.
+If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in llms.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.
 ```
 
 ## Anatomy
@@ -112,7 +112,7 @@ Setup walkthrough: `server/README.md` → "Admin dashboard".
 - `ios/README.md` — Xcode setup, entitlements, signing.
 - `server/README.md` — Worker deploy, D1 binding, APNs secrets, admin dashboard.
 - `examples/README.md` — publishing state from any shell or agent.
-- `docs/INTEGRATION.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
+- `docs/llms.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.
 
 ## Status
