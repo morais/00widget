@@ -89,9 +89,9 @@ struct OnboardingView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(agentConfig)
-                    .font(.caption.monospaced())
+                    .font(.caption)
                     .textSelection(.enabled)
-                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button(copiedAgentConfig ? "Copied" : "Copy agent config") {
                     UIPasteboard.general.string = agentConfig
                     copiedAgentConfig = true
@@ -168,7 +168,7 @@ struct OnboardingView: View {
     }
 
     private var agentConfig: String {
-        "Integrate with 00Widget. Use \(env.serverBaseURL) as the API base URL; it also has the integration instructions. Use this bearer token: \(env.apiKey)"
+        "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.apiKey) as the authorization token."
     }
 }
 
