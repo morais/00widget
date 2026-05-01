@@ -95,6 +95,75 @@ The script's recipe: build with ad-hoc signing → re-sign the app and the widge
 
 When working on a real device with a configured Team ID, none of this applies — Xcode handles signing/entitlements via the project settings.
 
+## TestFlight submissions
+
+The App Store Connect/TestFlight path is already wired for the real local `ios/project.yml` (`DEVELOPMENT_TEAM: YOUR_TEAM_ID`, bundle ids `com.example.zerozerowidget` and `com.example.zerozerowidget.widgets`). Use Xcode's archive/export flow rather than ad hoc IPA tooling.
+
+Before archiving:
+
+- Bump `CURRENT_PROJECT_VERSION` in the **gitignored** `ios/project.yml` to a value higher than the last uploaded TestFlight build. A timestamp like `YYYYMMDDHHMM` works well for repeated agent-driven uploads.
+- Keep `MARKETING_VERSION` unchanged unless the user asks for a version bump.
+- Run `cd ios && xcodegen` after changing `project.yml`.
+- The generated `ios/Resources/App/Info.plist` and `ios/Resources/Widgets/Info.plist` must contain `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` and `CFBundleShortVersionString: $(MARKETING_VERSION)`. If they show a literal `1`, fix `ios/project.yml.sample` and copy the change into the real `ios/project.yml` before archiving; App Store Connect rejects duplicate build `1`.
+
+Recommended commands:
+
+```
+cd ios
+xcodegen
+xcodebuild archive \
+  -project ZeroZeroWidget.xcodeproj \
+  -scheme ZeroZeroWidgetApp \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive
+```
+
+Before upload, verify the archive really has the bumped build number in all three places:
+
+```
+/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/PlugIns/ZeroZeroWidgetWidgets.appex/Info.plist
+```
+
+Use this export options plist shape for TestFlight uploads (write it under `/tmp`, not the repo):
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>destination</key>
+  <string>upload</string>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>teamID</key>
+  <string>YOUR_TEAM_ID</string>
+  <key>uploadSymbols</key>
+  <true/>
+</dict>
+</plist>
+```
+
+Then upload:
+
+```
+xcodebuild -exportArchive \
+  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive \
+  -exportPath /tmp/00widget-testflight/export-<build> \
+  -exportOptionsPlist /tmp/00widget-testflight/ExportOptions.plist \
+  -allowProvisioningUpdates
+```
+
+Success looks like `Uploaded package is processing` followed by `Upload succeeded`. If the first failure says the bundle version must be higher than a previous upload, the archive still contains the wrong `CFBundleVersion`; fix the generated plist inputs and re-archive rather than retrying the same archive.
+
 ## Branding
 
 Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The committed assets include opaque + transparent 1024 PNGs, the wordmark lockup, and the SVG vector sources — re-export raster sizes from the SVGs. iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Color palette is documented in `docs/brand/README.md` and is sourced from the SVG `<linearGradient>` definitions, not eyeballed.
