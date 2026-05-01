@@ -36,6 +36,16 @@ targets:
         NSSupportsLiveActivitiesFrequentUpdates: true
         UIBackgroundModes:
           - remote-notification
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         ZWAppGroupIdentifier: group.com.example.zerozerowidget   # must match the app-group entitlement below
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
