@@ -49,6 +49,17 @@ struct OnboardingView: View {
                         }
                     }
                 }
+
+                Section("Agent config") {
+                    Text(agentConfig)
+                        .font(.caption)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(copiedAgentConfig ? "Copied" : "Copy agent config") {
+                        UIPasteboard.general.string = agentConfig
+                        copiedAgentConfig = true
+                    }
+                }
             }
             .navigationTitle("Settings")
             .task {
@@ -81,20 +92,6 @@ struct OnboardingView: View {
                 Button(copiedToken ? "Copied" : "Copy token") {
                     UIPasteboard.general.string = env.apiKey
                     copiedToken = true
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Agent config")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(agentConfig)
-                    .font(.caption)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button(copiedAgentConfig ? "Copied" : "Copy agent config") {
-                    UIPasteboard.general.string = agentConfig
-                    copiedAgentConfig = true
                 }
             }
 
@@ -168,7 +165,15 @@ struct OnboardingView: View {
     }
 
     private var agentConfig: String {
-        "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.apiKey) as the authorization token."
+        if ZeroZeroWidgetConstants.appleLoginEnabled, env.apiKey.isEmpty {
+            return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL. You'll need an authorization token, which will be available after you sign in."
+        }
+
+        if env.apiKey.isEmpty {
+            return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and enter an API key above to use as the authorization token."
+        }
+
+        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.apiKey) as the authorization token."
     }
 }
 
