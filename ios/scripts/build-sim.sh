@@ -36,8 +36,6 @@ DEVICE="${SIM_DEVICE:-iPhone 17 Pro}"
 LAUNCH=0
 BASE_URL="${ZW_BASE_URL:-}"
 FRESH=0
-APP_GROUP="group.com.example.zerozerowidget"
-BUNDLE_ID="com.example.zerozerowidget"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -78,6 +76,8 @@ xcodebuild \
 
 APP="build/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetApp.app"
 WIDGETEXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+APP_GROUP="$(/usr/libexec/PlistBuddy -c 'Print :ZWAppGroupIdentifier' "$APP/Info.plist")"
 
 echo "→ re-signing with sim-only entitlements (App Groups, no aps-environment)"
 SIM_ENT="$(mktemp -t zw-sim-ent).plist"
