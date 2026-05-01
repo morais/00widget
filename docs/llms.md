@@ -107,7 +107,7 @@ Pick one based on the *shape* of the data, not the domain:
 | Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
-| A countdown                           | `timer`    | `title`, `value` (target ISO date)         |
+| A countdown                           | `timer`    | `title`, `value` as the target ISO-8601 end time |
 
 If unsure, default to `status` — it degrades gracefully on every widget size.
 
@@ -142,6 +142,10 @@ To remove a card:
 curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
 ```
+
+`staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
+
+For `template: "timer"`, set `value` to the ISO-8601 target time, usually an end time such as `"2026-05-01T18:30:00Z"`. The native widget renders that as a countdown where supported; include `subtitle` for fallback context.
 
 ### Stable ids
 
@@ -178,7 +182,9 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
   }'
 ```
 
-The iOS app polls `/v1/live-activities/pending` and starts the activity locally on the device. Once it starts, it registers a per-activity APNs push token with the backend, which is how subsequent updates reach the device.
+The iOS app polls `/v1/live-activities/pending` and starts the activity locally on the device. Once it starts, it registers a per-activity APNs push token with the backend, which is how subsequent updates reach the device. Calling `start` again with the same `externalActivityId` replaces the pending record for that id; if an activity is already registered, subsequent `update` calls address that registered activity by the same id.
+
+`state` is free-form text for your domain. The current iOS renderer displays it as text and does not reserve special rendering behavior for values like `paused` or `finished`; use `progress`, `value`, `unit`, and `kind` for visual structure.
 
 ### Update
 
@@ -231,22 +237,69 @@ If your card has buttons, define them as `actions` on the card:
 }
 ```
 
-When the user taps the button, your project's webhook (configured by the operator) receives a `POST` to `/v1/actions/<actionId>/run` with body:
+Before buttons can call your system, register your webhook with the same API key used to publish cards:
 
-```json
-{ "source": "widget|app|external", "context": { "cardId": "boiler" } }
+```sh
+curl -X PUT "$00WIDGET_BASE_URL/v1/integrations/webhook" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{ "url": "https://example.com/00widget/actions" }'
 ```
 
-In v1 the backend just logs and returns 200 — wiring action ids to your project's webhooks is something the operator does on the backend. Until then, treat actions as fire-and-forget visual buttons.
+The response includes a `signingSecret`. Store it once; `GET /v1/integrations/webhook` returns the URL and timestamps but not the secret. To rotate, call the same `PUT` with `"rotateSecret": true` and update your verifier before accepting new deliveries. To disable actions, call `DELETE /v1/integrations/webhook`.
+
+When the user taps the button, 00Widget receives `POST /v1/actions/<actionId>/run` from the app/widget, resolves the stored card action, and forwards a signed `POST` to your webhook:
+
+```json
+{
+  "deliveryId": "018f6e62-3d3c-7c5c-9f7a-...",
+  "timestamp": "2026-05-01T12:34:56.789Z",
+  "source": "widget",
+  "accountId": "tenant_...",
+  "action": {
+    "id": "boiler-boost-1h",
+    "label": "Boost 1h",
+    "payload": { "duration": "3600" }
+  },
+  "context": {
+    "cardId": "boiler",
+    "cardTitle": "Boiler"
+  }
+}
+```
+
+Headers:
+
+- `X-00Widget-Delivery`: same value as `deliveryId`, for idempotency.
+- `X-00Widget-Timestamp`: Unix seconds when the delivery was signed.
+- `X-00Widget-Signature`: `sha256=<hex hmac>`.
+
+The HMAC key is the `signingSecret`. The canonical string is:
+
+```text
+<X-00Widget-Timestamp>.<raw JSON request body bytes>
+```
+
+Reject deliveries whose timestamp is more than 5 minutes from your clock, and dedupe by `deliveryId`. Treat delivery as **at least once**: 00Widget retries network errors and `5xx` responses up to 3 total attempts with short backoff. It does not retry `2xx`, `4xx`, or permanent validation failures. If all attempts fail, the app/widget action run returns `502` and the tap is considered abandoned.
+
+Any `2xx` from your webhook is an ack. An empty body is fine. If you return JSON shaped as either a `DashboardCard` or `{ "card": DashboardCard }`, 00Widget immediately upserts that card and reloads the matching widget kind; otherwise the response body is ignored. You can also return `2xx` and publish a separate `/v1/cards/upsert` later.
+
+Only `role: "normal"` + `confirm: false` actions run directly from widgets. `confirm: true` and `role: "destructive"` actions are shown in the 00Widget app, where the user can confirm before the app calls the same `/v1/actions/:id/run` path with `source: "app"`.
+
+## Rate limits
+
+There is no hard per-token rate limiter in this Worker yet. The practical limit is Cloudflare Worker/D1/APNs capacity plus Apple's push delivery behavior. Treat the documented "~once a minute per card unless the value changed" guidance as the compatibility contract for now; future hard limits will be documented here before enforcement.
 
 ## Errors
 
 - `401 {"error":"..."}` — bad or missing bearer token. Don't retry with the same key.
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
-- `404` — endpoint or card id doesn't exist.
-- `5xx` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
+- `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist.
+- `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
+- `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.
+- `5xx {"error":"internal error"}` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
 
-The API never returns secrets in errors and is safe to log.
+Error bodies are simple JSON with at least an `error` string; some endpoints add fields like `detail`, `status`, `attempts`, or `deliveryId`. The API never returns secrets in errors and is safe to log.
 
 ## Snippets
 
