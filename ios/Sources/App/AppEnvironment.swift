@@ -132,6 +132,7 @@ public final class AppEnvironment: ObservableObject {
         await registerDevice()
         await registerPendingWidgetTokens()
         await fetchCards()
+        await startPendingActivities()
     }
 
     public func generateSampleCards() {
@@ -166,6 +167,7 @@ public final class AppEnvironment: ObservableObject {
             }
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
+            await self.startPendingActivities()
         }
     }
 
@@ -176,6 +178,20 @@ public final class AppEnvironment: ObservableObject {
         } catch {
             pendingActivities = []
         }
+    }
+
+    public func startPendingActivities() async {
+        await refreshPendingActivities()
+        let activities = pendingActivities
+        guard !activities.isEmpty else { return }
+        for activity in activities where !liveActivityController.activeIds.contains(activity.externalActivityId) {
+            do {
+                try await liveActivityController.start(activity)
+            } catch {
+                lastSyncError = "live activity start: \(error.localizedDescription)"
+            }
+        }
+        await refreshPendingActivities()
     }
 
     public func setAPNsDeviceToken(_ token: Data) {

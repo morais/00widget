@@ -93,6 +93,15 @@ export async function startLiveActivity(
         contentState,
         staleAt: d.staleAt,
       });
+      if (result.status !== 200) {
+        console.log("live activity push-to-start failed", {
+          tenantId: auth.tenantId,
+          externalActivityId: d.externalActivityId,
+          status: result.status,
+          reason: result.reason,
+          apnsId: result.apnsId,
+        });
+      }
       apnsResults.push(result);
     }
   }
