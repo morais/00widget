@@ -11,12 +11,16 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(context.attributes.title, systemImage: iconName(for: context.attributes.kind))
+                    Label(context.attributes.title, systemImage: iconName(attributes: context.attributes, state: context.state))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let value = context.state.value {
+                    if let endsAt = context.state.endsAt {
+                        Text(endsAt, style: .timer)
+                            .font(.headline)
+                            .monospacedDigit()
+                    } else if let value = context.state.value {
                         HStack(spacing: 2) {
                             Text(value).font(.headline)
                             if let unit = context.state.unit {
@@ -34,15 +38,18 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if let p = context.state.progress {
+                    if let p = context.state.progress, context.state.endsAt == nil {
                         ProgressView(value: max(0, min(p, 1)))
                             .progressViewStyle(.linear)
                     }
                 }
             } compactLeading: {
-                Image(systemName: iconName(for: context.attributes.kind))
+                Image(systemName: iconName(attributes: context.attributes, state: context.state))
             } compactTrailing: {
-                if let value = context.state.value {
+                if let endsAt = context.state.endsAt {
+                    Text(endsAt, style: .timer)
+                        .monospacedDigit()
+                } else if let value = context.state.value {
                     Text(value)
                 } else if let p = context.state.progress {
                     Text("\(Int(p * 100))%")
@@ -52,15 +59,22 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             } minimal: {
                 if let p = context.state.progress {
                     Gauge(value: max(0, min(p, 1))) {
-                        Image(systemName: iconName(for: context.attributes.kind))
+                        Image(systemName: iconName(attributes: context.attributes, state: context.state))
                     }
                     .gaugeStyle(.accessoryCircularCapacity)
                 } else {
-                    Image(systemName: iconName(for: context.attributes.kind))
+                    Image(systemName: iconName(attributes: context.attributes, state: context.state))
                 }
             }
             .widgetURL(context.attributes.deepLink)
         }
+    }
+
+    private func iconName(
+        attributes: ZeroZeroWidgetActivityAttributes,
+        state: ZeroZeroWidgetActivityAttributes.ContentState
+    ) -> String {
+        state.icon ?? attributes.icon ?? iconName(for: attributes.kind)
     }
 
     private func iconName(for kind: LiveActivityKind) -> String {
@@ -89,7 +103,11 @@ private struct LockScreenView: View {
                 if let subtitle = state.subtitle {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
-                if let p = state.progress {
+                if let endsAt = state.endsAt {
+                    Text(endsAt, style: .timer)
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                } else if let p = state.progress {
                     ProgressView(value: max(0, min(p, 1)))
                         .progressViewStyle(.linear)
                 }
@@ -98,7 +116,13 @@ private struct LockScreenView: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            if let value = state.value {
+            if state.endsAt != nil {
+                Text(state.state.capitalized)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.secondary.opacity(0.2)))
+            } else if let value = state.value {
                 VStack(alignment: .trailing, spacing: 0) {
                     Text(value).font(.title3).fontWeight(.semibold)
                     if let unit = state.unit {
@@ -117,6 +141,9 @@ private struct LockScreenView: View {
     }
 
     private var iconName: String {
+        if let icon = state.icon ?? attributes.icon {
+            return icon
+        }
         switch attributes.kind {
         case .generic: return "square.dashed"
         case .progress: return "chart.bar"

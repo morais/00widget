@@ -93,9 +93,11 @@ export const StartLiveActivitySchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().optional(),
   state: z.string().min(1),
+  icon: z.string().optional(),
   value: z.string().optional(),
   unit: z.string().optional(),
   progress: z.number().min(0).max(1).optional(),
+  endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
   deepLink: z.string().url().optional(),
 });
@@ -105,9 +107,11 @@ export const UpdateLiveActivitySchema = z.object({
   state: z.string().optional(),
   title: z.string().optional(),
   subtitle: z.string().optional(),
+  icon: z.string().optional(),
   value: z.string().optional(),
   unit: z.string().optional(),
   progress: z.number().min(0).max(1).optional(),
+  endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
   alert: z
     .object({

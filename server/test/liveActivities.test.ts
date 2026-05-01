@@ -31,7 +31,7 @@ describe("live activities", () => {
     );
     expect(pending.status).toBe(200);
     const data = (await pending.json()) as {
-      activities: Array<{ updatedAt?: string; startedAt?: string }>;
+      activities: Array<{ updatedAt?: string; startedAt?: string; icon?: string; endsAt?: string }>;
     };
     expect(data.activities).toHaveLength(1);
     expect(Date.parse(data.activities[0].updatedAt ?? "")).not.toBeNaN();
@@ -118,6 +118,8 @@ describe("live activities", () => {
           kind: "appliance",
           title: "Washer",
           state: "running",
+          icon: "washer",
+          endsAt: "2026-05-01T21:00:00Z",
           progress: 0.1,
         }),
       }),
@@ -132,6 +134,8 @@ describe("live activities", () => {
           externalActivityId: "washer-pending",
           state: "rinse",
           subtitle: "Rinse cycle",
+          icon: "flame.fill",
+          endsAt: "2026-05-01T21:30:00Z",
           progress: 0.5,
         }),
       }),
@@ -147,12 +151,14 @@ describe("live activities", () => {
       executionCtx,
     );
     const data = (await pending.json()) as {
-      activities: Array<{ state: string; subtitle?: string; progress?: number }>;
+      activities: Array<{ state: string; subtitle?: string; icon?: string; progress?: number; endsAt?: string }>;
     };
     expect(data.activities).toHaveLength(1);
     expect(data.activities[0].state).toBe("rinse");
     expect(data.activities[0].subtitle).toBe("Rinse cycle");
+    expect(data.activities[0].icon).toBe("flame.fill");
     expect(data.activities[0].progress).toBe(0.5);
+    expect(data.activities[0].endsAt).toBe("2026-05-01T21:30:00Z");
   });
 
   it("removes pending activities when they are ended before registration", async () => {

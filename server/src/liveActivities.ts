@@ -74,6 +74,7 @@ export async function startLiveActivity(
       kind: d.kind,
       title: d.title,
     };
+    if (d.icon !== undefined) attributes.icon = d.icon;
     if (d.deepLink) attributes.deepLink = d.deepLink;
 
     const contentState: Record<string, unknown> = {
@@ -81,9 +82,11 @@ export async function startLiveActivity(
       updatedAt: now,
     };
     if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
+    if (d.icon !== undefined) contentState.icon = d.icon;
     if (d.value !== undefined) contentState.value = d.value;
     if (d.unit !== undefined) contentState.unit = d.unit;
     if (d.progress !== undefined) contentState.progress = d.progress;
+    if (d.endsAt) contentState.endsAt = d.endsAt;
     if (d.staleAt) contentState.staleAt = d.staleAt;
 
     for (const token of startTokens) {
@@ -146,9 +149,11 @@ export async function updateLiveActivity(
   const contentState: Record<string, unknown> = {};
   if (d.state !== undefined) contentState.state = d.state;
   if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
+  if (d.icon !== undefined) contentState.icon = d.icon;
   if (d.value !== undefined) contentState.value = d.value;
   if (d.unit !== undefined) contentState.unit = d.unit;
   if (d.progress !== undefined) contentState.progress = d.progress;
+  if (d.endsAt !== undefined) contentState.endsAt = d.endsAt;
   contentState.updatedAt = now;
   if (d.staleAt) contentState.staleAt = d.staleAt;
 
@@ -173,9 +178,11 @@ export async function updateLiveActivity(
         title: d.title ?? pending.title,
         subtitle: d.subtitle ?? pending.subtitle,
         state: d.state ?? pending.state,
+        icon: d.icon ?? pending.icon,
         value: d.value ?? pending.value,
         unit: d.unit ?? pending.unit,
         progress: d.progress ?? pending.progress,
+        endsAt: d.endsAt ?? pending.endsAt,
         staleAt: d.staleAt ?? pending.staleAt,
         updatedAt: now,
       });
