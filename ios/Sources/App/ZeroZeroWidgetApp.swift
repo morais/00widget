@@ -75,8 +75,10 @@ struct RootView: View {
             OnboardingView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
 
-            DeveloperView()
-                .tabItem { Label("Debug", systemImage: "ladybug") }
+            if ZeroZeroWidgetConstants.debugTabEnabled {
+                DeveloperView()
+                    .tabItem { Label("Debug", systemImage: "ladybug") }
+            }
         }
     }
 }

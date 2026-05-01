@@ -24,6 +24,10 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.object(forInfoDictionaryKey: "ZWAppleLoginEnabled") as? Bool ?? false
     }
 
+    public static var debugTabEnabled: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "ZWDebugTabEnabled") as? Bool ?? true
+    }
+
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 
