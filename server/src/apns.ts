@@ -76,6 +76,9 @@ export async function sendApnsPush(env: Env, opts: ApnsSendOptions): Promise<Apn
 export interface LiveActivityUpdatePayload {
   contentState: Record<string, unknown>;
   staleAt?: string;
+  // aps.relevance-score (iOS 16.2+). Smart Stack on iPhone / Apple Watch
+  // ranks Live Activities by this — higher wins, no fixed ceiling.
+  relevanceScore?: number;
   alert?: { title: string; body?: string };
 }
 
@@ -92,6 +95,7 @@ export async function sendLiveActivityUpdate(
     "content-state": payload.contentState,
   };
   if (payload.staleAt) aps["stale-date"] = Math.floor(new Date(payload.staleAt).getTime() / 1000);
+  if (payload.relevanceScore !== undefined) aps["relevance-score"] = payload.relevanceScore;
   if (payload.alert) aps.alert = payload.alert;
 
   return sendApnsPush(env, {
@@ -108,6 +112,7 @@ export interface LiveActivityStartPayload {
   attributes: Record<string, unknown>;
   contentState: Record<string, unknown>;
   staleAt?: string;
+  relevanceScore?: number;
   alert?: { title: string; body?: string };
 }
 
@@ -128,6 +133,7 @@ export async function sendLiveActivityStart(
     "content-state": payload.contentState,
   };
   if (payload.staleAt) aps["stale-date"] = Math.floor(new Date(payload.staleAt).getTime() / 1000);
+  if (payload.relevanceScore !== undefined) aps["relevance-score"] = payload.relevanceScore;
   if (payload.alert) aps.alert = payload.alert;
 
   return sendApnsPush(env, {

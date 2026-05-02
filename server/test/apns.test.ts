@@ -93,6 +93,35 @@ describe("APNs payload construction", () => {
     expect(body.aps["content-state"].state).toBe("running");
   });
 
+  it("relevance score and stale date land on aps top-level for live activity update", async () => {
+    __resetApnsJwtCache();
+    const captured: CapturedRequest[] = [];
+    const fetcher = capturingFetch(captured);
+    const env = apnsEnv();
+    // Patch the module's fetch so sendLiveActivityUpdate (which doesn't take a
+    // fetcher) hits our capture instead of the network.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetcher;
+    try {
+      await sendLiveActivityUpdate(env, "watchabletoken", {
+        contentState: { state: "running", progress: 0.4, updatedAt: "2026-04-26T08:00:00Z" },
+        staleAt: "2026-04-26T09:00:00Z",
+        relevanceScore: 75,
+        alert: { title: "Washer", body: "almost done" },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(captured).toHaveLength(1);
+    const body = captured[0].body as {
+      aps: { event: string; "relevance-score"?: number; "stale-date"?: number; alert?: unknown };
+    };
+    expect(body.aps.event).toBe("update");
+    expect(body.aps["relevance-score"]).toBe(75);
+    expect(typeof body.aps["stale-date"]).toBe("number");
+    expect(body.aps.alert).toEqual({ title: "Washer", body: "almost done" });
+  });
+
   it("widget reload push uses widgets push-type and content-changed: true", async () => {
     __resetApnsJwtCache();
     const captured: CapturedRequest[] = [];

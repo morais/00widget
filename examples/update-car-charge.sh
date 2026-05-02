@@ -12,6 +12,7 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/update" \
     "subtitle": "Charging at 7.4 kW",
     "value": "78",
     "unit": "%",
-    "progress": 0.78
+    "progress": 0.78,
+    "relevanceScore": 78
   }'
 echo

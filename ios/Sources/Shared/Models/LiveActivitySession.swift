@@ -28,6 +28,9 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var startedAt: Date?
     public var updatedAt: Date
     public var staleAt: Date?
+    // Smart Stack ranking on iPhone Lock Screen and Apple Watch. Higher wins.
+    // Mirrors aps.relevance-score / ActivityContent.relevanceScore.
+    public var relevanceScore: Double?
     public var deepLink: URL?
     public var actions: [ActionDefinition]?
 
@@ -47,6 +50,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         startedAt: Date? = nil,
         updatedAt: Date = Date(),
         staleAt: Date? = nil,
+        relevanceScore: Double? = nil,
         deepLink: URL? = nil,
         actions: [ActionDefinition]? = nil
     ) {
@@ -63,6 +67,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.startedAt = startedAt
         self.updatedAt = updatedAt
         self.staleAt = staleAt
+        self.relevanceScore = relevanceScore
         self.deepLink = deepLink
         self.actions = actions
     }

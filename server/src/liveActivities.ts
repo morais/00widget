@@ -95,6 +95,7 @@ export async function startLiveActivity(
         attributes,
         contentState,
         staleAt: d.staleAt,
+        relevanceScore: d.relevanceScore,
       });
       if (result.status !== 200) {
         console.log("live activity push-to-start failed", {
@@ -163,6 +164,7 @@ export async function updateLiveActivity(
     apnsResult = await sendLiveActivityUpdate(env, record.pushToken, {
       contentState,
       staleAt: d.staleAt,
+      relevanceScore: d.relevanceScore,
       alert: d.alert,
     });
     await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
@@ -184,6 +186,7 @@ export async function updateLiveActivity(
         progress: d.progress ?? pending.progress,
         endsAt: d.endsAt ?? pending.endsAt,
         staleAt: d.staleAt ?? pending.staleAt,
+        relevanceScore: d.relevanceScore ?? pending.relevanceScore,
         updatedAt: now,
       });
       pendingUpdated = true;

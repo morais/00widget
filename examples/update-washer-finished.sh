@@ -15,6 +15,7 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/update" \
     "title": "Washing machine",
     "subtitle": "Cycle finished",
     "progress": 1.0,
+    "relevanceScore": 100,
     "alert": {
       "title": "Washing machine finished",
       "body": "The cycle appears to be complete."

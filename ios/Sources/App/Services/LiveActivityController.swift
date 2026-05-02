@@ -43,7 +43,7 @@ public final class LiveActivityController: ObservableObject {
     public func start(_ session: LiveActivitySession) async throws {
         endingExternalIds.remove(session.externalActivityId)
         let (attrs, state) = ZeroZeroWidgetActivityAttributes.from(session)
-        let content = ActivityContent(state: state, staleDate: session.staleAt)
+        let content = makeContent(state: state, session: session)
         let activity = try Activity.request(attributes: attrs, content: content, pushType: .token)
         log.info("Started activity \(activity.id, privacy: .public) for \(session.externalActivityId, privacy: .public)")
         observePushToken(activity: activity, session: session)
@@ -53,7 +53,7 @@ public final class LiveActivityController: ObservableObject {
     public func update(_ session: LiveActivitySession, alert: AlertConfiguration? = nil) async {
         for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == session.externalActivityId {
             let (_, state) = ZeroZeroWidgetActivityAttributes.from(session)
-            let content = ActivityContent(state: state, staleDate: session.staleAt)
+            let content = makeContent(state: state, session: session)
             if let alert {
                 await activity.update(content, alertConfiguration: alert)
             } else {
@@ -61,6 +61,16 @@ public final class LiveActivityController: ObservableObject {
             }
         }
         refreshActiveActivities()
+    }
+
+    private func makeContent(
+        state: ZeroZeroWidgetActivityAttributes.ContentState,
+        session: LiveActivitySession
+    ) -> ActivityContent<ZeroZeroWidgetActivityAttributes.ContentState> {
+        if let score = session.relevanceScore {
+            return ActivityContent(state: state, staleDate: session.staleAt, relevanceScore: score)
+        }
+        return ActivityContent(state: state, staleDate: session.staleAt)
     }
 
     public func end(externalActivityId: String, finalState: ZeroZeroWidgetActivityAttributes.ContentState? = nil) async {

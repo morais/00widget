@@ -222,7 +222,7 @@ Covers auth, card CRUD, webhook action delivery, Live Activity registration, and
 
 The Worker constructs payloads that match the documented ActivityKit / WidgetKit formats:
 
-- **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ... } }`.
+- **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack.
 - **Live Activity end** — same headers, `event: "end"`, optional `dismissal-date`.
 - **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`.
 

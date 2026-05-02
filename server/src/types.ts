@@ -99,6 +99,10 @@ export const StartLiveActivitySchema = z.object({
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
+  // Surfaced as aps.relevance-score on the APNs payload — Smart Stack on
+  // iPhone and Apple Watch ranks Live Activities by this. Range is 0+;
+  // larger wins. ActivityKit clamps/normalizes; we just pass through.
+  relevanceScore: z.number().min(0).optional(),
   deepLink: z.string().url().optional(),
 });
 
@@ -113,6 +117,7 @@ export const UpdateLiveActivitySchema = z.object({
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
+  relevanceScore: z.number().min(0).optional(),
   alert: z
     .object({
       title: z.string(),
