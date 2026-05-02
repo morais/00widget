@@ -15,6 +15,7 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/start" \
     "state": "running",
     "subtitle": "Cycle running",
     "progress": 0.2,
-    "staleAt": "2026-04-24T18:00:00Z"
+    "staleAt": "2026-04-24T18:00:00Z",
+    "relevanceScore": 50
   }'
 echo

@@ -68,6 +68,10 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             }
             .widgetURL(context.attributes.deepLink)
         }
+        // Opt the Live Activity into rendering as a Smart Stack card on Apple
+        // Watch (.small) in addition to the iPhone Lock Screen (.medium).
+        // LockScreenView reads \.activityFamily to pick the right layout.
+        .supplementalActivityFamilies([.small, .medium])
     }
 
     private func iconName(
@@ -93,7 +97,20 @@ private struct LockScreenView: View {
     let attributes: ZeroZeroWidgetActivityAttributes
     let state: ZeroZeroWidgetActivityAttributes.ContentState
 
+    // .small is Apple Watch Smart Stack; .medium is iPhone Lock Screen. The
+    // watch surface is much narrower and shorter, so it gets a tighter layout.
+    @Environment(\.activityFamily) private var activityFamily
+
     var body: some View {
+        switch activityFamily {
+        case .small:
+            watchBody
+        default:
+            lockScreenBody
+        }
+    }
+
+    private var lockScreenBody: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: iconName)
                 .font(.title2)
@@ -138,6 +155,50 @@ private struct LockScreenView: View {
             }
         }
         .padding()
+    }
+
+    private var watchBody: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(attributes.title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                primaryWatchValue
+            }
+            Spacer(minLength: 0)
+            if let p = state.progress, state.endsAt == nil {
+                Gauge(value: max(0, min(p, 1))) { EmptyView() }
+                    .gaugeStyle(.accessoryCircularCapacity)
+                    .scaleEffect(0.8)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var primaryWatchValue: some View {
+        if let endsAt = state.endsAt {
+            Text(endsAt, style: .timer)
+                .font(.headline)
+                .monospacedDigit()
+                .lineLimit(1)
+        } else if let value = state.value {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value).font(.headline).lineLimit(1)
+                if let unit = state.unit {
+                    Text(unit).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Text(state.state.capitalized)
+                .font(.subheadline)
+                .lineLimit(1)
+        }
     }
 
     private var iconName: String {

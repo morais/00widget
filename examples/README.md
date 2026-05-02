@@ -30,6 +30,8 @@ Each call:
 - `update-washer-finished.sh` — pushes an update + alert through APNs.
 - `start-tesla-charge.sh` / `update-tesla-charge.sh` — same shape for a Tesla charging example.
 
+These also illustrate `relevanceScore`: the Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins). Send a low score for "started, plenty of time", ramp it up as urgency grows, and a high score on the finishing alert so it bubbles to the top of the wrist.
+
 Pending → live flow:
 1. Your agent calls `POST /v1/live-activities/start` with a fresh `externalActivityId`.
 2. The iOS app periodically calls `GET /v1/live-activities/pending` and starts the activity locally.
