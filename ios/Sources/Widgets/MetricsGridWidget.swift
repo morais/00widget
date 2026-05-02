@@ -142,15 +142,27 @@ struct MetricsGridWidgetView: View {
 
     private var grid: some View {
         let spacing: CGFloat = family == .systemSmall ? 6 : 8
+        let linkable = family != .systemSmall
         return Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
             GridRow {
-                MetricsGridCell(card: entry.slots[safe: 0] ?? nil, style: cellStyle)
-                MetricsGridCell(card: entry.slots[safe: 1] ?? nil, style: cellStyle)
+                cell(at: 0, linkable: linkable)
+                cell(at: 1, linkable: linkable)
             }
             GridRow {
-                MetricsGridCell(card: entry.slots[safe: 2] ?? nil, style: cellStyle)
-                MetricsGridCell(card: entry.slots[safe: 3] ?? nil, style: cellStyle)
+                cell(at: 2, linkable: linkable)
+                cell(at: 3, linkable: linkable)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func cell(at index: Int, linkable: Bool) -> some View {
+        let card = entry.slots[safe: index] ?? nil
+        let view = MetricsGridCell(card: card, style: cellStyle)
+        if linkable, let url = card?.deepLink {
+            Link(destination: url) { view }
+        } else {
+            view
         }
     }
 }
