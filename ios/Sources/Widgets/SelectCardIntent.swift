@@ -23,21 +23,26 @@ public struct CardEntity: AppEntity {
 }
 
 public struct CardEntityQuery: EntityQuery {
+    public static let noneId = "__none__"
+
     public init() {}
 
     public func entities(for identifiers: [CardEntity.ID]) async throws -> [CardEntity] {
         let cards = CardCache.load().cards
-        return cards
-            .filter { identifiers.contains($0.id) }
-            .map { CardEntity(id: $0.id, title: $0.title) }
+        return identifiers.compactMap { id in
+            if id == Self.noneId { return CardEntity(id: id, title: "None") }
+            guard let card = cards.first(where: { $0.id == id }) else { return nil }
+            return CardEntity(id: card.id, title: card.title)
+        }
     }
 
     public func suggestedEntities() async throws -> [CardEntity] {
-        CardCache.load().cards.map { CardEntity(id: $0.id, title: $0.title) }
+        let cards = CardCache.load().cards.map { CardEntity(id: $0.id, title: $0.title) }
+        return [CardEntity(id: Self.noneId, title: "None")] + cards
     }
 
     public func defaultResult() async -> CardEntity? {
-        try? await suggestedEntities().first
+        try? await suggestedEntities().first(where: { $0.id != Self.noneId })
     }
 }
 

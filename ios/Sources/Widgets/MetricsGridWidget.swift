@@ -20,7 +20,17 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     @Parameter(title: "Bottom right")
     public var card4: CardEntity?
 
-    public init() {}
+    public init() {
+        let cards = CardCache.load().cards
+        func slot(_ index: Int) -> CardEntity? {
+            guard cards.indices.contains(index) else { return nil }
+            return CardEntity(id: cards[index].id, title: cards[index].title)
+        }
+        self.card1 = slot(0)
+        self.card2 = slot(1)
+        self.card3 = slot(2)
+        self.card4 = slot(3)
+    }
 }
 
 public struct MetricsGridEntry: TimelineEntry {
@@ -76,7 +86,11 @@ public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
     }
 
     private func entry(for configuration: SelectFourCardsIntent) -> MetricsGridEntry {
-        let ids = [configuration.card1?.id, configuration.card2?.id, configuration.card3?.id, configuration.card4?.id]
+        let rawIds = [configuration.card1?.id, configuration.card2?.id, configuration.card3?.id, configuration.card4?.id]
+        let ids: [String?] = rawIds.map { id in
+            guard let id, id != CardEntityQuery.noneId else { return nil }
+            return id
+        }
         let allUnconfigured = ids.allSatisfy { $0 == nil }
         let cached = CardCache.load().cards
         let slots: [DashboardCard?] = ids.map { id in
