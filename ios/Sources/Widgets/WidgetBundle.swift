@@ -8,6 +8,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         StatusWidget()
         ListWidget()
         ProgressWidget()
+        MetricsGridWidget()
         ZeroZeroWidgetLiveActivityWidget()
     }
 }

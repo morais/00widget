@@ -36,8 +36,9 @@ public enum ZeroZeroWidgetConstants {
         public static let status = "ZeroZeroWidgetStatusWidget"
         public static let list = "ZeroZeroWidgetListWidget"
         public static let progress = "ZeroZeroWidgetProgressWidget"
+        public static let metricsGrid = "ZeroZeroWidgetMetricsGridWidget"
 
-        public static let all: [String] = [metric, status, list, progress]
+        public static let all: [String] = [metric, status, list, progress, metricsGrid]
     }
 
     public enum UserDefaultsKeys {
