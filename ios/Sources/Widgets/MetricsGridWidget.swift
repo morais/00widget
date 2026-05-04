@@ -4,6 +4,26 @@ import AppIntents
 import Foundation
 import os
 
+public enum MetricsGridTapTarget: String, AppEnum {
+    case app
+    case topLeft
+    case topRight
+    case bottomLeft
+    case bottomRight
+
+    public static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        TypeDisplayRepresentation(name: "Tap action")
+    }
+
+    public static var caseDisplayRepresentations: [MetricsGridTapTarget: DisplayRepresentation] = [
+        .app: DisplayRepresentation(title: "Open the app"),
+        .topLeft: DisplayRepresentation(title: "Open top-left card"),
+        .topRight: DisplayRepresentation(title: "Open top-right card"),
+        .bottomLeft: DisplayRepresentation(title: "Open bottom-left card"),
+        .bottomRight: DisplayRepresentation(title: "Open bottom-right card")
+    ]
+}
+
 public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     public static var title: LocalizedStringResource = "Select metrics"
     public static var description = IntentDescription("Choose up to four cards to display as a 2x2 grid.")
@@ -20,6 +40,9 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     @Parameter(title: "Bottom right")
     public var card4: CardEntity?
 
+    @Parameter(title: "On compact tap", default: .app)
+    public var compactTapTarget: MetricsGridTapTarget
+
     public init() {
         let cards = CardCache.load().cards
         func slot(_ index: Int) -> CardEntity? {
@@ -30,6 +53,7 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
         self.card2 = slot(1)
         self.card3 = slot(2)
         self.card4 = slot(3)
+        self.compactTapTarget = .app
     }
 }
 
@@ -37,11 +61,13 @@ public struct MetricsGridEntry: TimelineEntry {
     public let date: Date
     public let slots: [DashboardCard?]
     public let allUnconfigured: Bool
+    public let compactTapTarget: MetricsGridTapTarget
 
-    public init(date: Date, slots: [DashboardCard?], allUnconfigured: Bool) {
+    public init(date: Date, slots: [DashboardCard?], allUnconfigured: Bool, compactTapTarget: MetricsGridTapTarget) {
         self.date = date
         self.slots = slots
         self.allUnconfigured = allUnconfigured
+        self.compactTapTarget = compactTapTarget
     }
 }
 
@@ -56,7 +82,7 @@ public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
     public func placeholder(in context: Context) -> MetricsGridEntry {
         let cards = SampleDataFactory.makeCards()
         let slots: [DashboardCard?] = (0..<4).map { i in i < cards.count ? cards[i] : nil }
-        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: false)
+        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: false, compactTapTarget: .app)
     }
 
     public func snapshot(for configuration: SelectFourCardsIntent, in context: Context) async -> MetricsGridEntry {
@@ -97,7 +123,7 @@ public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
             guard let id else { return nil }
             return cached.first(where: { $0.id == id })
         }
-        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: allUnconfigured)
+        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: allUnconfigured, compactTapTarget: configuration.compactTapTarget)
     }
 }
 
@@ -125,11 +151,28 @@ struct MetricsGridWidgetView: View {
     let entry: MetricsGridEntry
 
     var body: some View {
+        content.widgetURL(family == .systemSmall ? compactTapURL : nil)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if entry.allUnconfigured {
             CardFallbackView(reason: .noCardSelected)
         } else {
             grid
         }
+    }
+
+    private var compactTapURL: URL? {
+        let index: Int
+        switch entry.compactTapTarget {
+        case .app: return nil
+        case .topLeft: index = 0
+        case .topRight: index = 1
+        case .bottomLeft: index = 2
+        case .bottomRight: index = 3
+        }
+        return (entry.slots[safe: index] ?? nil)?.deepLink
     }
 
     private var cellStyle: MetricsGridCell.Style {
