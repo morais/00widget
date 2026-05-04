@@ -4,6 +4,9 @@ struct LiveActivitiesView: View {
     @EnvironmentObject var env: AppEnvironment
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     @State private var errorText: String?
+    #if ZW_SHARING_ENABLED
+    @State private var shareKind: LiveActivityKind?
+    #endif
 
     private var rows: [ActivityRowModel] {
         let activeRows = liveActivityController.activeSessions.map {
@@ -26,6 +29,12 @@ struct LiveActivitiesView: View {
                 .onAppear {
                     Task { await refreshActivities() }
                 }
+                #if ZW_SHARING_ENABLED
+                .sheet(item: $shareKind) { kind in
+                    ShareActivityKindSheet(kind: kind)
+                        .environmentObject(env)
+                }
+                #endif
         }
     }
 
@@ -44,6 +53,15 @@ struct LiveActivitiesView: View {
                             update: { Task { await update(row.session) } },
                             end: { Task { await end(row.session) } }
                         )
+                        #if ZW_SHARING_ENABLED
+                        .contextMenu {
+                            Button {
+                                shareKind = row.session.kind
+                            } label: {
+                                Label("Share \(row.session.kind.rawValue) activities", systemImage: "person.crop.circle.badge.plus")
+                            }
+                        }
+                        #endif
                     }
 
                     if let errorText {

@@ -26,6 +26,12 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var lastSyncError: String?
     @Published public private(set) var cards: [DashboardCard] = []
     @Published public private(set) var pendingActivities: [LiveActivitySession] = []
+    @Published public private(set) var sharedCards: [DashboardCard] = []
+    #if ZW_SHARING_ENABLED
+    @Published public private(set) var incomingShares: [ShareRecord] = []
+    @Published public private(set) var outgoingShares: [ShareRecord] = []
+    @Published public private(set) var sharingDisabledByServer: Bool = false
+    #endif
     @Published public private(set) var apnsDeviceToken: String?
     @Published public private(set) var notificationsAuthorized = false
     @Published public private(set) var connectionHealth: ConnectionHealthStatus = .unknown
@@ -108,9 +114,17 @@ public final class AppEnvironment: ObservableObject {
             return
         }
         do {
+            #if ZW_SHARING_ENABLED
+            let result = try await client.fetchCardsIncludingShared()
+            try CardCache.save(result.own)
+            cards = result.own
+            sharedCards = result.shared
+            #else
             let fetched = try await client.fetchCards()
             try CardCache.save(fetched)
             cards = fetched
+            sharedCards = []
+            #endif
             lastSyncAt = Date()
             lastSyncError = nil
             UserDefaults.standard.set(lastSyncAt, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
@@ -118,6 +132,63 @@ public final class AppEnvironment: ObservableObject {
             lastSyncError = error.localizedDescription
         }
     }
+
+    #if ZW_SHARING_ENABLED
+    public func refreshShares() async {
+        guard let client = apiClient() else { return }
+        do {
+            async let outgoing = client.listOutgoingShares()
+            async let incoming = client.listIncomingShares()
+            outgoingShares = try await outgoing
+            incomingShares = try await incoming
+            sharingDisabledByServer = false
+        } catch let error as APIClientError where error.status == 503 {
+            sharingDisabledByServer = true
+            outgoingShares = []
+            incomingShares = []
+        } catch {
+            // leave previous state intact; surface via lastSyncError so the
+            // settings screen can show it
+            lastSyncError = "shares: \(error.localizedDescription)"
+        }
+    }
+
+    public func createShare(
+        recipientEmail: String,
+        resourceKind: ShareResourceKind,
+        resourceId: String
+    ) async throws {
+        guard let client = apiClient() else {
+            throw APIClientError(status: 0, message: "not configured")
+        }
+        _ = try await client.createShare(
+            recipientEmail: recipientEmail,
+            resourceKind: resourceKind,
+            resourceId: resourceId
+        )
+        await refreshShares()
+    }
+
+    public func acceptShare(id: String) async {
+        guard let client = apiClient() else { return }
+        try? await client.acceptShare(id: id)
+        await refreshShares()
+        await fetchCards()
+    }
+
+    public func declineShare(id: String) async {
+        guard let client = apiClient() else { return }
+        try? await client.declineShare(id: id)
+        await refreshShares()
+    }
+
+    public func revokeShare(id: String) async {
+        guard let client = apiClient() else { return }
+        try? await client.revokeShare(id: id)
+        await refreshShares()
+        await fetchCards()
+    }
+    #endif
 
     public func loadCachedCards() {
         cards = CardCache.load().cards
@@ -149,7 +220,13 @@ public final class AppEnvironment: ObservableObject {
     private func clearTenantScopedState() {
         CardCache.clear()
         cards = []
+        sharedCards = []
         pendingActivities = []
+        #if ZW_SHARING_ENABLED
+        incomingShares = []
+        outgoingShares = []
+        sharingDisabledByServer = false
+        #endif
         lastSyncAt = nil
         lastSyncError = nil
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)

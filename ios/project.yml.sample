@@ -15,6 +15,9 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    # Compile-time gate for the cross-tenant sharing feature. Remove the flag
+    # to strip every Sharing UI and API call out of the build.
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: ZW_SHARING_ENABLED
 
 targets:
   ZeroZeroWidgetApp:

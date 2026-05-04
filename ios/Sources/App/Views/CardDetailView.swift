@@ -4,6 +4,9 @@ struct CardDetailView: View {
     @EnvironmentObject var env: AppEnvironment
     let card: DashboardCard
     @State private var pendingAction: ActionDefinition?
+    #if ZW_SHARING_ENABLED
+    @State private var showShareSheet = false
+    #endif
 
     var body: some View {
         ScrollView {
@@ -63,6 +66,25 @@ struct CardDetailView: View {
             .padding()
         }
         .navigationTitle(card.title)
+        #if ZW_SHARING_ENABLED
+        .toolbar {
+            // Only the owner can share; receivers (cards with sharedBy set)
+            // cannot re-share.
+            if card.sharedBy == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showShareSheet = true
+                    } label: {
+                        Label("Share", systemImage: "person.crop.circle.badge.plus")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareCardSheet(card: card)
+                .environmentObject(env)
+        }
+        #endif
         .confirmationDialog(
             "Run action?",
             isPresented: Binding(

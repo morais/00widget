@@ -14,6 +14,16 @@ public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public struct SharedByInfo: Codable, Hashable, Sendable {
+    public var ownerEmail: String
+    public var shareId: String
+
+    public init(ownerEmail: String, shareId: String) {
+        self.ownerEmail = ownerEmail
+        self.shareId = shareId
+    }
+}
+
 public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var template: DashboardTemplate
@@ -28,6 +38,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var deepLink: URL?
     public var items: [DashboardItem]?
     public var actions: [ActionDefinition]?
+    public var sharedBy: SharedByInfo?
 
     public init(
         id: String,
@@ -42,7 +53,8 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         staleAfter: Date? = nil,
         deepLink: URL? = nil,
         items: [DashboardItem]? = nil,
-        actions: [ActionDefinition]? = nil
+        actions: [ActionDefinition]? = nil,
+        sharedBy: SharedByInfo? = nil
     ) {
         self.id = id
         self.template = template
@@ -57,6 +69,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.deepLink = deepLink
         self.items = items
         self.actions = actions
+        self.sharedBy = sharedBy
     }
 
     public init(from decoder: Decoder) throws {
@@ -76,11 +89,12 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         deepLink = try c.decodeIfPresent(URL.self, forKey: .deepLink)
         items = try c.decodeIfPresent([DashboardItem].self, forKey: .items)
         actions = try c.decodeIfPresent([ActionDefinition].self, forKey: .actions)
+        sharedBy = try c.decodeIfPresent(SharedByInfo.self, forKey: .sharedBy)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon
-        case updatedAt, staleAfter, deepLink, items, actions
+        case updatedAt, staleAfter, deepLink, items, actions, sharedBy
     }
 
     public var isStale: Bool {

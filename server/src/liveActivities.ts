@@ -15,6 +15,7 @@ import {
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
+import { isSharingEnabled, listAcceptedShares } from "./shares";
 
 // The Swift attributes type the iOS app declares. iOS 18+ rejects start
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
@@ -65,8 +66,19 @@ export async function startLiveActivity(
   const now = new Date().toISOString();
 
   // Try push-to-start first. If any device has registered a start token for
-  // ZeroZeroWidgetActivityAttributes, send the start event over APNs.
-  const startTokens = await storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE);
+  // ZeroZeroWidgetActivityAttributes, send the start event over APNs. Shared
+  // recipients (kind-level) get the start event on their own start tokens too.
+  const ownerStartTokens = await storage.listStartTokens(
+    env,
+    auth.tenantId,
+    DEFAULT_ATTRIBUTES_TYPE,
+  );
+  const recipientStartTokens = await collectRecipientStartTokens(
+    env,
+    auth.tenantId,
+    d.kind,
+  );
+  const startTokens = [...ownerStartTokens, ...recipientStartTokens];
   const apnsResults: unknown[] = [];
   if (startTokens.length > 0) {
     const attributes: Record<string, unknown> = {
@@ -112,11 +124,30 @@ export async function startLiveActivity(
 
   // Always also queue as pending so the app can discover and start it locally
   // (push-to-start delivery isn't guaranteed; pending is the durable fallback).
+  // The pending row is written on the owner's tenant; recipients pick up the
+  // activity through their own /v1/live-activities/pending which we extend to
+  // include shared kinds, and through the start push above.
   await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     ...d,
     startedAt: now,
     updatedAt: now,
   });
+  if (isSharingEnabled(env)) {
+    const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", d.kind);
+    for (const share of accepted) {
+      if (!share.recipientTenantId) continue;
+      // Mirror the pending row into the recipient's tenant so their app picks
+      // it up the next time it polls. apiKeyHash is irrelevant for read paths
+      // and we don't have a recipient key, so we synthesize a stable marker.
+      await storage.putPendingActivity(
+        env,
+        share.recipientTenantId,
+        `share:${share.id}`,
+        d.externalActivityId,
+        { ...d, startedAt: now, updatedAt: now },
+      );
+    }
+  }
 
   return json({
     ok: true,
@@ -133,6 +164,26 @@ export async function pendingActivities(
 ): Promise<Response> {
   const activities = await storage.listPendingActivities(env, auth.tenantId);
   return json({ activities });
+}
+
+async function collectRecipientStartTokens(
+  env: Env,
+  ownerTenantId: string,
+  kind: string,
+): Promise<string[]> {
+  if (!isSharingEnabled(env)) return [];
+  const accepted = await listAcceptedShares(env, ownerTenantId, "activity_kind", kind);
+  const tokens: string[] = [];
+  for (const share of accepted) {
+    if (!share.recipientTenantId) continue;
+    const recipientTokens = await storage.listStartTokens(
+      env,
+      share.recipientTenantId,
+      DEFAULT_ATTRIBUTES_TYPE,
+    );
+    tokens.push(...recipientTokens);
+  }
+  return tokens;
 }
 
 export async function updateLiveActivity(
@@ -159,6 +210,7 @@ export async function updateLiveActivity(
   if (d.staleAt) contentState.staleAt = d.staleAt;
 
   let apnsResult: unknown = null;
+  const recipientResults: unknown[] = [];
   let pendingUpdated = false;
   if (record?.pushToken) {
     apnsResult = await sendLiveActivityUpdate(env, record.pushToken, {
@@ -172,6 +224,30 @@ export async function updateLiveActivity(
       updatedAt: now,
       lastState: contentState,
     });
+    // Fan out the same update to recipients that have a registered push token
+    // for this externalActivityId. Their tenantId scopes the activity row.
+    if (isSharingEnabled(env)) {
+      const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", record.kind);
+      for (const share of accepted) {
+        if (!share.recipientTenantId) continue;
+        const recRecord = await storage.getActivity(env, share.recipientTenantId, d.externalActivityId);
+        if (!recRecord?.pushToken) continue;
+        const r = await sendLiveActivityUpdate(env, recRecord.pushToken, {
+          contentState,
+          staleAt: d.staleAt,
+          relevanceScore: d.relevanceScore,
+          alert: d.alert,
+        });
+        recipientResults.push(r);
+        await storage.putActivity(
+          env,
+          share.recipientTenantId,
+          `share:${share.id}`,
+          d.externalActivityId,
+          { ...recRecord, updatedAt: now, lastState: contentState },
+        );
+      }
+    }
   } else {
     const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
     if (pending) {
@@ -192,7 +268,7 @@ export async function updateLiveActivity(
       pendingUpdated = true;
     }
   }
-  return json({ ok: true, apnsResult, pendingUpdated });
+  return json({ ok: true, apnsResult, recipientResults, pendingUpdated });
 }
 
 export async function endLiveActivity(
@@ -217,6 +293,8 @@ export async function endLiveActivity(
 // Send the APNs end push (if we still have a push token) and delete both the
 // activity row and any pending row. Used by the public end endpoint and by
 // the admin Delete button so the activity actually stops on the device.
+// Also fans out the end push to accepted-share recipients so their copies of
+// the Live Activity terminate at the same time.
 export async function endAndDeleteActivity(
   env: Env,
   tenantId: string,
@@ -227,6 +305,18 @@ export async function endAndDeleteActivity(
   let apnsResult: unknown = null;
   if (record?.pushToken) {
     apnsResult = await sendLiveActivityEnd(env, record.pushToken, endPayload);
+  }
+  if (record && isSharingEnabled(env)) {
+    const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
+    for (const share of accepted) {
+      if (!share.recipientTenantId) continue;
+      const recRecord = await storage.getActivity(env, share.recipientTenantId, externalActivityId);
+      if (recRecord?.pushToken) {
+        await sendLiveActivityEnd(env, recRecord.pushToken, endPayload);
+      }
+      await storage.deleteActivity(env, share.recipientTenantId, externalActivityId);
+      await storage.deletePendingActivity(env, share.recipientTenantId, externalActivityId);
+    }
   }
   await storage.deleteActivity(env, tenantId, externalActivityId);
   await storage.deletePendingActivity(env, tenantId, externalActivityId);

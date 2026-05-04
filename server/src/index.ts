@@ -9,6 +9,7 @@ import * as actions from "./actions";
 import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as landing from "./landing";
+import * as shares from "./shares";
 
 interface Route {
   method: string;
@@ -64,6 +65,18 @@ const routes: Route[] = [
   ),
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m) =>
     actions.runAction(req, env, auth, m[1]),
+  ),
+  authed("POST", /^\/v1\/shares\/?$/, (req, env, auth) => shares.createShare(req, env, auth)),
+  authed("GET", /^\/v1\/shares\/outgoing\/?$/, (req, env, auth) => shares.listOutgoing(req, env, auth)),
+  authed("GET", /^\/v1\/shares\/incoming\/?$/, (req, env, auth) => shares.listIncoming(req, env, auth)),
+  authed("POST", /^\/v1\/shares\/([^/]+)\/accept\/?$/, (req, env, auth, m) =>
+    shares.acceptShare(req, env, auth, m[1]),
+  ),
+  authed("POST", /^\/v1\/shares\/([^/]+)\/decline\/?$/, (req, env, auth, m) =>
+    shares.declineShare(req, env, auth, m[1]),
+  ),
+  authed("DELETE", /^\/v1\/shares\/([^/]+)\/?$/, (req, env, auth, m) =>
+    shares.revokeShare(req, env, auth, m[1]),
   ),
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env) =>
     appLogin.createTokenFromApple(req, env),
