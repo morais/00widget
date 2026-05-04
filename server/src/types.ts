@@ -40,6 +40,11 @@ const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "must be an ISO-8601 date",
 });
 
+export const SharedByInfoSchema = z.object({
+  ownerEmail: z.string(),
+  shareId: z.string(),
+});
+
 export const DashboardCardSchema = z.object({
   id: z.string().min(1),
   template: DashboardTemplateSchema,
@@ -54,6 +59,9 @@ export const DashboardCardSchema = z.object({
   deepLink: z.string().url().optional(),
   items: z.array(DashboardItemSchema).optional(),
   actions: z.array(ActionDefinitionSchema).optional(),
+  // Set on cards returned via ?include=shared. Not persisted; not accepted on
+  // upsert (zod will strip it because we don't .strict()).
+  sharedBy: SharedByInfoSchema.optional(),
 });
 
 export const LiveActivityKindSchema = z
@@ -148,6 +156,16 @@ export const WebhookIntegrationSchema = z.object({
   rotateSecret: z.boolean().default(false),
 });
 
+export const ShareResourceKindSchema = z.enum(["card", "activity_kind"]);
+
+export const ShareStatusSchema = z.enum(["pending", "accepted", "revoked", "declined"]);
+
+export const CreateShareSchema = z.object({
+  recipientEmail: z.string().email(),
+  resourceKind: ShareResourceKindSchema,
+  resourceId: z.string().min(1),
+});
+
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
@@ -160,6 +178,9 @@ export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
 export type RunAction = z.infer<typeof RunActionSchema>;
 export type WebhookIntegration = z.infer<typeof WebhookIntegrationSchema>;
+export type ShareResourceKind = z.infer<typeof ShareResourceKindSchema>;
+export type ShareStatus = z.infer<typeof ShareStatusSchema>;
+export type CreateShareRequest = z.infer<typeof CreateShareSchema>;
 
 export interface Env {
   ZW_DB: D1Database;
@@ -184,4 +205,10 @@ export interface Env {
   // Sign in with Apple identity token for a tenant API token.
   APPLE_APP_LOGIN_ENABLED?: string;       // set to "true" to enable
   APPLE_APP_SIGN_IN_CLIENT_ID?: string;   // native app bundle id, e.g. com.example.zerozerowidget
+
+  // Master kill switch for the cross-tenant sharing feature. Any value other
+  // than "true" disables every /v1/shares/* route, the ?include=shared
+  // expansion on cards/activities, and recipient fanout in widget/Live
+  // Activity pushes.
+  SHARING_ENABLED?: string;
 }

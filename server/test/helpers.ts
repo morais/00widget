@@ -40,6 +40,7 @@ export class FakeD1 {
   private startTokens = new Map<string, FakeRow>();
   private appleAccounts = new Map<string, FakeRow>();
   private webhookIntegrations = new Map<string, FakeRow>();
+  private shares = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -220,6 +221,83 @@ export class FakeD1 {
       this.startTokens.delete(`${tenant_id}:${device_id}:${attributes_type}`);
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO shares")) {
+      const [
+        id,
+        owner_tenant_id,
+        recipient_tenant_id,
+        recipient_email,
+        resource_kind,
+        resource_id,
+        created_at,
+      ] = [
+        String(values[0]),
+        String(values[1]),
+        values[2] == null ? "" : String(values[2]),
+        String(values[3]),
+        String(values[4]),
+        String(values[5]),
+        String(values[6]),
+      ];
+      this.shares.set(id, {
+        id,
+        owner_tenant_id,
+        recipient_tenant_id,
+        recipient_email,
+        resource_kind,
+        resource_id,
+        status: "pending",
+        created_at,
+        accepted_at: "",
+        revoked_at: "",
+      });
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE shares SET status = 'accepted'")) {
+      const [recipient_tenant_id, accepted_at, id] = values.map(String);
+      const row = this.shares.get(id);
+      if (!row) return 0;
+      row.status = "accepted";
+      row.recipient_tenant_id = recipient_tenant_id;
+      row.accepted_at = accepted_at;
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE shares SET status = 'declined'")) {
+      const [id] = values.map(String);
+      const row = this.shares.get(id);
+      if (!row) return 0;
+      row.status = "declined";
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE shares SET status = 'revoked', revoked_at = ? WHERE id = ?")) {
+      const [revoked_at, id] = values.map(String);
+      const row = this.shares.get(id);
+      if (!row) return 0;
+      row.status = "revoked";
+      row.revoked_at = revoked_at;
+      return 1;
+    }
+    if (
+      normalized.startsWith(
+        "UPDATE shares SET status = 'revoked', revoked_at = ? WHERE owner_tenant_id = ? AND resource_kind = 'card' AND resource_id = ?",
+      )
+    ) {
+      const [revoked_at, owner_tenant_id, resource_id] = values.map(String);
+      let count = 0;
+      for (const row of this.shares.values()) {
+        if (
+          row.owner_tenant_id === owner_tenant_id &&
+          row.resource_kind === "card" &&
+          row.resource_id === resource_id &&
+          (row.status === "pending" || row.status === "accepted")
+        ) {
+          row.status = "revoked";
+          row.revoked_at = revoked_at;
+          count++;
+        }
+      }
+      return count;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
@@ -366,8 +444,126 @@ export class FakeD1 {
         .sort(by("external_id"))
         .map((row) => ({ json: row.json }));
     }
+    if (normalized === "SELECT owner_email FROM tenants WHERE id = ?") {
+      const [id] = values.map(String);
+      const row = this.tenants.get(id);
+      return row ? [{ owner_email: row.owner_email ?? "" }] : [];
+    }
+    if (normalized === "SELECT id FROM cards WHERE tenant_id = ? AND id = ?") {
+      const [tenant_id, id] = values.map(String);
+      const row = this.cards.get(`${tenant_id}:${id}`);
+      return row ? [{ id: row.id }] : [];
+    }
+    if (
+      normalized.startsWith(
+        "SELECT id, owner_tenant_id, recipient_tenant_id, recipient_email, resource_kind, resource_id, status, created_at, accepted_at, revoked_at FROM shares WHERE id = ?",
+      )
+    ) {
+      const [id] = values.map(String);
+      const row = this.shares.get(id);
+      return row ? [shareSelect(row)] : [];
+    }
+    if (
+      normalized.startsWith(
+        "SELECT id, status FROM shares WHERE owner_tenant_id = ? AND lower(recipient_email) = ? AND resource_kind = ? AND resource_id = ? AND status IN",
+      )
+    ) {
+      const [owner_tenant_id, recipient_email, resource_kind, resource_id] = values.map(String);
+      const row = [...this.shares.values()].find((candidate) => {
+        return (
+          candidate.owner_tenant_id === owner_tenant_id &&
+          candidate.recipient_email.toLowerCase() === recipient_email &&
+          candidate.resource_kind === resource_kind &&
+          candidate.resource_id === resource_id &&
+          (candidate.status === "pending" || candidate.status === "accepted")
+        );
+      });
+      return row ? [{ id: row.id, status: row.status }] : [];
+    }
+    if (
+      normalized.startsWith(
+        "SELECT id, owner_tenant_id, recipient_tenant_id, recipient_email, resource_kind, resource_id, status, created_at, accepted_at, revoked_at FROM shares WHERE owner_tenant_id = ? ORDER BY created_at DESC",
+      )
+    ) {
+      const [owner_tenant_id] = values.map(String);
+      return [...this.shares.values()]
+        .filter((row) => row.owner_tenant_id === owner_tenant_id)
+        .sort(by("created_at"))
+        .reverse()
+        .map(shareSelect);
+    }
+    if (
+      normalized.startsWith(
+        "SELECT shares.id AS id, shares.owner_tenant_id AS owner_tenant_id, shares.recipient_tenant_id AS recipient_tenant_id, shares.recipient_email AS recipient_email, shares.resource_kind AS resource_kind, shares.resource_id AS resource_id, shares.status AS status, shares.created_at AS created_at, shares.accepted_at AS accepted_at, shares.revoked_at AS revoked_at, tenants.owner_email AS owner_email FROM shares LEFT JOIN tenants ON tenants.id = shares.owner_tenant_id WHERE (shares.recipient_tenant_id = ? OR lower(shares.recipient_email) = ?)",
+      )
+    ) {
+      const [recipient_tenant_id, recipient_email] = values.map(String);
+      return [...this.shares.values()]
+        .filter(
+          (row) =>
+            (row.recipient_tenant_id === recipient_tenant_id ||
+              row.recipient_email.toLowerCase() === recipient_email) &&
+            (row.status === "pending" || row.status === "accepted"),
+        )
+        .sort(by("created_at"))
+        .reverse()
+        .map((row) => ({
+          ...shareSelect(row),
+          owner_email: this.tenants.get(row.owner_tenant_id)?.owner_email ?? "",
+        }));
+    }
+    if (
+      normalized.startsWith(
+        "SELECT id, owner_tenant_id, recipient_tenant_id, recipient_email, resource_kind, resource_id, status, created_at, accepted_at, revoked_at FROM shares WHERE owner_tenant_id = ? AND resource_kind = ? AND resource_id = ? AND status = 'accepted' AND recipient_tenant_id IS NOT NULL",
+      )
+    ) {
+      const [owner_tenant_id, resource_kind, resource_id] = values.map(String);
+      return [...this.shares.values()]
+        .filter(
+          (row) =>
+            row.owner_tenant_id === owner_tenant_id &&
+            row.resource_kind === resource_kind &&
+            row.resource_id === resource_id &&
+            row.status === "accepted" &&
+            row.recipient_tenant_id,
+        )
+        .map(shareSelect);
+    }
+    if (
+      normalized.startsWith(
+        "SELECT shares.id AS id, shares.owner_tenant_id AS owner_tenant_id, shares.recipient_tenant_id AS recipient_tenant_id, shares.recipient_email AS recipient_email, shares.resource_kind AS resource_kind, shares.resource_id AS resource_id, shares.status AS status, shares.created_at AS created_at, shares.accepted_at AS accepted_at, shares.revoked_at AS revoked_at, tenants.owner_email AS owner_email FROM shares JOIN tenants ON tenants.id = shares.owner_tenant_id WHERE shares.recipient_tenant_id = ? AND shares.resource_kind = ? AND shares.status = 'accepted'",
+      )
+    ) {
+      const [recipient_tenant_id, resource_kind] = values.map(String);
+      return [...this.shares.values()]
+        .filter(
+          (row) =>
+            row.recipient_tenant_id === recipient_tenant_id &&
+            row.resource_kind === resource_kind &&
+            row.status === "accepted",
+        )
+        .map((row) => ({
+          ...shareSelect(row),
+          owner_email: this.tenants.get(row.owner_tenant_id)?.owner_email ?? "",
+        }));
+    }
     throw new Error(`Unhandled FakeD1 all SQL: ${normalized}`);
   }
+}
+
+function shareSelect(row: FakeRow): FakeRow {
+  return {
+    id: row.id,
+    owner_tenant_id: row.owner_tenant_id,
+    recipient_tenant_id: row.recipient_tenant_id || "",
+    recipient_email: row.recipient_email,
+    resource_kind: row.resource_kind,
+    resource_id: row.resource_id,
+    status: row.status,
+    created_at: row.created_at,
+    accepted_at: row.accepted_at || "",
+    revoked_at: row.revoked_at || "",
+  };
 }
 
 function normalizeSql(sql: string): string {

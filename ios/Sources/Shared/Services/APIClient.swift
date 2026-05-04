@@ -31,6 +31,7 @@ public struct APIClientConfig {
 
 public struct CardsListResponse: Codable {
     public let cards: [DashboardCard]
+    public let shared: [DashboardCard]?
 }
 
 public struct PendingActivitiesResponse: Codable {
@@ -99,6 +100,62 @@ public final class APIClient {
         let resp: CardsListResponse = try await request("GET", path: "/v1/cards")
         return resp.cards
     }
+
+    public func fetchCardsIncludingShared() async throws -> (own: [DashboardCard], shared: [DashboardCard]) {
+        let resp: CardsListResponse = try await request("GET", path: "/v1/cards?include=shared")
+        return (resp.cards, resp.shared ?? [])
+    }
+
+    #if ZW_SHARING_ENABLED
+    public struct SharesListResponse: Codable {
+        public let shares: [ShareRecord]
+    }
+
+    public struct CreateShareResponse: Codable {
+        public let share: ShareRecord
+    }
+
+    public func createShare(
+        recipientEmail: String,
+        resourceKind: ShareResourceKind,
+        resourceId: String
+    ) async throws -> ShareRecord {
+        struct Body: Codable {
+            let recipientEmail: String
+            let resourceKind: String
+            let resourceId: String
+        }
+        let body = Body(
+            recipientEmail: recipientEmail,
+            resourceKind: resourceKind.rawValue,
+            resourceId: resourceId
+        )
+        let resp: CreateShareResponse = try await request("POST", path: "/v1/shares", body: body)
+        return resp.share
+    }
+
+    public func listOutgoingShares() async throws -> [ShareRecord] {
+        let resp: SharesListResponse = try await request("GET", path: "/v1/shares/outgoing")
+        return resp.shares
+    }
+
+    public func listIncomingShares() async throws -> [ShareRecord] {
+        let resp: SharesListResponse = try await request("GET", path: "/v1/shares/incoming")
+        return resp.shares
+    }
+
+    public func acceptShare(id: String) async throws {
+        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(id)/accept")
+    }
+
+    public func declineShare(id: String) async throws {
+        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(id)/decline")
+    }
+
+    public func revokeShare(id: String) async throws {
+        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/\(id)")
+    }
+    #endif
 
     public func upsertCard(_ card: DashboardCard) async throws {
         let _: EmptyBody = try await request("POST", path: "/v1/cards/upsert", body: card)

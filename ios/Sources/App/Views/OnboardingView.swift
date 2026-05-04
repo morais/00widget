@@ -60,6 +60,14 @@ struct OnboardingView: View {
                         copiedAgentConfig = true
                     }
                 }
+
+                #if ZW_SHARING_ENABLED
+                Section("Sharing") {
+                    NavigationLink("Manage sharing") {
+                        SharingView()
+                    }
+                }
+                #endif
             }
             .navigationTitle("Settings")
             .task {

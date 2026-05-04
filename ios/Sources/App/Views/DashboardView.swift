@@ -14,7 +14,7 @@ struct DashboardView: View {
     @ViewBuilder
     private var content: some View {
         ScrollView {
-            if env.cards.isEmpty {
+            if env.cards.isEmpty && env.sharedCards.isEmpty {
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
             } else {
@@ -25,12 +25,38 @@ struct DashboardView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    if !env.sharedCards.isEmpty {
+                        Text("Shared with you")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+
+                        ForEach(env.sharedCards) { card in
+                            NavigationLink(value: "shared:\(card.id)") {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    if let owner = card.sharedBy?.ownerEmail {
+                                        Text("From \(owner)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    CardView(card: card, context: .app)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 .padding()
             }
         }
         .navigationDestination(for: String.self) { id in
-            if let c = env.cards.first(where: { $0.id == id }) {
+            if id.hasPrefix("shared:") {
+                let cardId = String(id.dropFirst("shared:".count))
+                if let c = env.sharedCards.first(where: { $0.id == cardId }) {
+                    CardDetailView(card: c)
+                }
+            } else if let c = env.cards.first(where: { $0.id == id }) {
                 CardDetailView(card: c)
             }
         }
