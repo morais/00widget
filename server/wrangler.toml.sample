@@ -7,6 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 # or `.dev.vars` locally — see server/README.md.
 [vars]
 APNS_ENV = "sandbox"
+# Master kill switch for the cross-tenant sharing feature. Anything other
+# than "true" disables every /v1/shares/* route and recipient push fanout.
+SHARING_ENABLED = "true"
 
 # Create the D1 database first:
 #   npx wrangler d1 create zerozerowidget
