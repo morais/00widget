@@ -85,7 +85,7 @@ public struct CardView: View {
                 actionButtons(max: 1)
             case .list:
                 listRows(max: 3)
-            default:
+            case .summary:
                 bigValue
                 if let subtitle = card.subtitle {
                     Text(subtitle)
@@ -112,7 +112,7 @@ public struct CardView: View {
                     ProgressRow(progress: p, label: card.subtitle)
                 }
                 bigValue
-            default:
+            case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         bigValue
@@ -142,7 +142,7 @@ public struct CardView: View {
             case .action:
                 actionSummary
                 actionButtons(max: 4)
-            default:
+            case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
                     Text(subtitle)
@@ -202,7 +202,7 @@ public struct CardView: View {
                     ProgressRow(progress: p, label: card.subtitle)
                 }
                 bigValue
-            default:
+            case .summary, .action:
                 bigValue
                 if let subtitle = card.subtitle {
                     Text(subtitle)

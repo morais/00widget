@@ -8,7 +8,7 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
   -H "Content-Type: application/json" \
   --data '{
     "id": "solar-home",
-    "template": "metric",
+    "template": "summary",
     "title": "Solar",
     "subtitle": "Exporting 0.8 kW",
     "value": "3.2",

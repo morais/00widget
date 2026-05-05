@@ -1,8 +1,8 @@
 import WidgetKit
 import SwiftUI
 
-struct MetricWidget: Widget {
-    let kind: String = "ZeroZeroWidgetMetricWidget"
+struct CardWidget: Widget {
+    let kind: String = ZeroZeroWidgetConstants.WidgetKinds.card
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
@@ -10,11 +10,11 @@ struct MetricWidget: Widget {
             intent: SelectCardIntent.self,
             provider: CardTimelineProvider()
         ) { entry in
-            MetricWidgetView(entry: entry)
+            CardWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Metric")
-        .description("Show a single metric from a 00Widget card.")
+        .configurationDisplayName("00Widget Card")
+        .description("Show one 00Widget card.")
         .supportedFamilies([
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
@@ -23,7 +23,7 @@ struct MetricWidget: Widget {
     }
 }
 
-struct MetricWidgetView: View {
+struct CardWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: CardTimelineEntry
 

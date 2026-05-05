@@ -9,7 +9,7 @@ This document is the entire contract you need. You do **not** need to read the r
 - Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`.
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`metric`, `status`, `progress`, `list`, `action`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -54,7 +54,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "metric | status | progress | list | action | timer",
+  "template": "summary | progress | list | action",
   "title": "string",
   "subtitle": "string?",
   "value": "string?",
@@ -102,14 +102,12 @@ Pick one based on the *shape* of the data, not the domain:
 
 | Source feels like…                    | Template   | Required fields                            |
 | ------------------------------------- | ---------- | ------------------------------------------ |
-| One headline number                   | `metric`   | `title`, `value`, usually `unit`, `status` |
-| A state badge with a short subtitle   | `status`   | `title`, `status`, `subtitle`              |
+| One headline number or short state    | `summary`  | `title`, usually `value`, `unit`, `status` |
 | Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
-| A countdown                           | `timer`    | `title`, `value` as the target ISO-8601 end time |
 
-If unsure, default to `status` — it degrades gracefully on every widget size.
+If unsure, default to `summary` — it degrades gracefully on every widget size.
 
 ## Publishing a card
 
@@ -119,7 +117,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
   -H "Content-Type: application/json" \
   --data '{
     "id": "build-status",
-    "template": "status",
+    "template": "summary",
     "title": "Build",
     "subtitle": "main is green",
     "status": "good",
@@ -144,8 +142,6 @@ curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
 ```
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
-
-For `template: "timer"`, set `value` to the ISO-8601 target time, usually an end time such as `"2026-05-01T18:30:00Z"`. The native widget renders that as a countdown where supported; include `subtitle` for fallback context.
 
 ### Stable ids
 
@@ -296,7 +292,7 @@ The HMAC key is the `signingSecret`. The canonical string is:
 
 Reject deliveries whose timestamp is more than 5 minutes from your clock, and dedupe by `deliveryId`. Treat delivery as **at least once**: 00Widget retries network errors and `5xx` responses up to 3 total attempts with short backoff. It does not retry `2xx`, `4xx`, or permanent validation failures. If all attempts fail, the app/widget action run returns `502` and the tap is considered abandoned.
 
-Any `2xx` from your webhook is an ack. An empty body is fine. If you return JSON shaped as either a `DashboardCard` or `{ "card": DashboardCard }`, 00Widget immediately upserts that card and reloads the matching widget kind; otherwise the response body is ignored. You can also return `2xx` and publish a separate `/v1/cards/upsert` later.
+Any `2xx` from your webhook is an ack. An empty body is fine. If you return JSON shaped as either a `DashboardCard` or `{ "card": DashboardCard }`, 00Widget immediately upserts that card and reloads widgets that can display cards; otherwise the response body is ignored. You can also return `2xx` and publish a separate `/v1/cards/upsert` later.
 
 Only `role: "normal"` + `confirm: false` actions run directly from widgets. `confirm: true` and `role: "destructive"` actions are shown in the 00Widget app, where the user can confirm before the app calls the same `/v1/actions/:id/run` path with `source: "app"`.
 
@@ -335,7 +331,7 @@ async function upsertCard(card: Record<string, unknown>) {
 
 await upsertCard({
   id: "build-status",
-  template: "status",
+  template: "summary",
   title: "Build",
   subtitle: "main is green",
   status: "good",

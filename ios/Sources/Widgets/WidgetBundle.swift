@@ -4,10 +4,7 @@ import SwiftUI
 @main
 struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
     var body: some Widget {
-        MetricWidget()
-        StatusWidget()
-        ListWidget()
-        ProgressWidget()
+        CardWidget()
         MetricsGridWidget()
         ZeroZeroWidgetLiveActivityWidget()
     }

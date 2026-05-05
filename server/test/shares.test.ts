@@ -15,7 +15,7 @@ async function seedCard(env: ReturnType<typeof makeEnv>, tenantId: string, key: 
   const hash = await sha256Hex(key);
   await storage.putCard(env, tenantId, hash, {
     id,
-    template: "metric",
+    template: "summary",
     title,
     value: "1",
     status: "good",

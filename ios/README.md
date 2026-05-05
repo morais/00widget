@@ -54,7 +54,7 @@ The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appi
 ## Targets
 
 - **ZeroZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.
-- **ZeroZeroWidgetWidgets** — widget extension containing four widget kinds (`Metric`, `Status`, `List`, `Progress`) and the Live Activity (`ZeroZeroWidgetLiveActivityWidget`).
+- **ZeroZeroWidgetWidgets** — widget extension containing the single-card widget, the grid widget, and the Live Activity (`ZeroZeroWidgetLiveActivityWidget`).
 
 The shared Swift sources (`Sources/Shared/`) are compiled into both targets as source files rather than a framework — keeps the extension small and avoids dynamic-linking overhead.
 
