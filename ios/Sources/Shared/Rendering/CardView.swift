@@ -14,10 +14,16 @@ public enum CardRenderContext {
 public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
+    private let appActionHandler: ((ActionDefinition) -> Void)?
 
-    public init(card: DashboardCard, context: CardRenderContext = .app) {
+    public init(
+        card: DashboardCard,
+        context: CardRenderContext = .app,
+        appActionHandler: ((ActionDefinition) -> Void)? = nil
+    ) {
         self.card = card
         self.context = context
+        self.appActionHandler = appActionHandler
     }
 
     public var body: some View {
@@ -210,13 +216,31 @@ public struct CardView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            if let deepLink = card.deepLink {
+                Divider()
+                Link(destination: deepLink) {
+                    Label("Open link", systemImage: "arrow.up.forward.app")
+                }
+                .buttonStyle(.bordered)
+            }
             if let actions = card.actions, !actions.isEmpty {
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Actions").font(.caption).foregroundStyle(.secondary)
                     ForEach(actions) { action in
-                        Text(action.label)
-                            .font(.callout)
+                        if let appActionHandler {
+                            Button {
+                                appActionHandler(action)
+                            } label: {
+                                Label(action.label, systemImage: "bolt.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(action.role == .destructive ? .red : .accentColor)
+                        } else {
+                            Text(action.label)
+                                .font(.callout)
+                        }
                     }
                 }
             }
