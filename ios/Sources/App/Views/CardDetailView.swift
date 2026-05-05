@@ -11,9 +11,10 @@ struct CardDetailView: View {
     #endif
 
     var body: some View {
+        let currentCard = resolvedCard
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                CardView(card: card, context: .app) { action in
+                CardView(card: currentCard, context: .app) { action in
                     if action.confirm || action.role == .destructive {
                         pendingAction = action
                     } else {
@@ -47,7 +48,7 @@ struct CardDetailView: View {
                     Spacer()
                     Button("Delete from cache", role: .destructive) {
                         var cards = CardCache.load().cards
-                        cards.removeAll { $0.id == card.id }
+                        cards.removeAll { $0.id == currentCard.id }
                         try? CardCache.save(cards)
                         env.loadCachedCards()
                     }
@@ -58,12 +59,12 @@ struct CardDetailView: View {
         .refreshable {
             await env.fetchCards()
         }
-        .navigationTitle(card.title)
+        .navigationTitle(currentCard.title)
         #if ZW_SHARING_ENABLED
         .toolbar {
             // Only the owner can share; receivers (cards with sharedBy set)
             // cannot re-share.
-            if card.sharedBy == nil {
+            if currentCard.sharedBy == nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showShareSheet = true
@@ -74,7 +75,7 @@ struct CardDetailView: View {
             }
         }
         .sheet(isPresented: $showShareSheet) {
-            ShareCardSheet(card: card)
+            ShareCardSheet(card: currentCard)
                 .environmentObject(env)
         }
         #endif
@@ -91,14 +92,24 @@ struct CardDetailView: View {
                 pendingAction = nil
             }
         } message: { action in
-            Text("Run \(action.label) for \(card.title)?")
+            Text("Run \(action.label) for \(currentCard.title)?")
         }
+    }
+
+    private var resolvedCard: DashboardCard {
+        if let sharedBy = card.sharedBy,
+           let shared = env.sharedCards.first(where: { candidate in
+               candidate.id == card.id && candidate.sharedBy?.shareId == sharedBy.shareId
+           }) {
+            return shared
+        }
+        return env.cards.first(where: { $0.id == card.id }) ?? card
     }
 
     private func run(_ action: ActionDefinition) {
         Task {
             guard let client = env.apiClient() else { return }
-            try? await client.runAction(id: action.id, cardId: card.id, source: "app")
+            try? await client.runAction(id: action.id, cardId: resolvedCard.id, source: "app")
         }
     }
 
@@ -106,7 +117,7 @@ struct CardDetailView: View {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(card), let s = String(data: data, encoding: .utf8) else {
+        guard let data = try? encoder.encode(resolvedCard), let s = String(data: data, encoding: .utf8) else {
             return "—"
         }
         return s
