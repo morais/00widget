@@ -4,6 +4,8 @@ struct CardDetailView: View {
     @EnvironmentObject var env: AppEnvironment
     let card: DashboardCard
     @State private var pendingAction: ActionDefinition?
+    @State private var showRawJson = false
+    @State private var showCurlExample = false
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
     #endif
@@ -11,49 +13,37 @@ struct CardDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                CardView(card: card, context: .app)
-
-                if let actions = card.actions, !actions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Actions").font(.headline)
-                        ForEach(actions) { action in
-                            Button {
-                                if action.confirm || action.role == .destructive {
-                                    pendingAction = action
-                                } else {
-                                    run(action)
-                                }
-                            } label: {
-                                Label(action.label, systemImage: "bolt.fill")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(action.role == .destructive ? .red : .accentColor)
-                        }
+                CardView(card: card, context: .app) { action in
+                    if action.confirm || action.role == .destructive {
+                        pendingAction = action
+                    } else {
+                        run(action)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Raw JSON").font(.headline)
+                DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
                     Text(jsonString)
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+                .font(.headline)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Example curl").font(.headline)
+                DisclosureGroup("Example curl", isExpanded: $showCurlExample) {
                     Text(curlExample)
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                         .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+                .font(.headline)
 
                 HStack {
-                    Button("Refresh") { Task { await env.fetchCards() } }
                     Spacer()
                     Button("Delete from cache", role: .destructive) {
                         var cards = CardCache.load().cards
@@ -64,6 +54,9 @@ struct CardDetailView: View {
                 }
             }
             .padding()
+        }
+        .refreshable {
+            await env.fetchCards()
         }
         .navigationTitle(card.title)
         #if ZW_SHARING_ENABLED
