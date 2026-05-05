@@ -5,6 +5,7 @@ import UIKit
 struct ZeroZeroWidgetApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var env = AppEnvironment()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,10 @@ struct ZeroZeroWidgetApp: App {
                 }
                 .onOpenURL { url in
                     openExternalDeepLink(url)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await env.syncAfterForeground() }
                 }
         }
     }

@@ -43,6 +43,7 @@ public final class AppEnvironment: ObservableObject {
 
     public let liveActivityController = LiveActivityController.shared
     private var apiKeyRegistrationTask: Task<Void, Never>?
+    private var lastForegroundFetchAt: Date?
 
     public init() {
         let defaults = UserDefaults.standard
@@ -192,6 +193,16 @@ public final class AppEnvironment: ObservableObject {
 
     public func loadCachedCards() {
         cards = CardCache.load().cards
+    }
+
+    public func syncAfterForeground() async {
+        loadCachedCards()
+        let now = Date()
+        if let lastForegroundFetchAt, now.timeIntervalSince(lastForegroundFetchAt) < 30 {
+            return
+        }
+        lastForegroundFetchAt = now
+        await fetchCards()
     }
 
     public func startupSync() async {
