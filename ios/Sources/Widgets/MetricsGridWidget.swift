@@ -25,7 +25,7 @@ public enum MetricsGridTapTarget: String, AppEnum {
 }
 
 public struct SelectFourCardsIntent: WidgetConfigurationIntent {
-    public static var title: LocalizedStringResource = "Select metrics"
+    public static var title: LocalizedStringResource = "Select cards"
     public static var description = IntentDescription("Choose up to four cards to display as a 2x2 grid.")
 
     @Parameter(title: "Top left")
@@ -139,8 +139,8 @@ struct MetricsGridWidget: Widget {
             MetricsGridWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Metrics grid")
-        .description("Show up to four metrics in a 2x2 grid.")
+        .configurationDisplayName("00Widget Grid")
+        .description("Show up to four 00Widget cards in a 2x2 grid.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .pushHandler(ZeroZeroWidgetPushHandler.self)
     }

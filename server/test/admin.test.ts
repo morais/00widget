@@ -357,7 +357,7 @@ describe("admin routes (no Apple call required)", () => {
           method: "POST",
           body: JSON.stringify({
             id: "tenant-a-card",
-            template: "status",
+            template: "summary",
             title: "Tenant A card",
             status: "good",
           }),
@@ -374,7 +374,7 @@ describe("admin routes (no Apple call required)", () => {
           method: "POST",
           body: JSON.stringify({
             id: "tenant-b-card",
-            template: "status",
+            template: "summary",
             title: "Tenant B card",
             status: "warning",
           }),
@@ -417,7 +417,7 @@ describe("admin routes (no Apple call required)", () => {
           method: "POST",
           body: JSON.stringify({
             id: "tenant-a-card",
-            template: "status",
+            template: "summary",
             title: "Tenant A card",
             status: "good",
           }),
@@ -434,7 +434,7 @@ describe("admin routes (no Apple call required)", () => {
           method: "POST",
           body: JSON.stringify({
             deviceId: "device-a",
-            widgetKind: "metric",
+            widgetKind: "ZeroZeroWidgetCardWidget",
             widgetPushToken: "widget-token-a",
           }),
         },
@@ -510,7 +510,7 @@ describe("admin routes (no Apple call required)", () => {
 
     const deletePaths = [
       "/admin/tenants/tenant-a/cards/tenant-a-card/delete",
-      "/admin/tenants/tenant-a/widget-tokens/device-a/metric/delete",
+      "/admin/tenants/tenant-a/widget-tokens/device-a/ZeroZeroWidgetCardWidget/delete",
       "/admin/tenants/tenant-a/live-activities/activity-a/delete",
       "/admin/tenants/tenant-a/pending-live-activities/pending-a/delete",
       "/admin/tenants/tenant-a/start-tokens/device-a/ZeroZeroWidgetActivityAttributes/delete",

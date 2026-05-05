@@ -13,9 +13,7 @@ export const DashboardStatusSchema = z
   ])
   .catch("unknown");
 
-export const DashboardTemplateSchema = z
-  .enum(["metric", "status", "progress", "timer", "list", "action"])
-  .catch("status");
+export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "action"]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]).catch("normal");
 

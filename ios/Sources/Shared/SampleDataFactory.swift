@@ -6,7 +6,7 @@ public enum SampleDataFactory {
         return [
             DashboardCard(
                 id: "solar-home",
-                template: .metric,
+                template: .summary,
                 title: "Solar",
                 subtitle: "Exporting 0.8 kW",
                 value: "3.2",
@@ -53,7 +53,7 @@ public enum SampleDataFactory {
             ),
             DashboardCard(
                 id: "washer",
-                template: .status,
+                template: .summary,
                 title: "Washer",
                 subtitle: "Cycle running",
                 value: "Rinse",

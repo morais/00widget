@@ -16,7 +16,7 @@ chmod +x *.sh
 
 ### Dashboard cards (`/v1/cards/upsert`)
 
-- `upsert-solar.sh` — a `metric` card for solar export.
+- `upsert-solar.sh` — a `summary` card for solar export.
 - `upsert-school-balances.sh` — a `list` card with sub-items.
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
 
@@ -64,7 +64,7 @@ requests.post(
     headers={"Authorization": f"Bearer {API_KEY}"},
     json={
         "id": "solar-home",
-        "template": "metric",
+        "template": "summary",
         "title": "Solar",
         "value": "3.2",
         "unit": "kW",
@@ -83,7 +83,7 @@ await fetch(`${BASE_URL}/v1/cards/upsert`, {
   },
   body: JSON.stringify({
     id: "solar-home",
-    template: "metric",
+    template: "summary",
     title: "Solar",
     value: "3.2",
     unit: "kW",

@@ -32,13 +32,10 @@ public enum ZeroZeroWidgetConstants {
     public static let syncLogFilename = "sync-log.json"
 
     public enum WidgetKinds {
-        public static let metric = "ZeroZeroWidgetMetricWidget"
-        public static let status = "ZeroZeroWidgetStatusWidget"
-        public static let list = "ZeroZeroWidgetListWidget"
-        public static let progress = "ZeroZeroWidgetProgressWidget"
+        public static let card = "ZeroZeroWidgetCardWidget"
         public static let metricsGrid = "ZeroZeroWidgetMetricsGridWidget"
 
-        public static let all: [String] = [metric, status, list, progress, metricsGrid]
+        public static let all: [String] = [card, metricsGrid]
     }
 
     public enum UserDefaultsKeys {

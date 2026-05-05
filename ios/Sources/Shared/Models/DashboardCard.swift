@@ -1,16 +1,14 @@
 import Foundation
 
 public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
-    case metric
-    case status
+    case summary
     case progress
-    case timer
     case list
     case action
 
     public init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = DashboardTemplate(rawValue: raw) ?? .status
+        self = DashboardTemplate(rawValue: raw) ?? .summary
     }
 }
 
@@ -76,7 +74,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         let rawTemplate = try c.decode(String.self, forKey: .template)
-        template = DashboardTemplate(rawValue: rawTemplate) ?? .status
+        template = DashboardTemplate(rawValue: rawTemplate) ?? .summary
         title = try c.decode(String.self, forKey: .title)
         subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
         value = try c.decodeIfPresent(String.self, forKey: .value)

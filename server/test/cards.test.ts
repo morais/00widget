@@ -8,10 +8,10 @@ import * as storage from "../src/storage";
 const executionCtx = {} as ExecutionContext;
 
 describe("DashboardCardSchema", () => {
-  it("accepts a minimal metric card", () => {
+  it("accepts a minimal summary card", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "solar-home",
-      template: "metric",
+      template: "summary",
       title: "Solar",
       value: "3.2",
       unit: "kW",
@@ -22,25 +22,28 @@ describe("DashboardCardSchema", () => {
 
   it("rejects missing id/title", () => {
     expect(
-      DashboardCardSchema.safeParse({ template: "metric", title: "x" }).success,
+      DashboardCardSchema.safeParse({ template: "summary", title: "x" }).success,
     ).toBe(false);
     expect(
-      DashboardCardSchema.safeParse({ id: "a", template: "metric" }).success,
+      DashboardCardSchema.safeParse({ id: "a", template: "summary" }).success,
     ).toBe(false);
   });
 
-  it("falls back to known defaults for unknown enum values", () => {
-    const parsed = DashboardCardSchema.safeParse({
+  it("rejects legacy and unknown template values", () => {
+    for (const template of ["metric", "status", "timer", "exotic"]) {
+      expect(DashboardCardSchema.safeParse({ id: "a", template, title: "x" }).success).toBe(false);
+    }
+  });
+
+  it("defaults unknown status values", () => {
+    const statusParsed = DashboardCardSchema.safeParse({
       id: "a",
-      template: "exotic",
+      template: "summary",
       title: "x",
       status: "plaid",
     });
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.template).toBe("status");
-      expect(parsed.data.status).toBe("unknown");
-    }
+    expect(statusParsed.success).toBe(true);
+    if (statusParsed.success) expect(statusParsed.data.status).toBe("unknown");
   });
 });
 
@@ -55,7 +58,7 @@ describe("cards endpoints", () => {
     const env = makeEnv();
     const body = {
       id: "solar-home",
-      template: "metric",
+      template: "summary",
       title: "Solar",
       value: "3.2",
       unit: "kW",
@@ -100,13 +103,13 @@ describe("cards endpoints", () => {
 
     const cardA = {
       id: "shared-card",
-      template: "metric",
+      template: "summary",
       title: "Tenant A",
       value: "1",
     };
     const cardB = {
       id: "shared-card",
-      template: "metric",
+      template: "summary",
       title: "Tenant B",
       value: "2",
     };
@@ -157,7 +160,7 @@ describe("cards endpoints", () => {
     const res = await (handler.fetch as any)(
       authedRequest("https://x/v1/cards/upsert", {
         method: "POST",
-        body: JSON.stringify({ template: "metric" }),
+        body: JSON.stringify({ template: "summary" }),
       }),
       env,
       executionCtx,
@@ -169,12 +172,12 @@ describe("cards endpoints", () => {
     const env = makeEnv();
     const hash = await sha256Hex("test-key");
 
-    await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetMetricWidget", "metric-token");
-    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetListWidget", "list-token");
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetCardWidget", "card-token");
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetMetricsGridWidget", "grid-token");
 
     await expect(
-      storage.listWidgetTokensForKind(env, "test-tenant", "ZeroZeroWidgetMetricWidget"),
-    ).resolves.toEqual(["metric-token"]);
+      storage.listWidgetTokensForKind(env, "test-tenant", "ZeroZeroWidgetCardWidget"),
+    ).resolves.toEqual(["card-token"]);
   });
 
   it("filters widget push tokens by tenant and widget kind", async () => {
@@ -182,11 +185,11 @@ describe("cards endpoints", () => {
     const hashA = await sha256Hex("tenant-a-token");
     const hashB = await sha256Hex("tenant-b-token");
 
-    await storage.putWidgetToken(env, "tenant-a", hashA, "device-a", "ZeroZeroWidgetMetricWidget", "metric-a");
-    await storage.putWidgetToken(env, "tenant-b", hashB, "device-b", "ZeroZeroWidgetMetricWidget", "metric-b");
+    await storage.putWidgetToken(env, "tenant-a", hashA, "device-a", "ZeroZeroWidgetCardWidget", "card-a");
+    await storage.putWidgetToken(env, "tenant-b", hashB, "device-b", "ZeroZeroWidgetCardWidget", "card-b");
 
     await expect(
-      storage.listWidgetTokensForKind(env, "tenant-a", "ZeroZeroWidgetMetricWidget"),
-    ).resolves.toEqual(["metric-a"]);
+      storage.listWidgetTokensForKind(env, "tenant-a", "ZeroZeroWidgetCardWidget"),
+    ).resolves.toEqual(["card-a"]);
   });
 });

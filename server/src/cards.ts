@@ -24,10 +24,9 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
   };
   await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
 
-  // Fan out a WidgetKit reload push to the owner's widgets, plus any
-  // accepted-share recipients' widgets that render this card kind.
-  const widgetKind = widgetKindForCard(card);
-  const tokens = await collectWidgetTokensForCard(env, auth.tenantId, card.id, widgetKind);
+  // Fan out a WidgetKit reload push to the owner's card/grid widgets, plus
+  // accepted-share recipients' card/grid widgets.
+  const tokens = await collectWidgetTokensForCard(env, auth.tenantId, card.id);
   for (const token of tokens) {
     const result = await sendWidgetReloadPush(env, token);
     if (result.status !== 200 && result.status !== 0) {
@@ -42,21 +41,16 @@ async function collectWidgetTokensForCard(
   env: Env,
   ownerTenantId: string,
   cardId: string,
-  widgetKind: string,
 ): Promise<string[]> {
-  const tokens = await storage.listWidgetTokensForKind(env, ownerTenantId, widgetKind);
+  const tokens = await listCardWidgetTokens(env, ownerTenantId);
   if (!isSharingEnabled(env)) return tokens;
   const accepted = await listAcceptedShares(env, ownerTenantId, "card", cardId);
   for (const share of accepted) {
     if (!share.recipientTenantId) continue;
-    const recipientTokens = await storage.listWidgetTokensForKind(
-      env,
-      share.recipientTenantId,
-      widgetKind,
-    );
+    const recipientTokens = await listCardWidgetTokens(env, share.recipientTenantId);
     tokens.push(...recipientTokens);
   }
-  return tokens;
+  return [...new Set(tokens)];
 }
 
 export async function listCards(req: Request, env: Env, auth: AuthContext): Promise<Response> {
@@ -109,17 +103,10 @@ export async function parseJson(req: Request): Promise<unknown> {
   }
 }
 
-function widgetKindForCard(card: DashboardCard): string {
-  switch (card.template) {
-    case "status":
-      return "ZeroZeroWidgetStatusWidget";
-    case "progress":
-      return "ZeroZeroWidgetProgressWidget";
-    case "list":
-      return "ZeroZeroWidgetListWidget";
-    case "metric":
-    case "timer":
-    case "action":
-      return "ZeroZeroWidgetMetricWidget";
-  }
+async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
+  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetMetricsGridWidget"];
+  const nested = await Promise.all(
+    widgetKinds.map((kind) => storage.listWidgetTokensForKind(env, tenantId, kind)),
+  );
+  return nested.flat();
 }

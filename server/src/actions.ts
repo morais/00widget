@@ -208,7 +208,7 @@ async function maybeUpsertResponseCard(
     updatedAt: parsed.data.updatedAt ?? new Date().toISOString(),
   };
   await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
-  const tokens = await storage.listWidgetTokensForKind(env, auth.tenantId, widgetKindForCard(card));
+  const tokens = await listCardWidgetTokens(env, auth.tenantId);
   for (const token of tokens) {
     const result = await sendWidgetReloadPush(env, token);
     if (result.status !== 200 && result.status !== 0) {
@@ -258,17 +258,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function widgetKindForCard(card: DashboardCard): string {
-  switch (card.template) {
-    case "status":
-      return "ZeroZeroWidgetStatusWidget";
-    case "progress":
-      return "ZeroZeroWidgetProgressWidget";
-    case "list":
-      return "ZeroZeroWidgetListWidget";
-    case "metric":
-    case "timer":
-    case "action":
-      return "ZeroZeroWidgetMetricWidget";
-  }
+async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
+  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetMetricsGridWidget"];
+  const nested = await Promise.all(
+    widgetKinds.map((kind) => storage.listWidgetTokensForKind(env, tenantId, kind)),
+  );
+  return [...new Set(nested.flat())];
 }

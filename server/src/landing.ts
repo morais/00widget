@@ -23,7 +23,7 @@ Verify both work with \`curl $00WIDGET_BASE_URL/health\` and an authenticated \`
 
 Then:
 1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
-2. For each, pick a template (metric/status/progress/list/action) per llms.md's decision matrix.
+2. For each, pick a template (\`summary\`, \`progress\`, \`list\`, or \`action\`) per llms.md's decision matrix.
 3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable \`id\`. No SDK, no class hierarchy.
 4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
 
