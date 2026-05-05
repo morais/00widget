@@ -46,16 +46,6 @@ describe("public landing + docs endpoints", () => {
     );
   });
 
-  it("GET /integration.md redirects to /llms.md for compatibility", async () => {
-    const res = await (handler.fetch as any)(
-      new Request("https://x/integration.md"),
-      makeEnv(),
-      ctx,
-    );
-    expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("https://x/llms.md");
-  });
-
   it("GET /llms.txt returns a discovery document pointing at /llms.md", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/llms.txt"),

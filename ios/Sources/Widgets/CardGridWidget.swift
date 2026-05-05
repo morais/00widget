@@ -4,7 +4,7 @@ import AppIntents
 import Foundation
 import os
 
-public enum MetricsGridTapTarget: String, AppEnum {
+public enum CardGridTapTarget: String, AppEnum {
     case app
     case topLeft
     case topRight
@@ -15,7 +15,7 @@ public enum MetricsGridTapTarget: String, AppEnum {
         TypeDisplayRepresentation(name: "Tap action")
     }
 
-    public static var caseDisplayRepresentations: [MetricsGridTapTarget: DisplayRepresentation] = [
+    public static var caseDisplayRepresentations: [CardGridTapTarget: DisplayRepresentation] = [
         .app: DisplayRepresentation(title: "Open the app"),
         .topLeft: DisplayRepresentation(title: "Open top-left card"),
         .topRight: DisplayRepresentation(title: "Open top-right card"),
@@ -41,7 +41,7 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     public var card4: CardEntity?
 
     @Parameter(title: "On compact tap", default: .app)
-    public var compactTapTarget: MetricsGridTapTarget
+    public var compactTapTarget: CardGridTapTarget
 
     public init() {
         let cards = CardCache.load().cards
@@ -57,13 +57,13 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     }
 }
 
-public struct MetricsGridEntry: TimelineEntry {
+public struct CardGridEntry: TimelineEntry {
     public let date: Date
     public let slots: [DashboardCard?]
     public let allUnconfigured: Bool
-    public let compactTapTarget: MetricsGridTapTarget
+    public let compactTapTarget: CardGridTapTarget
 
-    public init(date: Date, slots: [DashboardCard?], allUnconfigured: Bool, compactTapTarget: MetricsGridTapTarget) {
+    public init(date: Date, slots: [DashboardCard?], allUnconfigured: Bool, compactTapTarget: CardGridTapTarget) {
         self.date = date
         self.slots = slots
         self.allUnconfigured = allUnconfigured
@@ -71,26 +71,26 @@ public struct MetricsGridEntry: TimelineEntry {
     }
 }
 
-public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
+public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public typealias Intent = SelectFourCardsIntent
-    public typealias Entry = MetricsGridEntry
+    public typealias Entry = CardGridEntry
 
     private static let log = Logger(subsystem: "com.example.zerozerowidget", category: "Timeline")
 
     public init() {}
 
-    public func placeholder(in context: Context) -> MetricsGridEntry {
+    public func placeholder(in context: Context) -> CardGridEntry {
         let cards = SampleDataFactory.makeCards()
         let slots: [DashboardCard?] = (0..<4).map { i in i < cards.count ? cards[i] : nil }
-        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: false, compactTapTarget: .app)
+        return CardGridEntry(date: Date(), slots: slots, allUnconfigured: false, compactTapTarget: .app)
     }
 
-    public func snapshot(for configuration: SelectFourCardsIntent, in context: Context) async -> MetricsGridEntry {
+    public func snapshot(for configuration: SelectFourCardsIntent, in context: Context) async -> CardGridEntry {
         await refreshCacheIfPossible(reason: "snapshot")
         return entry(for: configuration)
     }
 
-    public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<MetricsGridEntry> {
+    public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
         await refreshCacheIfPossible(reason: "timeline")
         let entry = entry(for: configuration)
         let refresh = Date().addingTimeInterval(15 * 60)
@@ -111,7 +111,7 @@ public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
         }
     }
 
-    private func entry(for configuration: SelectFourCardsIntent) -> MetricsGridEntry {
+    private func entry(for configuration: SelectFourCardsIntent) -> CardGridEntry {
         let rawIds = [configuration.card1?.id, configuration.card2?.id, configuration.card3?.id, configuration.card4?.id]
         let ids: [String?] = rawIds.map { id in
             guard let id, id != CardEntityQuery.noneId else { return nil }
@@ -123,20 +123,20 @@ public struct MetricsGridTimelineProvider: AppIntentTimelineProvider {
             guard let id else { return nil }
             return cached.first(where: { $0.id == id })
         }
-        return MetricsGridEntry(date: Date(), slots: slots, allUnconfigured: allUnconfigured, compactTapTarget: configuration.compactTapTarget)
+        return CardGridEntry(date: Date(), slots: slots, allUnconfigured: allUnconfigured, compactTapTarget: configuration.compactTapTarget)
     }
 }
 
-struct MetricsGridWidget: Widget {
-    let kind: String = ZeroZeroWidgetConstants.WidgetKinds.metricsGrid
+struct CardGridWidget: Widget {
+    let kind: String = ZeroZeroWidgetConstants.WidgetKinds.cardGrid
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
             kind: kind,
             intent: SelectFourCardsIntent.self,
-            provider: MetricsGridTimelineProvider()
+            provider: CardGridTimelineProvider()
         ) { entry in
-            MetricsGridWidgetView(entry: entry)
+            CardGridWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("00Widget Grid")
@@ -146,9 +146,9 @@ struct MetricsGridWidget: Widget {
     }
 }
 
-struct MetricsGridWidgetView: View {
+struct CardGridWidgetView: View {
     @Environment(\.widgetFamily) var family
-    let entry: MetricsGridEntry
+    let entry: CardGridEntry
 
     var body: some View {
         content.widgetURL(family == .systemSmall ? compactTapURL : nil)
@@ -175,7 +175,7 @@ struct MetricsGridWidgetView: View {
         return (entry.slots[safe: index] ?? nil)?.deepLink
     }
 
-    private var cellStyle: MetricsGridCell.Style {
+    private var cellStyle: CardGridCell.Style {
         switch family {
         case .systemSmall: return .compact
         case .systemMedium: return .standard
@@ -201,7 +201,7 @@ struct MetricsGridWidgetView: View {
     @ViewBuilder
     private func cell(at index: Int, linkable: Bool) -> some View {
         let card = entry.slots[safe: index] ?? nil
-        let view = MetricsGridCell(card: card, style: cellStyle)
+        let view = CardGridCell(card: card, style: cellStyle)
         if linkable, let url = card?.deepLink {
             Link(destination: url) { view }
         } else {
@@ -210,7 +210,7 @@ struct MetricsGridWidgetView: View {
     }
 }
 
-struct MetricsGridCell: View {
+struct CardGridCell: View {
     enum Style { case compact, standard, roomy }
 
     let card: DashboardCard?

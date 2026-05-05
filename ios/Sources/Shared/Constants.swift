@@ -33,9 +33,9 @@ public enum ZeroZeroWidgetConstants {
 
     public enum WidgetKinds {
         public static let card = "ZeroZeroWidgetCardWidget"
-        public static let metricsGrid = "ZeroZeroWidgetMetricsGridWidget"
+        public static let cardGrid = "ZeroZeroWidgetCardGridWidget"
 
-        public static let all: [String] = [card, metricsGrid]
+        public static let all: [String] = [card, cardGrid]
     }
 
     public enum UserDefaultsKeys {

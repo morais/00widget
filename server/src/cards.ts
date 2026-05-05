@@ -104,7 +104,7 @@ export async function parseJson(req: Request): Promise<unknown> {
 }
 
 async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
-  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetMetricsGridWidget"];
+  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetCardGridWidget"];
   const nested = await Promise.all(
     widgetKinds.map((kind) => storage.listWidgetTokensForKind(env, tenantId, kind)),
   );

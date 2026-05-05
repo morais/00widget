@@ -5,11 +5,6 @@ public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
     case progress
     case list
     case action
-
-    public init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = DashboardTemplate(rawValue: raw) ?? .summary
-    }
 }
 
 public struct SharedByInfo: Codable, Hashable, Sendable {
@@ -73,8 +68,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        let rawTemplate = try c.decode(String.self, forKey: .template)
-        template = DashboardTemplate(rawValue: rawTemplate) ?? .summary
+        template = try c.decode(DashboardTemplate.self, forKey: .template)
         title = try c.decode(String.self, forKey: .title)
         subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
         value = try c.decodeIfPresent(String.self, forKey: .value)

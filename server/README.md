@@ -208,7 +208,7 @@ Tables:
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
 | `webhook_integrations` | `tenant_id` | Per-tenant action webhook URL and signing secret. |
 
-The Worker uses D1 only. There is no KV compatibility layer because this project has no legacy production data to migrate.
+The Worker uses D1 only.
 
 ## Tests
 
