@@ -21,9 +21,7 @@ export type AdminAuthMethod = "apple" | "api-token";
 export interface AdminSession {
   // For "apple": Apple's email claim. For "api-token": a label like "api-token".
   email: string;
-  // Defaults to "apple" if missing, for backward compatibility with cookies
-  // minted before the API-token login fallback existed.
-  method?: AdminAuthMethod;
+  method: AdminAuthMethod;
   iat: number;
   exp: number;
 }
@@ -225,7 +223,7 @@ export async function readSessionCookie(env: Env, req: Request): Promise<AdminSe
   //              check, and the cookie itself is HMAC-signed; we trust it.
   //              If the operator later disables api-token login, existing
   //              sessions stop being honored.
-  const method: AdminAuthMethod = session.method ?? "apple";
+  const method = session.method;
   if (method === "apple") {
     if (!isAdminEmail(env, session.email)) return null;
   } else if (method === "api-token") {

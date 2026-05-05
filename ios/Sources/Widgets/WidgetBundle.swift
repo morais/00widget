@@ -5,7 +5,7 @@ import SwiftUI
 struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
     var body: some Widget {
         CardWidget()
-        MetricsGridWidget()
+        CardGridWidget()
         ZeroZeroWidgetLiveActivityWidget()
     }
 }

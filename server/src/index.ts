@@ -26,7 +26,6 @@ const routes: Route[] = [
   // Public landing + API docs.
   { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
-  { method: "GET", pattern: /^\/integration\.md\/?$/, handler: (req) => landing.redirectIntegrationMd(req) },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth) => cards.upsertCard(req, env, auth)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),

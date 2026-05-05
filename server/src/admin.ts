@@ -308,7 +308,7 @@ interface DashboardData {
 }
 
 function renderDashboard(d: DashboardData): string {
-  const method: AdminAuthMethod = d.session.method ?? "apple";
+  const method: AdminAuthMethod = d.session.method;
   const signedInAs = method === "api-token"
     ? `Signed in <strong>via API token</strong>`
     : `Signed in as <strong>${esc(d.session.email)}</strong>`;

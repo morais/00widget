@@ -3,7 +3,6 @@ import { llmsMarkdown } from "./generated/llmsDoc";
 // Public, unauthenticated routes:
 //   GET /              landing HTML — intro + agent prompt + link to docs
 //   GET /llms.md       raw llms.md (for agents that fetch directly)
-//   GET /integration.md redirects to /llms.md for old links
 //   GET /llms.txt      short discovery doc pointing at /llms.md
 //
 // The agent prompt embedded below mirrors the README's
@@ -54,12 +53,6 @@ export async function handleLlmsMd(req: Request): Promise<Response> {
       "cache-control": "public, max-age=300",
     },
   });
-}
-
-export async function redirectIntegrationMd(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  url.pathname = "/llms.md";
-  return Response.redirect(url.toString(), 308);
 }
 
 function renderHostedLlmsMarkdown(baseURL: string): string {

@@ -182,9 +182,9 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 ## Adding things
 
-- **New widget kind:** add a `*.swift` in `ios/Sources/Widgets/` following the pattern in `MetricWidget.swift`, register it in `WidgetBundle.swift`, and (if it should appear in the bundle from `WidgetCenter.reloadTimelines`) add its kind string to `Constants.WidgetKinds.all`.
+- **New widget kind:** add a `*.swift` in `ios/Sources/Widgets/`, register it in `WidgetBundle.swift`, and (if it should appear in the bundle from `WidgetCenter.reloadTimelines`) add its kind string to `Constants.WidgetKinds.all`.
 - **New endpoint:** add the handler module in `server/src/`, wire a route in `server/src/index.ts`, add a zod schema in `types.ts`, add a test file in `server/test/`. If iOS needs to call it, add a method to `ios/Sources/App/Services/APIClient.swift`.
-- **New template type:** extend `DashboardTemplate` in **both** `DashboardCard.swift` and `types.ts` (the `DashboardTemplateSchema.catch` keeps old clients safe), add a render path in `CardView.swift`.
+- **New template type:** extend `DashboardTemplate` in **both** `DashboardCard.swift` and `types.ts`, add a render path in `CardView.swift`, and update `docs/llms.md`.
 - **New Live Activity kind:** extend `LiveActivityKind` in both languages, and update the icon mapping inside `LiveActivityWidget.swift`.
 
 ## Quality bar

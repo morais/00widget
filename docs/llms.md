@@ -298,7 +298,7 @@ Only `role: "normal"` + `confirm: false` actions run directly from widgets. `con
 
 ## Rate limits
 
-There is no hard per-token rate limiter in this Worker yet. The practical limit is Cloudflare Worker/D1/APNs capacity plus Apple's push delivery behavior. Treat the documented "~once a minute per card unless the value changed" guidance as the compatibility contract for now; future hard limits will be documented here before enforcement.
+There is no hard per-token rate limiter in this Worker yet. The practical limit is Cloudflare Worker/D1/APNs capacity plus Apple's push delivery behavior. Treat the documented "~once a minute per card unless the value changed" guidance as the operational contract for now; future hard limits will be documented here before enforcement.
 
 ## Errors
 

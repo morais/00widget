@@ -29,10 +29,8 @@ describe("DashboardCardSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects legacy and unknown template values", () => {
-    for (const template of ["metric", "status", "timer", "exotic"]) {
-      expect(DashboardCardSchema.safeParse({ id: "a", template, title: "x" }).success).toBe(false);
-    }
+  it("rejects unknown template values", () => {
+    expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });
 
   it("defaults unknown status values", () => {
@@ -173,7 +171,7 @@ describe("cards endpoints", () => {
     const hash = await sha256Hex("test-key");
 
     await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetCardWidget", "card-token");
-    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetMetricsGridWidget", "grid-token");
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetCardGridWidget", "grid-token");
 
     await expect(
       storage.listWidgetTokensForKind(env, "test-tenant", "ZeroZeroWidgetCardWidget"),
