@@ -100,6 +100,9 @@ public struct CardView: View {
                         .lineLimit(1)
                 }
             }
+            if card.template != .action {
+                actionButtons(max: 1)
+            }
         }
         .padding(8)
     }
@@ -131,6 +134,9 @@ public struct CardView: View {
                     Spacer()
                 }
             }
+            if card.template != .action {
+                actionButtons(max: 2)
+            }
             Spacer(minLength: 0)
             Text(card.updatedAt, style: .relative)
                 .font(.caption2)
@@ -158,6 +164,9 @@ public struct CardView: View {
                 if let p = card.progressValue {
                     ProgressRow(progress: p, label: nil)
                 }
+            }
+            if card.template != .action {
+                actionButtons(max: 4)
             }
             Spacer(minLength: 0)
             Text("Updated \(card.updatedAt, style: .relative) ago")
@@ -216,13 +225,6 @@ public struct CardView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            if let deepLink = card.deepLink {
-                Divider()
-                Link(destination: deepLink) {
-                    Label("Open link", systemImage: "arrow.up.forward.app")
-                }
-                .buttonStyle(.bordered)
-            }
             if let actions = card.actions, !actions.isEmpty {
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
@@ -243,6 +245,14 @@ public struct CardView: View {
                         }
                     }
                 }
+            }
+            if let deepLink = card.deepLink {
+                Divider()
+                Link(destination: deepLink) {
+                    Label("Open link", systemImage: "arrow.up.forward.app")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.borderedProminent)
             }
             Text("Updated \(card.updatedAt.formatted(.dateTime))")
                 .font(.caption2)
@@ -295,6 +305,7 @@ public struct CardView: View {
                             Text(action.label)
                                 .font(.caption)
                                 .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.borderedProminent)
                     } else if let deepLink = card.deepLink {
@@ -302,7 +313,9 @@ public struct CardView: View {
                             Text(action.label)
                                 .font(.caption)
                                 .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
             }
