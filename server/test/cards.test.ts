@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
-import { DashboardCardSchema } from "../src/types";
+import { DashboardCardSchema, FieldLimits, RequestBodyLimits } from "../src/types";
 import { sha256Hex } from "../src/auth";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 import * as storage from "../src/storage";
@@ -42,6 +42,55 @@ describe("DashboardCardSchema", () => {
     });
     expect(statusParsed.success).toBe(true);
     if (statusParsed.success) expect(statusParsed.data.status).toBe("unknown");
+  });
+
+  it("rejects fields and arrays beyond published limits", () => {
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a".repeat(FieldLimits.cardId + 1),
+        template: "summary",
+        title: "x",
+      }).success,
+    ).toBe(false);
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "list",
+        title: "x",
+        items: Array.from({ length: FieldLimits.itemCount + 1 }, (_, index) => ({
+          id: `item-${index}`,
+          title: "Item",
+        })),
+      }).success,
+    ).toBe(false);
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "action",
+        title: "x",
+        actions: Array.from({ length: FieldLimits.actionCount + 1 }, (_, index) => ({
+          id: `action-${index}`,
+          label: "Run",
+        })),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects oversized action payloads", () => {
+    const payload = Object.fromEntries(
+      Array.from({ length: FieldLimits.actionPayloadKeys + 1 }, (_, index) => [
+        `key-${index}`,
+        "x",
+      ]),
+    );
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "action",
+        title: "x",
+        actions: [{ id: "run", label: "Run", payload }],
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -159,6 +208,24 @@ describe("cards endpoints", () => {
       authedRequest("https://x/v1/cards/upsert", {
         method: "POST",
         body: JSON.stringify({ template: "summary" }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when card body exceeds the request limit", async () => {
+    const env = makeEnv();
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "too-large",
+          template: "summary",
+          title: "x",
+          subtitle: "x".repeat(RequestBodyLimits.card),
+        }),
       }),
       env,
       executionCtx,

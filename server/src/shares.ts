@@ -1,5 +1,5 @@
 import type { Env, ShareResourceKind } from "./types";
-import { CreateShareSchema } from "./types";
+import { CreateShareSchema, RequestBodyLimits } from "./types";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
@@ -90,7 +90,7 @@ async function getShare(env: Env, id: string): Promise<ShareRow | null> {
 
 export async function createShare(req: Request, env: Env, auth: AuthContext): Promise<Response> {
   if (!isSharingEnabled(env)) return sharingDisabledResponse();
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.share);
   const parsed = CreateShareSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
 

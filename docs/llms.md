@@ -96,6 +96,75 @@ A **DashboardCard** is one tile on a widget. Wire format:
 
 Only `role: normal` + `confirm: false` actions can run from widgets. Anything else routes through the iOS app for confirmation. Don't make destructive actions auto-runnable.
 
+## Size limits
+
+00Widget stores compact widget state, not logs or arbitrary documents. Oversized requests return `400 validation failed` or `400 invalid JSON body`.
+
+Request body limits:
+
+| Endpoint group | Limit |
+| -------------- | ----: |
+| `POST /v1/cards/upsert` | 32 KiB |
+| Live Activity start/update/end | 16 KiB |
+| Device, widget token, and Live Activity token registration | 8 KiB |
+| Action runs, webhook integration, and share requests | 4 KiB |
+| Apple app login token exchange | 16 KiB |
+
+Card field limits:
+
+| Field | Limit |
+| ----- | ----: |
+| `id` | 96 chars |
+| `title` | 120 chars |
+| `subtitle` | 240 chars |
+| `value` | 80 chars |
+| `unit` | 24 chars |
+| `icon` | 64 chars |
+| `deepLink` | 2048 chars |
+| `items` | 20 rows |
+| `actions` | 8 buttons |
+
+Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars.
+
+Action payload limits:
+
+| Field | Limit |
+| ----- | ----: |
+| `id` | 96 chars |
+| `label` | 80 chars |
+| `payload` keys | 16 keys |
+| payload key | 64 chars |
+| payload value | 512 chars |
+| total serialized `payload` | 4 KiB |
+
+Live Activity limits:
+
+| Field | Limit |
+| ----- | ----: |
+| `externalActivityId` | 128 chars |
+| `title` | 120 chars |
+| `subtitle` | 240 chars |
+| `state` | 120 chars |
+| `icon` | 64 chars |
+| `value` | 80 chars |
+| `unit` | 24 chars |
+| `deepLink` | 2048 chars |
+| `alert.title` | 120 chars |
+| `alert.body` | 240 chars |
+
+Registration and integration limits:
+
+| Field | Limit |
+| ----- | ----: |
+| `deviceId` | 128 chars |
+| `widgetKind` | 128 chars |
+| `attributesType` | 128 chars |
+| APNs push token fields | 4096 chars |
+| `appVersion` | 64 chars |
+| `platform` | 32 chars |
+| `recipientEmail` | 254 chars |
+| webhook URL | 2048 chars and must be public `https` |
+
 ## Choosing a template
 
 Pick one based on the *shape* of the data, not the domain:
