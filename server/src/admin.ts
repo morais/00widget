@@ -4,6 +4,7 @@ import {
   appleSignInConfigured,
   buildAuthorizeURL,
   clearSessionCookie,
+  hashAdminApiToken,
   isAdminEmail,
   makeSessionCookie,
   randomToken,
@@ -69,7 +70,9 @@ export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<
   if (!isValidApiKey(env, apiKey)) {
     return htmlResponse(renderError("Invalid API token."), 401);
   }
-  const cookie = await makeSessionCookie(env, API_TOKEN_LABEL, "api-token");
+  const cookie = await makeSessionCookie(env, API_TOKEN_LABEL, "api-token", {
+    apiTokenHash: await hashAdminApiToken(apiKey),
+  });
   const headers = new Headers({ Location: "/admin" });
   headers.append("Set-Cookie", cookie);
   return new Response(null, { status: 302, headers });

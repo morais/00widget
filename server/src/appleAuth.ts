@@ -24,6 +24,9 @@ export interface AdminSession {
   method: AdminAuthMethod;
   iat: number;
   exp: number;
+  // API-token sessions are bound to the bootstrap token that minted them.
+  // If API_KEYS rotates, this hash stops matching and the session is rejected.
+  apiTokenHash?: string;
 }
 
 export function apiTokenLoginEnabled(env: Env): boolean {
@@ -173,13 +176,18 @@ export async function makeSessionCookie(
   env: Env,
   email: string,
   method: AdminAuthMethod = "apple",
+  options: { apiTokenHash?: string } = {},
 ): Promise<string> {
+  if (method === "api-token" && !options.apiTokenHash) {
+    throw new Error("api-token sessions require apiTokenHash");
+  }
   const now = Math.floor(Date.now() / 1000);
   const session: AdminSession = {
     email: email.toLowerCase(),
     method,
     iat: now,
     exp: now + SESSION_TTL_SECONDS,
+    ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
   };
   const payload = b64url(JSON.stringify(session));
   const sig = await hmacSha256Hex(env.SESSION_SECRET!, payload);
@@ -219,19 +227,40 @@ export async function readSessionCookie(env: Env, req: Request): Promise<AdminSe
   // Validation depends on how the user signed in:
   //   apple    → the email must still be in ADMIN_EMAILS (the operator may
   //              have rotated the list since the cookie was minted)
-  //   api-token → the cookie was minted only after a successful API key
-  //              check, and the cookie itself is HMAC-signed; we trust it.
-  //              If the operator later disables api-token login, existing
-  //              sessions stop being honored.
+  //   api-token → the cookie must still be bound to one of the currently
+  //              configured API_KEYS. If the operator rotates API_KEYS or
+  //              disables api-token login, existing sessions stop working.
   const method = session.method;
   if (method === "apple") {
     if (!isAdminEmail(env, session.email)) return null;
   } else if (method === "api-token") {
     if (!apiTokenLoginEnabled(env)) return null;
+    if (!session.apiTokenHash) return null;
+    if (!(await isCurrentAdminApiTokenHash(env, session.apiTokenHash))) return null;
   } else {
     return null;
   }
   return session;
+}
+
+export async function hashAdminApiToken(token: string): Promise<string> {
+  const data = new TextEncoder().encode(token.trim());
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function isCurrentAdminApiTokenHash(env: Env, tokenHash: string): Promise<boolean> {
+  const allowed = (env.API_KEYS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return false;
+  let valid = false;
+  for (const token of allowed) {
+    const currentHash = await hashAdminApiToken(token);
+    valid = constantTimeEqual(currentHash, tokenHash) || valid;
+  }
+  return valid;
 }
 
 // Random URL-safe state/nonce. Used in OAuth flow.
