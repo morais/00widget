@@ -52,11 +52,11 @@ public struct RunDashboardActionIntent: AppIntent {
     }
 
     private func isActionSafeFromWidget(actionId: String, cardId: String?) -> Bool {
-        guard let cardId else { return true }
+        guard let cardId else { return false }
         guard let card = CardCache.card(withId: cardId),
               let actions = card.actions,
               let action = actions.first(where: { $0.id == actionId })
-        else { return true }
+        else { return false }
         return action.isSafeFromWidget
     }
 }

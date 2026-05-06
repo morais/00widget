@@ -149,6 +149,35 @@ describe("app Apple login", () => {
     expect(body.tenant.ownerEmail).toBe("test-tenant@example.com");
   });
 
+  it("rejects Apple tokens with unverified email", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: clientId,
+      email: "customer@example.com",
+      emailVerified: false,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: token }),
+      }),
+      makeEnv({
+        APPLE_APP_LOGIN_ENABLED: "true",
+        APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+      }),
+      ctx,
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Apple email is not verified");
+  });
+
 
   it("rejects tokens for the wrong app audience", async () => {
     const { token, jwk } = await makeAppleIdToken({
@@ -177,7 +206,7 @@ describe("app Apple login", () => {
   });
 });
 
-async function makeAppleIdToken(input: { aud: string; email?: string; sub?: string }, keyPair?: CryptoKeyPair): Promise<{
+async function makeAppleIdToken(input: { aud: string; email?: string; sub?: string; emailVerified?: boolean | string }, keyPair?: CryptoKeyPair): Promise<{
   token: string;
   jwk: JsonWebKey;
 }> {
@@ -203,7 +232,7 @@ async function makeAppleIdToken(input: { aud: string; email?: string; sub?: stri
   };
   if (input.email) {
     claims.email = input.email;
-    claims.email_verified = true;
+    claims.email_verified = input.emailVerified ?? true;
   }
   const payload = b64urlJson(claims);
   const data = new TextEncoder().encode(`${header}.${payload}`);
