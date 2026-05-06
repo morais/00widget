@@ -23,6 +23,7 @@ import {
 } from "./auth";
 import * as storage from "./storage";
 import { endAndDeleteActivity } from "./liveActivities";
+import { listTenantRateLimitBuckets, type RateLimitBucketView } from "./rateLimit";
 
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
@@ -336,18 +337,20 @@ interface TenantRows {
   activities: storage.ScopedEntry<unknown>[];
   pending: storage.ScopedEntry<unknown>[];
   startTokens: storage.ScopedEntry<string>[];
+  rateLimits: RateLimitBucketView[];
 }
 
 async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
-  const [cards, devices, widgetTokens, activities, pending, startTokens] = await Promise.all([
+  const [cards, devices, widgetTokens, activities, pending, startTokens, rateLimits] = await Promise.all([
     storage.listTenantCards(env, tenantId),
     storage.listTenantDevices(env, tenantId),
     storage.listTenantWidgetTokens(env, tenantId),
     storage.listTenantActivities(env, tenantId),
     storage.listTenantPendingActivities(env, tenantId),
     storage.listTenantStartTokens(env, tenantId),
+    listTenantRateLimitBuckets(env, tenantId),
   ]);
-  return { cards, devices, widgetTokens, activities, pending, startTokens };
+  return { cards, devices, widgetTokens, activities, pending, startTokens, rateLimits };
 }
 
 function emptyTenantRows(): TenantRows {
@@ -358,6 +361,7 @@ function emptyTenantRows(): TenantRows {
     activities: [],
     pending: [],
     startTokens: [],
+    rateLimits: [],
   };
 }
 
@@ -413,6 +417,7 @@ function renderTenantDetail(d: DashboardData): string {
     ${renderActivitiesSection(d.selectedTenant.id, d.rows.activities)}
     ${renderPendingSection(d.selectedTenant.id, d.rows.pending)}
     ${renderStartTokensSection(d.selectedTenant.id, d.rows.startTokens)}
+    ${renderRateLimitsSection(d.rows.rateLimits)}
   `;
 }
 
@@ -603,6 +608,40 @@ function renderStartTokensSection(tenantId: string, entries: storage.ScopedEntry
   return section(
     `Push-to-start tokens <span class="count">${entries.length}</span>`,
     `<table><thead><tr><th>API key</th><th>device id</th><th>attributes type</th><th>token</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
+  );
+}
+
+function renderRateLimitsSection(entries: RateLimitBucketView[]): string {
+  if (entries.length === 0) {
+    return section("Rate limits", `<p class="empty">No active rate limit buckets for this tenant.</p>`);
+  }
+  const important = entries.filter((entry) =>
+    [
+      "All writes",
+      "Card upserts",
+      "Card upserts per card",
+      "Live Activity updates",
+      "Live Activity updates per activity",
+      "Action runs",
+      "Action runs per action",
+      "Registrations",
+      "Webhook changes",
+      "Share mutations",
+    ].includes(entry.label),
+  );
+  const rows = important.map((entry) => {
+    return `<tr>
+      <td>${esc(entry.label)}</td>
+      <td><code>${esc(shortBucketKey(entry.bucketKey))}</code></td>
+      <td>${esc(String(entry.count))} / ${esc(String(entry.limit))}</td>
+      <td>${esc(String(entry.remaining))}</td>
+      <td>${esc(formatWindow(entry.windowSeconds))}</td>
+      <td class="ts">${esc(new Date(entry.resetAt * 1000).toISOString())}</td>
+    </tr>`;
+  }).join("");
+  return section(
+    `Rate limits <span class="count">${important.length} active buckets</span>`,
+    `<table><thead><tr><th>bucket</th><th>key</th><th>used</th><th>remaining</th><th>window</th><th>resets</th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
@@ -812,6 +851,16 @@ function shortHash(hash: string): string {
 function truncate(s: string, max = 60): string {
   if (s.length <= max) return s;
   return s.slice(0, max - 1) + "…";
+}
+
+function shortBucketKey(bucketKey: string): string {
+  return bucketKey.replace(/^[^:]+:tenant:[^:]+:?/, "");
+}
+
+function formatWindow(seconds: number): string {
+  if (seconds === 60 * 60) return "1h";
+  if (seconds === 24 * 60 * 60) return "24h";
+  return `${seconds}s`;
 }
 
 function parseCookies(header: string | null): Record<string, string> {

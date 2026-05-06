@@ -41,6 +41,7 @@ export class FakeD1 {
   private appleAccounts = new Map<string, FakeRow>();
   private webhookIntegrations = new Map<string, FakeRow>();
   private shares = new Map<string, FakeRow>();
+  private rateLimitBuckets = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -298,6 +299,29 @@ export class FakeD1 {
       }
       return count;
     }
+    if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE expires_at < ?")) {
+      const [now] = values.map(Number);
+      let count = 0;
+      for (const [key, row] of this.rateLimitBuckets.entries()) {
+        if (Number(row.expires_at) < now) {
+          this.rateLimitBuckets.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized.startsWith("INSERT INTO rate_limit_buckets")) {
+      const [bucket_key, window_start, expires_at] = [String(values[0]), String(values[1]), String(values[2])];
+      const key = `${bucket_key}:${window_start}`;
+      const existing = this.rateLimitBuckets.get(key);
+      this.rateLimitBuckets.set(key, {
+        bucket_key,
+        window_start,
+        count: String(Number(existing?.count ?? 0) + 1),
+        expires_at,
+      });
+      return 1;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
@@ -333,6 +357,24 @@ export class FakeD1 {
     if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
       const [apple_sub] = values.map(String);
       return pick(this.appleAccounts.get(apple_sub), ["apple_sub", "tenant_id", "email"]);
+    }
+    if (normalized === "SELECT bucket_key, window_start, count, expires_at FROM rate_limit_buckets WHERE bucket_key = ? AND window_start = ?") {
+      const [bucket_key, window_start] = values.map(String);
+      return pick(this.rateLimitBuckets.get(`${bucket_key}:${window_start}`), [
+        "bucket_key",
+        "window_start",
+        "count",
+        "expires_at",
+      ]);
+    }
+    if (normalized === "SELECT bucket_key, window_start, count, expires_at FROM rate_limit_buckets WHERE bucket_key LIKE ? ORDER BY bucket_key, window_start DESC") {
+      const [pattern] = values.map(String);
+      const needle = pattern.replace(/^%|%$/g, "");
+      return [...this.rateLimitBuckets.values()]
+        .filter((row) => row.bucket_key.includes(needle))
+        .sort(by("bucket_key", "window_start"))
+        .reverse()
+        .map(select("bucket_key", "window_start", "count", "expires_at"));
     }
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
       const [tenant_id, id] = values.map(String);

@@ -233,6 +233,33 @@ describe("cards endpoints", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 429 when a card id exceeds its hourly upsert limit", async () => {
+    const env = makeEnv();
+    let res: Response | null = null;
+    for (let i = 0; i < 61; i++) {
+      res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/upsert", {
+          method: "POST",
+          body: JSON.stringify({
+            id: "hot-card",
+            template: "summary",
+            title: "Hot card",
+            value: String(i),
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+    }
+    expect(res?.status).toBe(429);
+    expect(res?.headers.get("retry-after")).toBeTruthy();
+    expect(await res!.json()).toMatchObject({
+      error: "rate limit exceeded",
+      limit: 60,
+      windowSeconds: 3600,
+    });
+  });
+
   it("filters widget push tokens by widget kind", async () => {
     const env = makeEnv();
     const hash = await sha256Hex("test-key");

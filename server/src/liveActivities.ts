@@ -17,6 +17,7 @@ import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { isSharingEnabled, listAcceptedShares } from "./shares";
+import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
 
 // The Swift attributes type the iOS app declares. iOS 18+ rejects start
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
@@ -30,6 +31,10 @@ export async function registerLiveActivity(
   const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "registrationTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const d = parsed.data;
   await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     pushToken: d.pushToken,
@@ -50,6 +55,10 @@ export async function registerLiveActivityStartToken(
   const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterLiveActivityStartTokenSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "registrationTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const d = parsed.data;
   await storage.putStartToken(env, auth.tenantId, auth.apiKeyHash, d.deviceId, d.attributesType, d.pushToken);
   return json({ ok: true });
@@ -64,6 +73,10 @@ export async function startLiveActivity(
   const parsed = StartLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "liveActivityStartTenantHour", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const now = new Date().toISOString();
 
   // Try push-to-start first. If any device has registered a start token for
@@ -196,6 +209,14 @@ export async function updateLiveActivity(
   const parsed = UpdateLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "liveActivityUpdateTenantHour", key: tenantKey(auth.tenantId) },
+    {
+      policy: "liveActivityUpdateActivityHour",
+      key: tenantResourceKey(auth.tenantId, "activity", d.externalActivityId),
+    },
+  ]);
+  if (limited) return limited;
   const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
   const now = new Date().toISOString();
 
@@ -281,6 +302,10 @@ export async function endLiveActivity(
   const parsed = EndLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "liveActivityEndTenantHour", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const finalContentState: Record<string, unknown> = {};
   if (d.finalState) finalContentState.state = d.finalState;
   if (d.finalSubtitle) finalContentState.subtitle = d.finalSubtitle;

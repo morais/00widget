@@ -3,6 +3,7 @@ import { CreateShareSchema, RequestBodyLimits } from "./types";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
+import { enforceTenantRateLimits, tenantKey } from "./rateLimit";
 
 export interface ShareRecord {
   id: string;
@@ -93,6 +94,10 @@ export async function createShare(req: Request, env: Env, auth: AuthContext): Pr
   const body = await parseJson(req, RequestBodyLimits.share);
   const parsed = CreateShareSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "shareTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
 
   const ownerEmail = await tenantOwnerEmail(env, auth.tenantId);
   if (!ownerEmail) return badRequest("set an account email before sharing");
@@ -212,6 +217,10 @@ export async function acceptShare(
   id: string,
 ): Promise<Response> {
   if (!isSharingEnabled(env)) return sharingDisabledResponse();
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "shareTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const ownerEmail = await tenantOwnerEmail(env, auth.tenantId);
   if (!ownerEmail) return badRequest("set an account email before accepting shares");
 
@@ -247,6 +256,10 @@ export async function declineShare(
   id: string,
 ): Promise<Response> {
   if (!isSharingEnabled(env)) return sharingDisabledResponse();
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "shareTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const ownerEmail = await tenantOwnerEmail(env, auth.tenantId);
   if (!ownerEmail) return badRequest("set an account email before declining shares");
 
@@ -272,6 +285,10 @@ export async function revokeShare(
   id: string,
 ): Promise<Response> {
   if (!isSharingEnabled(env)) return sharingDisabledResponse();
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "shareTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   const share = await getShare(env, id);
   if (!share) return notFound();
   // Either side can revoke their relationship to the share.
