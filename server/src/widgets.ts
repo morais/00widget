@@ -1,5 +1,5 @@
 import type { Env } from "./types";
-import { RegisterWidgetPushTokenSchema } from "./types";
+import { RegisterWidgetPushTokenSchema, RequestBodyLimits } from "./types";
 import * as storage from "./storage";
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
@@ -10,7 +10,7 @@ export async function registerWidgetPushToken(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterWidgetPushTokenSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const { deviceId, widgetKind, widgetPushToken } = parsed.data;

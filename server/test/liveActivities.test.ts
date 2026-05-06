@@ -1,10 +1,31 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
+import { FieldLimits, StartLiveActivitySchema, UpdateLiveActivitySchema } from "../src/types";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 
 describe("live activities", () => {
+  it("rejects live activity text beyond published limits", () => {
+    expect(
+      StartLiveActivitySchema.safeParse({
+        externalActivityId: "washer-1",
+        kind: "appliance",
+        title: "Washer",
+        state: "x".repeat(FieldLimits.activityState + 1),
+      }).success,
+    ).toBe(false);
+    expect(
+      UpdateLiveActivitySchema.safeParse({
+        externalActivityId: "washer-1",
+        alert: {
+          title: "Done",
+          body: "x".repeat(FieldLimits.alertBody + 1),
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("registers and lists pending", async () => {
     const env = makeEnv();
 

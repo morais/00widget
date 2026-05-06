@@ -3,8 +3,9 @@ import {
   validateAppleIdTokenForAudience,
 } from "./appleAuth";
 import { createApiKey } from "./auth";
+import { parseJson } from "./cards";
 import { json } from "./http";
-import type { Env } from "./types";
+import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
 interface AppleTokenRequest {
   identityToken?: string;
@@ -18,13 +19,20 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
 
   let input: AppleTokenRequest;
   try {
-    input = (await req.json()) as AppleTokenRequest;
+    input = (await parseJson(req, RequestBodyLimits.appleLogin)) as AppleTokenRequest;
   } catch {
     return json({ error: "missing JSON body" }, 400);
   }
+  if (!input || typeof input !== "object") return json({ error: "missing JSON body" }, 400);
 
   const identityToken = input.identityToken?.trim();
   if (!identityToken) return json({ error: "identityToken is required" }, 400);
+  if (identityToken.length > FieldLimits.appleIdentityToken) {
+    return json({ error: "identityToken is too large" }, 400);
+  }
+  if (input.label && input.label.length > FieldLimits.apiKeyLabel) {
+    return json({ error: "label is too large" }, 400);
+  }
 
   let claims: Awaited<ReturnType<typeof validateAppleIdTokenForAudience>>;
   try {

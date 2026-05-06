@@ -1,5 +1,61 @@
 import { z } from "zod";
 
+const KiB = 1024;
+
+export const RequestBodyLimits = {
+  card: 32 * KiB,
+  liveActivity: 16 * KiB,
+  registration: 8 * KiB,
+  actionRun: 4 * KiB,
+  webhookIntegration: 4 * KiB,
+  share: 4 * KiB,
+  appleLogin: 16 * KiB,
+} as const;
+
+export const FieldLimits = {
+  id: 96,
+  cardId: 96,
+  title: 120,
+  subtitle: 240,
+  value: 80,
+  unit: 24,
+  icon: 64,
+  deepLink: 2048,
+  itemCount: 20,
+  actionCount: 8,
+  actionLabel: 80,
+  actionPayloadKeys: 16,
+  actionPayloadKey: 64,
+  actionPayloadValue: 512,
+  actionPayloadBytes: 4 * KiB,
+  externalActivityId: 128,
+  activityState: 120,
+  alertTitle: 120,
+  alertBody: 240,
+  deviceId: 128,
+  localActivityId: 128,
+  widgetKind: 128,
+  attributesType: 128,
+  pushToken: 4096,
+  appVersion: 64,
+  platform: 32,
+  source: 32,
+  email: 254,
+  webhookUrl: 2048,
+  appleIdentityToken: 12 * KiB,
+  apiKeyLabel: 80,
+} as const;
+
+const IdString = z.string().min(1).max(FieldLimits.id);
+const CardIdString = z.string().min(1).max(FieldLimits.cardId);
+const TitleString = z.string().min(1).max(FieldLimits.title);
+const OptionalSubtitleString = z.string().max(FieldLimits.subtitle).optional();
+const OptionalValueString = z.string().max(FieldLimits.value).optional();
+const OptionalUnitString = z.string().max(FieldLimits.unit).optional();
+const OptionalIconString = z.string().max(FieldLimits.icon).optional();
+const OptionalDeepLink = z.string().url().max(FieldLimits.deepLink).optional();
+const PushTokenString = z.string().min(1).max(FieldLimits.pushToken);
+
 export const DashboardStatusSchema = z
   .enum([
     "unknown",
@@ -17,20 +73,32 @@ export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "a
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]).catch("normal");
 
+const ActionPayloadSchema = z
+  .record(
+    z.string().min(1).max(FieldLimits.actionPayloadKey),
+    z.string().max(FieldLimits.actionPayloadValue),
+  )
+  .refine((payload) => Object.keys(payload).length <= FieldLimits.actionPayloadKeys, {
+    message: `must have at most ${FieldLimits.actionPayloadKeys} keys`,
+  })
+  .refine((payload) => JSON.stringify(payload).length <= FieldLimits.actionPayloadBytes, {
+    message: `must serialize to at most ${FieldLimits.actionPayloadBytes} bytes`,
+  });
+
 export const ActionDefinitionSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
+  id: IdString,
+  label: z.string().min(1).max(FieldLimits.actionLabel),
   role: ActionRoleSchema.default("normal"),
   confirm: z.boolean().default(false),
-  payload: z.record(z.string(), z.string()).optional(),
+  payload: ActionPayloadSchema.optional(),
 });
 
 export const DashboardItemSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  subtitle: z.string().optional(),
-  value: z.string().optional(),
-  unit: z.string().optional(),
+  id: IdString,
+  title: TitleString,
+  subtitle: OptionalSubtitleString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
   status: DashboardStatusSchema.optional(),
 });
 
@@ -41,6 +109,7 @@ const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
 const PublicHttpsUrl = z
   .string()
   .url()
+  .max(FieldLimits.webhookUrl)
   .refine((s) => {
     try {
       const url = new URL(s);
@@ -54,24 +123,24 @@ const PublicHttpsUrl = z
   });
 
 export const SharedByInfoSchema = z.object({
-  ownerEmail: z.string(),
-  shareId: z.string(),
+  ownerEmail: z.string().max(FieldLimits.email),
+  shareId: z.string().max(FieldLimits.id),
 });
 
 export const DashboardCardSchema = z.object({
-  id: z.string().min(1),
+  id: CardIdString,
   template: DashboardTemplateSchema,
-  title: z.string().min(1),
-  subtitle: z.string().optional(),
-  value: z.string().optional(),
-  unit: z.string().optional(),
+  title: TitleString,
+  subtitle: OptionalSubtitleString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
   status: DashboardStatusSchema.default("unknown"),
-  icon: z.string().optional(),
+  icon: OptionalIconString,
   updatedAt: IsoDate.optional(),
   staleAfter: IsoDate.optional(),
-  deepLink: z.string().url().optional(),
-  items: z.array(DashboardItemSchema).optional(),
-  actions: z.array(ActionDefinitionSchema).optional(),
+  deepLink: OptionalDeepLink,
+  items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional(),
+  actions: z.array(ActionDefinitionSchema).max(FieldLimits.actionCount).optional(),
   // Set on cards returned via ?include=shared. Not persisted; not accepted on
   // upsert (zod will strip it because we don't .strict()).
   sharedBy: SharedByInfoSchema.optional(),
@@ -82,41 +151,41 @@ export const LiveActivityKindSchema = z
   .catch("generic");
 
 export const RegisterDeviceSchema = z.object({
-  deviceId: z.string().min(1),
-  apnsDeviceToken: z.string().optional(),
-  appVersion: z.string().default("0.0"),
-  platform: z.string().default("ios"),
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  apnsDeviceToken: PushTokenString.optional(),
+  appVersion: z.string().max(FieldLimits.appVersion).default("0.0"),
+  platform: z.string().max(FieldLimits.platform).default("ios"),
 });
 
 export const RegisterWidgetPushTokenSchema = z.object({
-  deviceId: z.string().min(1),
-  widgetKind: z.string().min(1),
-  widgetPushToken: z.string().min(1),
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  widgetKind: z.string().min(1).max(FieldLimits.widgetKind),
+  widgetPushToken: PushTokenString,
 });
 
 export const RegisterLiveActivitySchema = z.object({
-  deviceId: z.string().min(1),
-  localActivityId: z.string().min(1),
-  externalActivityId: z.string().min(1),
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  localActivityId: z.string().min(1).max(FieldLimits.localActivityId),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   kind: LiveActivityKindSchema,
-  pushToken: z.string().min(1),
+  pushToken: PushTokenString,
 });
 
 export const RegisterLiveActivityStartTokenSchema = z.object({
-  deviceId: z.string().min(1),
-  attributesType: z.string().min(1),
-  pushToken: z.string().min(1),
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  attributesType: z.string().min(1).max(FieldLimits.attributesType),
+  pushToken: PushTokenString,
 });
 
 export const StartLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   kind: LiveActivityKindSchema,
-  title: z.string().min(1),
-  subtitle: z.string().optional(),
-  state: z.string().min(1),
-  icon: z.string().optional(),
-  value: z.string().optional(),
-  unit: z.string().optional(),
+  title: TitleString,
+  subtitle: OptionalSubtitleString,
+  state: z.string().min(1).max(FieldLimits.activityState),
+  icon: OptionalIconString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
@@ -124,42 +193,42 @@ export const StartLiveActivitySchema = z.object({
   // iPhone and Apple Watch ranks Live Activities by this. Range is 0+;
   // larger wins. ActivityKit clamps/normalizes; we just pass through.
   relevanceScore: z.number().min(0).optional(),
-  deepLink: z.string().url().optional(),
+  deepLink: OptionalDeepLink,
 });
 
 export const UpdateLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1),
-  state: z.string().optional(),
-  title: z.string().optional(),
-  subtitle: z.string().optional(),
-  icon: z.string().optional(),
-  value: z.string().optional(),
-  unit: z.string().optional(),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
+  state: z.string().max(FieldLimits.activityState).optional(),
+  title: z.string().max(FieldLimits.title).optional(),
+  subtitle: OptionalSubtitleString,
+  icon: OptionalIconString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
   staleAt: IsoDate.optional(),
   relevanceScore: z.number().min(0).optional(),
   alert: z
     .object({
-      title: z.string(),
-      body: z.string().optional(),
+      title: z.string().min(1).max(FieldLimits.alertTitle),
+      body: z.string().max(FieldLimits.alertBody).optional(),
     })
     .optional(),
 });
 
 export const EndLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1),
-  finalTitle: z.string().optional(),
-  finalSubtitle: z.string().optional(),
-  finalState: z.string().optional(),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
+  finalTitle: z.string().max(FieldLimits.title).optional(),
+  finalSubtitle: OptionalSubtitleString,
+  finalState: z.string().max(FieldLimits.activityState).optional(),
   dismissalDate: IsoDate.optional(),
 });
 
 export const RunActionSchema = z.object({
-  source: z.string().default("widget"),
+  source: z.string().max(FieldLimits.source).default("widget"),
   context: z
     .object({
-      cardId: z.string().optional(),
+      cardId: z.string().max(FieldLimits.cardId).optional(),
     })
     .optional(),
 });
@@ -220,9 +289,9 @@ export const ShareResourceKindSchema = z.enum(["card", "activity_kind"]);
 export const ShareStatusSchema = z.enum(["pending", "accepted", "revoked", "declined"]);
 
 export const CreateShareSchema = z.object({
-  recipientEmail: z.string().email(),
+  recipientEmail: z.string().email().max(FieldLimits.email),
   resourceKind: ShareResourceKindSchema,
-  resourceId: z.string().min(1),
+  resourceId: z.string().min(1).max(FieldLimits.externalActivityId),
 });
 
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;

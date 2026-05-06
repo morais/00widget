@@ -5,6 +5,7 @@ import {
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
   EndLiveActivitySchema,
+  RequestBodyLimits,
 } from "./types";
 import * as storage from "./storage";
 import {
@@ -26,7 +27,7 @@ export async function registerLiveActivity(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
@@ -46,7 +47,7 @@ export async function registerLiveActivityStartToken(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterLiveActivityStartTokenSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
@@ -59,7 +60,7 @@ export async function startLiveActivity(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.liveActivity);
   const parsed = StartLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
@@ -191,7 +192,7 @@ export async function updateLiveActivity(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.liveActivity);
   const parsed = UpdateLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;
@@ -276,7 +277,7 @@ export async function endLiveActivity(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.liveActivity);
   const parsed = EndLiveActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
   const d = parsed.data;

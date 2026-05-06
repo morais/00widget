@@ -1,5 +1,5 @@
 import type { Env } from "./types";
-import { DashboardCardSchema, type DashboardCard } from "./types";
+import { DashboardCardSchema, RequestBodyLimits, type DashboardCard } from "./types";
 import * as storage from "./storage";
 import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest } from "./http";
@@ -12,7 +12,7 @@ import {
 } from "./shares";
 
 export async function upsertCard(req: Request, env: Env, auth: AuthContext): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.card);
   if (!body) return badRequest("invalid JSON body");
   const parsed = DashboardCardSchema.safeParse(body);
   if (!parsed.success) {
@@ -95,12 +95,45 @@ export async function deleteCard(
   return json({ ok: true }, 200);
 }
 
-export async function parseJson(req: Request): Promise<unknown> {
+export class RequestBodyTooLargeError extends Error {
+  constructor(readonly limitBytes: number) {
+    super(`request body exceeds ${limitBytes} bytes`);
+    this.name = "RequestBodyTooLargeError";
+  }
+}
+
+export async function parseJson(req: Request, maxBytes?: number): Promise<unknown> {
   try {
-    return await req.json();
+    if (maxBytes === undefined) return await req.json();
+    const text = await readTextUpTo(req, maxBytes);
+    return JSON.parse(text);
   } catch {
     return null;
   }
+}
+
+async function readTextUpTo(req: Request, maxBytes: number): Promise<string> {
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new RequestBodyTooLargeError(maxBytes);
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
 }
 
 async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {

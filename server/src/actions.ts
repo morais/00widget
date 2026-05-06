@@ -1,5 +1,10 @@
 import type { ActionDefinition, DashboardCard, Env } from "./types";
-import { DashboardCardSchema, RunActionSchema, WebhookIntegrationSchema } from "./types";
+import {
+  DashboardCardSchema,
+  RequestBodyLimits,
+  RunActionSchema,
+  WebhookIntegrationSchema,
+} from "./types";
 import * as storage from "./storage";
 import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest, notFound } from "./http";
@@ -30,7 +35,7 @@ export async function putWebhookIntegration(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.webhookIntegration);
   const parsed = WebhookIntegrationSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
 
@@ -68,7 +73,7 @@ export async function runAction(
   auth: AuthContext,
   actionId: string,
 ): Promise<Response> {
-  const body = await parseJson(req);
+  const body = await parseJson(req, RequestBodyLimits.actionRun);
   const parsed = RunActionSchema.safeParse(body ?? {});
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
 
