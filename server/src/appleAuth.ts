@@ -24,6 +24,7 @@ export interface AdminSession {
   method: AdminAuthMethod;
   iat: number;
   exp: number;
+  csrf: string;
   // API-token sessions are bound to the bootstrap token that minted them.
   // If API_KEYS rotates, this hash stops matching and the session is rejected.
   apiTokenHash?: string;
@@ -187,6 +188,7 @@ export async function makeSessionCookie(
     method,
     iat: now,
     exp: now + SESSION_TTL_SECONDS,
+    csrf: randomToken(18),
     ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
   };
   const payload = b64url(JSON.stringify(session));
@@ -224,6 +226,7 @@ export async function readSessionCookie(env: Env, req: Request): Promise<AdminSe
   }
   const now = Math.floor(Date.now() / 1000);
   if (session.exp < now) return null;
+  if (!session.csrf) return null;
   // Validation depends on how the user signed in:
   //   apple    → the email must still be in ADMIN_EMAILS (the operator may
   //              have rotated the list since the cookie was minted)
