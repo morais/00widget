@@ -42,6 +42,9 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   if (!email && !existingAccount) {
     return json({ error: "Apple did not return an email for this sign-in" }, 403);
   }
+  if (email && !isEmailVerified(claims.email_verified)) {
+    return json({ error: "Apple email is not verified" }, 403);
+  }
   const existingTenant = existingAccount
     ? null
     : await getTenantByOwnerEmail(env, email);
@@ -59,6 +62,10 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     email: email ?? existingAccount!.email,
   });
   return json(created, 201);
+}
+
+function isEmailVerified(value: boolean | string | undefined): boolean {
+  return value === true || value === "true";
 }
 
 interface AppleAccountRecord {

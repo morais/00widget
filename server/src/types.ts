@@ -38,6 +38,21 @@ const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "must be an ISO-8601 date",
 });
 
+const PublicHttpsUrl = z
+  .string()
+  .url()
+  .refine((s) => {
+    try {
+      const url = new URL(s);
+      if (url.protocol !== "https:") return false;
+      return !isBlockedWebhookHostname(url.hostname);
+    } catch {
+      return false;
+    }
+  }, {
+    message: "must be a public https URL",
+  });
+
 export const SharedByInfoSchema = z.object({
   ownerEmail: z.string(),
   shareId: z.string(),
@@ -150,9 +165,55 @@ export const RunActionSchema = z.object({
 });
 
 export const WebhookIntegrationSchema = z.object({
-  url: z.string().url(),
+  url: PublicHttpsUrl,
   rotateSecret: z.boolean().default(false),
 });
+
+function isBlockedWebhookHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (
+    host === "localhost" ||
+    host === "0.0.0.0" ||
+    host === "::" ||
+    host === "::1" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local")
+  ) {
+    return true;
+  }
+  if (isPrivateIpv4(host)) return true;
+  if (isBlockedIpv6(host)) return true;
+  return false;
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const parts = host.split(".");
+  if (parts.length !== 4) return false;
+  const nums = parts.map((part) => Number(part));
+  if (nums.some((n, i) => !Number.isInteger(n) || n < 0 || n > 255 || String(n) !== parts[i])) {
+    return false;
+  }
+  const [a, b] = nums;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+function isBlockedIpv6(host: string): boolean {
+  if (!host.includes(":")) return false;
+  return (
+    host === "1" ||
+    host === "::1" ||
+    host.startsWith("fc") ||
+    host.startsWith("fd") ||
+    host.startsWith("fe80:")
+  );
+}
 
 export const ShareResourceKindSchema = z.enum(["card", "activity_kind"]);
 

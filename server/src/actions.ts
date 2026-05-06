@@ -8,6 +8,8 @@ import { parseJson } from "./cards";
 
 const WEBHOOK_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1000];
+const WEBHOOK_TIMEOUT_MS = 5_000;
+const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
 
 export async function getWebhookIntegration(
   _req: Request,
@@ -77,6 +79,14 @@ export async function runAction(
 
   const resolved = await resolveAction(env, auth.tenantId, actionId, parsed.data.context?.cardId);
   if (!resolved) return notFound();
+  if (isWidgetSource(parsed.data.source)) {
+    if (!parsed.data.context?.cardId) {
+      return json({ error: "widget actions require card context" }, 403);
+    }
+    if (!isSafeFromWidget(resolved.action)) {
+      return json({ error: "action is not safe to run from widgets" }, 403);
+    }
+  }
 
   const deliveryId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
@@ -160,6 +170,8 @@ async function deliverWebhook(
 ): Promise<{ ok: boolean; status: number; attempts: number; responseBody?: unknown }> {
   let lastStatus = 0;
   for (let attempt = 1; attempt <= WEBHOOK_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -170,26 +182,37 @@ async function deliverWebhook(
           "x-00widget-delivery": opts.deliveryId,
         },
         body: opts.rawBody,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       lastStatus = res.status;
       if (res.status >= 200 && res.status < 300) {
         return {
           ok: true,
           status: res.status,
           attempts: attempt,
-          responseBody: await readJsonIfPresent(res),
+          responseBody: await readJsonIfPresent(res, MAX_WEBHOOK_RESPONSE_BYTES),
         };
       }
       if (res.status < 500 || attempt === WEBHOOK_ATTEMPTS) {
         return { ok: false, status: res.status, attempts: attempt };
       }
     } catch {
+      clearTimeout(timeout);
       lastStatus = 0;
       if (attempt === WEBHOOK_ATTEMPTS) return { ok: false, status: 0, attempts: attempt };
     }
     await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 0);
   }
   return { ok: false, status: lastStatus, attempts: WEBHOOK_ATTEMPTS };
+}
+
+function isWidgetSource(source: string): boolean {
+  return source.trim().toLowerCase() === "widget";
+}
+
+function isSafeFromWidget(action: ActionDefinition): boolean {
+  return (action.role ?? "normal") === "normal" && action.confirm !== true;
 }
 
 async function maybeUpsertResponseCard(
@@ -218,14 +241,41 @@ async function maybeUpsertResponseCard(
   return true;
 }
 
-async function readJsonIfPresent(res: Response): Promise<unknown | undefined> {
-  const text = await res.text();
+async function readJsonIfPresent(
+  res: Response,
+  maxBytes: number,
+): Promise<unknown | undefined> {
+  const text = await readTextUpTo(res, maxBytes);
   if (!text.trim()) return undefined;
   try {
     return JSON.parse(text);
   } catch {
     return undefined;
   }
+}
+
+async function readTextUpTo(res: Response, maxBytes: number): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return "";
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
 }
 
 async function signWebhookBody(secret: string, timestamp: string, rawBody: string): Promise<string> {
