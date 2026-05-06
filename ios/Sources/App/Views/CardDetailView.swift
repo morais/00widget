@@ -22,6 +22,10 @@ struct CardDetailView: View {
                     }
                 }
 
+                if let deepLink = currentCard.deepLink {
+                    deepLinkDestination(deepLink)
+                }
+
                 DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
                     Text(jsonString)
                         .font(.caption.monospaced())
@@ -111,6 +115,33 @@ struct CardDetailView: View {
             guard let client = env.apiClient() else { return }
             try? await client.runAction(id: action.id, cardId: resolvedCard.id, source: "app")
         }
+    }
+
+    private func deepLinkDestination(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Destination")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(deepLinkDisplay(url))
+                .font(.callout.monospaced())
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func deepLinkDisplay(_ url: URL) -> String {
+        guard
+            let scheme = url.scheme?.lowercased(),
+            (scheme == "http" || scheme == "https"),
+            let host = url.host
+        else {
+            return url.absoluteString
+        }
+        return "\(scheme)://\(host)"
     }
 
     private var jsonString: String {
