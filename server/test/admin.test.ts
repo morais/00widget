@@ -404,6 +404,9 @@ describe("admin routes (no Apple call required)", () => {
     );
     const selectedHtml = await selected.text();
     expect(selectedHtml).toContain("Tenant A card");
+    expect(selectedHtml).toContain("Rate limits");
+    expect(selectedHtml).toContain("Card upserts");
+    expect(selectedHtml).toContain("All writes");
     expect(selectedHtml).not.toContain("Tenant B card");
   });
 

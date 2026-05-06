@@ -10,6 +10,7 @@ import {
   listAcceptedShares,
   revokeSharesForCard,
 } from "./shares";
+import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
 
 export async function upsertCard(req: Request, env: Env, auth: AuthContext): Promise<Response> {
   const body = await parseJson(req, RequestBodyLimits.card);
@@ -18,6 +19,11 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
   if (!parsed.success) {
     return badRequest(`validation failed: ${parsed.error.message}`);
   }
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "cardUpsertTenantHour", key: tenantKey(auth.tenantId) },
+    { policy: "cardUpsertCardHour", key: tenantResourceKey(auth.tenantId, "card", parsed.data.id) },
+  ]);
+  if (limited) return limited;
   const card = {
     ...parsed.data,
     updatedAt: parsed.data.updatedAt ?? new Date().toISOString(),
@@ -90,6 +96,8 @@ export async function deleteCard(
   auth: AuthContext,
   id: string,
 ): Promise<Response> {
+  const limited = await enforceTenantRateLimits(env, auth, []);
+  if (limited) return limited;
   await storage.deleteCard(env, auth.tenantId, id);
   await revokeSharesForCard(env, auth.tenantId, id);
   return json({ ok: true }, 200);

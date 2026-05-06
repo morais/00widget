@@ -367,7 +367,25 @@ Only `role: "normal"` + `confirm: false` actions run directly from widgets. `con
 
 ## Rate limits
 
-There is no hard per-token rate limiter in this Worker yet. The practical limit is Cloudflare Worker/D1/APNs capacity plus Apple's push delivery behavior. Treat the documented "~once a minute per card unless the value changed" guidance as the operational contract for now; future hard limits will be documented here before enforcement.
+00Widget enforces fixed-window rate limits per tenant and, for hot resources, per card/action/activity id. If you receive `429`, stop sending that operation and retry after the `Retry-After` header.
+
+| Operation | Scope | Limit |
+| --------- | ----- | ----: |
+| Any mutating `/v1/*` write | tenant | 1000 / hour |
+| Card upsert | tenant | 600 / hour |
+| Card upsert | card id | 60 / hour |
+| Live Activity start | tenant | 120 / hour |
+| Live Activity update | tenant | 600 / hour |
+| Live Activity update | activity id | 120 / hour |
+| Live Activity end | tenant | 240 / hour |
+| Action run | tenant | 240 / hour |
+| Action run | action id | 60 / hour |
+| Device/widget/Live Activity token registration | tenant | 240 / day |
+| Webhook integration changes | tenant | 20 / day |
+| Share mutations | tenant | 120 / day |
+| Apple app login token exchange | Apple user | 30 / hour |
+
+Agents should coalesce state changes and avoid hot loops. A good default is to publish a given card no more than once per minute, unless the displayed value materially changed and occasional `429` responses are acceptable.
 
 ## Errors
 
@@ -375,6 +393,7 @@ There is no hard per-token rate limiter in this Worker yet. The practical limit 
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
 - `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist.
 - `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
+- `429 {"error":"rate limit exceeded", ...}` — wait for `Retry-After` seconds before retrying that operation.
 - `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.
 - `5xx {"error":"internal error"}` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
 

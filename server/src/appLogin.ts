@@ -5,6 +5,7 @@ import {
 import { createApiKey } from "./auth";
 import { parseJson } from "./cards";
 import { json } from "./http";
+import { appleSubKey, enforceRateLimits } from "./rateLimit";
 import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
 interface AppleTokenRequest {
@@ -44,6 +45,10 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   } catch (err) {
     return json({ error: `token validation failed: ${(err as Error).message}` }, 401);
   }
+  const limited = await enforceRateLimits(env, [
+    { policy: "appleLoginSubHour", key: appleSubKey(claims.sub) },
+  ]);
+  if (limited) return limited;
 
   const email = claims.email?.trim().toLowerCase();
   const existingAccount = await getAppleAccount(env, claims.sub);

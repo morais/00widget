@@ -10,6 +10,7 @@ import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
+import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
 
 const WEBHOOK_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1000];
@@ -38,6 +39,10 @@ export async function putWebhookIntegration(
   const body = await parseJson(req, RequestBodyLimits.webhookIntegration);
   const parsed = WebhookIntegrationSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "webhookTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
 
   const now = new Date().toISOString();
   const existing = await storage.getWebhookIntegration(env, auth.tenantId);
@@ -63,6 +68,10 @@ export async function deleteWebhookIntegration(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "webhookTenantDay", key: tenantKey(auth.tenantId) },
+  ]);
+  if (limited) return limited;
   await storage.deleteWebhookIntegration(env, auth.tenantId);
   return json({ ok: true });
 }
@@ -76,6 +85,11 @@ export async function runAction(
   const body = await parseJson(req, RequestBodyLimits.actionRun);
   const parsed = RunActionSchema.safeParse(body ?? {});
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "actionRunTenantHour", key: tenantKey(auth.tenantId) },
+    { policy: "actionRunActionHour", key: tenantResourceKey(auth.tenantId, "action", actionId) },
+  ]);
+  if (limited) return limited;
 
   const integration = await storage.getWebhookIntegration(env, auth.tenantId);
   if (!integration) {
