@@ -249,7 +249,7 @@ public struct CardView: View {
             if let deepLink = card.deepLink {
                 Divider()
                 Link(destination: deepLink) {
-                    Label("Open link", systemImage: "arrow.up.forward.app")
+                    Label(deepLinkButtonTitle(deepLink), systemImage: "arrow.up.forward.app")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderedProminent)
@@ -320,6 +320,16 @@ public struct CardView: View {
                 }
             }
         }
+    }
+
+    private func deepLinkButtonTitle(_ url: URL) -> String {
+        guard let scheme = url.scheme?.lowercased(), !scheme.isEmpty else {
+            return "Open link"
+        }
+        if scheme == "http" || scheme == "https" {
+            return url.host.map { "Open \($0)" } ?? "Open \(scheme) link"
+        }
+        return "Open \(scheme):// link"
     }
 }
 
