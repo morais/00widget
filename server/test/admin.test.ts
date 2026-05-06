@@ -21,6 +21,13 @@ function adminEnv(overrides = {}) {
   });
 }
 
+async function adminCookie(env: ReturnType<typeof adminEnv>): Promise<{ cookie: string; csrf: string }> {
+  const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+  const session = await readSessionCookie(env, new Request("https://x/admin", { headers: { cookie } }));
+  if (!session?.csrf) throw new Error("test admin session missing csrf");
+  return { cookie, csrf: session.csrf };
+}
+
 describe("appleSignInConfigured", () => {
   it("is false when any required env is missing", () => {
     expect(appleSignInConfigured(makeEnv())).toBe(false);
@@ -52,6 +59,7 @@ describe("session cookie", () => {
     });
     const session = await readSessionCookie(env, req);
     expect(session?.email).toBe("admin@example.com");
+    expect(session?.csrf).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it("rejects a tampered signature", async () => {
@@ -296,13 +304,14 @@ describe("admin routes (no Apple call required)", () => {
 
   it("/admin/api-keys creates a tenant token and returns the raw token once", async () => {
     const env = adminEnv();
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie, csrf } = await adminCookie(env);
     const res = await (handler.fetch as any)(
       new Request("https://x/admin/api-keys", {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          "x-csrf-token": csrf,
           cookie,
         },
         body: JSON.stringify({ ownerEmail: "customer-a@example.com", label: "iPhone" }),
@@ -334,9 +343,53 @@ describe("admin routes (no Apple call required)", () => {
     expect(html).not.toContain("Cards <span");
   });
 
+  it("/admin mutation rejects missing CSRF tokens", async () => {
+    const env = adminEnv();
+    const { cookie } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({ ownerEmail: "customer-csrf@example.com", label: "iPhone" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Invalid admin CSRF token");
+  });
+
+  it("/admin mutation rejects cross-origin requests even with a valid CSRF token", async () => {
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie,
+          origin: "https://evil.example",
+        },
+        body: new URLSearchParams({
+          csrf,
+          ownerEmail: "customer-origin@example.com",
+          label: "default",
+        }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Invalid admin request origin");
+  });
+
   it("/admin/api-keys form creates tenants from the global dashboard and tokens from selected tenants", async () => {
     const env = adminEnv();
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie, csrf } = await adminCookie(env);
     const createTenantRes = await (handler.fetch as any)(
       new Request("https://x/admin/api-keys", {
         method: "POST",
@@ -345,6 +398,7 @@ describe("admin routes (no Apple call required)", () => {
           cookie,
         },
         body: new URLSearchParams({
+          csrf,
           ownerEmail: "customer-form@example.com",
           label: "default",
         }).toString(),
@@ -371,12 +425,13 @@ describe("admin routes (no Apple call required)", () => {
     const selectedHtml = await selected.text();
     expect(selectedHtml).toContain("Create API token");
     expect(selectedHtml).toContain(`name="tenantId" value="${tenantId}"`);
+    expect(selectedHtml).toContain(`name="csrf" value="${csrf}"`);
     expect(selectedHtml).toContain("customer-form@example.com");
   });
 
   it("/admin/api-keys form rejects token creation without selecting a tenant", async () => {
     const env = adminEnv();
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie, csrf } = await adminCookie(env);
     const res = await (handler.fetch as any)(
       new Request("https://x/admin/api-keys", {
         method: "POST",
@@ -384,7 +439,7 @@ describe("admin routes (no Apple call required)", () => {
           "content-type": "application/x-www-form-urlencoded",
           cookie,
         },
-        body: new URLSearchParams({ label: "missing tenant" }).toString(),
+        body: new URLSearchParams({ csrf, label: "missing tenant" }).toString(),
       }),
       env,
       ctx,
@@ -433,7 +488,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
 
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie } = await adminCookie(env);
     const unselected = await (handler.fetch as any)(
       new Request("https://x/admin", { headers: { cookie } }),
       env,
@@ -546,7 +601,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
 
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie, csrf } = await adminCookie(env);
     const before = await (handler.fetch as any)(
       new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
       env,
@@ -568,7 +623,14 @@ describe("admin routes (no Apple call required)", () => {
     ];
     for (const path of deletePaths) {
       const res = await (handler.fetch as any)(
-        new Request(`https://x${path}`, { method: "POST", headers: { cookie } }),
+        new Request(`https://x${path}`, {
+          method: "POST",
+          headers: {
+            cookie,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ csrf }).toString(),
+        }),
         env,
         ctx,
       );
@@ -590,13 +652,14 @@ describe("admin routes (no Apple call required)", () => {
 
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {
     const env = adminEnv();
-    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const { cookie, csrf } = await adminCookie(env);
     const createRes = await (handler.fetch as any)(
       new Request("https://x/admin/api-keys", {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
+          "x-csrf-token": csrf,
           cookie,
         },
         body: JSON.stringify({ ownerEmail: "customer-b@example.com", label: "test" }),
@@ -621,6 +684,7 @@ describe("admin routes (no Apple call required)", () => {
         method: "POST",
         headers: {
           accept: "application/json",
+          "x-csrf-token": csrf,
           cookie,
         },
       }),

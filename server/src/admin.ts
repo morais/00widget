@@ -136,8 +136,8 @@ export async function handleAdminLogout(_req: Request, _env: Env): Promise<Respo
 }
 
 export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
 
   let input: { tenantId?: string; ownerEmail?: string; label?: string };
   try {
@@ -193,8 +193,8 @@ export async function handleAdminRevokeApiKey(
   env: Env,
   apiKeyId: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const revoked = await revokeApiKey(env, apiKeyId);
   if (wantsJson(req)) {
     return new Response(JSON.stringify({ ok: revoked }), {
@@ -211,8 +211,8 @@ export async function handleAdminDeleteCard(
   tenantIdRaw: string,
   cardIdRaw: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
   await storage.deleteCard(env, tenantId, dec(cardIdRaw));
   return redirectToTenant(tenantId);
@@ -225,8 +225,8 @@ export async function handleAdminDeleteWidgetToken(
   deviceIdRaw: string,
   widgetKindRaw: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
   await storage.deleteWidgetToken(env, tenantId, dec(deviceIdRaw), dec(widgetKindRaw));
   return redirectToTenant(tenantId);
@@ -238,8 +238,8 @@ export async function handleAdminDeleteLiveActivity(
   tenantIdRaw: string,
   externalActivityIdRaw: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
   await endAndDeleteActivity(env, tenantId, dec(externalActivityIdRaw));
   return redirectToTenant(tenantId);
@@ -251,8 +251,8 @@ export async function handleAdminDeletePendingLiveActivity(
   tenantIdRaw: string,
   externalActivityIdRaw: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
   await storage.deletePendingActivity(env, tenantId, dec(externalActivityIdRaw));
   return redirectToTenant(tenantId);
@@ -265,8 +265,8 @@ export async function handleAdminDeleteStartToken(
   deviceIdRaw: string,
   attributesTypeRaw: string,
 ): Promise<Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  const session = await requireAdminMutationSession(req, env);
+  if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
   await storage.deleteStartToken(env, tenantId, dec(deviceIdRaw), dec(attributesTypeRaw));
   return redirectToTenant(tenantId);
@@ -327,7 +327,7 @@ function renderDashboard(d: DashboardData): string {
       </div>
     </header>
 
-    ${renderApiKeyAdminSection(d.tenants, d.apiKeys)}
+    ${renderApiKeyAdminSection(d.tenants, d.apiKeys, d.session.csrf)}
     ${renderTenantDetail(d)}
     `,
   );
@@ -368,7 +368,7 @@ function emptyTenantRows(): TenantRows {
   };
 }
 
-function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[]): string {
+function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[], csrf: string): string {
   const rows = tenants.map((tenant) => {
     const tenantApiKeys = apiKeys.filter((key) => key.tenantId === tenant.id);
     const active = tenantApiKeys.filter((key) => !key.revokedAt).length;
@@ -385,6 +385,7 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
   return section(
     `Tenants & API keys <span class="count">${tenants.length} tenants · ${apiKeys.length} keys</span>`,
     `<form method="post" action="/admin/api-keys" class="api-key-form">
+       ${csrfInput(csrf)}
        <label>Owner email
          <input type="email" name="ownerEmail" placeholder="owner@example.com" required>
        </label>
@@ -413,23 +414,24 @@ function renderTenantDetail(d: DashboardData): string {
         <tr><th>created</th><td class="ts">${esc(d.selectedTenant.createdAt)}</td></tr>
       </tbody></table>
     </section>
-    ${renderTenantApiKeysSection(d.selectedTenant, tenantApiKeys)}
-    ${renderCardsSection(d.selectedTenant.id, d.rows.cards)}
+    ${renderTenantApiKeysSection(d.selectedTenant, tenantApiKeys, d.session.csrf)}
+    ${renderCardsSection(d.selectedTenant.id, d.rows.cards, d.session.csrf)}
     ${renderTokenSection("Devices", d.rows.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
-    ${renderWidgetTokensSection(d.selectedTenant.id, d.rows.widgetTokens)}
-    ${renderActivitiesSection(d.selectedTenant.id, d.rows.activities)}
-    ${renderPendingSection(d.selectedTenant.id, d.rows.pending)}
-    ${renderStartTokensSection(d.selectedTenant.id, d.rows.startTokens)}
+    ${renderWidgetTokensSection(d.selectedTenant.id, d.rows.widgetTokens, d.session.csrf)}
+    ${renderActivitiesSection(d.selectedTenant.id, d.rows.activities, d.session.csrf)}
+    ${renderPendingSection(d.selectedTenant.id, d.rows.pending, d.session.csrf)}
+    ${renderStartTokensSection(d.selectedTenant.id, d.rows.startTokens, d.session.csrf)}
     ${renderRateLimitsSection(d.rows.rateLimits)}
   `;
 }
 
-function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[]): string {
+function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[], csrf: string): string {
   const rows = apiKeys.map((key) => {
     const active = key.revokedAt ? "revoked" : "active";
     const action = key.revokedAt
       ? ""
       : `<form method="post" action="/admin/api-keys/${esc(key.id)}/revoke">
+           ${csrfInput(csrf)}
            <button class="button button-small" type="submit">Revoke</button>
          </form>`;
     return `<tr>
@@ -445,6 +447,7 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
   return section(
     `API keys <span class="count">${apiKeys.length}</span>`,
     `<form method="post" action="/admin/api-keys" class="api-key-form api-key-form-tenant">
+       ${csrfInput(csrf)}
        <input type="hidden" name="tenantId" value="${esc(tenant.id)}">
        <label>Token label
          <input type="text" name="label" placeholder="Production iPhone">
@@ -487,7 +490,7 @@ function renderLoginPage(_env: Env, opts: { apple: boolean; apiToken: boolean })
   );
 }
 
-function renderCardsSection(tenantId: string, cards: storage.ScopedEntry<unknown>[]): string {
+function renderCardsSection(tenantId: string, cards: storage.ScopedEntry<unknown>[], csrf: string): string {
   if (cards.length === 0) return section("Cards", "<p class=\"empty\">No cards published yet.</p>");
   const rows = cards.map((entry) => {
     const c = entry.value as Record<string, unknown>;
@@ -500,7 +503,7 @@ function renderCardsSection(tenantId: string, cards: storage.ScopedEntry<unknown
       <td><span class="status status-${esc(String(c.status ?? "unknown"))}">${esc(String(c.status ?? "unknown"))}</span></td>
       <td class="ts">${esc(String(c.updatedAt ?? ""))}</td>
       <td><details><summary>json</summary><pre>${esc(JSON.stringify(c, null, 2))}</pre></details></td>
-      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/cards/${enc(cardId)}/delete`, "Delete")}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/cards/${enc(cardId)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
@@ -533,7 +536,7 @@ function renderTokenSection(
   );
 }
 
-function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[]): string {
+function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[], csrf: string): string {
   if (entries.length === 0) return section("Widget push tokens", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const parts = entry.key.split(":"); // widget-token:hash:deviceId:kind
@@ -544,7 +547,7 @@ function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntr
       <td><code>${esc(deviceId)}</code></td>
       <td><code>${esc(widgetKind)}</code></td>
       <td><code class="tok">${esc(truncate(entry.value, 24))}</code></td>
-      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/widget-tokens/${enc(deviceId)}/${enc(widgetKind)}/delete`, "Delete")}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/widget-tokens/${enc(deviceId)}/${enc(widgetKind)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
@@ -553,7 +556,7 @@ function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntr
   );
 }
 
-function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<unknown>[]): string {
+function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<unknown>[], csrf: string): string {
   if (entries.length === 0) return section("Live Activities", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const v = entry.value as Record<string, unknown>;
@@ -565,7 +568,7 @@ function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<
       <td><code>${esc(String(v.deviceId ?? ""))}</code></td>
       <td><code class="tok">${esc(truncate(String(v.pushToken ?? ""), 24))}</code></td>
       <td class="ts">${esc(String(v.updatedAt ?? ""))}</td>
-      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/live-activities/${enc(externalId)}/delete`, "Delete")}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/live-activities/${enc(externalId)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
@@ -574,7 +577,7 @@ function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<
   );
 }
 
-function renderPendingSection(tenantId: string, entries: storage.ScopedEntry<unknown>[]): string {
+function renderPendingSection(tenantId: string, entries: storage.ScopedEntry<unknown>[], csrf: string): string {
   if (entries.length === 0) return section("Pending Live Activities", `<p class="empty">None queued.</p>`);
   const rows = entries.map((entry) => {
     const v = entry.value as Record<string, unknown>;
@@ -585,7 +588,7 @@ function renderPendingSection(tenantId: string, entries: storage.ScopedEntry<unk
       <td>${esc(String(v.kind ?? ""))}</td>
       <td>${esc(String(v.title ?? ""))}</td>
       <td>${esc(String(v.state ?? ""))}</td>
-      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/pending-live-activities/${enc(externalId)}/delete`, "Delete")}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/pending-live-activities/${enc(externalId)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
@@ -594,7 +597,7 @@ function renderPendingSection(tenantId: string, entries: storage.ScopedEntry<unk
   );
 }
 
-function renderStartTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[]): string {
+function renderStartTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[], csrf: string): string {
   if (entries.length === 0) return section("Push-to-start tokens", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const parts = entry.key.split(":"); // start-token:hash:deviceId:attributesType
@@ -605,7 +608,7 @@ function renderStartTokensSection(tenantId: string, entries: storage.ScopedEntry
       <td><code>${esc(deviceId)}</code></td>
       <td><code>${esc(attributesType)}</code></td>
       <td><code class="tok">${esc(truncate(entry.value, 24))}</code></td>
-      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/start-tokens/${enc(deviceId)}/${enc(attributesType)}/delete`, "Delete")}</td>
+      <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/start-tokens/${enc(deviceId)}/${enc(attributesType)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
@@ -652,8 +655,13 @@ function section(title: string, body: string): string {
   return `<section><h2>${title}</h2>${body}</section>`;
 }
 
-function deleteForm(action: string, label: string): string {
+function csrfInput(csrf: string): string {
+  return `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
+}
+
+function deleteForm(action: string, label: string, csrf: string): string {
   return `<form method="post" action="${esc(action)}">
+    ${csrfInput(csrf)}
     <button class="button button-small button-danger" type="submit">${esc(label)}</button>
   </form>`;
 }
@@ -794,6 +802,48 @@ async function requireAdminSession(req: Request, env: Env): Promise<AdminSession
   return readSessionCookie(env, req);
 }
 
+async function requireAdminMutationSession(req: Request, env: Env): Promise<AdminSession | Response> {
+  const session = await requireAdminSession(req, env);
+  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
+  if (!sameOriginAdminRequest(req)) {
+    return htmlResponse(renderError("Invalid admin request origin."), 403);
+  }
+  const token = await csrfTokenFromRequest(req);
+  if (!token || !constantTimeEqual(token, session.csrf)) {
+    return htmlResponse(renderError("Invalid admin CSRF token."), 403);
+  }
+  return session;
+}
+
+function sameOriginAdminRequest(req: Request): boolean {
+  const expected = new URL(req.url).origin;
+  const origin = req.headers.get("origin");
+  if (origin) return origin === expected;
+  const referer = req.headers.get("referer");
+  if (!referer) return true;
+  try {
+    return new URL(referer).origin === expected;
+  } catch {
+    return false;
+  }
+}
+
+async function csrfTokenFromRequest(req: Request): Promise<string | null> {
+  const header = req.headers.get("x-csrf-token")?.trim();
+  if (header) return header;
+  const contentType = req.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      const data = (await req.clone().json()) as Record<string, unknown>;
+      return stringField(data.csrf) ?? null;
+    }
+    const form = await req.clone().formData();
+    return stringField(form.get("csrf")) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function parseCreateApiKeyInput(
   req: Request,
 ): Promise<{ tenantId?: string; ownerEmail?: string; label?: string }> {
@@ -824,6 +874,15 @@ function wantsJson(req: Request): boolean {
   const accept = req.headers.get("accept") ?? "";
   const contentType = req.headers.get("content-type") ?? "";
   return accept.includes("application/json") || contentType.includes("application/json");
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 function esc(s: string): string {
