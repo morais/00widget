@@ -246,6 +246,54 @@ describe("admin routes (no Apple call required)", () => {
     expect(dashRes.headers.get("location")).toBe("/admin/login");
   });
 
+  it("api-token cookie stops working after API_KEYS rotation removes its bootstrap token", async () => {
+    const env = adminEnv({ API_KEYS: "test-key, other-key" });
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const loginRes = await (handler.fetch as any)(
+      new Request("https://x/admin/login/api-token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      }),
+      env,
+      ctx,
+    );
+    const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
+
+    const rotated = adminEnv({ API_KEYS: "other-key" });
+    const dashRes = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie: cookieValue } }),
+      rotated,
+      ctx,
+    );
+    expect(dashRes.status).toBe(302);
+    expect(dashRes.headers.get("location")).toBe("/admin/login");
+  });
+
+  it("api-token cookie remains valid when API_KEYS rotation keeps its bootstrap token", async () => {
+    const env = adminEnv({ API_KEYS: "old-key, test-key" });
+    const form = new URLSearchParams({ apiKey: "test-key" });
+    const loginRes = await (handler.fetch as any)(
+      new Request("https://x/admin/login/api-token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      }),
+      env,
+      ctx,
+    );
+    const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
+
+    const rotated = adminEnv({ API_KEYS: "new-key, test-key" });
+    const dashRes = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie: cookieValue } }),
+      rotated,
+      ctx,
+    );
+    expect(dashRes.status).toBe(200);
+    expect(await dashRes.text()).toContain("via API token");
+  });
+
   it("/admin/api-keys creates a tenant token and returns the raw token once", async () => {
     const env = adminEnv();
     const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
