@@ -13,6 +13,8 @@ public enum KeychainStore {
 
         var attributes = deleteQuery
         attributes[kSecValueData as String] = data
+        // Intentionally not ThisDeviceOnly: preserving the API key across
+        // encrypted device backups/restores keeps widgets working after migration.
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
         let status = SecItemAdd(attributes as CFDictionary, nil)
