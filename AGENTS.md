@@ -99,7 +99,7 @@ When working on a real device with a configured Team ID, none of this applies â€
 
 ## TestFlight submissions
 
-The App Store Connect/TestFlight path is already wired for the real local `ios/project.yml` (`DEVELOPMENT_TEAM: YOUR_TEAM_ID`, bundle ids `com.example.zerozerowidget` and `com.example.zerozerowidget.widgets`). Use Xcode's archive/export flow rather than ad hoc IPA tooling.
+The App Store Connect/TestFlight path is wired through the gitignored local `ios/project.yml` (`DEVELOPMENT_TEAM: <YOUR_TEAM_ID>`, bundle ids such as `com.example.zerozerowidget` and `com.example.zerozerowidget.widgets`). Use Xcode's archive/export flow rather than ad hoc IPA tooling.
 
 Before archiving:
 
