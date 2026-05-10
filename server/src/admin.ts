@@ -29,6 +29,18 @@ import { listTenantRateLimitBuckets, type RateLimitBucketView } from "./rateLimi
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
 const API_TOKEN_LABEL = "api-token";
+const ADMIN_HTML_SECURITY_HEADERS = {
+  "content-security-policy": [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "style-src 'unsafe-inline'",
+  ].join("; "),
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+} as const;
 
 // ---------- Routes ----------
 
@@ -794,7 +806,10 @@ ${body}
 function htmlResponse(body: string, status = 200): Response {
   return new Response(body, {
     status,
-    headers: { "content-type": "text/html; charset=utf-8" },
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      ...ADMIN_HTML_SECURITY_HEADERS,
+    },
   });
 }
 
