@@ -131,6 +131,22 @@ describe("admin routes (no Apple call required)", () => {
     expect(body).toContain("/admin/login/api-token");
   });
 
+  it("admin HTML responses include defense-in-depth security headers", async () => {
+    const env = adminEnv();
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/login"),
+      env,
+      ctx,
+    );
+
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("form-action 'self'");
+  });
+
   it("/admin/login hides API-token form when ADMIN_API_TOKEN_LOGIN=false", async () => {
     const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
     const res = await (handler.fetch as any)(
