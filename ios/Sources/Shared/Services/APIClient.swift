@@ -21,11 +21,34 @@ public struct APIClientConfig {
             ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         guard
             !urlString.isEmpty,
-            let url = URL(string: urlString),
+            let url = validatedBaseURL(from: urlString),
             let key = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey),
             !key.isEmpty
         else { return nil }
         return APIClientConfig(baseURL: url, apiKey: key)
+    }
+
+    public static func validatedBaseURL(from urlString: String) -> URL? {
+        guard
+            let url = URL(string: urlString),
+            let scheme = url.scheme?.lowercased(),
+            let host = url.host?.lowercased(),
+            !host.isEmpty
+        else { return nil }
+
+        if scheme == "https" {
+            return url
+        }
+
+        if scheme == "http", isLocalDevelopmentHost(host) {
+            return url
+        }
+
+        return nil
+    }
+
+    private static func isLocalDevelopmentHost(_ host: String) -> Bool {
+        host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".localhost")
     }
 }
 
@@ -77,6 +100,9 @@ public final class APIClient {
         identityToken: String,
         label: String
     ) async throws -> AppleTokenResponse {
+        guard APIClientConfig.validatedBaseURL(from: baseURL.absoluteString) != nil else {
+            throw APIClientError(status: 0, message: "Server URL must use HTTPS")
+        }
         struct Body: Codable {
             let identityToken: String
             let label: String
