@@ -39,7 +39,7 @@ npx wrangler d1 migrations apply zerozerowidget --remote
 cp .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` (gitignored) and set at least `API_KEYS` and `SESSION_SECRET` for local admin bootstrap. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
+Edit `.dev.vars` (gitignored) and set at least `SESSION_SECRET`. Set `API_KEYS` plus `ADMIN_API_TOKEN_LOGIN=true` only if you need the local admin bootstrap fallback. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
 
 ### 3. Run locally
 
@@ -53,7 +53,7 @@ Then:
 curl http://localhost:8787/health
 ```
 
-Then open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant owner email, and use that generated token for `/v1/*` calls:
+If you enabled the fallback, open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant owner email, and use that generated token for `/v1/*` calls:
 
 ```
 curl -H "Authorization: Bearer <generated-api-token>" http://localhost:8787/v1/cards
@@ -85,22 +85,22 @@ An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant 
 Two sign-in methods, either is sufficient:
 
 - **Sign in with Apple** — production; restricted by `ADMIN_EMAILS`. Setup below.
-- **API-token fallback** — uses one of the `API_KEYS` bootstrap values. Enabled by default so the dashboard is reachable while you sort out Sign in with Apple. Disable with `ADMIN_API_TOKEN_LOGIN=false` once Apple is configured.
+- **API-token fallback** — uses one of the `API_KEYS` bootstrap values. Disabled by default; enable with `ADMIN_API_TOKEN_LOGIN=true` only while you sort out Sign in with Apple or local bootstrap.
 
 ### API-token fallback
 
-Visit `/admin/login`. Paste any value from `API_KEYS` into the API-token form and you're in. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set).
+Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/admin/login`, and paste any value from `API_KEYS` into the API-token form. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set). Login attempts are rate-limited per client IP.
 
 Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a tenant API token, copy the raw token once, and give that generated token to the iOS app or publishing agent.
 
-To disable once Sign in with Apple is working:
+To enable temporarily:
 
 ```
 npx wrangler secret put ADMIN_API_TOKEN_LOGIN
-# enter: false
+# enter: true
 ```
 
-Existing API-token sessions stop being honored as soon as the flag flips — users are redirected back to `/admin/login`, where the API-token form is hidden.
+Existing API-token sessions stop being honored as soon as the flag is removed or set to anything other than `true` — users are redirected back to `/admin/login`, where the API-token form is hidden.
 
 ### Sign in with Apple
 

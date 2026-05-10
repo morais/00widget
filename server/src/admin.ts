@@ -24,7 +24,12 @@ import {
 } from "./auth";
 import * as storage from "./storage";
 import { endAndDeleteActivity } from "./liveActivities";
-import { listTenantRateLimitBuckets, type RateLimitBucketView } from "./rateLimit";
+import {
+  incrementRateLimitBuckets,
+  listTenantRateLimitBuckets,
+  rateLimitResponse,
+  type RateLimitBucketView,
+} from "./rateLimit";
 
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
@@ -66,11 +71,13 @@ export async function handleAdminLoginApple(_req: Request, env: Env): Promise<Re
 
 export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<Response> {
   if (!apiTokenLoginEnabled(env)) {
-    return htmlResponse(renderError("API-token login is disabled (ADMIN_API_TOKEN_LOGIN=false)."), 403);
+    return htmlResponse(renderError("API-token login is disabled (set ADMIN_API_TOKEN_LOGIN=true to enable)."), 403);
   }
   if (!env.SESSION_SECRET) {
     return htmlResponse(renderError("SESSION_SECRET is not set."), 500);
   }
+  const limited = await enforceAdminApiTokenLoginRateLimit(req, env);
+  if (limited) return limited;
   let form: FormData;
   try {
     form = await req.formData();
@@ -482,7 +489,7 @@ function renderLoginPage(_env: Env, opts: { apple: boolean; apiToken: boolean })
          <label for="apiKey">API token</label>
          <input id="apiKey" type="password" name="apiKey" autocomplete="off" autofocus required>
          <button type="submit" class="button">Sign in with API token</button>
-         <p class="muted">Fallback while Sign in with Apple isn't configured. Disable by setting <code>ADMIN_API_TOKEN_LOGIN=false</code>.</p>
+         <p class="muted">Fallback while Sign in with Apple isn't configured. Opt in by setting <code>ADMIN_API_TOKEN_LOGIN=true</code>.</p>
        </form>`
     : "";
 
@@ -708,7 +715,7 @@ function renderConfigError(env: Env): string {
      <ul>${apple.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>
      <h3>API-token fallback</h3>
      ${apiTokenDisabled
-        ? `<p class="muted">Disabled by <code>ADMIN_API_TOKEN_LOGIN=false</code>.</p>`
+        ? `<p class="muted">Disabled by default. Set <code>ADMIN_API_TOKEN_LOGIN=true</code> to enable temporarily.</p>`
         : `<ul>${apiToken.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>`}
      <p>Setup walkthrough: <code>server/README.md</code> → "Admin dashboard".</p></section>`,
   );
@@ -828,6 +835,24 @@ async function requireAdminMutationSession(req: Request, env: Env): Promise<Admi
     return htmlResponse(renderError("Invalid admin CSRF token."), 403);
   }
   return session;
+}
+
+async function enforceAdminApiTokenLoginRateLimit(req: Request, env: Env): Promise<Response | null> {
+  const exceeded = await incrementRateLimitBuckets(env, [
+    { policy: "adminApiTokenLoginIpHour", key: adminLoginIpKey(req) },
+  ]);
+  if (!exceeded) return null;
+  if (wantsJson(req)) return rateLimitResponse(exceeded);
+  return htmlResponse(
+    renderError(`Too many API-token login attempts. Try again after ${formatWindow(exceeded.retryAfter)}.`),
+    429,
+  );
+}
+
+function adminLoginIpKey(req: Request): string {
+  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
+  const forwardedIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return `admin-login:${cfIp || forwardedIp || "unknown"}`;
 }
 
 function sameOriginAdminRequest(req: Request): boolean {

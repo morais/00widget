@@ -19,6 +19,7 @@ export const RateLimitPolicies = {
   webhookTenantDay: { label: "Webhook changes", limit: 20, windowSeconds: DAY },
   shareTenantDay: { label: "Share mutations", limit: 120, windowSeconds: DAY },
   appleLoginSubHour: { label: "Apple login token exchange", limit: 30, windowSeconds: HOUR },
+  adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
 } as const;
 
 type RateLimitPolicyName = keyof typeof RateLimitPolicies;

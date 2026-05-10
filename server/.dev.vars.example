@@ -25,8 +25,8 @@ ADMIN_EMAILS=""                         # comma-separated emails allowed to sign
 SESSION_SECRET=""                       # any random 32+ char string; rotates the admin cookie
 #
 # API-token fallback — needs SESSION_SECRET (above) and API_KEYS bootstrap tokens.
-# Useful while waiting for an Apple Developer account. Set ADMIN_API_TOKEN_LOGIN
-# to "false" to disable; any other value (or unset) keeps it enabled.
+# Useful while waiting for an Apple Developer account. Disabled by default;
+# set ADMIN_API_TOKEN_LOGIN to "true" to enable temporarily.
 ADMIN_API_TOKEN_LOGIN=""
 
 # Optional iOS app login. When enabled, the app can exchange a native Sign in
