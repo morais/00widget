@@ -194,6 +194,7 @@ async function deliverWebhook(
     try {
       const res = await fetch(url, {
         method: "POST",
+        redirect: "manual",
         headers: {
           "content-type": "application/json",
           "x-00widget-timestamp": opts.timestamp,

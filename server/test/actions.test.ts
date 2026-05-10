@@ -139,6 +139,33 @@ describe("webhook integrations and actions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not follow webhook redirects", async () => {
+    const env = makeEnv();
+    await registerWebhook(env);
+    await upsertActionCard(env);
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.redirect).toBe("manual");
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://127.0.0.1/actions" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-boost-1h/run", {
+        method: "POST",
+        body: JSON.stringify({ source: "widget", context: { cardId: "boiler" } }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(502);
+    expect((await res.json()) as { status: number }).toMatchObject({ status: 302 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects widget action runs without card context", async () => {
     const env = makeEnv();
     await registerWebhook(env);
