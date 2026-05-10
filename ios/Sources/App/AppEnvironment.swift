@@ -69,8 +69,8 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func signInWithAppleIdentityToken(_ identityToken: String) async {
-        guard let url = URL(string: serverBaseURL) else {
-            appleLoginError = "Server URL is invalid"
+        guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
+            appleLoginError = "Server URL must use HTTPS"
             return
         }
         appleLoginInProgress = true
@@ -102,7 +102,7 @@ public final class AppEnvironment: ObservableObject {
 
     public func apiClient() -> APIClient? {
         guard
-            let url = URL(string: serverBaseURL),
+            let url = APIClientConfig.validatedBaseURL(from: serverBaseURL),
             !apiKey.isEmpty
         else { return nil }
         let config = APIClientConfig(baseURL: url, apiKey: apiKey)
