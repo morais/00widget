@@ -324,9 +324,8 @@ export interface Env {
   APPLE_SIGN_IN_REDIRECT_URI?: string;    // full URL of /admin/auth/apple/callback
   ADMIN_EMAILS?: string;                  // comma-separated allowed emails
   SESSION_SECRET?: string;                // HMAC secret for the admin session cookie
-  // Set to "false" to disable the API-token login fallback. Any other value
-  // (or unset) keeps it enabled. Useful while waiting for an Apple Developer
-  // account; flip to "false" once Sign in with Apple is set up.
+  // Set to "true" to enable the API-token login fallback. It is opt-in so
+  // production deployments default to Sign in with Apple only.
   ADMIN_API_TOKEN_LOGIN?: string;
 
   // Optional iOS app login. When enabled, the app can exchange a native

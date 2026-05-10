@@ -31,7 +31,7 @@ export interface AdminSession {
 }
 
 export function apiTokenLoginEnabled(env: Env): boolean {
-  return env.ADMIN_API_TOKEN_LOGIN !== "false";
+  return env.ADMIN_API_TOKEN_LOGIN === "true";
 }
 
 const COOKIE_NAME = "zw_admin";

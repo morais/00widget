@@ -17,6 +17,7 @@ function adminEnv(overrides = {}) {
     APPLE_SIGN_IN_REDIRECT_URI: "https://example.com/admin/auth/apple/callback",
     ADMIN_EMAILS: "admin@example.com,Other@Example.com",
     SESSION_SECRET: "test-session-secret-123456",
+    ADMIN_API_TOKEN_LOGIN: "true",
     ...overrides,
   });
 }
@@ -147,8 +148,8 @@ describe("admin routes (no Apple call required)", () => {
     expect(csp).toContain("form-action 'self'");
   });
 
-  it("/admin/login hides API-token form when ADMIN_API_TOKEN_LOGIN=false", async () => {
-    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+  it("/admin/login hides API-token form unless ADMIN_API_TOKEN_LOGIN=true", async () => {
+    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
     const res = await (handler.fetch as any)(
       new Request("https://x/admin/login"),
       env,
@@ -206,8 +207,8 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("/admin/login/api-token returns 403 when disabled", async () => {
-    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+  it("/admin/login/api-token returns 403 when not explicitly enabled", async () => {
+    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
     const form = new URLSearchParams({ apiKey: "test-key" });
     const req = new Request("https://x/admin/login/api-token", {
       method: "POST",
@@ -216,6 +217,40 @@ describe("admin routes (no Apple call required)", () => {
     });
     const res = await (handler.fetch as any)(req, env, ctx);
     expect(res.status).toBe(403);
+  });
+
+  it("/admin/login/api-token rate-limits repeated attempts by client IP", async () => {
+    const env = adminEnv();
+    for (let i = 0; i < 10; i++) {
+      const res = await (handler.fetch as any)(
+        new Request("https://x/admin/login/api-token", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "cf-connecting-ip": "203.0.113.10",
+          },
+          body: new URLSearchParams({ apiKey: "wrong" }).toString(),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(401);
+    }
+
+    const limited = await (handler.fetch as any)(
+      new Request("https://x/admin/login/api-token", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "cf-connecting-ip": "203.0.113.10",
+        },
+        body: new URLSearchParams({ apiKey: "test-key" }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(limited.status).toBe(429);
+    expect(await limited.text()).toContain("Too many API-token login attempts");
   });
 
   it("api-token cookie is honored on /admin", async () => {
@@ -260,7 +295,7 @@ describe("admin routes (no Apple call required)", () => {
     );
     const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
 
-    const disabled = adminEnv({ ADMIN_API_TOKEN_LOGIN: "false" });
+    const disabled = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
     const dashRes = await (handler.fetch as any)(
       new Request("https://x/admin", { headers: { cookie: cookieValue } }),
       disabled,
