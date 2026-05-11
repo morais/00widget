@@ -30,7 +30,6 @@ struct CardWidgetView: View {
     var body: some View {
         content
             .widgetURL(entry.card?.deepLink)
-            .overlay(alignment: .topTrailing) { WidgetDiagBadge() }
     }
 
     @ViewBuilder
