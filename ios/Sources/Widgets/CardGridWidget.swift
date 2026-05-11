@@ -215,11 +215,14 @@ struct CardGridCell: View {
 
     let card: DashboardCard?
     let style: Style
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.background.secondary)
+            if renderingMode != .vibrant {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.background.secondary)
+            }
             content
                 .padding(style == .compact ? 6 : 8)
         }

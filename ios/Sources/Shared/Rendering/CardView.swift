@@ -1,5 +1,6 @@
 import SwiftUI
 import AppIntents
+import WidgetKit
 
 public enum CardRenderContext {
     case app
@@ -15,6 +16,7 @@ public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
     private let appActionHandler: ((ActionDefinition) -> Void)?
+    @Environment(\.widgetRenderingMode) private var widgetRenderingMode
 
     public init(
         card: DashboardCard,
@@ -297,7 +299,9 @@ public struct CardView: View {
 
     @ViewBuilder
     private func actionButtons(max: Int) -> some View {
-        if let actions = card.actions, !actions.isEmpty {
+        if widgetRenderingMode == .vibrant {
+            EmptyView()
+        } else if let actions = card.actions, !actions.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(actions.prefix(max)) { action in
                     if action.isSafeFromWidget {
