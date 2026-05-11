@@ -117,14 +117,14 @@ public final class AppEnvironment: ObservableObject {
         do {
             #if ZW_SHARING_ENABLED
             let result = try await client.fetchCardsIncludingShared()
-            try CardCache.save(result.own)
             cards = result.own
             sharedCards = result.shared
+            try CardCache.save(result.own)
             #else
             let fetched = try await client.fetchCards()
-            try CardCache.save(fetched)
             cards = fetched
             sharedCards = []
+            try CardCache.save(fetched)
             #endif
             lastSyncAt = Date()
             lastSyncError = nil
