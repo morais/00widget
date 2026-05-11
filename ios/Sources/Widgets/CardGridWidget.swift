@@ -151,7 +151,9 @@ struct CardGridWidgetView: View {
     let entry: CardGridEntry
 
     var body: some View {
-        content.widgetURL(family == .systemSmall ? compactTapURL : nil)
+        content
+            .widgetURL(family == .systemSmall ? compactTapURL : nil)
+            .overlay(alignment: .topTrailing) { WidgetDiagBadge() }
     }
 
     @ViewBuilder
