@@ -22,7 +22,7 @@ struct WidgetDiagBadge: View {
         case .fullColor: mode = "FC"
         case .accented: mode = "AC"
         case .vibrant: mode = "VB"
-        @unknown default: mode = "??"
+        default: mode = "?\(String(describing: renderingMode).prefix(2))"
         }
         let lum = isLuminanceReduced ? "L" : "."
         let scheme = colorScheme == .dark ? "D" : "L"
