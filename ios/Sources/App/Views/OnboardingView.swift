@@ -44,8 +44,19 @@ struct OnboardingView: View {
 
                 if !env.notificationsAuthorized {
                     Section("Notifications") {
-                        Button("Request notification permission") {
-                            Task { await env.requestNotificationAuthorization() }
+                        if env.notificationsDenied {
+                            Text("Notifications are blocked. Enable them in System Settings to receive widget updates.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Open Settings") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                        } else {
+                            Button("Request notification permission") {
+                                Task { await env.requestNotificationAuthorization() }
+                            }
                         }
                     }
                 }

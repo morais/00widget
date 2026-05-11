@@ -34,6 +34,7 @@ public final class AppEnvironment: ObservableObject {
     #endif
     @Published public private(set) var apnsDeviceToken: String?
     @Published public private(set) var notificationsAuthorized = false
+    @Published public private(set) var notificationsDenied = false
     @Published public private(set) var connectionHealth: ConnectionHealthStatus = .unknown
     @Published public var showActivitiesTab: Bool {
         didSet {
@@ -290,11 +291,13 @@ public final class AppEnvironment: ObservableObject {
 
     public func refreshNotificationAuthorization() async {
         notificationsAuthorized = await DeviceRegistration.notificationsAuthorized()
+        notificationsDenied = await DeviceRegistration.notificationsDenied()
     }
 
     @discardableResult
     public func requestNotificationAuthorization() async -> Bool {
         notificationsAuthorized = await DeviceRegistration.requestNotificationAuthorization()
+        notificationsDenied = await DeviceRegistration.notificationsDenied()
         if notificationsAuthorized {
             DeviceRegistration.registerForRemoteNotifications()
         }
