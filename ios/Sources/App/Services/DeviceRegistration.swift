@@ -38,6 +38,11 @@ public enum DeviceRegistration {
         }
     }
 
+    public static func notificationsDenied() async -> Bool {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return settings.authorizationStatus == .denied
+    }
+
     @MainActor
     public static func registerForRemoteNotifications() {
         UIApplication.shared.registerForRemoteNotifications()
