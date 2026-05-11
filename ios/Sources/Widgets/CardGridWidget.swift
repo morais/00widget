@@ -151,9 +151,7 @@ struct CardGridWidgetView: View {
     let entry: CardGridEntry
 
     var body: some View {
-        content
-            .widgetURL(family == .systemSmall ? compactTapURL : nil)
-            .overlay(alignment: .topTrailing) { WidgetDiagBadge() }
+        content.widgetURL(family == .systemSmall ? compactTapURL : nil)
     }
 
     @ViewBuilder
@@ -221,7 +219,7 @@ struct CardGridCell: View {
 
     var body: some View {
         ZStack {
-            if renderingMode != .vibrant {
+            if renderingMode == .fullColor {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(.background.secondary)
             }

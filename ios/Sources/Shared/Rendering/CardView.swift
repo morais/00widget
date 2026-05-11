@@ -299,7 +299,7 @@ public struct CardView: View {
 
     @ViewBuilder
     private func actionButtons(max: Int) -> some View {
-        if widgetRenderingMode == .vibrant {
+        if widgetRenderingMode != .fullColor {
             EmptyView()
         } else if let actions = card.actions, !actions.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
