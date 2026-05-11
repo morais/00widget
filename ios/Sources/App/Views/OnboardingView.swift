@@ -79,6 +79,10 @@ struct OnboardingView: View {
                     }
                 }
                 #endif
+
+                Section("About") {
+                    KeyValue(key: "Version", value: appVersionString)
+                }
             }
             .navigationTitle("Settings")
             .task {
@@ -181,6 +185,13 @@ struct OnboardingView: View {
             guard !Task.isCancelled else { return }
             await env.refreshConnectionHealth()
         }
+    }
+
+    private var appVersionString: String {
+        let info = Bundle.main.infoDictionary
+        let marketing = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(marketing) (\(build))"
     }
 
     private var agentConfig: String {
