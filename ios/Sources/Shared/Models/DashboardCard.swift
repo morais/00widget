@@ -26,6 +26,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var unit: String?
     public var status: DashboardStatus
     public var icon: String?
+    public var statusIcon: String?
     public var updatedAt: Date
     public var staleAfter: Date?
     public var deepLink: URL?
@@ -42,6 +43,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         unit: String? = nil,
         status: DashboardStatus = .unknown,
         icon: String? = nil,
+        statusIcon: String? = nil,
         updatedAt: Date = Date(),
         staleAfter: Date? = nil,
         deepLink: URL? = nil,
@@ -57,6 +59,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.status = status
         self.icon = icon
+        self.statusIcon = statusIcon
         self.updatedAt = updatedAt
         self.staleAfter = staleAfter
         self.deepLink = deepLink
@@ -76,6 +79,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         let rawStatus = try c.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
         status = DashboardStatus(rawValue: rawStatus) ?? .unknown
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
+        statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
         staleAfter = try DashboardCard.decodeDate(c, forKey: .staleAfter)
         deepLink = try c.decodeIfPresent(URL.self, forKey: .deepLink)
@@ -85,7 +89,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, template, title, subtitle, value, unit, status, icon
+        case id, template, title, subtitle, value, unit, status, icon, statusIcon
         case updatedAt, staleAfter, deepLink, items, actions, sharedBy
     }
 

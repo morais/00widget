@@ -136,6 +136,7 @@ export const DashboardCardSchema = z.object({
   unit: OptionalUnitString,
   status: DashboardStatusSchema.default("unknown"),
   icon: OptionalIconString,
+  statusIcon: OptionalIconString,
   updatedAt: IsoDate.optional(),
   staleAfter: IsoDate.optional(),
   deepLink: OptionalDeepLink,

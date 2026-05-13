@@ -59,6 +59,11 @@ public struct CardView: View {
                 .fontWeight(.medium)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if let statusIcon = card.statusIcon {
+                Image(systemName: statusIcon)
+                    .font(.caption)
+                    .foregroundStyle(card.status.tint)
+            }
             StatusBadge(status: card.status, compact: true)
         }
     }
@@ -183,6 +188,10 @@ public struct CardView: View {
             HStack(spacing: 4) {
                 if let icon = card.icon { Image(systemName: icon) }
                 Text(card.title).font(.caption2).fontWeight(.medium)
+                Spacer(minLength: 0)
+                if let statusIcon = card.statusIcon {
+                    Image(systemName: statusIcon).font(.caption2)
+                }
             }
             Text(card.value ?? card.status.label)
                 .font(.headline)

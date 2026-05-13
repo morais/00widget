@@ -61,6 +61,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "unit": "string?",
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
+  "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
   "updatedAt": "ISO-8601 string? (server fills in if omitted)",
   "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
   "deepLink": "URL? (tapping the card opens this destination; use https://... for web apps)",
@@ -120,6 +121,7 @@ Card field limits:
 | `value` | 80 chars |
 | `unit` | 24 chars |
 | `icon` | 64 chars |
+| `statusIcon` | 64 chars |
 | `deepLink` | 2048 chars |
 | `items` | 20 rows |
 | `actions` | 8 buttons |
