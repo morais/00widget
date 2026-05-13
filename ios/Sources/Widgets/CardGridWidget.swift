@@ -249,9 +249,17 @@ struct CardGridCell: View {
 
     private func compactCell(_ card: DashboardCard) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Image(systemName: card.icon ?? "circle.fill")
-                .font(.callout)
-                .foregroundStyle(card.status.tint)
+            HStack(spacing: 0) {
+                Image(systemName: card.icon ?? "circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(card.status.tint)
+                Spacer(minLength: 0)
+                if let statusIcon = card.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.caption2)
+                        .foregroundStyle(card.status.tint)
+                }
+            }
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 1) {
                 Text(card.value ?? "—")
@@ -281,6 +289,12 @@ struct CardGridCell: View {
                     .fontWeight(.medium)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                Spacer(minLength: 0)
+                if let statusIcon = card.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.caption2)
+                        .foregroundStyle(card.status.tint)
+                }
             }
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -310,6 +324,12 @@ struct CardGridCell: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .lineLimit(1)
+                Spacer(minLength: 0)
+                if let statusIcon = card.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.caption)
+                        .foregroundStyle(card.status.tint)
+                }
             }
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 2) {

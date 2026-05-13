@@ -35,6 +35,7 @@ public enum SampleDataFactory {
                 value: "Ready",
                 status: .good,
                 icon: "flame",
+                statusIcon: "bolt.fill",
                 updatedAt: now,
                 actions: [
                     ActionDefinition(id: "boiler-boost-1h", label: "Boost 1h")
@@ -49,6 +50,7 @@ public enum SampleDataFactory {
                 unit: nil,
                 status: .running,
                 icon: "car.fill",
+                statusIcon: "arrow.up",
                 updatedAt: now
             ),
             DashboardCard(
