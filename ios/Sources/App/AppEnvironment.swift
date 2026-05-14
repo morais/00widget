@@ -256,6 +256,7 @@ public final class AppEnvironment: ObservableObject {
             }
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
+            await self.fetchCards()
             await self.startPendingActivities()
         }
     }
