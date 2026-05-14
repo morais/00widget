@@ -217,6 +217,17 @@ export class FakeD1 {
       this.widgetTokens.delete(`${tenant_id}:${device_id}:${widget_kind}`);
       return 1;
     }
+    if (normalized.startsWith("DELETE FROM start_tokens WHERE tenant_id = ? AND attributes_type = ? AND token = ?")) {
+      const [tenant_id, attributes_type, token] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.startTokens.entries()) {
+        if (row.tenant_id === tenant_id && row.attributes_type === attributes_type && row.token === token) {
+          this.startTokens.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
     if (normalized.startsWith("DELETE FROM start_tokens")) {
       const [tenant_id, device_id, attributes_type] = values.map(String);
       this.startTokens.delete(`${tenant_id}:${device_id}:${attributes_type}`);

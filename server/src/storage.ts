@@ -312,6 +312,24 @@ export async function deleteStartToken(
     .run();
 }
 
+// Drops every start_tokens row whose `token` matches, scoped to a tenant and
+// attributes type. Called when APNs reports the token as dead (BadDeviceToken,
+// Unregistered, DeviceTokenNotForTopic) so subsequent /start calls don't keep
+// fanning out to phantom devices.
+export async function deleteStartTokenByValue(
+  env: Env,
+  tenantId: string,
+  attributesType: string,
+  token: string,
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `DELETE FROM start_tokens
+     WHERE tenant_id = ? AND attributes_type = ? AND token = ?`,
+  )
+    .bind(tenantId, attributesType, token)
+    .run();
+}
+
 export async function listStartTokens(
   env: Env,
   tenantId: string,
