@@ -66,23 +66,33 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 struct RootView: View {
     @EnvironmentObject var env: AppEnvironment
+    @State private var selectedTab: String
+
+    init() {
+        let hasKey = !(KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? "").isEmpty
+        _selectedTab = State(initialValue: hasKey ? "widgets" : "settings")
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem { Label("Widgets", systemImage: "square.grid.2x2") }
+                .tag("widgets")
 
             if env.showActivitiesTab {
                 LiveActivitiesView()
                     .tabItem { Label("Activities", systemImage: "waveform") }
+                    .tag("activities")
             }
 
             OnboardingView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag("settings")
 
             if ZeroZeroWidgetConstants.debugTabEnabled {
                 DeveloperView()
                     .tabItem { Label("Debug", systemImage: "ladybug") }
+                    .tag("debug")
             }
         }
     }
