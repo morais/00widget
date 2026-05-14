@@ -82,11 +82,11 @@ export async function startLiveActivity(
   // Try push-to-start first. If any device has registered a start token for
   // ZeroZeroWidgetActivityAttributes, send the start event over APNs. Shared
   // recipients (kind-level) get the start event on their own start tokens too.
-  const ownerStartTokens = await storage.listStartTokens(
-    env,
-    auth.tenantId,
-    DEFAULT_ATTRIBUTES_TYPE,
-  );
+  // Each entry carries the tenant the token belongs to so dead-token pruning
+  // (BadDeviceToken / Unregistered) deletes from the right tenant scope.
+  const ownerStartTokens = (
+    await storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE)
+  ).map((token) => ({ token, tenantId: auth.tenantId }));
   const recipientStartTokens = await collectRecipientStartTokens(
     env,
     auth.tenantId,
@@ -115,8 +115,8 @@ export async function startLiveActivity(
     if (d.endsAt) contentState.endsAt = d.endsAt;
     if (d.staleAt) contentState.staleAt = d.staleAt;
 
-    for (const token of startTokens) {
-      const result = await sendLiveActivityStart(env, token, {
+    for (const entry of startTokens) {
+      const result = await sendLiveActivityStart(env, entry.token, {
         attributesType: DEFAULT_ATTRIBUTES_TYPE,
         attributes,
         contentState,
@@ -125,12 +125,20 @@ export async function startLiveActivity(
       });
       if (result.status !== 200) {
         console.log("live activity push-to-start failed", {
-          tenantId: auth.tenantId,
+          tenantId: entry.tenantId,
           externalActivityId: d.externalActivityId,
           status: result.status,
           reason: result.reason,
           apnsId: result.apnsId,
         });
+        if (isDeadTokenReason(result.reason)) {
+          await storage.deleteStartTokenByValue(
+            env,
+            entry.tenantId,
+            DEFAULT_ATTRIBUTES_TYPE,
+            entry.token,
+          );
+        }
       }
       apnsResults.push(result);
     }
@@ -180,14 +188,19 @@ export async function pendingActivities(
   return json({ activities });
 }
 
+interface StartTokenEntry {
+  token: string;
+  tenantId: string;
+}
+
 async function collectRecipientStartTokens(
   env: Env,
   ownerTenantId: string,
   kind: string,
-): Promise<string[]> {
+): Promise<StartTokenEntry[]> {
   if (!isSharingEnabled(env)) return [];
   const accepted = await listAcceptedShares(env, ownerTenantId, "activity_kind", kind);
-  const tokens: string[] = [];
+  const entries: StartTokenEntry[] = [];
   for (const share of accepted) {
     if (!share.recipientTenantId) continue;
     const recipientTokens = await storage.listStartTokens(
@@ -195,9 +208,17 @@ async function collectRecipientStartTokens(
       share.recipientTenantId,
       DEFAULT_ATTRIBUTES_TYPE,
     );
-    tokens.push(...recipientTokens);
+    for (const token of recipientTokens) {
+      entries.push({ token, tenantId: share.recipientTenantId });
+    }
   }
-  return tokens;
+  return entries;
+}
+
+// APNs reasons that mean "this token is permanently dead, drop it." See:
+// https://developer.apple.com/documentation/usernotifications/handling-notification-responses-from-apns
+function isDeadTokenReason(reason: string | undefined): boolean {
+  return reason === "BadDeviceToken" || reason === "Unregistered" || reason === "DeviceTokenNotForTopic";
 }
 
 export async function updateLiveActivity(

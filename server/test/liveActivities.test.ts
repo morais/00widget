@@ -2,8 +2,16 @@ import { describe, it, expect } from "vitest";
 import handler from "../src/index";
 import { FieldLimits, StartLiveActivitySchema, UpdateLiveActivitySchema } from "../src/types";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
+import { __resetApnsJwtCache } from "../src/apns";
 
 const executionCtx = {} as ExecutionContext;
+
+// Throwaway P-256 PKCS#8 — only used so APNs JWT signing reaches our fetch stub.
+const TEST_P8 = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgevZzL1gdAFr88hb2
+OF/2NxApJCzGCEDdfSp6VQO30hyhRANCAAQRWz+jn65BtOMvdyHKcvjBeBSDZH2r
+1RTwjmYSi9R/zpBnuQ4EiMnCqfMPWiZqB4QdbAd0E7oH50VpuZ1P087G
+-----END PRIVATE KEY-----`;
 
 describe("live activities", () => {
   it("rejects live activity text beyond published limits", () => {
@@ -310,6 +318,78 @@ describe("live activities", () => {
     // (and falls back to apns-not-configured because no .p8 in tests).
     expect(body.pushToStartAttempted).toBe(1);
     expect(body.apnsResults).toHaveLength(1);
+  });
+
+  it("prunes start tokens that APNs rejects with BadDeviceToken", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+
+    const reg = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register-start-token", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "dev-dead",
+          attributesType: "ZeroZeroWidgetActivityAttributes",
+          pushToken: "deadtoken",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(reg.status).toBe(200);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ reason: "BadDeviceToken" }), {
+        status: 400,
+        headers: { "apns-id": "fake-apns-id" },
+      })) as typeof fetch;
+    try {
+      const start = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/start", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "washer-prune",
+            kind: "appliance",
+            title: "Washer",
+            state: "running",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(start.status).toBe(200);
+      const body = (await start.json()) as {
+        pushToStartAttempted: number;
+        apnsResults: Array<{ status: number; reason?: string }>;
+      };
+      expect(body.pushToStartAttempted).toBe(1);
+      expect(body.apnsResults[0]).toMatchObject({ status: 400, reason: "BadDeviceToken" });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // Re-trigger /start: the dead token should be gone, so push-to-start has
+    // nothing to try.
+    const second = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-prune-2",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(((await second.json()) as { pushToStartAttempted: number }).pushToStartAttempted).toBe(0);
   });
 
   it("falls back to pending-only when no start tokens are registered", async () => {
