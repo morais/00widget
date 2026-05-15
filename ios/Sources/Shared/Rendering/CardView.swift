@@ -1,6 +1,8 @@
 import SwiftUI
 import AppIntents
+#if canImport(WidgetKit)
 import WidgetKit
+#endif
 
 public enum CardRenderContext {
     case app
@@ -16,7 +18,9 @@ public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
     private let appActionHandler: ((ActionDefinition) -> Void)?
+    #if canImport(WidgetKit)
     @Environment(\.widgetRenderingMode) private var widgetRenderingMode
+    #endif
 
     public init(
         card: DashboardCard,
@@ -201,13 +205,18 @@ public struct CardView: View {
         }
     }
 
+    @ViewBuilder
     private var circularView: some View {
+        #if os(tvOS)
+        EmptyView()
+        #else
         Gauge(value: card.progressValue ?? 0) {
             if let icon = card.icon { Image(systemName: icon) }
         } currentValueLabel: {
             Text(card.value ?? "—").font(.caption).lineLimit(1)
         }
         .gaugeStyle(.accessoryCircular)
+        #endif
     }
 
     private var inlineView: some View {
@@ -308,6 +317,7 @@ public struct CardView: View {
 
     @ViewBuilder
     private func actionButtons(max: Int) -> some View {
+        #if canImport(WidgetKit)
         if widgetRenderingMode != .fullColor {
             EmptyView()
         } else if let actions = card.actions, !actions.isEmpty {
@@ -333,6 +343,9 @@ public struct CardView: View {
                 }
             }
         }
+        #else
+        EmptyView()
+        #endif
     }
 
     private func deepLinkButtonTitle(_ url: URL) -> String {

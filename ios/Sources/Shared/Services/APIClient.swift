@@ -195,14 +195,19 @@ public final class APIClient {
         let _: EmptyBody = try await request("DELETE", path: "/v1/cards/\(id)")
     }
 
-    public func registerDevice(deviceId: String, apnsDeviceToken: String?, appVersion: String) async throws {
+    public func registerDevice(
+        deviceId: String,
+        apnsDeviceToken: String?,
+        appVersion: String,
+        platform: String = "ios"
+    ) async throws {
         struct Body: Codable {
             let deviceId: String
             let apnsDeviceToken: String?
             let appVersion: String
             let platform: String
         }
-        let body = Body(deviceId: deviceId, apnsDeviceToken: apnsDeviceToken, appVersion: appVersion, platform: "ios")
+        let body = Body(deviceId: deviceId, apnsDeviceToken: apnsDeviceToken, appVersion: appVersion, platform: platform)
         let _: EmptyBody = try await request("POST", path: "/v1/devices/register", body: body)
     }
 

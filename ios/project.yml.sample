@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.example
   deploymentTarget:
     iOS: "26.0"
+    tvOS: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -107,3 +108,34 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.widgets
         INFOPLIST_KEY_CFBundleDisplayName: 00Widget
+
+  ZeroZeroWidgetTV:
+    type: application
+    platform: tvOS
+    sources:
+      - path: Sources/TV
+      - path: Sources/Shared
+      - path: Resources/TV/Assets.xcassets
+    info:
+      path: Resources/TV/Info.plist
+      properties:
+        CFBundleDisplayName: 00Widget
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        UIUserInterfaceStyle: Dark
+        ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
+        ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
+        ZWDebugTabEnabled: true                                   # set false for production-style app builds
+    entitlements:
+      path: Resources/TV/ZeroZeroWidgetTV.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tv
+        TARGETED_DEVICE_FAMILY: "3"
+        TVOS_DEPLOYMENT_TARGET: "26.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
+        ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: LaunchImage
