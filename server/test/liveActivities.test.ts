@@ -291,7 +291,7 @@ describe("live activities", () => {
         body: JSON.stringify({
           deviceId: "dev-1",
           attributesType: "ZeroZeroWidgetActivityAttributes",
-          pushToken: "startbeef",
+          pushToken: "cafef00ddeadbeef",
         }),
       }),
       env,
@@ -335,7 +335,7 @@ describe("live activities", () => {
         body: JSON.stringify({
           deviceId: "dev-dead",
           attributesType: "ZeroZeroWidgetActivityAttributes",
-          pushToken: "deadtoken",
+          pushToken: "deadbeefdead",
         }),
       }),
       env,

@@ -592,7 +592,7 @@ describe("admin routes (no Apple call required)", () => {
           body: JSON.stringify({
             deviceId: "device-a",
             widgetKind: "ZeroZeroWidgetCardWidget",
-            widgetPushToken: "widget-token-a",
+            widgetPushToken: "deadbeefcafe0a",
           }),
         },
         "tenant-a-key",
@@ -627,7 +627,7 @@ describe("admin routes (no Apple call required)", () => {
             localActivityId: "local-a",
             externalActivityId: "activity-a",
             kind: "job",
-            pushToken: "activity-token-a",
+            pushToken: "deadbeefcafe1a",
           }),
         },
         "tenant-a-key",
@@ -643,7 +643,7 @@ describe("admin routes (no Apple call required)", () => {
           body: JSON.stringify({
             deviceId: "device-a",
             attributesType: "ZeroZeroWidgetActivityAttributes",
-            pushToken: "start-token-a",
+            pushToken: "deadbeefcafe2a",
           }),
         },
         "tenant-a-key",
