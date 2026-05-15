@@ -32,8 +32,10 @@ xcuserdata/
 ios/project.yml
 ios/Resources/App/Info.plist
 ios/Resources/Widgets/Info.plist
+ios/Resources/TV/Info.plist
 ios/Resources/App/ZeroZeroWidget.entitlements
 ios/Resources/Widgets/Widgets.entitlements
+ios/Resources/TV/ZeroZeroWidgetTV.entitlements
 
 # macOS
 .DS_Store
