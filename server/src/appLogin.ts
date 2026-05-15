@@ -2,15 +2,24 @@ import {
   appAppleLoginConfigured,
   validateAppleIdTokenForAudience,
 } from "./appleAuth";
-import { createApiKey } from "./auth";
+import { createApiKey, sha256Hex } from "./auth";
 import { parseJson } from "./cards";
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
 import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
+// Caller-supplied nonce — bounded length, anything else lets the client be
+// the source of truth on encoding (hex, base64url, UUID, etc.).
+const NONCE_MIN_LENGTH = 16;
+const NONCE_MAX_LENGTH = 256;
+
 interface AppleTokenRequest {
   identityToken?: string;
   label?: string;
+  // Raw nonce the client passed (already hashed) to Sign in with Apple. We
+  // re-hash and compare to the id_token's `nonce` claim to block replay of a
+  // leaked identity token from a different login attempt.
+  nonce?: string;
 }
 
 export async function createTokenFromApple(req: Request, env: Env): Promise<Response> {
@@ -35,12 +44,24 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     return json({ error: "label is too large" }, 400);
   }
 
+  const rawNonce = input.nonce?.trim();
+  if (!rawNonce) return json({ error: "nonce is required" }, 400);
+  if (rawNonce.length < NONCE_MIN_LENGTH || rawNonce.length > NONCE_MAX_LENGTH) {
+    return json({ error: "nonce is malformed" }, 400);
+  }
+  // The iOS client hashes `rawNonce` with SHA-256 before handing it to
+  // ASAuthorizationAppleIDRequest, so Apple's id_token contains the hex hash
+  // in its `nonce` claim. We recompute the same hash and let
+  // `validateAppleIdTokenForAudience` do the constant-time comparison.
+  const expectedNonceHash = await sha256Hex(rawNonce);
+
   let claims: Awaited<ReturnType<typeof validateAppleIdTokenForAudience>>;
   try {
     claims = await validateAppleIdTokenForAudience(
       env,
       identityToken,
       env.APPLE_APP_SIGN_IN_CLIENT_ID,
+      expectedNonceHash,
     );
   } catch (err) {
     return json({ error: `token validation failed: ${(err as Error).message}` }, 401);

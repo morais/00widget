@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CryptoKit
 import SwiftUI
 import UIKit
 
@@ -7,6 +8,11 @@ struct OnboardingView: View {
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedToken = false
     @State private var copiedAgentConfig = false
+    // Raw nonce for the in-flight Sign in with Apple request. We hash it
+    // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
+    // logs only the hash, and we send the raw value to the backend so it can
+    // re-derive the same hash and compare against the id_token's nonce claim.
+    @State private var pendingAppleRawNonce: String?
 
     var body: some View {
         NavigationStack {
@@ -126,7 +132,10 @@ struct OnboardingView: View {
             }
         } else {
             SignInWithAppleButton(.signIn) { request in
+                let raw = Self.randomNonceString()
+                pendingAppleRawNonce = raw
                 request.requestedScopes = [.email]
+                request.nonce = Self.sha256Hex(raw)
             } onCompletion: { result in
                 handleAppleSignIn(result)
             }
@@ -147,17 +156,47 @@ struct OnboardingView: View {
             guard
                 let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
                 let tokenData = credential.identityToken,
-                let identityToken = String(data: tokenData, encoding: .utf8)
+                let identityToken = String(data: tokenData, encoding: .utf8),
+                let rawNonce = pendingAppleRawNonce
             else {
                 return
             }
+            pendingAppleRawNonce = nil
             Task {
-                await env.signInWithAppleIdentityToken(identityToken)
+                await env.signInWithAppleIdentityToken(identityToken, rawNonce: rawNonce)
                 scheduleHealthCheck()
             }
         case .failure:
-            break
+            pendingAppleRawNonce = nil
         }
+    }
+
+    /// 32 random URL-safe characters. Used as the raw nonce for Sign in with
+    /// Apple — we hash it before handing it to Apple so the raw value never
+    /// leaves the device-and-our-backend conversation.
+    private static func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        result.reserveCapacity(length)
+        var remaining = length
+        while remaining > 0 {
+            var bytes = [UInt8](repeating: 0, count: 16)
+            let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+            precondition(status == errSecSuccess)
+            for byte in bytes where remaining > 0 {
+                let idx = Int(byte) % charset.count
+                result.append(charset[idx])
+                remaining -= 1
+            }
+        }
+        return result
+    }
+
+    private static func sha256Hex(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private var healthStatusText: String {

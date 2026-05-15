@@ -15,7 +15,7 @@ describe("app Apple login", () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
-        body: JSON.stringify({ identityToken: "x.y.z" }),
+        body: JSON.stringify({ identityToken: "x.y.z", nonce: TEST_RAW_NONCE }),
       }),
       makeEnv(),
       ctx,
@@ -28,6 +28,7 @@ describe("app Apple login", () => {
     const { token, jwk } = await makeAppleIdToken({
       aud: clientId,
       email: "Customer@Example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
     });
     vi.stubGlobal(
       "fetch",
@@ -42,7 +43,11 @@ describe("app Apple login", () => {
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identityToken: token, label: "Alice iPhone" }),
+        body: JSON.stringify({
+          identityToken: token,
+          nonce: TEST_RAW_NONCE,
+          label: "Alice iPhone",
+        }),
       }),
       env,
       ctx,
@@ -72,14 +77,17 @@ describe("app Apple login", () => {
   it("uses the stored Apple account mapping when a later token omits email", async () => {
     const clientId = "com.example.zerozerowidget";
     const keyPair = await makeAppleKeyPair();
+    const nonceHash = await sha256HexTest(TEST_RAW_NONCE);
     const first = await makeAppleIdToken({
       aud: clientId,
       email: "customer@example.com",
       sub: "same-apple-user",
+      nonce: nonceHash,
     }, keyPair);
     const second = await makeAppleIdToken({
       aud: clientId,
       sub: "same-apple-user",
+      nonce: nonceHash,
     }, keyPair);
     vi.stubGlobal(
       "fetch",
@@ -94,7 +102,7 @@ describe("app Apple login", () => {
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identityToken: first.token }),
+        body: JSON.stringify({ identityToken: first.token, nonce: TEST_RAW_NONCE }),
       }),
       env,
       ctx,
@@ -106,7 +114,7 @@ describe("app Apple login", () => {
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identityToken: second.token }),
+        body: JSON.stringify({ identityToken: second.token, nonce: TEST_RAW_NONCE }),
       }),
       env,
       ctx,
@@ -123,6 +131,7 @@ describe("app Apple login", () => {
       aud: clientId,
       email: "test-tenant@example.com",
       sub: "new-apple-user",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
     });
     vi.stubGlobal(
       "fetch",
@@ -137,7 +146,7 @@ describe("app Apple login", () => {
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identityToken: token }),
+        body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
       }),
       env,
       ctx,
@@ -155,6 +164,64 @@ describe("app Apple login", () => {
       aud: clientId,
       email: "customer@example.com",
       emailVerified: false,
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
+      }),
+      makeEnv({
+        APPLE_APP_LOGIN_ENABLED: "true",
+        APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+      }),
+      ctx,
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Apple email is not verified");
+  });
+
+
+  it("rejects tokens for the wrong app audience", async () => {
+    const { token, jwk } = await makeAppleIdToken({
+      aud: "com.example.other",
+      email: "customer@example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
+      }),
+      makeEnv({
+        APPLE_APP_LOGIN_ENABLED: "true",
+        APPLE_APP_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget",
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain("bad aud");
+  });
+
+  it("rejects requests with no nonce", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: clientId,
+      email: "customer@example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
     });
     vi.stubGlobal(
       "fetch",
@@ -173,16 +240,16 @@ describe("app Apple login", () => {
       }),
       ctx,
     );
-
-    expect(res.status).toBe(403);
-    expect(await res.text()).toContain("Apple email is not verified");
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("nonce is required");
   });
 
-
-  it("rejects tokens for the wrong app audience", async () => {
+  it("rejects tokens whose nonce claim doesn't match the supplied nonce", async () => {
+    const clientId = "com.example.zerozerowidget";
     const { token, jwk } = await makeAppleIdToken({
-      aud: "com.example.other",
+      aud: clientId,
       email: "customer@example.com",
+      nonce: await sha256HexTest("a-different-raw-nonce-than-the-client"),
     });
     vi.stubGlobal(
       "fetch",
@@ -193,20 +260,28 @@ describe("app Apple login", () => {
       new Request("https://x/v1/auth/apple/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identityToken: token }),
+        body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
       }),
       makeEnv({
         APPLE_APP_LOGIN_ENABLED: "true",
-        APPLE_APP_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget",
+        APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
       }),
       ctx,
     );
     expect(res.status).toBe(401);
-    expect(await res.text()).toContain("bad aud");
+    expect(await res.text()).toContain("nonce mismatch");
   });
 });
 
-async function makeAppleIdToken(input: { aud: string; email?: string; sub?: string; emailVerified?: boolean | string }, keyPair?: CryptoKeyPair): Promise<{
+// 32 chars so it clears the server-side min-length floor.
+const TEST_RAW_NONCE = "test-raw-nonce-abcdef0123456789x";
+
+async function sha256HexTest(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function makeAppleIdToken(input: { aud: string; email?: string; sub?: string; emailVerified?: boolean | string; nonce?: string }, keyPair?: CryptoKeyPair): Promise<{
   token: string;
   jwk: JsonWebKey;
 }> {
@@ -230,6 +305,7 @@ async function makeAppleIdToken(input: { aud: string; email?: string; sub?: stri
     iat: now,
     sub: input.sub ?? "apple-user-id",
   };
+  if (input.nonce !== undefined) claims.nonce = input.nonce;
   if (input.email) {
     claims.email = input.email;
     claims.email_verified = input.emailVerified ?? true;

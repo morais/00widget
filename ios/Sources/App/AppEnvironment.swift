@@ -69,7 +69,7 @@ public final class AppEnvironment: ObservableObject {
         scheduleCredentialRegistration()
     }
 
-    public func signInWithAppleIdentityToken(_ identityToken: String) async {
+    public func signInWithAppleIdentityToken(_ identityToken: String, rawNonce: String) async {
         guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
             appleLoginError = "Server URL must use HTTPS"
             return
@@ -81,6 +81,7 @@ public final class AppEnvironment: ObservableObject {
             let response = try await APIClient.createTokenFromApple(
                 baseURL: url,
                 identityToken: identityToken,
+                rawNonce: rawNonce,
                 label: DeviceRegistration.appVersion()
             )
             apiKey = response.token

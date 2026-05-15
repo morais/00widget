@@ -149,7 +149,11 @@ export async function validateAppleIdTokenForAudience(
   if (claims.iss !== "https://appleid.apple.com") throw new Error(`bad iss ${claims.iss}`);
   if (claims.aud !== audience) throw new Error(`bad aud ${claims.aud}`);
   if (claims.exp < now) throw new Error("id_token expired");
-  if (expectedNonce && claims.nonce !== expectedNonce) throw new Error("nonce mismatch");
+  if (expectedNonce) {
+    if (!claims.nonce || !constantTimeEqual(claims.nonce, expectedNonce)) {
+      throw new Error("nonce mismatch");
+    }
+  }
 
   const jwks = await fetchAppleJwks();
   const jwk = jwks.find((k) => k.kid === header.kid);
