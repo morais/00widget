@@ -41,7 +41,7 @@ final class TVEnvironment: ObservableObject {
         startAutoRefresh()
     }
 
-    func signInWithAppleIdentityToken(_ identityToken: String) async {
+    func signInWithAppleIdentityToken(_ identityToken: String, rawNonce: String) async {
         guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
             appleLoginError = "Server URL must use HTTPS"
             return
@@ -53,6 +53,7 @@ final class TVEnvironment: ObservableObject {
             let response = try await APIClient.createTokenFromApple(
                 baseURL: url,
                 identityToken: identityToken,
+                rawNonce: rawNonce,
                 label: appVersion()
             )
             apiKey = response.token
