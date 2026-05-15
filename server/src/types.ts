@@ -54,7 +54,15 @@ const OptionalValueString = z.string().max(FieldLimits.value).optional();
 const OptionalUnitString = z.string().max(FieldLimits.unit).optional();
 const OptionalIconString = z.string().max(FieldLimits.icon).optional();
 const OptionalDeepLink = z.string().url().max(FieldLimits.deepLink).optional();
-const PushTokenString = z.string().min(1).max(FieldLimits.pushToken);
+// APNs device tokens and ActivityKit push tokens are hex strings (iOS hands
+// them out via Data.hexEncodedString()). Requiring hex here keeps the value
+// safe to interpolate into the APNs URL `/3/device/<token>` and rejects
+// obviously-malformed input at the boundary.
+const PushTokenString = z
+  .string()
+  .min(1)
+  .max(FieldLimits.pushToken)
+  .regex(/^[A-Fa-f0-9]+$/, "push token must be hex");
 
 export const DashboardStatusSchema = z
   .enum([
@@ -239,6 +247,14 @@ export const WebhookIntegrationSchema = z.object({
   rotateSecret: z.boolean().default(false),
 });
 
+// SSRF guard for tenant-supplied webhook URLs. The check is **hostname-based**:
+// it rejects literal private/loopback/link-local IPs and the `localhost`/`.local`
+// names, but does not resolve DNS, so a public hostname that resolves to an
+// internal IP (or a DNS-rebind attack) will pass this filter. We rely on the
+// Cloudflare Workers runtime to gate the actual fetch — Workers have no
+// reachable private network and no cloud metadata endpoint — and on tenant
+// authentication to limit who can configure a webhook in the first place.
+// Re-evaluate this trade-off if this code ever runs outside Workers.
 function isBlockedWebhookHostname(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (
