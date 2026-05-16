@@ -3,6 +3,7 @@
     {
       "filename" : "App Icon - App Store.imagestack",
       "idiom" : "tv-marketing",
+      "role" : "primary-app-icon",
       "size" : "1280x768"
     },
     {
