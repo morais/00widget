@@ -149,6 +149,15 @@ For tvOS, verify both the archive and app bundle:
 /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive/Products/Applications/ZeroZeroWidgetTV.app/Info.plist
 ```
 
+Also verify capabilities in the **final distribution-signed app**, not only in its provisioning profile. A profile can permit Sign in with Apple while the app's code signature omits the entitlement, in which case the system authorization flow fails at runtime. Export an IPA locally, unzip it under `/tmp`, and check:
+
+```
+/usr/bin/codesign -d --entitlements /tmp/00widget-tv-entitlements.txt /tmp/00widget-ipa/Payload/ZeroZeroWidgetTV.app
+rg -n 'com.apple.developer.applesignin|Default' /tmp/00widget-tv-entitlements.txt
+```
+
+The signed entitlement must contain `com.apple.developer.applesignin = [Default]`. If an unsigned archive is unavoidable, ad-hoc sign its app with `Resources/TV/ZeroZeroWidgetTV.entitlements` before export so Xcode carries the requested entitlement into the App Store signature. Do not upload an unsigned-archive export until the final signed app passes this check.
+
 Use this export options plist shape for TestFlight uploads (write it under `/tmp`, not the repo):
 
 ```

@@ -33,6 +33,7 @@ struct TVSignInView: View {
                         .font(.title3)
                 } else {
                     SignInWithAppleButton(.signIn) { request in
+                        env.clearAppleLoginError()
                         let raw = Self.randomNonceString()
                         pendingAppleRawNonce = raw
                         request.requestedScopes = [.email]
@@ -65,13 +66,25 @@ struct TVSignInView: View {
                 let identityToken = String(data: tokenData, encoding: .utf8),
                 let rawNonce = pendingAppleRawNonce
             else {
+                pendingAppleRawNonce = nil
+                env.reportAppleLoginError("Apple completed sign-in without returning a usable identity token. Please try again.")
                 return
             }
             pendingAppleRawNonce = nil
             Task { await env.signInWithAppleIdentityToken(identityToken, rawNonce: rawNonce) }
-        case .failure:
+        case .failure(let error):
             pendingAppleRawNonce = nil
+            env.reportAppleLoginError(Self.appleAuthorizationErrorMessage(error))
         }
+    }
+
+    private static func appleAuthorizationErrorMessage(_ error: Error) -> String {
+        if let authorizationError = error as? ASAuthorizationError,
+           authorizationError.code == .canceled {
+            return "Sign in was canceled."
+        }
+        let nsError = error as NSError
+        return "Sign in with Apple failed (\(nsError.code)): \(nsError.localizedDescription)"
     }
 
     private static func randomNonceString(length: Int = 32) -> String {
