@@ -1,11 +1,9 @@
 import SwiftUI
 import AuthenticationServices
-import CryptoKit
-import Security
 
 struct TVSignInView: View {
     @EnvironmentObject var env: TVEnvironment
-    @State private var pendingAppleRawNonce: String?
+    @StateObject private var appleSignIn = TVAppleSignInController()
 
     var body: some View {
         ZStack {
@@ -28,20 +26,14 @@ struct TVSignInView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if env.appleLoginInProgress {
-                    ProgressView("Signing in...")
+                if env.appleLoginInProgress || appleSignIn.isAuthorizing {
+                    ProgressView(appleSignIn.isAuthorizing ? "Contacting Apple..." : "Signing in...")
                         .font(.title3)
                 } else {
-                    SignInWithAppleButton(.signIn) { request in
+                    TVSignInWithAppleControl(isEnabled: true) {
                         env.clearAppleLoginError()
-                        let raw = Self.randomNonceString()
-                        pendingAppleRawNonce = raw
-                        request.requestedScopes = [.email]
-                        request.nonce = Self.sha256Hex(raw)
-                    } onCompletion: { result in
-                        handleAppleSignIn(result)
+                        appleSignIn.start(completion: handleAppleSignIn)
                     }
-                    .signInWithAppleButtonStyle(.white)
                     .frame(width: 480, height: 88)
                 }
 
@@ -52,28 +44,27 @@ struct TVSignInView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 600)
                 }
+
+                Text("Version \(appVersionString)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             .padding(64)
         }
     }
 
-    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+    private func handleAppleSignIn(
+        _ result: Result<(identityToken: String, rawNonce: String), Error>
+    ) {
         switch result {
-        case .success(let authorization):
-            guard
-                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                let tokenData = credential.identityToken,
-                let identityToken = String(data: tokenData, encoding: .utf8),
-                let rawNonce = pendingAppleRawNonce
-            else {
-                pendingAppleRawNonce = nil
-                env.reportAppleLoginError("Apple completed sign-in without returning a usable identity token. Please try again.")
-                return
+        case .success(let credential):
+            Task {
+                await env.signInWithAppleIdentityToken(
+                    credential.identityToken,
+                    rawNonce: credential.rawNonce
+                )
             }
-            pendingAppleRawNonce = nil
-            Task { await env.signInWithAppleIdentityToken(identityToken, rawNonce: rawNonce) }
         case .failure(let error):
-            pendingAppleRawNonce = nil
             env.reportAppleLoginError(Self.appleAuthorizationErrorMessage(error))
         }
     }
@@ -87,28 +78,10 @@ struct TVSignInView: View {
         return "Sign in with Apple failed (\(nsError.code)): \(nsError.localizedDescription)"
     }
 
-    private static func randomNonceString(length: Int = 32) -> String {
-        precondition(length > 0)
-        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
-        var result = ""
-        result.reserveCapacity(length)
-        var remaining = length
-        while remaining > 0 {
-            var bytes = [UInt8](repeating: 0, count: 16)
-            let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-            precondition(status == errSecSuccess)
-            for byte in bytes where remaining > 0 {
-                let idx = Int(byte) % charset.count
-                result.append(charset[idx])
-                remaining -= 1
-            }
-        }
-        return result
-    }
-
-    private static func sha256Hex(_ input: String) -> String {
-        SHA256.hash(data: Data(input.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+    private var appVersionString: String {
+        let info = Bundle.main.infoDictionary
+        let marketing = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(marketing) (\(build))"
     }
 }
