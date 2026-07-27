@@ -67,6 +67,14 @@ final class TVEnvironment: ObservableObject {
         }
     }
 
+    func clearAppleLoginError() {
+        appleLoginError = nil
+    }
+
+    func reportAppleLoginError(_ message: String) {
+        appleLoginError = message
+    }
+
     func signOut() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
