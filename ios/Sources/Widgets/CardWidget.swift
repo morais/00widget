@@ -35,7 +35,7 @@ struct CardWidgetView: View {
     @ViewBuilder
     private var content: some View {
         if let card = entry.card {
-            CardView(card: card, context: contextFor(family: family))
+            CardView(card: card, context: contextFor(family: family), density: entry.density)
         } else {
             CardFallbackView(reason: entry.reason ?? .noCachedData)
         }

@@ -14,9 +14,16 @@ public enum CardRenderContext {
     case accessoryInline
 }
 
+public enum CardRenderDensity: String, Hashable, Sendable {
+    case automatic
+    case compact
+    case detailed
+}
+
 public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
+    public let density: CardRenderDensity
     private let appActionHandler: ((ActionDefinition) -> Void)?
     #if canImport(WidgetKit)
     @Environment(\.widgetRenderingMode) private var widgetRenderingMode
@@ -25,10 +32,12 @@ public struct CardView: View {
     public init(
         card: DashboardCard,
         context: CardRenderContext = .app,
+        density: CardRenderDensity = .automatic,
         appActionHandler: ((ActionDefinition) -> Void)? = nil
     ) {
         self.card = card
         self.context = context
+        self.density = density
         self.appActionHandler = appActionHandler
     }
 
@@ -112,7 +121,7 @@ public struct CardView: View {
                 }
             }
             if card.template != .action {
-                actionButtons(max: 1)
+                actionButtons(max: density == .compact ? 0 : 1)
             }
         }
         .padding(8)
@@ -123,10 +132,10 @@ public struct CardView: View {
             header
             switch card.template {
             case .list:
-                listRows(max: 3)
+                listRows(max: density == .detailed ? 4 : 3)
             case .action:
                 actionSummary
-                actionButtons(max: 2)
+                actionButtons(max: density == .compact ? 1 : 2)
             case .progress:
                 if let p = card.progressValue {
                     ProgressRow(progress: p, label: card.subtitle)
@@ -136,7 +145,7 @@ public struct CardView: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         bigValue
-                        if let subtitle = card.subtitle {
+                        if density != .compact, let subtitle = card.subtitle {
                             Text(subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -146,12 +155,14 @@ public struct CardView: View {
                 }
             }
             if card.template != .action {
-                actionButtons(max: 2)
+                actionButtons(max: density == .compact ? 1 : 2)
             }
             Spacer(minLength: 0)
-            Text(card.updatedAt, style: .relative)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            if density != .compact {
+                Text(card.updatedAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(10)
     }
@@ -161,10 +172,10 @@ public struct CardView: View {
             header
             switch card.template {
             case .list:
-                listRows(max: 6)
+                listRows(max: density == .compact ? 4 : 6)
             case .action:
                 actionSummary
-                actionButtons(max: 4)
+                actionButtons(max: density == .compact ? 2 : 4)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -177,12 +188,14 @@ public struct CardView: View {
                 }
             }
             if card.template != .action {
-                actionButtons(max: 4)
+                actionButtons(max: density == .compact ? 2 : 4)
             }
             Spacer(minLength: 0)
-            Text("Updated \(card.updatedAt, style: .relative) ago")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            if density != .compact {
+                Text("Updated \(card.updatedAt, style: .relative) ago")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(12)
     }
@@ -318,7 +331,7 @@ public struct CardView: View {
     @ViewBuilder
     private func actionButtons(max: Int) -> some View {
         #if canImport(WidgetKit)
-        if widgetRenderingMode != .fullColor {
+        if max <= 0 || widgetRenderingMode != .fullColor {
             EmptyView()
         } else if let actions = card.actions, !actions.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
@@ -373,6 +386,7 @@ public struct CardFallbackView: View {
         case noCardSelected
         case noCachedData
         case stale(Date)
+        case filtered(String)
         case error(String)
     }
 
@@ -395,6 +409,7 @@ public struct CardFallbackView: View {
         case .noCardSelected: return "square.dashed"
         case .noCachedData: return "icloud.slash"
         case .stale: return "clock.badge.exclamationmark"
+        case .filtered: return "line.3.horizontal.decrease.circle"
         case .error: return "exclamationmark.triangle"
         }
     }
@@ -404,6 +419,7 @@ public struct CardFallbackView: View {
         case .noCardSelected: return "Pick a card"
         case .noCachedData: return "No data"
         case .stale: return "Stale"
+        case .filtered: return "No matching cards"
         case .error: return "Error"
         }
     }
@@ -413,6 +429,7 @@ public struct CardFallbackView: View {
         case .noCardSelected: return "Long-press to configure."
         case .noCachedData: return "Open 00Widget and refresh."
         case .stale(let d): return "Updated \(d.formatted(.relative(presentation: .named)))"
+        case .filtered(let filter): return "No cached cards match \(filter)."
         case .error(let m): return m
         }
     }

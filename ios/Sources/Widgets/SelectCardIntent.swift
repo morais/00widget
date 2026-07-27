@@ -53,9 +53,20 @@ public struct SelectCardIntent: WidgetConfigurationIntent {
     @Parameter(title: "Card")
     public var card: CardEntity?
 
-    public init() {}
+    @Parameter(title: "Display density", default: .automatic)
+    public var density: WidgetCardDensity
+
+    @Parameter(title: "Show status", default: .all)
+    public var statusFilter: WidgetStatusFilter
+
+    public init() {
+        self.density = .automatic
+        self.statusFilter = .all
+    }
 
     public init(card: CardEntity?) {
         self.card = card
+        self.density = .automatic
+        self.statusFilter = .all
     }
 }
