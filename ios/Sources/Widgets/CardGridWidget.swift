@@ -43,6 +43,12 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     @Parameter(title: "On compact tap", default: .app)
     public var compactTapTarget: CardGridTapTarget
 
+    @Parameter(title: "Display density", default: .automatic)
+    public var density: WidgetCardDensity
+
+    @Parameter(title: "Show statuses", default: .all)
+    public var statusFilter: WidgetStatusFilter
+
     public init() {
         let cards = CardCache.load().cards
         func slot(_ index: Int) -> CardEntity? {
@@ -54,6 +60,8 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
         self.card3 = slot(2)
         self.card4 = slot(3)
         self.compactTapTarget = .app
+        self.density = .automatic
+        self.statusFilter = .all
     }
 }
 
@@ -61,13 +69,27 @@ public struct CardGridEntry: TimelineEntry {
     public let date: Date
     public let slots: [DashboardCard?]
     public let allUnconfigured: Bool
+    public let allFiltered: Bool
     public let compactTapTarget: CardGridTapTarget
+    public let density: WidgetCardDensity
+    public let statusFilter: WidgetStatusFilter
 
-    public init(date: Date, slots: [DashboardCard?], allUnconfigured: Bool, compactTapTarget: CardGridTapTarget) {
+    public init(
+        date: Date,
+        slots: [DashboardCard?],
+        allUnconfigured: Bool,
+        allFiltered: Bool,
+        compactTapTarget: CardGridTapTarget,
+        density: WidgetCardDensity,
+        statusFilter: WidgetStatusFilter
+    ) {
         self.date = date
         self.slots = slots
         self.allUnconfigured = allUnconfigured
+        self.allFiltered = allFiltered
         self.compactTapTarget = compactTapTarget
+        self.density = density
+        self.statusFilter = statusFilter
     }
 }
 
@@ -82,7 +104,15 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public func placeholder(in context: Context) -> CardGridEntry {
         let cards = SampleDataFactory.makeCards()
         let slots: [DashboardCard?] = (0..<4).map { i in i < cards.count ? cards[i] : nil }
-        return CardGridEntry(date: Date(), slots: slots, allUnconfigured: false, compactTapTarget: .app)
+        return CardGridEntry(
+            date: Date(),
+            slots: slots,
+            allUnconfigured: false,
+            allFiltered: false,
+            compactTapTarget: .app,
+            density: .automatic,
+            statusFilter: .all
+        )
     }
 
     public func snapshot(for configuration: SelectFourCardsIntent, in context: Context) async -> CardGridEntry {
@@ -121,9 +151,19 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         let cached = CardCache.load().cards
         let slots: [DashboardCard?] = ids.map { id in
             guard let id else { return nil }
-            return cached.first(where: { $0.id == id })
+            guard let card = cached.first(where: { $0.id == id }) else { return nil }
+            return configuration.statusFilter.includes(card.status) ? card : nil
         }
-        return CardGridEntry(date: Date(), slots: slots, allUnconfigured: allUnconfigured, compactTapTarget: configuration.compactTapTarget)
+        let allFiltered = !allUnconfigured && slots.allSatisfy { $0 == nil }
+        return CardGridEntry(
+            date: Date(),
+            slots: slots,
+            allUnconfigured: allUnconfigured,
+            allFiltered: allFiltered,
+            compactTapTarget: configuration.compactTapTarget,
+            density: configuration.density,
+            statusFilter: configuration.statusFilter
+        )
     }
 }
 
@@ -158,6 +198,8 @@ struct CardGridWidgetView: View {
     private var content: some View {
         if entry.allUnconfigured {
             CardFallbackView(reason: .noCardSelected)
+        } else if entry.allFiltered {
+            CardFallbackView(reason: .filtered(entry.statusFilter.fallbackLabel))
         } else {
             grid
         }
@@ -176,6 +218,15 @@ struct CardGridWidgetView: View {
     }
 
     private var cellStyle: CardGridCell.Style {
+        switch entry.density {
+        case .compact:
+            return .compact
+        case .detailed:
+            return family == .systemSmall ? .standard : .roomy
+        case .automatic:
+            break
+        }
+
         switch family {
         case .systemSmall: return .compact
         case .systemMedium: return .standard
