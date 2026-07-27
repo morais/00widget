@@ -101,12 +101,12 @@ When working on a real device with a configured Team ID, none of this applies â€
 
 The App Store Connect/TestFlight path is wired through the gitignored local `ios/project.yml` (`DEVELOPMENT_TEAM: <YOUR_TEAM_ID>`, bundle ids such as `com.example.zerozerowidget` and `com.example.zerozerowidget.widgets`). Use Xcode's archive/export flow rather than ad hoc IPA tooling.
 
-Before archiving:
+Before archiving either platform:
 
 - Bump `CURRENT_PROJECT_VERSION` in the **gitignored** `ios/project.yml` to a value higher than the last uploaded TestFlight build. A timestamp like `YYYYMMDDHHMM` works well for repeated agent-driven uploads.
 - Keep `MARKETING_VERSION` unchanged unless the user asks for a version bump.
 - Run `cd ios && xcodegen` after changing `project.yml`.
-- The generated `ios/Resources/App/Info.plist` and `ios/Resources/Widgets/Info.plist` must contain `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` and `CFBundleShortVersionString: $(MARKETING_VERSION)`. If they show a literal `1`, fix `ios/project.yml.sample` and copy the change into the real `ios/project.yml` before archiving; App Store Connect rejects duplicate build `1`.
+- The generated Info.plists for the target being archived must contain `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` and `CFBundleShortVersionString: $(MARKETING_VERSION)`. If they show a literal `1`, fix `ios/project.yml.sample` and copy the change into the real `ios/project.yml` before archiving; App Store Connect rejects duplicate build `1`.
 
 Recommended commands:
 
@@ -121,12 +121,32 @@ xcodebuild archive \
   -archivePath /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive
 ```
 
+For Apple TV, archive the tvOS scheme separately:
+
+```
+xcodebuild archive \
+  -project ZeroZeroWidget.xcodeproj \
+  -scheme ZeroZeroWidgetTV \
+  -configuration Release \
+  -destination 'generic/platform=tvOS' \
+  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive
+```
+
+The tvOS target intentionally uses the app's bundle identifier so it can be attached to the same multi-platform App Store Connect app record. Keep the real identifier only in the gitignored `ios/project.yml`; keep placeholders in `ios/project.yml.sample`.
+
 Before upload, verify the archive really has the bumped build number in all three places:
 
 ```
 /usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Info.plist
 /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/Info.plist
 /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/PlugIns/ZeroZeroWidgetWidgets.appex/Info.plist
+```
+
+For tvOS, verify both the archive and app bundle:
+
+```
+/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive/Products/Applications/ZeroZeroWidgetTV.app/Info.plist
 ```
 
 Use this export options plist shape for TestFlight uploads (write it under `/tmp`, not the repo):

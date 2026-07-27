@@ -1,11 +1,11 @@
-# 00Widget — iOS
+# 00Widget — Apple platforms
 
-SwiftUI app, WidgetKit extension, and Live Activity for iOS 26+.
+SwiftUI apps for iOS and tvOS 26+, plus the iOS WidgetKit extension and Live Activity.
 
 ## Prerequisites
 
 - macOS with Xcode 26 or later
-- An iOS 26 simulator or a real device running iOS 26+
+- An iOS/tvOS 26 simulator or a compatible real device
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`
 - An Apple Developer account (required for App Groups, APNs, and running on device)
 
@@ -21,7 +21,7 @@ cp project.yml.sample project.yml
 Then edit `project.yml`:
 
 1. Change **`DEVELOPMENT_TEAM`** under `settings.base` to your Apple Developer Team ID.
-2. Change the app and extension bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerozerowidget*` to a reverse-DNS prefix your team owns.
+2. Change the app, extension, and TV bundle ids (**`PRODUCT_BUNDLE_IDENTIFIER`**) from `com.example.zerozerowidget*` to identifiers your team owns. The iOS and tvOS app targets use the same bundle id for the multi-platform App Store record.
 3. Replace the **App Group** `group.com.example.zerozerowidget` with one your team owns — it appears **four times** in `project.yml`:
    - `targets.ZeroZeroWidgetApp.entitlements.properties.com.apple.security.application-groups`
    - `targets.ZeroZeroWidgetApp.info.properties.ZWAppGroupIdentifier`
@@ -39,7 +39,7 @@ xcodegen
 open ZeroZeroWidget.xcodeproj
 ```
 
-Re-run `xcodegen` any time you add/move files or change `project.yml`. The `.xcodeproj`, both `Info.plist` files, and both `.entitlements` files are gitignored — they're all regenerated from `project.yml`.
+Re-run `xcodegen` any time you add/move files or change `project.yml`. The `.xcodeproj`, generated `Info.plist` files, and generated `.entitlements` files are gitignored — they're all regenerated from `project.yml`.
 
 In Xcode, open *Signing & Capabilities* on both the app and widget targets, confirm **App Groups** points at your App Group, and **Push Notifications** is enabled on the app target.
 
@@ -55,8 +55,9 @@ The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appi
 
 - **ZeroZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.
 - **ZeroZeroWidgetWidgets** — widget extension containing the single-card widget, the grid widget, and the Live Activity (`ZeroZeroWidgetLiveActivityWidget`).
+- **ZeroZeroWidgetTV** — Apple TV dashboard with Sign in with Apple and automatic card refresh.
 
-The shared Swift sources (`Sources/Shared/`) are compiled into both targets as source files rather than a framework — keeps the extension small and avoids dynamic-linking overhead.
+The shared Swift sources (`Sources/Shared/`) are compiled into each target as source files rather than a framework — this keeps the extension small and avoids dynamic-linking overhead.
 
 ## Running
 
@@ -65,6 +66,10 @@ Pick an iOS 26 device/simulator and run the **ZeroZeroWidgetApp** scheme. On fir
 1. Go to the **Settings** tab and enter a server base URL and API key. You can also just use the **Generate sample cards** button on the Dashboard to try widgets without a backend.
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.
 3. In the Activities tab, tap **Start sample activity** to see the Live Activity on the Lock Screen / Dynamic Island.
+
+For Apple TV, pick a tvOS 26 device/simulator and run the **ZeroZeroWidgetTV** scheme. Sign in with Apple, then the app fetches the tenant's cards and refreshes every 30 seconds.
+
+For TestFlight, update `CURRENT_PROJECT_VERSION` only in the gitignored local `project.yml`, regenerate with `xcodegen`, and archive `ZeroZeroWidgetApp` and `ZeroZeroWidgetTV` separately. The exact archive, version-verification, and upload commands are documented in `AGENTS.md`.
 
 ### Building for the simulator without an Apple Developer team
 
