@@ -170,8 +170,8 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/v1/devices/register`                       | Store the app APNs device token.       |
 | POST   | `/v1/widgets/register-push-token`            | Store a WidgetKit push token.          |
 | POST   | `/v1/live-activities/register`               | Store an ActivityKit push token.       |
-| POST   | `/v1/live-activities/start`                  | Queue a pending Live Activity.         |
-| GET    | `/v1/live-activities/pending`                | List pending activities for the app.   |
+| POST   | `/v1/live-activities/start`                  | Start a Live Activity through APNs.    |
+| GET    | `/v1/live-activities/pending`                | Compatibility fallback for older apps. |
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
 | GET    | `/v1/integrations/webhook`                   | Read the configured action webhook URL. |
@@ -222,8 +222,9 @@ Covers auth, card CRUD, webhook action delivery, Live Activity registration, and
 
 The Worker constructs payloads that match the documented ActivityKit / WidgetKit formats:
 
+- **Live Activity start** — `event: "start"`, complete Codable `content-state`, `attributes-type`, `attributes`, required `alert`, and `input-push-token: 1` so iOS returns the per-activity token used for subsequent pushes.
 - **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack.
-- **Live Activity end** — same headers, `event: "end"`, optional `dismissal-date`.
+- **Live Activity end** — same headers, `event: "end"`, complete final `content-state`, optional `dismissal-date`.
 - **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`.
 
 These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

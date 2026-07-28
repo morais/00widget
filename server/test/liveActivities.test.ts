@@ -320,6 +320,200 @@ describe("live activities", () => {
     expect(body.apnsResults).toHaveLength(1);
   });
 
+  it("emits decodable complete content state for start, patch update, and end", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+    const captured: Array<{ aps: Record<string, any> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input, init) => {
+      captured.push(JSON.parse(String(init?.body)));
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register-start-token", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: "dev-wire",
+            attributesType: "ZeroZeroWidgetActivityAttributes",
+            pushToken: "cafef00dcafef00d",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/start", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "washer-wire",
+            kind: "appliance",
+            title: "Washer",
+            state: "running",
+            subtitle: "Washing",
+            endsAt: "2026-08-01T10:30:00Z",
+            alert: { title: "Washer started", body: "Washing" },
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: "dev-wire",
+            localActivityId: "local-wire",
+            externalActivityId: "washer-wire",
+            kind: "appliance",
+            pushToken: "deadbeefcafefeed",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/update", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "washer-wire",
+            subtitle: "Rinsing",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "washer-wire",
+            finalState: "finished",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(captured).toHaveLength(3);
+    const startAps = captured[0].aps;
+    expect(startAps.event).toBe("start");
+    expect(startAps["input-push-token"]).toBe(1);
+    expect(startAps.alert).toEqual({ title: "Washer started", body: "Washing" });
+    expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing" });
+    expect(typeof startAps["content-state"].updatedAt).toBe("number");
+    expect(typeof startAps["content-state"].endsAt).toBe("number");
+
+    const updateState = captured[1].aps["content-state"];
+    expect(captured[1].aps.event).toBe("update");
+    expect(updateState).toMatchObject({ state: "running", subtitle: "Rinsing" });
+    expect(typeof updateState.updatedAt).toBe("number");
+    expect(typeof updateState.endsAt).toBe("number");
+
+    const endState = captured[2].aps["content-state"];
+    expect(captured[2].aps.event).toBe("end");
+    expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing" });
+    expect(typeof endState.updatedAt).toBe("number");
+    expect(typeof endState.endsAt).toBe("number");
+  });
+
+  it("fans updates and end pushes out to every registered device", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-multi",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    for (const [deviceId, localActivityId, pushToken] of [
+      ["device-a", "local-a", "aaaabbbbccccdddd"],
+      ["device-b", "local-b", "1111222233334444"],
+    ]) {
+      const response = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId,
+            localActivityId,
+            externalActivityId: "washer-multi",
+            kind: "appliance",
+            pushToken,
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const pushedTokens: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+      pushedTokens.push(new URL(url).pathname.split("/").pop() ?? "");
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/update", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-multi", state: "rinse" }),
+        }),
+        env,
+        executionCtx,
+      );
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-multi", finalState: "finished" }),
+        }),
+        env,
+        executionCtx,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(pushedTokens).toEqual([
+      "aaaabbbbccccdddd",
+      "1111222233334444",
+      "aaaabbbbccccdddd",
+      "1111222233334444",
+    ]);
+  });
+
   it("prunes start tokens that APNs rejects with BadDeviceToken", async () => {
     __resetApnsJwtCache();
     const env = makeEnv({

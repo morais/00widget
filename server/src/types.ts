@@ -203,6 +203,12 @@ export const StartLiveActivitySchema = z.object({
   // larger wins. ActivityKit clamps/normalizes; we just pass through.
   relevanceScore: z.number().min(0).optional(),
   deepLink: OptionalDeepLink,
+  alert: z
+    .object({
+      title: z.string().min(1).max(FieldLimits.alertTitle),
+      body: z.string().max(FieldLimits.alertBody).optional(),
+    })
+    .optional(),
 });
 
 export const UpdateLiveActivitySchema = z.object({

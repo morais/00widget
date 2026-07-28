@@ -25,7 +25,6 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var lastSyncAt: Date?
     @Published public private(set) var lastSyncError: String?
     @Published public private(set) var cards: [DashboardCard] = []
-    @Published public private(set) var pendingActivities: [LiveActivitySession] = []
     @Published public private(set) var sharedCards: [DashboardCard] = []
     #if ZW_SHARING_ENABLED
     @Published public private(set) var incomingShares: [ShareRecord] = []
@@ -64,8 +63,10 @@ public final class AppEnvironment: ObservableObject {
     public func saveApiKey() {
         let previous = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
-        guard apiKey != previous else { return }
-        clearTenantScopedState()
+        if apiKey != previous {
+            clearTenantScopedState()
+        }
+        liveActivityController.credentialsDidChange()
         scheduleCredentialRegistration()
     }
 
@@ -208,6 +209,7 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func startupSync() async {
+        liveActivityController.credentialsDidChange()
         await requestNotificationAuthorization()
         if notificationsAuthorized, apiClient() != nil {
             DeviceRegistration.registerForRemoteNotifications()
@@ -216,7 +218,6 @@ public final class AppEnvironment: ObservableObject {
         await registerDevice()
         await registerPendingWidgetTokens()
         await fetchCards()
-        await startPendingActivities()
     }
 
     public func generateSampleCards() {
@@ -234,7 +235,6 @@ public final class AppEnvironment: ObservableObject {
         CardCache.clear()
         cards = []
         sharedCards = []
-        pendingActivities = []
         #if ZW_SHARING_ENABLED
         incomingShares = []
         outgoingShares = []
@@ -258,31 +258,7 @@ public final class AppEnvironment: ObservableObject {
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
             await self.fetchCards()
-            await self.startPendingActivities()
         }
-    }
-
-    public func refreshPendingActivities() async {
-        guard let client = apiClient() else { return }
-        do {
-            pendingActivities = try await client.pendingActivities()
-        } catch {
-            pendingActivities = []
-        }
-    }
-
-    public func startPendingActivities() async {
-        await refreshPendingActivities()
-        let activities = pendingActivities
-        guard !activities.isEmpty else { return }
-        for activity in activities where !liveActivityController.activeIds.contains(activity.externalActivityId) {
-            do {
-                try await liveActivityController.start(activity)
-            } catch {
-                lastSyncError = "live activity start: \(error.localizedDescription)"
-            }
-        }
-        await refreshPendingActivities()
     }
 
     public func setAPNsDeviceToken(_ token: Data) {
