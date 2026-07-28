@@ -168,7 +168,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | GET    | `/v1/cards/:id`                              | Get one card.                          |
 | DELETE | `/v1/cards/:id`                              | Delete one card.                       |
 | POST   | `/v1/devices/register`                       | Store the app APNs device token.       |
-| POST   | `/v1/widgets/register-push-token`            | Store a WidgetKit push token.          |
+| POST   | `/v1/widgets/register-push-token`            | Reconcile WidgetKit push subscriptions. |
 | POST   | `/v1/live-activities/register`               | Store an ActivityKit push token.       |
 | POST   | `/v1/live-activities/start`                  | Start a Live Activity through APNs.    |
 | GET    | `/v1/live-activities/pending`                | Compatibility fallback for older apps. |
@@ -190,6 +190,24 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 
 All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
 
+The iOS app treats WidgetKit's callback as a canonical subscription snapshot:
+
+```json
+{
+  "deviceId": "stable-installation-id",
+  "widgetPushToken": "abcdef012345...",
+  "subscriptions": [
+    {
+      "widgetKind": "ZeroZeroWidgetCardWidget",
+      "cardIds": ["solar-home"],
+      "allCards": false
+    }
+  ]
+}
+```
+
+Sending `subscriptions: []` without a token removes that device's WidgetKit subscriptions. The original single-`widgetKind` request remains accepted for compatibility with older installed builds.
+
 ## Storage layout
 
 Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id`, and only `sha256(rawToken)` is stored. Tenants store an `owner_email` for ops/account ownership. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
@@ -202,7 +220,7 @@ Tables:
 | `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
 | `cards` | `(tenant_id, id)` | Dashboard cards. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
-| `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens. |
+| `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens plus card-level subscriptions. |
 | `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
 | `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
@@ -216,7 +234,7 @@ The Worker uses D1 only.
 npm test
 ```
 
-Covers auth, card CRUD, webhook action delivery, Live Activity registration, and APNs payload construction (no network calls except mocked webhook fetches).
+Covers auth, card CRUD, webhook action delivery, WidgetKit subscription targeting and APNs retry/pruning, Live Activity registration, and APNs payload construction (no network calls except mocked fetches).
 
 ## APNs payload notes
 
@@ -225,6 +243,6 @@ The Worker constructs payloads that match the documented ActivityKit / WidgetKit
 - **Live Activity start** — `event: "start"`, complete Codable `content-state`, `attributes-type`, `attributes`, required `alert`, and `input-push-token: 1` so iOS returns the per-activity token used for subsequent pushes.
 - **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack.
 - **Live Activity end** — same headers, `event: "end"`, complete final `content-state`, optional `dismissal-date`.
-- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`.
+- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Permanent token failures are pruned; transient APNs failures retry in the background.
 
 These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

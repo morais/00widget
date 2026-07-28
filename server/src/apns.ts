@@ -181,7 +181,7 @@ export async function sendLiveActivityEnd(
 }
 
 export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise<ApnsResult> {
-  // WidgetKit push (iOS 18+): apns-push-type: widgets,
+  // WidgetKit push (iOS 26+): apns-push-type: widgets,
   // apns-topic: <bundle>.push-type.widgets. Apple's docs require
   // `aps.content-changed: true` to signal that timelines should reload.
   return sendApnsPush(env, {
@@ -189,6 +189,10 @@ export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise
     pushType: "widgets",
     topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
     priority: 5,
+    // Every push causes the widget to fetch current server state, so older
+    // queued reloads have no value after a newer one exists.
+    collapseId: "card-reload",
+    expiration: Math.floor(Date.now() / 1000) + 15 * 60,
     payload: { aps: { "content-changed": true } },
   });
 }

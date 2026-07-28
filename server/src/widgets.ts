@@ -18,14 +18,25 @@ export async function registerWidgetPushToken(
     { policy: "registrationTenantDay", key: tenantKey(auth.tenantId) },
   ]);
   if (limited) return limited;
-  const { deviceId, widgetKind, widgetPushToken } = parsed.data;
-  await storage.putWidgetToken(
-    env,
-    auth.tenantId,
-    auth.apiKeyHash,
-    deviceId,
-    widgetKind,
-    widgetPushToken,
-  );
+  if ("subscriptions" in parsed.data) {
+    await storage.replaceWidgetTokensForDevice(
+      env,
+      auth.tenantId,
+      auth.apiKeyHash,
+      parsed.data.deviceId,
+      parsed.data.widgetPushToken,
+      parsed.data.subscriptions,
+    );
+  } else {
+    const { deviceId, widgetKind, widgetPushToken } = parsed.data;
+    await storage.putWidgetToken(
+      env,
+      auth.tenantId,
+      auth.apiKeyHash,
+      deviceId,
+      widgetKind,
+      widgetPushToken,
+    );
+  }
   return json({ ok: true });
 }

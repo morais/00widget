@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import WidgetKit
 
 public enum ConnectionHealthStatus: Equatable {
     case unknown
@@ -15,6 +16,11 @@ public final class AppEnvironment: ObservableObject {
     @Published public var serverBaseURL: String {
         didSet {
             UserDefaults.standard.set(serverBaseURL, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+            if SharedSettings.serverBaseURL != serverBaseURL {
+                SharedSettings.setServerBaseURL(serverBaseURL)
+                WidgetPushTokenStore.invalidateRegistration()
+                scheduleCredentialRegistration()
+            }
         }
     }
 
@@ -58,6 +64,8 @@ public final class AppEnvironment: ObservableObject {
         }
         self.showActivitiesTab = defaults.object(forKey: "zw.showActivitiesTab") as? Bool ?? true
         self.cards = CardCache.load().cards
+        SharedSettings.setServerBaseURL(serverBaseURL)
+        _ = SharedSettings.deviceId()
     }
 
     public func saveApiKey() {
@@ -65,6 +73,7 @@ public final class AppEnvironment: ObservableObject {
         try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
         if apiKey != previous {
             clearTenantScopedState()
+            WidgetPushTokenStore.invalidateRegistration()
         }
         liveActivityController.credentialsDidChange()
         scheduleCredentialRegistration()
@@ -96,6 +105,16 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func clearApiKey() {
+        if let client = apiClient() {
+            let deviceId = DeviceRegistration.deviceId()
+            Task {
+                try? await client.syncWidgetPushSubscriptions(
+                    deviceId: deviceId,
+                    widgetPushToken: nil,
+                    subscriptions: []
+                )
+            }
+        }
         apiKey = ""
         appleLoginEmail = nil
         appleLoginError = nil
@@ -295,25 +314,39 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Picks up widget push tokens that the widget extension recorded into the
-    /// shared App Group file (via `WidgetPushHandler`), and registers each with
-    /// the backend. Re-registration is idempotent on the server, so we don't
-    /// bother tracking which tokens have been sent before.
+    /// Reconciles WidgetKit's current token/configurations with the durable
+    /// extension snapshot, then retries server registration when needed.
     public func registerPendingWidgetTokens() async {
-        guard let client = apiClient() else { return }
-        let entries = WidgetPushTokenStore.load()
-        guard !entries.isEmpty else { return }
-        let deviceId = DeviceRegistration.deviceId()
-        for entry in entries {
-            do {
-                try await client.registerWidgetPushToken(
-                    deviceId: deviceId,
-                    widgetKind: entry.widgetKind,
-                    widgetPushToken: entry.pushToken
+        guard apiClient() != nil else { return }
+        do {
+            let configured = try await WidgetCenter.shared.currentConfigurations()
+                .filter { ZeroZeroWidgetConstants.WidgetKinds.all.contains($0.kind) }
+            if configured.isEmpty {
+                WidgetPushTokenStore.replace(pushToken: nil, subscriptions: [])
+            } else if let pushInfo = await WidgetCenter.shared.currentPushInfo {
+                let token = pushInfo.token.map { String(format: "%02x", $0) }.joined()
+                let configuredKinds = Set(configured.map(\.kind))
+                let existing = WidgetPushTokenStore.load()
+                let existingKinds = Set(existing?.subscriptions.map(\.widgetKind) ?? [])
+                let subscriptions: [WidgetPushSubscription]
+                if existing?.pushToken == token, configuredKinds == existingKinds {
+                    subscriptions = existing?.subscriptions ?? []
+                } else {
+                    // The handler normally provides card-level subscriptions.
+                    // If startup wins the race, register a conservative kind-
+                    // level snapshot until the callback supplies more detail.
+                    subscriptions = configuredKinds.map {
+                        WidgetPushSubscription(widgetKind: $0, allCards: true)
+                    }
+                }
+                WidgetPushTokenStore.replace(
+                    pushToken: token,
+                    subscriptions: subscriptions
                 )
-            } catch {
-                lastSyncError = "widget token register: \(error.localizedDescription)"
             }
+            _ = try await WidgetPushTokenRegistrar.registerCurrent()
+        } catch {
+            lastSyncError = "widget token register: \(error.localizedDescription)"
         }
     }
 

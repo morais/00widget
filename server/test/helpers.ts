@@ -47,6 +47,14 @@ export class FakeD1 {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
   }
 
+  async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+    const results: D1Result<T>[] = [];
+    for (const statement of statements) {
+      results.push(await statement.run<T>());
+    }
+    return results;
+  }
+
   seedApiKeyHash(rawTokenHash: string, tenantId = "test-tenant", label = "test key"): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
@@ -145,8 +153,16 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO widget_tokens")) {
-      const [tenant_id, api_key_hash, device_id, widget_kind, token, updated_at] =
-        values.map(String);
+      const [
+        tenant_id,
+        api_key_hash,
+        device_id,
+        widget_kind,
+        token,
+        updated_at,
+        card_ids_json = "[]",
+        all_cards = "1",
+      ] = values.map(String);
       this.widgetTokens.set(`${tenant_id}:${device_id}:${widget_kind}`, {
         tenant_id,
         api_key_hash,
@@ -154,6 +170,8 @@ export class FakeD1 {
         widget_kind,
         token,
         updated_at,
+        card_ids_json,
+        all_cards,
       });
       return 1;
     }
@@ -218,6 +236,28 @@ export class FakeD1 {
       const [tenant_id, external_id] = values.map(String);
       this.pendingActivities.delete(`${tenant_id}:${external_id}`);
       return 1;
+    }
+    if (normalized === "DELETE FROM widget_tokens WHERE tenant_id = ? AND device_id = ?") {
+      const [tenant_id, device_id] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.widgetTokens.entries()) {
+        if (row.tenant_id === tenant_id && row.device_id === device_id) {
+          this.widgetTokens.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized === "DELETE FROM widget_tokens WHERE tenant_id = ? AND token = ?") {
+      const [tenant_id, token] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.widgetTokens.entries()) {
+        if (row.tenant_id === tenant_id && row.token === token) {
+          this.widgetTokens.delete(key);
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized.startsWith("DELETE FROM widget_tokens")) {
       const [tenant_id, device_id, widget_kind] = values.map(String);
@@ -418,6 +458,12 @@ export class FakeD1 {
         .filter((row) => row.widget_kind === widget_kind)
         .sort(by("device_id"))
         .map((row) => ({ token: row.token }));
+    }
+    if (normalized === "SELECT token, card_ids_json, all_cards FROM widget_tokens WHERE tenant_id = ? ORDER BY device_id, widget_kind") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.widgetTokens, tenant_id)
+        .sort(by("device_id", "widget_kind"))
+        .map(select("token", "card_ids_json", "all_cards"));
     }
     if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? ORDER BY device_id") {
       const [tenant_id, external_id] = values.map(String);

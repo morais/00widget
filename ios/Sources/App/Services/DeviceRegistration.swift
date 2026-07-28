@@ -4,13 +4,7 @@ import UserNotifications
 
 public enum DeviceRegistration {
     public static func deviceId() -> String {
-        let defaults = UserDefaults.standard
-        if let existing = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.deviceId) {
-            return existing
-        }
-        let new = UUID().uuidString
-        defaults.set(new, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.deviceId)
-        return new
+        SharedSettings.deviceId()
     }
 
     public static func appVersion() -> String {

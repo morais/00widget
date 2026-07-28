@@ -14,7 +14,12 @@ import * as shares from "./shares";
 interface Route {
   method: string;
   pattern: RegExp;
-  handler: (req: Request, env: Env, match: RegExpExecArray) => Promise<Response>;
+  handler: (
+    req: Request,
+    env: Env,
+    match: RegExpExecArray,
+    ctx: ExecutionContext,
+  ) => Promise<Response>;
 }
 
 const routes: Route[] = [
@@ -27,7 +32,8 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
-  authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth) => cards.upsertCard(req, env, auth)),
+  authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth, _match, ctx) =>
+    cards.upsertCard(req, env, auth, ctx)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.deleteCard(req, env, auth, m[1])),
@@ -62,8 +68,8 @@ const routes: Route[] = [
   authed("DELETE", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
     actions.deleteWebhookIntegration(req, env, auth),
   ),
-  authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m) =>
-    actions.runAction(req, env, auth, m[1]),
+  authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m, ctx) =>
+    actions.runAction(req, env, auth, m[1], ctx),
   ),
   authed("POST", /^\/v1\/shares\/?$/, (req, env, auth) => shares.createShare(req, env, auth)),
   authed("GET", /^\/v1\/shares\/outgoing\/?$/, (req, env, auth) => shares.listOutgoing(req, env, auth)),
@@ -113,16 +119,17 @@ type AuthedHandler = (
   env: Env,
   auth: import("./auth").AuthContext,
   match: RegExpExecArray,
+  ctx: ExecutionContext,
 ) => Promise<Response>;
 
 function authed(method: string, pattern: RegExp, handler: AuthedHandler): Route {
   return {
     method,
     pattern,
-    handler: async (req, env, match) => {
+    handler: async (req, env, match, ctx) => {
       try {
         const auth = await requireAuth(req, env);
-        return await handler(req, env, auth, match);
+        return await handler(req, env, auth, match, ctx);
       } catch (err) {
         if (err instanceof AuthError) return unauthorized(err.message);
         throw err;
@@ -132,14 +139,14 @@ function authed(method: string, pattern: RegExp, handler: AuthedHandler): Route 
 }
 
 const handler: ExportedHandler<Env> = {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     for (const route of routes) {
       if (route.method !== req.method) continue;
       const match = route.pattern.exec(url.pathname);
       if (!match) continue;
       try {
-        return await route.handler(req, env, match);
+        return await route.handler(req, env, match, ctx);
       } catch (err) {
         console.error("handler error", err);
         return json({ error: "internal error" }, 500);

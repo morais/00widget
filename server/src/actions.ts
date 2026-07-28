@@ -6,11 +6,11 @@ import {
   WebhookIntegrationSchema,
 } from "./types";
 import * as storage from "./storage";
-import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
+import { scheduleWidgetReloadForCard } from "./widgetPush";
 
 const WEBHOOK_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1000];
@@ -81,6 +81,7 @@ export async function runAction(
   env: Env,
   auth: AuthContext,
   actionId: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const body = await parseJson(req, RequestBodyLimits.actionRun);
   const parsed = RunActionSchema.safeParse(body ?? {});
@@ -149,7 +150,7 @@ export async function runAction(
 
   let updatedCard = false;
   if (result.responseBody) {
-    updatedCard = await maybeUpsertResponseCard(env, auth, result.responseBody);
+    updatedCard = await maybeUpsertResponseCard(env, auth, result.responseBody, ctx);
   }
 
   return json({
@@ -239,6 +240,7 @@ async function maybeUpsertResponseCard(
   env: Env,
   auth: AuthContext,
   responseBody: unknown,
+  ctx: ExecutionContext,
 ): Promise<boolean> {
   const candidate =
     responseBody && typeof responseBody === "object" && "card" in responseBody
@@ -251,13 +253,7 @@ async function maybeUpsertResponseCard(
     updatedAt: parsed.data.updatedAt ?? new Date().toISOString(),
   };
   await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
-  const tokens = await listCardWidgetTokens(env, auth.tenantId);
-  for (const token of tokens) {
-    const result = await sendWidgetReloadPush(env, token);
-    if (result.status !== 200 && result.status !== 0) {
-      console.log("widget push failed", { status: result.status, reason: result.reason });
-    }
-  }
+  scheduleWidgetReloadForCard(ctx, env, auth.tenantId, card.id);
   return true;
 }
 
@@ -326,12 +322,4 @@ function hex(bytes: Uint8Array): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
-  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetCardGridWidget"];
-  const nested = await Promise.all(
-    widgetKinds.map((kind) => storage.listWidgetTokensForKind(env, tenantId, kind)),
-  );
-  return [...new Set(nested.flat())];
 }
