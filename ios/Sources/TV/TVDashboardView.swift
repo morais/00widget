@@ -3,29 +3,78 @@ import SwiftUI
 struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
     @State private var showingSettings = false
+    @State private var selectedLink: TVWebLink?
 
-    private let cardWidth: CGFloat = 360
-    private let cardHeight: CGFloat = 280
-    private let cardScale: CGFloat = 1.6
+    private let columns = Array(
+        repeating: GridItem(.flexible(), spacing: 40, alignment: .top),
+        count: 3
+    )
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        VStack(spacing: 32) {
+            header
             content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(.horizontal, 80)
+        .padding(.vertical, 48)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            LinearGradient(
+                colors: [Color.black.opacity(0.2), Color.accentColor.opacity(0.08)],
+                startPoint: .top,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showingSettings) {
+            TVSettingsView()
+                .environmentObject(env)
+        }
+        .fullScreenCover(item: $selectedLink) { link in
+            TVWebLinkView(link: link)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 28) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Dashboard")
+                    .font(.largeTitle.weight(.bold))
+                syncStatus
+            }
+
+            Spacer()
+
+            if env.isRefreshing {
+                ProgressView()
+                    .controlSize(.large)
+            }
 
             Button {
                 showingSettings = true
             } label: {
                 Label("Settings", systemImage: "gearshape")
-                    .labelStyle(.iconOnly)
-                    .font(.title2)
-                    .padding(20)
+                    .font(.headline)
+                    .padding(.horizontal, 8)
             }
-            .padding(24)
         }
-        .fullScreenCover(isPresented: $showingSettings) {
-            TVSettingsView()
-                .environmentObject(env)
+    }
+
+    @ViewBuilder
+    private var syncStatus: some View {
+        if let error = env.lastSyncError {
+            Text(error)
+                .font(.callout)
+                .foregroundStyle(.red)
+                .lineLimit(1)
+        } else if let lastSyncAt = env.lastSyncAt {
+            Text("Updated \(lastSyncAt.formatted(.relative(presentation: .named)))")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Your agent widgets")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -35,29 +84,26 @@ struct TVDashboardView: View {
             emptyState
         } else {
             ScrollView {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: cardWidth + 40), spacing: 40)],
-                    spacing: 40
-                ) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 40) {
                     ForEach(env.cards) { card in
                         Button {
-                            // No-op: cards are focus targets; pressing select can trigger a future detail view.
+                            if let url = card.deepLink {
+                                selectedLink = TVWebLink(cardTitle: card.title, url: url)
+                            }
                         } label: {
-                            scaledCard(card)
+                            TVDashboardCardView(card: card)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 248)
                         }
                         .buttonStyle(.card)
+                        .accessibilityHint(card.deepLink == nil ? "Widget summary" : "Shows a QR code for the web link")
                     }
                 }
-                .padding(60)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
             }
+            .scrollClipDisabled()
         }
-    }
-
-    private func scaledCard(_ card: DashboardCard) -> some View {
-        CardView(card: card, context: .app)
-            .frame(width: cardWidth / cardScale, height: cardHeight / cardScale, alignment: .topLeading)
-            .scaleEffect(cardScale, anchor: .topLeading)
-            .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
     }
 
     private var emptyState: some View {
@@ -70,17 +116,124 @@ struct TVDashboardView: View {
             Text("Publish one from your agent.")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-            if env.isRefreshing {
-                ProgressView()
-            }
-            if let error = env.lastSyncError {
-                Text(error)
-                    .font(.body)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 800)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct TVDashboardCardView: View {
+    let card: DashboardCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+
+            switch card.template {
+            case .list:
+                listContent
+            case .progress:
+                valueContent
+                if let progress = card.progressValue {
+                    ProgressView(value: progress)
+                        .tint(card.status.tint)
+                }
+            case .summary, .action:
+                valueContent
+            }
+
+            Spacer(minLength: 0)
+            footer
+        }
+        .padding(26)
+        .contentShape(RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            if let icon = card.icon {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(card.status.tint)
+            }
+            Text(card.title)
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 8)
+            if let statusIcon = card.statusIcon {
+                Image(systemName: statusIcon)
+                    .font(.headline)
+                    .foregroundStyle(card.status.tint)
+            }
+            StatusBadge(status: card.status, compact: true)
+        }
+    }
+
+    private var valueContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(card.value ?? "—")
+                    .font(.system(size: 44, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                if let unit = card.unit {
+                    Text(unit)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let subtitle = card.subtitle {
+                Text(subtitle)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listContent: some View {
+        if let items = card.items, !items.isEmpty {
+            VStack(spacing: 8) {
+                ForEach(items.prefix(3)) { item in
+                    HStack {
+                        Text(item.title)
+                            .lineLimit(1)
+                        Spacer()
+                        if let value = item.value {
+                            Text("\(value)\(item.unit ?? "")")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(item.status?.tint ?? .primary)
+                        }
+                    }
+                    .font(.headline)
+                }
+            }
+        } else {
+            Text("No items")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 14) {
+            Text(card.updatedAt, style: .relative)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            if let actions = card.actions, !actions.isEmpty {
+                Label("\(actions.count) action\(actions.count == 1 ? "" : "s")", systemImage: "bolt.fill")
+            }
+            if card.deepLink != nil {
+                Label("Open link", systemImage: "qrcode")
+            }
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .labelStyle(.titleAndIcon)
     }
 }
