@@ -1,6 +1,6 @@
 import type { Env } from "./types";
 
-// APNs payload shapes verified against Apple's current docs as of 2026-04-26:
+// APNs payload shapes verified against Apple's current docs as of 2026-07-28:
 //   https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications
 //   https://developer.apple.com/documentation/WidgetKit/Updating-widgets-with-widgetkit-push-notifications
 // If Apple changes payload field names, header values, or priority requirements
@@ -113,7 +113,7 @@ export interface LiveActivityStartPayload {
   contentState: Record<string, unknown>;
   staleAt?: string;
   relevanceScore?: number;
-  alert?: { title: string; body?: string };
+  alert: { title: string; body?: string };
 }
 
 export async function sendLiveActivityStart(
@@ -131,10 +131,15 @@ export async function sendLiveActivityStart(
     "attributes-type": payload.attributesType,
     attributes: payload.attributes,
     "content-state": payload.contentState,
+    // iOS 18+ only issues the per-activity token needed for later update/end
+    // pushes when the start payload explicitly requests one.
+    "input-push-token": 1,
+    // Apple requires an alert on push-to-start notifications so a Live
+    // Activity never appears without telling the user.
+    alert: payload.alert,
   };
   if (payload.staleAt) aps["stale-date"] = Math.floor(new Date(payload.staleAt).getTime() / 1000);
   if (payload.relevanceScore !== undefined) aps["relevance-score"] = payload.relevanceScore;
-  if (payload.alert) aps.alert = payload.alert;
 
   return sendApnsPush(env, {
     pushToken,

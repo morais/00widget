@@ -158,11 +158,12 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO activities")) {
-      const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
-      this.activities.set(`${tenant_id}:${external_id}`, {
+      const [tenant_id, api_key_hash, external_id, device_id, json, updated_at] = values.map(String);
+      this.activities.set(`${tenant_id}:${external_id}:${device_id}`, {
         tenant_id,
         api_key_hash,
         external_id,
+        device_id,
         json,
         updated_at,
       });
@@ -204,8 +205,14 @@ export class FakeD1 {
     }
     if (normalized.startsWith("DELETE FROM activities")) {
       const [tenant_id, external_id] = values.map(String);
-      this.activities.delete(`${tenant_id}:${external_id}`);
-      return 1;
+      let count = 0;
+      for (const [key, row] of this.activities.entries()) {
+        if (row.tenant_id === tenant_id && row.external_id === external_id) {
+          this.activities.delete(key);
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized.startsWith("DELETE FROM pending_activities")) {
       const [tenant_id, external_id] = values.map(String);
@@ -412,9 +419,16 @@ export class FakeD1 {
         .sort(by("device_id"))
         .map((row) => ({ token: row.token }));
     }
-    if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ?") {
+    if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? ORDER BY device_id") {
       const [tenant_id, external_id] = values.map(String);
-      return pick(this.activities.get(`${tenant_id}:${external_id}`), ["json"]);
+      return byTenant(this.activities, tenant_id)
+        .filter((row) => row.external_id === external_id)
+        .sort(by("device_id"))
+        .map(select("json"));
+    }
+    if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? AND device_id = ?") {
+      const [tenant_id, external_id, device_id] = values.map(String);
+      return pick(this.activities.get(`${tenant_id}:${external_id}:${device_id}`), ["json"]);
     }
     if (normalized === "SELECT json FROM pending_activities WHERE tenant_id = ? AND external_id = ?") {
       const [tenant_id, external_id] = values.map(String);

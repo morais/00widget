@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { sendLiveActivityUpdate, sendLiveActivityEnd, sendWidgetReloadPush, __resetApnsJwtCache } from "../src/apns";
+import {
+  sendLiveActivityStart,
+  sendLiveActivityUpdate,
+  sendLiveActivityEnd,
+  sendWidgetReloadPush,
+  __resetApnsJwtCache,
+} from "../src/apns";
 import { makeEnv } from "./helpers";
 
 // A well-known test P-256 private key in PKCS#8 PEM.
@@ -104,7 +110,7 @@ describe("APNs payload construction", () => {
     globalThis.fetch = fetcher;
     try {
       await sendLiveActivityUpdate(env, "watchabletoken", {
-        contentState: { state: "running", progress: 0.4, updatedAt: "2026-04-26T08:00:00Z" },
+        contentState: { state: "running", progress: 0.4, updatedAt: 798_019_200 },
         staleAt: "2026-04-26T09:00:00Z",
         relevanceScore: 75,
         alert: { title: "Washer", body: "almost done" },
@@ -144,35 +150,39 @@ describe("APNs payload construction", () => {
     expect(captured[0].body).toEqual({ aps: { "content-changed": true } });
   });
 
-  it("live activity start: includes attributes-type, attributes, content-state", async () => {
+  it("live activity start requests an update token and includes the required alert", async () => {
     __resetApnsJwtCache();
     const captured: CapturedRequest[] = [];
     const fetcher = capturingFetch(captured);
     const env = apnsEnv();
-    const { sendApnsPush } = await import("../src/apns");
-
-    await sendApnsPush(env, {
-      pushToken: "starttokenhex",
-      pushType: "liveactivity",
-      topic: `${env.APNS_BUNDLE_ID}.push-type.liveactivity`,
-      priority: 10,
-      payload: {
-        aps: {
-          timestamp: 1_700_000_000,
-          event: "start",
-          "attributes-type": "ZeroZeroWidgetActivityAttributes",
-          attributes: { externalActivityId: "abc", kind: "appliance", title: "Washer" },
-          "content-state": { state: "running", updatedAt: "2026-04-26T08:00:00Z" },
-        },
-      },
-      fetcher,
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetcher;
+    try {
+      await sendLiveActivityStart(env, "starttokenhex", {
+        attributesType: "ZeroZeroWidgetActivityAttributes",
+        attributes: { externalActivityId: "abc", kind: "appliance", title: "Washer" },
+        contentState: { state: "running", updatedAt: 798_019_200 },
+        alert: { title: "Washer", body: "Cycle started" },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
 
     expect(captured).toHaveLength(1);
-    const body = captured[0].body as { aps: { event: string; "attributes-type": string; attributes: { kind: string } } };
+    const body = captured[0].body as {
+      aps: {
+        event: string;
+        "attributes-type": string;
+        attributes: { kind: string };
+        "input-push-token": number;
+        alert: { title: string; body?: string };
+      };
+    };
     expect(body.aps.event).toBe("start");
     expect(body.aps["attributes-type"]).toBe("ZeroZeroWidgetActivityAttributes");
     expect(body.aps.attributes.kind).toBe("appliance");
+    expect(body.aps["input-push-token"]).toBe(1);
+    expect(body.aps.alert).toEqual({ title: "Washer", body: "Cycle started" });
   });
 
   it("exposes live activity end helper with event=end and optional dismissal-date", () => {

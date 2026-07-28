@@ -232,7 +232,7 @@ Use a Live Activity instead of a card when:
 
 Otherwise, stick with cards — they're cheaper and don't compete for screen real estate.
 
-### Start (queue a pending activity)
+### Start
 
 ```sh
 curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
@@ -247,11 +247,15 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
     "icon": "hammer",
     "progress": 0.2,
     "endsAt": "2026-04-26T18:45:00Z",
-    "staleAt": "2026-04-26T19:00:00Z"
+    "staleAt": "2026-04-26T19:00:00Z",
+    "alert": {
+      "title": "CI build started",
+      "body": "Running tests"
+    }
   }'
 ```
 
-The iOS app polls `/v1/live-activities/pending` and starts the activity locally on the device. Once it starts, it registers a per-activity APNs push token with the backend, which is how subsequent updates reach the device. Calling `start` again with the same `externalActivityId` replaces the pending record for that id; if an activity is already registered, subsequent `update` calls address that registered activity by the same id.
+The Worker sends an ActivityKit push-to-start notification to every registered device. iOS returns a per-activity APNs push token, which the app registers with the backend for subsequent updates and end events. `alert` is optional in this public request; when omitted, the Worker creates the required APNs alert from `title` and `subtitle`. The pending endpoint remains temporarily available as a compatibility fallback for older app builds.
 
 `state` is free-form text for your domain. The current iOS renderer displays it as text and does not reserve special rendering behavior for values like `paused` or `finished`; use `progress`, `value`, `unit`, `endsAt`, `icon`, and `kind` for visual structure.
 

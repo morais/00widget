@@ -65,7 +65,7 @@ Pick an iOS 26 device/simulator and run the **ZeroZeroWidgetApp** scheme. On fir
 
 1. Go to the **Settings** tab and enter a server base URL and API key. You can also just use the **Generate sample cards** button on the Dashboard to try widgets without a backend.
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.
-3. In the Activities tab, tap **Start sample activity** to see the Live Activity on the Lock Screen / Dynamic Island.
+3. Ask an agent to call `POST /v1/live-activities/start`. The Live Activity starts remotely and appears automatically on the Lock Screen / Dynamic Island.
 
 For Apple TV, pick a tvOS 26 device/simulator and run the **ZeroZeroWidgetTV** scheme. Sign in with Apple, then the app fetches the tenant's cards and refreshes every 30 seconds.
 
@@ -84,7 +84,9 @@ That script handles the signing/entitlements quirks that prevent App Groups from
 The iOS app **does not** hold the APNs private key. It only:
 
 - Registers its APNs device token with the backend (`POST /v1/devices/register`).
-- Observes `Activity.pushTokenUpdates` and registers the per-activity token (`POST /v1/live-activities/register`).
+- Registers the current push-to-start token and observes token rotation.
+- Observes `Activity.activityUpdates` so remotely started activities register their per-activity push tokens (`POST /v1/live-activities/register`).
+- Replays current start/activity tokens after login or configuration changes.
 - Registers WidgetKit push tokens with the backend (`POST /v1/widgets/register-push-token`) after the widget extension records them through `WidgetConfiguration.pushHandler`.
 
 The APNs `.p8` key lives only on the backend. See `server/README.md`.

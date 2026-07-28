@@ -26,17 +26,17 @@ Each call:
 
 ### Live Activities (`/v1/live-activities/*`)
 
-- `start-washer.sh` — queues a pending activity for the app to start.
+- `start-washer.sh` — starts an activity remotely through ActivityKit push-to-start.
 - `update-washer-finished.sh` — pushes an update + alert through APNs.
 - `start-car-charge.sh` / `update-car-charge.sh` — same shape for a car charging example.
 
 These also illustrate `relevanceScore`: the Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins). Send a low score for "started, plenty of time", ramp it up as urgency grows, and a high score on the finishing alert so it bubbles to the top of the wrist.
 
-Pending → live flow:
+Push-to-start flow:
 1. Your agent calls `POST /v1/live-activities/start` with a fresh `externalActivityId`.
-2. The iOS app periodically calls `GET /v1/live-activities/pending` and starts the activity locally.
-3. iOS observes the per-activity push token and registers it (`POST /v1/live-activities/register`).
-4. Your agent can then call `POST /v1/live-activities/update` or `/end`, which the Worker translates into an APNs push.
+2. The Worker sends a push-to-start event to every registered device.
+3. iOS observes the new activity and registers its per-activity push token (`POST /v1/live-activities/register`).
+4. Your agent calls `POST /v1/live-activities/update` or `/end`, and the Worker fans the APNs event out to every registered device.
 
 ### Actions (`/v1/actions/:id/run`)
 

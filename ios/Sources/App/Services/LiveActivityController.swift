@@ -14,14 +14,23 @@ public final class LiveActivityController: ObservableObject {
     @Published public private(set) var activeIds: [String] = []
     @Published public private(set) var activeSessions: [LiveActivitySession] = []
     private var pushTokenTasks: [String: Task<Void, Never>] = [:]
+    private var contentUpdateTasks: [String: Task<Void, Never>] = [:]
+    private var stateUpdateTasks: [String: Task<Void, Never>] = [:]
+    private var activityUpdatesTask: Task<Void, Never>?
     private var pushToStartTask: Task<Void, Never>?
-    private var endingExternalIds = Set<String>()
+    private var latestPushToStartToken: Data?
+    private var registeredActivityTokens: [String: String] = [:]
+    private var activityTokensInFlight: [String: String] = [:]
+    private var registeredStartToken: String?
+    private var startTokenInFlight: String?
     #endif
 
     public init() {
         #if canImport(ActivityKit)
         refreshActiveActivities()
+        observeActivityUpdates()
         observePushToStartToken()
+        retryCurrentTokens()
         #endif
     }
 
@@ -39,100 +48,88 @@ public final class LiveActivityController: ObservableObject {
         #endif
     }
 
+    public func credentialsDidChange() {
+        #if canImport(ActivityKit)
+        registeredActivityTokens.removeAll()
+        registeredStartToken = nil
+        retryCurrentTokens()
+        #endif
+    }
+
     #if canImport(ActivityKit)
-    public func start(_ session: LiveActivitySession) async throws {
-        endingExternalIds.remove(session.externalActivityId)
-        let (attrs, state) = ZeroZeroWidgetActivityAttributes.from(session)
-        let content = makeContent(state: state, session: session)
-        let activity = try Activity.request(attributes: attrs, content: content, pushType: .token)
-        log.info("Started activity \(activity.id, privacy: .public) for \(session.externalActivityId, privacy: .public)")
-        observePushToken(activity: activity, session: session)
-        refreshActiveActivities()
-    }
-
-    public func update(_ session: LiveActivitySession, alert: AlertConfiguration? = nil) async {
-        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == session.externalActivityId {
-            let (_, state) = ZeroZeroWidgetActivityAttributes.from(session)
-            let content = makeContent(state: state, session: session)
-            if let alert {
-                await activity.update(content, alertConfiguration: alert)
-            } else {
-                await activity.update(content)
-            }
-        }
-        refreshActiveActivities()
-    }
-
-    private func makeContent(
-        state: ZeroZeroWidgetActivityAttributes.ContentState,
-        session: LiveActivitySession
-    ) -> ActivityContent<ZeroZeroWidgetActivityAttributes.ContentState> {
-        if let score = session.relevanceScore {
-            return ActivityContent(state: state, staleDate: session.staleAt, relevanceScore: score)
-        }
-        return ActivityContent(state: state, staleDate: session.staleAt)
-    }
-
-    public func end(externalActivityId: String, finalState: ZeroZeroWidgetActivityAttributes.ContentState? = nil) async {
-        endingExternalIds.insert(externalActivityId)
-        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities where activity.attributes.externalActivityId == externalActivityId {
-            let content = finalState.map { ActivityContent(state: $0, staleDate: nil) }
-            await activity.end(content, dismissalPolicy: .default)
-        }
-        pushTokenTasks[externalActivityId]?.cancel()
-        pushTokenTasks.removeValue(forKey: externalActivityId)
-        refreshActiveActivities()
-        activeIds.removeAll { $0 == externalActivityId }
-        activeSessions.removeAll { $0.externalActivityId == externalActivityId }
-    }
-
-    private func observePushToken(activity: Activity<ZeroZeroWidgetActivityAttributes>, session: LiveActivitySession) {
-        let externalId = session.externalActivityId
-        let kind = session.kind
+    private func observeActivity(_ activity: Activity<ZeroZeroWidgetActivityAttributes>) {
         let localActivityId = activity.id
-        pushTokenTasks[externalId]?.cancel()
-        pushTokenTasks[externalId] = Task { [weak self] in
-            for await tokenData in activity.pushTokenUpdates {
-                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-                self?.log.info("Activity push token for \(externalId, privacy: .public)")
-                await self?.registerPushToken(
-                    localActivityId: localActivityId,
-                    externalActivityId: externalId,
-                    kind: kind,
-                    pushToken: hex
-                )
+        let externalId = activity.attributes.externalActivityId
+        let kind = activity.attributes.kind
+
+        if let tokenData = activity.pushToken {
+            submitPushToken(
+                tokenData,
+                localActivityId: localActivityId,
+                externalActivityId: externalId,
+                kind: kind
+            )
+        }
+
+        if pushTokenTasks[localActivityId] == nil {
+            pushTokenTasks[localActivityId] = Task { [weak self] in
+                for await tokenData in activity.pushTokenUpdates {
+                    self?.log.info("Activity push token for \(externalId, privacy: .public)")
+                    self?.submitPushToken(
+                        tokenData,
+                        localActivityId: localActivityId,
+                        externalActivityId: externalId,
+                        kind: kind
+                    )
+                }
+            }
+        }
+
+        if contentUpdateTasks[localActivityId] == nil {
+            contentUpdateTasks[localActivityId] = Task { [weak self] in
+                for await _ in activity.contentUpdates {
+                    self?.refreshActiveActivities()
+                }
+            }
+        }
+
+        if stateUpdateTasks[localActivityId] == nil {
+            stateUpdateTasks[localActivityId] = Task { [weak self] in
+                for await _ in activity.activityStateUpdates {
+                    self?.refreshActiveActivities()
+                }
             }
         }
     }
 
-    private func registerPushToken(
-        localActivityId: String,
-        externalActivityId: String,
-        kind: LiveActivityKind,
-        pushToken: String
-    ) async {
-        guard let config = APIClientConfig.fromSettings() else { return }
-        let client = APIClient(config: config)
-        let deviceId = DeviceRegistration.deviceId()
-        do {
-            try await client.registerLiveActivity(
-                deviceId: deviceId,
-                localActivityId: localActivityId,
-                externalActivityId: externalActivityId,
-                kind: kind,
-                pushToken: pushToken
-            )
-        } catch {
-            log.error("Failed to register activity push token: \(error.localizedDescription, privacy: .public)")
+    private func observeActivityUpdates() {
+        activityUpdatesTask?.cancel()
+        activityUpdatesTask = Task { [weak self] in
+            for await activity in Activity<ZeroZeroWidgetActivityAttributes>.activityUpdates {
+                self?.log.info("Observed remote activity \(activity.id, privacy: .public)")
+                self?.observeActivity(activity)
+                self?.refreshActiveActivities()
+            }
+        }
+    }
+
+    private func retryCurrentTokens() {
+        if let tokenData = Activity<ZeroZeroWidgetActivityAttributes>.pushToStartToken {
+            latestPushToStartToken = tokenData
+        }
+        if let latestPushToStartToken {
+            submitStartToken(latestPushToStartToken)
+        }
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities {
+            observeActivity(activity)
         }
     }
 
     private func refreshActiveActivities() {
-        let allActivities = Activity<ZeroZeroWidgetActivityAttributes>.activities
-        let activityIds = Set(allActivities.map { $0.attributes.externalActivityId })
-        endingExternalIds = endingExternalIds.filter { activityIds.contains($0) }
-
-        let activities = allActivities.filter { !endingExternalIds.contains($0.attributes.externalActivityId) }
+        let activities = Activity<ZeroZeroWidgetActivityAttributes>.activities
+        for activity in activities {
+            observeActivity(activity)
+        }
         activeIds = activities.map { $0.attributes.externalActivityId }
         activeSessions = activities.map { activity in
             let attributes = activity.attributes
@@ -155,23 +152,67 @@ public final class LiveActivityController: ObservableObject {
         }
     }
 
-    /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes (iOS 17.2+).
-    /// One token represents the device's ability to be sent a `start` APNs event for
-    /// this attribute type — the backend uses it to start a Live Activity without
-    /// the app needing to be open. Tokens fire on first launch after install/reboot.
+    /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes. The
+    /// latest value is retained in memory so first-run login can retry it after
+    /// credentials become available.
     private func observePushToStartToken() {
         pushToStartTask?.cancel()
         pushToStartTask = Task { [weak self] in
             for await tokenData in Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates {
-                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                self?.latestPushToStartToken = tokenData
                 self?.log.info("push-to-start token received")
-                await self?.registerStartToken(pushToken: hex)
+                self?.submitStartToken(tokenData)
             }
         }
     }
 
-    private func registerStartToken(pushToken: String) async {
-        guard let config = APIClientConfig.fromSettings() else { return }
+    private func submitStartToken(_ tokenData: Data) {
+        let token = tokenData.hexString
+        guard registeredStartToken != token, startTokenInFlight != token else { return }
+        startTokenInFlight = token
+        Task { [weak self] in
+            guard let self else { return }
+            let registered = await self.registerStartToken(pushToken: token)
+            if self.startTokenInFlight == token {
+                self.startTokenInFlight = nil
+            }
+            if registered {
+                self.registeredStartToken = token
+            }
+        }
+    }
+
+    private func submitPushToken(
+        _ tokenData: Data,
+        localActivityId: String,
+        externalActivityId: String,
+        kind: LiveActivityKind
+    ) {
+        let token = tokenData.hexString
+        guard
+            registeredActivityTokens[localActivityId] != token,
+            activityTokensInFlight[localActivityId] != token
+        else { return }
+        activityTokensInFlight[localActivityId] = token
+        Task { [weak self] in
+            guard let self else { return }
+            let registered = await self.registerPushToken(
+                localActivityId: localActivityId,
+                externalActivityId: externalActivityId,
+                kind: kind,
+                pushToken: token
+            )
+            if self.activityTokensInFlight[localActivityId] == token {
+                self.activityTokensInFlight.removeValue(forKey: localActivityId)
+            }
+            if registered {
+                self.registeredActivityTokens[localActivityId] = token
+            }
+        }
+    }
+
+    private func registerStartToken(pushToken: String) async -> Bool {
+        guard let config = APIClientConfig.fromSettings() else { return false }
         let client = APIClient(config: config)
         let deviceId = DeviceRegistration.deviceId()
         do {
@@ -180,9 +221,41 @@ public final class LiveActivityController: ObservableObject {
                 attributesType: "ZeroZeroWidgetActivityAttributes",
                 pushToken: pushToken
             )
+            return true
         } catch {
             log.error("Failed to register start token: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    private func registerPushToken(
+        localActivityId: String,
+        externalActivityId: String,
+        kind: LiveActivityKind,
+        pushToken: String
+    ) async -> Bool {
+        guard let config = APIClientConfig.fromSettings() else { return false }
+        let client = APIClient(config: config)
+        let deviceId = DeviceRegistration.deviceId()
+        do {
+            try await client.registerLiveActivity(
+                deviceId: deviceId,
+                localActivityId: localActivityId,
+                externalActivityId: externalActivityId,
+                kind: kind,
+                pushToken: pushToken
+            )
+            return true
+        } catch {
+            log.error("Failed to register activity push token: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
     #endif
+}
+
+private extension Data {
+    var hexString: String {
+        map { String(format: "%02x", $0) }.joined()
+    }
 }

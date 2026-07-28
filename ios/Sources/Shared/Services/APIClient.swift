@@ -57,10 +57,6 @@ public struct CardsListResponse: Codable {
     public let shared: [DashboardCard]?
 }
 
-public struct PendingActivitiesResponse: Codable {
-    public let activities: [LiveActivitySession]
-}
-
 public struct AppleTokenResponse: Codable {
     public struct Tenant: Codable {
         public let id: String
@@ -257,11 +253,6 @@ public final class APIClient {
         }
         let body = Body(deviceId: deviceId, attributesType: attributesType, pushToken: pushToken)
         let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register-start-token", body: body)
-    }
-
-    public func pendingActivities() async throws -> [LiveActivitySession] {
-        let resp: PendingActivitiesResponse = try await request("GET", path: "/v1/live-activities/pending")
-        return resp.activities
     }
 
     public func runAction(id: String, cardId: String?, source: String) async throws {

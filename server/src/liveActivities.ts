@@ -22,6 +22,52 @@ import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLim
 // The Swift attributes type the iOS app declares. iOS 18+ rejects start
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
 const DEFAULT_ATTRIBUTES_TYPE = "ZeroZeroWidgetActivityAttributes";
+const APPLE_REFERENCE_DATE_UNIX_SECONDS = 978_307_200;
+
+type ContentStateRecord = Record<string, unknown>;
+
+function activityKitDate(value: string): number {
+  return Math.floor(new Date(value).getTime() / 1000) - APPLE_REFERENCE_DATE_UNIX_SECONDS;
+}
+
+function initialContentState(
+  activity: {
+    state: string;
+    subtitle?: string;
+    icon?: string;
+    value?: string;
+    unit?: string;
+    progress?: number;
+    endsAt?: string;
+    staleAt?: string;
+  },
+  updatedAt: string,
+): ContentStateRecord {
+  const state: ContentStateRecord = { state: activity.state, updatedAt };
+  if (activity.subtitle !== undefined) state.subtitle = activity.subtitle;
+  if (activity.icon !== undefined) state.icon = activity.icon;
+  if (activity.value !== undefined) state.value = activity.value;
+  if (activity.unit !== undefined) state.unit = activity.unit;
+  if (activity.progress !== undefined) state.progress = activity.progress;
+  if (activity.endsAt !== undefined) state.endsAt = activity.endsAt;
+  if (activity.staleAt !== undefined) state.staleAt = activity.staleAt;
+  return state;
+}
+
+function storedContentState(value: unknown): ContentStateRecord {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? { ...(value as ContentStateRecord) }
+    : {};
+}
+
+function activityKitContentState(state: ContentStateRecord): ContentStateRecord {
+  const encoded = { ...state };
+  for (const key of ["updatedAt", "endsAt", "staleAt"] as const) {
+    const value = encoded[key];
+    if (typeof value === "string") encoded[key] = activityKitDate(value);
+  }
+  return encoded;
+}
 
 export async function registerLiveActivity(
   req: Request,
@@ -36,12 +82,23 @@ export async function registerLiveActivity(
   ]);
   if (limited) return limited;
   const d = parsed.data;
+  const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
+  const existing = await storage.getActivityForDevice(
+    env,
+    auth.tenantId,
+    d.externalActivityId,
+    d.deviceId,
+  );
+  const anyExisting = existing ?? await storage.getActivity(env, auth.tenantId, d.externalActivityId);
   await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     pushToken: d.pushToken,
     deviceId: d.deviceId,
     localActivityId: d.localActivityId,
     kind: d.kind,
     updatedAt: new Date().toISOString(),
+    lastState: pending
+      ? initialContentState(pending, pending.updatedAt)
+      : anyExisting?.lastState,
   });
   await storage.deletePendingActivity(env, auth.tenantId, d.externalActivityId);
   return json({ ok: true });
@@ -103,25 +160,19 @@ export async function startLiveActivity(
     if (d.icon !== undefined) attributes.icon = d.icon;
     if (d.deepLink) attributes.deepLink = d.deepLink;
 
-    const contentState: Record<string, unknown> = {
-      state: d.state,
-      updatedAt: now,
-    };
-    if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
-    if (d.icon !== undefined) contentState.icon = d.icon;
-    if (d.value !== undefined) contentState.value = d.value;
-    if (d.unit !== undefined) contentState.unit = d.unit;
-    if (d.progress !== undefined) contentState.progress = d.progress;
-    if (d.endsAt) contentState.endsAt = d.endsAt;
-    if (d.staleAt) contentState.staleAt = d.staleAt;
+    const contentState = initialContentState(d, now);
 
     for (const entry of startTokens) {
       const result = await sendLiveActivityStart(env, entry.token, {
         attributesType: DEFAULT_ATTRIBUTES_TYPE,
         attributes,
-        contentState,
+        contentState: activityKitContentState(contentState),
         staleAt: d.staleAt,
         relevanceScore: d.relevanceScore,
+        alert: d.alert ?? {
+          title: d.title,
+          ...(d.subtitle ? { body: d.subtitle } : {}),
+        },
       });
       if (result.status !== 200) {
         console.log("live activity push-to-start failed", {
@@ -238,10 +289,12 @@ export async function updateLiveActivity(
     },
   ]);
   if (limited) return limited;
-  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
+  const records = await storage.listActivities(env, auth.tenantId, d.externalActivityId);
+  const record = records[0];
   const now = new Date().toISOString();
 
-  const contentState: Record<string, unknown> = {};
+  const contentState = storedContentState(record?.lastState);
+  if (typeof contentState.state !== "string") contentState.state = d.state ?? "unknown";
   if (d.state !== undefined) contentState.state = d.state;
   if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
   if (d.icon !== undefined) contentState.icon = d.icon;
@@ -255,40 +308,46 @@ export async function updateLiveActivity(
   let apnsResult: unknown = null;
   const recipientResults: unknown[] = [];
   let pendingUpdated = false;
-  if (record?.pushToken) {
-    apnsResult = await sendLiveActivityUpdate(env, record.pushToken, {
-      contentState,
-      staleAt: d.staleAt,
-      relevanceScore: d.relevanceScore,
-      alert: d.alert,
-    });
-    await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
-      ...record,
-      updatedAt: now,
-      lastState: contentState,
-    });
+  if (records.length > 0) {
+    const ownerResults: unknown[] = [];
+    for (const ownerRecord of records) {
+      const result = await sendLiveActivityUpdate(env, ownerRecord.pushToken, {
+        contentState: activityKitContentState(contentState),
+        staleAt: d.staleAt,
+        relevanceScore: d.relevanceScore,
+        alert: d.alert,
+      });
+      ownerResults.push(result);
+      await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
+        ...ownerRecord,
+        updatedAt: now,
+        lastState: contentState,
+      });
+    }
+    apnsResult = ownerResults[0] ?? null;
     // Fan out the same update to recipients that have a registered push token
     // for this externalActivityId. Their tenantId scopes the activity row.
     if (isSharingEnabled(env)) {
       const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", record.kind);
       for (const share of accepted) {
         if (!share.recipientTenantId) continue;
-        const recRecord = await storage.getActivity(env, share.recipientTenantId, d.externalActivityId);
-        if (!recRecord?.pushToken) continue;
-        const r = await sendLiveActivityUpdate(env, recRecord.pushToken, {
-          contentState,
-          staleAt: d.staleAt,
-          relevanceScore: d.relevanceScore,
-          alert: d.alert,
-        });
-        recipientResults.push(r);
-        await storage.putActivity(
-          env,
-          share.recipientTenantId,
-          `share:${share.id}`,
-          d.externalActivityId,
-          { ...recRecord, updatedAt: now, lastState: contentState },
-        );
+        const recRecords = await storage.listActivities(env, share.recipientTenantId, d.externalActivityId);
+        for (const recRecord of recRecords) {
+          const r = await sendLiveActivityUpdate(env, recRecord.pushToken, {
+            contentState: activityKitContentState(contentState),
+            staleAt: d.staleAt,
+            relevanceScore: d.relevanceScore,
+            alert: d.alert,
+          });
+          recipientResults.push(r);
+          await storage.putActivity(
+            env,
+            share.recipientTenantId,
+            `share:${share.id}`,
+            d.externalActivityId,
+            { ...recRecord, updatedAt: now, lastState: contentState },
+          );
+        }
       }
     }
   } else {
@@ -330,8 +389,15 @@ export async function endLiveActivity(
   const finalContentState: Record<string, unknown> = {};
   if (d.finalState) finalContentState.state = d.finalState;
   if (d.finalSubtitle) finalContentState.subtitle = d.finalSubtitle;
+  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
+  const completeFinalState = storedContentState(record?.lastState);
+  Object.assign(completeFinalState, finalContentState);
+  if (typeof completeFinalState.state !== "string") completeFinalState.state = "finished";
+  completeFinalState.updatedAt = new Date().toISOString();
   const apnsResult = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
-    finalContentState: Object.keys(finalContentState).length ? finalContentState : undefined,
+    finalContentState: record
+      ? activityKitContentState(completeFinalState)
+      : undefined,
     dismissalDate: d.dismissalDate,
   });
   return json({ ok: true, apnsResult });
@@ -348,17 +414,19 @@ export async function endAndDeleteActivity(
   externalActivityId: string,
   endPayload: { finalContentState?: Record<string, unknown>; dismissalDate?: string } = {},
 ): Promise<unknown> {
-  const record = await storage.getActivity(env, tenantId, externalActivityId);
+  const records = await storage.listActivities(env, tenantId, externalActivityId);
+  const record = records[0];
   let apnsResult: unknown = null;
-  if (record?.pushToken) {
-    apnsResult = await sendLiveActivityEnd(env, record.pushToken, endPayload);
+  for (const [index, ownerRecord] of records.entries()) {
+    const result = await sendLiveActivityEnd(env, ownerRecord.pushToken, endPayload);
+    if (index === 0) apnsResult = result;
   }
   if (record && isSharingEnabled(env)) {
     const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
     for (const share of accepted) {
       if (!share.recipientTenantId) continue;
-      const recRecord = await storage.getActivity(env, share.recipientTenantId, externalActivityId);
-      if (recRecord?.pushToken) {
+      const recRecords = await storage.listActivities(env, share.recipientTenantId, externalActivityId);
+      for (const recRecord of recRecords) {
         await sendLiveActivityEnd(env, recRecord.pushToken, endPayload);
       }
       await storage.deleteActivity(env, share.recipientTenantId, externalActivityId);

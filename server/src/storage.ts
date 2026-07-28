@@ -216,11 +216,42 @@ export async function putActivity(
   record: ActivityRecord,
 ): Promise<void> {
   await env.ZW_DB.prepare(
-    `INSERT OR REPLACE INTO activities (tenant_id, api_key_hash, external_id, json, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO activities
+     (tenant_id, api_key_hash, external_id, device_id, json, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId, apiKeyHash, externalId, json(record), record.updatedAt)
+    .bind(tenantId, apiKeyHash, externalId, record.deviceId, json(record), record.updatedAt)
     .run();
+}
+
+export async function listActivities(
+  env: Env,
+  tenantId: string,
+  externalId: string,
+): Promise<ActivityRecord[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT json FROM activities
+     WHERE tenant_id = ? AND external_id = ?
+     ORDER BY device_id`,
+  )
+    .bind(tenantId, externalId)
+    .all<JsonRow>();
+  return rows.results.map((row) => parseJson<ActivityRecord>(row.json));
+}
+
+export async function getActivityForDevice(
+  env: Env,
+  tenantId: string,
+  externalId: string,
+  deviceId: string,
+): Promise<ActivityRecord | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT json FROM activities
+     WHERE tenant_id = ? AND external_id = ? AND device_id = ?`,
+  )
+    .bind(tenantId, externalId, deviceId)
+    .first<JsonRow>();
+  return row ? parseJson<ActivityRecord>(row.json) : null;
 }
 
 export async function getActivity(
@@ -228,12 +259,7 @@ export async function getActivity(
   tenantId: string,
   externalId: string,
 ): Promise<ActivityRecord | null> {
-  const row = await env.ZW_DB.prepare(
-    `SELECT json FROM activities WHERE tenant_id = ? AND external_id = ?`,
-  )
-    .bind(tenantId, externalId)
-    .first<JsonRow>();
-  return row ? parseJson<ActivityRecord>(row.json) : null;
+  return (await listActivities(env, tenantId, externalId))[0] ?? null;
 }
 
 export async function deleteActivity(env: Env, tenantId: string, externalId: string): Promise<void> {
