@@ -18,38 +18,41 @@ struct DashboardView: View {
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 16) {
                     ForEach(env.cards) { card in
                         NavigationLink(value: card.id) {
-                            CardView(card: card, context: .app)
+                            CardView(card: card, context: .app, density: .compact)
                         }
                         .buttonStyle(.plain)
                     }
 
                     if !env.sharedCards.isEmpty {
                         Text("Shared with you")
-                            .font(.headline)
+                            .font(.title3.weight(.semibold))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 8)
+                            .padding(.top, 12)
 
                         ForEach(env.sharedCards) { card in
                             NavigationLink(value: "shared:\(card.id)") {
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     if let owner = card.sharedBy?.ownerEmail {
-                                        Text("From \(owner)")
-                                            .font(.caption)
+                                        Label("From \(owner)", systemImage: "person.fill")
+                                            .font(.caption.weight(.medium))
                                             .foregroundStyle(.secondary)
                                     }
-                                    CardView(card: card, context: .app)
+                                    CardView(card: card, context: .app, density: .compact)
                                 }
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
         }
+        .background(Color.primary.opacity(0.025))
         .navigationDestination(for: String.self) { id in
             if id.hasPrefix("shared:") {
                 let cardId = String(id.dropFirst("shared:".count))
