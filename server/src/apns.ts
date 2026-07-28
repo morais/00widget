@@ -10,6 +10,7 @@ export interface ApnsResult {
   status: number;
   reason?: string;
   apnsId?: string | null;
+  retryAfterSeconds?: number;
 }
 
 export interface ApnsSendOptions {
@@ -24,6 +25,7 @@ export interface ApnsSendOptions {
 }
 
 const CACHE_TTL_SECONDS = 50 * 60;
+const REQUEST_TIMEOUT_MS = 8_000;
 let cachedJwt: { token: string; expiresAt: number } | null = null;
 
 export function apnsConfigured(env: Env): boolean {
@@ -41,7 +43,30 @@ export async function sendApnsPush(env: Env, opts: ApnsSendOptions): Promise<Apn
     return { status: 0, reason: "apns-not-configured" };
   }
 
-  const jwt = await getJwt(env);
+  const now = Math.floor(Date.now() / 1000);
+  const usedCachedJwt = Boolean(cachedJwt && cachedJwt.expiresAt > now);
+  let jwt = await getJwt(env);
+  let result = await performApnsRequest(env, opts, jwt);
+  if (
+    usedCachedJwt &&
+    result.status === 403 &&
+    (result.reason === "ExpiredProviderToken" || result.reason === "InvalidProviderToken")
+  ) {
+    // A cached provider token can become invalid before its local TTL after a
+    // signing-key rotation or server clock correction. Retry once with a new
+    // JWT; a freshly generated token failure is permanent for this request.
+    cachedJwt = null;
+    jwt = await getJwt(env);
+    result = await performApnsRequest(env, opts, jwt);
+  }
+  return result;
+}
+
+async function performApnsRequest(
+  env: Env,
+  opts: ApnsSendOptions,
+  jwt: string,
+): Promise<ApnsResult> {
   const url = `https://${apnsHost(env)}/3/device/${opts.pushToken}`;
   const headers: Record<string, string> = {
     authorization: `bearer ${jwt}`,
@@ -53,11 +78,19 @@ export async function sendApnsPush(env: Env, opts: ApnsSendOptions): Promise<Apn
   if (opts.collapseId) headers["apns-collapse-id"] = opts.collapseId;
 
   const doFetch = opts.fetcher ?? fetch;
-  const response = await doFetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(opts.payload),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await doFetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(opts.payload),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const apnsId = response.headers.get("apns-id");
   if (response.status === 200) {
@@ -70,7 +103,21 @@ export async function sendApnsPush(env: Env, opts: ApnsSendOptions): Promise<Apn
   } catch {
     /* ignore */
   }
-  return { status: response.status, reason, apnsId };
+  return {
+    status: response.status,
+    reason,
+    apnsId,
+    retryAfterSeconds: parseRetryAfter(response.headers.get("retry-after")),
+  };
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - Date.now()) / 1_000));
 }
 
 export interface LiveActivityUpdatePayload {

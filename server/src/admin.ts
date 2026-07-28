@@ -23,6 +23,7 @@ import {
   type TenantRecord,
 } from "./auth";
 import * as storage from "./storage";
+import { deleteCardForTenant } from "./cards";
 import { endAndDeleteActivity } from "./liveActivities";
 import {
   incrementRateLimitBuckets,
@@ -229,11 +230,12 @@ export async function handleAdminDeleteCard(
   env: Env,
   tenantIdRaw: string,
   cardIdRaw: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
-  await storage.deleteCard(env, tenantId, dec(cardIdRaw));
+  await deleteCardForTenant(env, tenantId, dec(cardIdRaw), ctx);
   return redirectToTenant(tenantId);
 }
 

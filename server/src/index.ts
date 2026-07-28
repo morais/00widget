@@ -36,7 +36,8 @@ const routes: Route[] = [
     cards.upsertCard(req, env, auth, ctx)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
-  authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.deleteCard(req, env, auth, m[1])),
+  authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m, ctx) =>
+    cards.deleteCard(req, env, auth, m[1], ctx)),
   authed("POST", /^\/v1\/devices\/register\/?$/, (req, env, auth) => devices.registerDevice(req, env, auth)),
   authed("POST", /^\/v1\/widgets\/register-push-token\/?$/, (req, env, auth) =>
     widgets.registerWidgetPushToken(req, env, auth),
@@ -95,8 +96,8 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
     admin.handleAdminRevokeApiKey(req, env, match[1]),
   },
-  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/cards\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
-    admin.handleAdminDeleteCard(req, env, match[1], match[2]),
+  { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/cards\/([^/]+)\/delete\/?$/, handler: (req, env, match, ctx) =>
+    admin.handleAdminDeleteCard(req, env, match[1], match[2], ctx),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/widget-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
     admin.handleAdminDeleteWidgetToken(req, env, match[1], match[2], match[3]),

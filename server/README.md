@@ -206,7 +206,7 @@ The iOS app treats WidgetKit's callback as a canonical subscription snapshot:
 }
 ```
 
-Sending `subscriptions: []` without a token removes that device's WidgetKit subscriptions. The original single-`widgetKind` request remains accepted for compatibility with older installed builds.
+Sending `subscriptions: []` without a token removes that device's WidgetKit subscriptions. If WidgetKit reuses a token after an app reinstall, canonical registration moves it to the new device snapshot and removes the orphaned rows. The original single-`widgetKind` request remains accepted for compatibility with older installed builds.
 
 ## Storage layout
 
@@ -243,6 +243,6 @@ The Worker constructs payloads that match the documented ActivityKit / WidgetKit
 - **Live Activity start** — `event: "start"`, complete Codable `content-state`, `attributes-type`, `attributes`, required `alert`, and `input-push-token: 1` so iOS returns the per-activity token used for subsequent pushes.
 - **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack.
 - **Live Activity end** — same headers, `event: "end"`, complete final `content-state`, optional `dismissal-date`.
-- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Permanent token failures are pruned; transient APNs failures retry in the background.
+- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Upserts, action-returned card changes, and card deletions all reload affected devices. Permanent token failures are pruned; transient APNs failures use bounded background retries, honor short `Retry-After` windows, and time out stalled requests.
 
 These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

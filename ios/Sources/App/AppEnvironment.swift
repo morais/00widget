@@ -224,6 +224,10 @@ public final class AppEnvironment: ObservableObject {
             return
         }
         lastForegroundFetchAt = now
+        // A registration attempt can fail while the extension or app has no
+        // network. The durable snapshot stays unacknowledged, so each later
+        // foreground is a natural retry point without polling in background.
+        await registerPendingWidgetTokens()
         await fetchCards()
     }
 

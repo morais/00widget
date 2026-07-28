@@ -9,7 +9,11 @@ import {
   revokeSharesForCard,
 } from "./shares";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
-import { scheduleWidgetReloadForCard } from "./widgetPush";
+import {
+  collectWidgetPushTargetsForCard,
+  scheduleWidgetReloadForCard,
+  scheduleWidgetReloads,
+} from "./widgetPush";
 
 export async function upsertCard(
   req: Request,
@@ -75,12 +79,26 @@ export async function deleteCard(
   env: Env,
   auth: AuthContext,
   id: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const limited = await enforceTenantRateLimits(env, auth, []);
   if (limited) return limited;
-  await storage.deleteCard(env, auth.tenantId, id);
-  await revokeSharesForCard(env, auth.tenantId, id);
+  await deleteCardForTenant(env, auth.tenantId, id, ctx);
   return json({ ok: true }, 200);
+}
+
+export async function deleteCardForTenant(
+  env: Env,
+  tenantId: string,
+  id: string,
+  ctx: ExecutionContext,
+): Promise<void> {
+  // Capture recipients before deleting the card and revoking its shares; the
+  // accepted-share relationship is what lets us find every affected device.
+  const targets = await collectWidgetPushTargetsForCard(env, tenantId, id);
+  await storage.deleteCard(env, tenantId, id);
+  await revokeSharesForCard(env, tenantId, id);
+  scheduleWidgetReloads(ctx, env, targets, { tenantId, cardId: id });
 }
 
 export class RequestBodyTooLargeError extends Error {
