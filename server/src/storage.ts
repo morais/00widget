@@ -48,6 +48,17 @@ interface TokenRow {
   token: string;
 }
 
+interface WidgetTokenRow extends TokenRow {
+  card_ids_json: string;
+  all_cards: number;
+}
+
+export interface WidgetPushSubscription {
+  widgetKind: string;
+  cardIds: string[];
+  allCards: boolean;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -158,14 +169,73 @@ export async function putWidgetToken(
   deviceId: string,
   widgetKind: string,
   token: string,
+  subscription: Pick<WidgetPushSubscription, "cardIds" | "allCards"> = {
+    cardIds: [],
+    allCards: true,
+  },
 ): Promise<void> {
   await env.ZW_DB.prepare(
     `INSERT OR REPLACE INTO widget_tokens
-     (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+     (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at, card_ids_json, all_cards)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(tenantId, apiKeyHash, deviceId, widgetKind, token, nowIso())
+    .bind(
+      tenantId,
+      apiKeyHash,
+      deviceId,
+      widgetKind,
+      token,
+      nowIso(),
+      json([...new Set(subscription.cardIds)]),
+      subscription.allCards ? 1 : 0,
+    )
     .run();
+}
+
+export async function replaceWidgetTokensForDevice(
+  env: Env,
+  tenantId: string,
+  apiKeyHash: string,
+  deviceId: string,
+  token: string | undefined,
+  subscriptions: WidgetPushSubscription[],
+): Promise<void> {
+  const statements: D1PreparedStatement[] = [
+    env.ZW_DB.prepare(
+      `DELETE FROM widget_tokens WHERE tenant_id = ? AND device_id = ?`,
+    ).bind(tenantId, deviceId),
+  ];
+  if (token) {
+    const merged = new Map<string, WidgetPushSubscription>();
+    for (const subscription of subscriptions) {
+      const existing = merged.get(subscription.widgetKind);
+      merged.set(subscription.widgetKind, {
+        widgetKind: subscription.widgetKind,
+        cardIds: [...new Set([...(existing?.cardIds ?? []), ...subscription.cardIds])],
+        allCards: Boolean(existing?.allCards || subscription.allCards),
+      });
+    }
+    for (const subscription of merged.values()) {
+      if (!subscription.allCards && subscription.cardIds.length === 0) continue;
+      statements.push(
+        env.ZW_DB.prepare(
+          `INSERT OR REPLACE INTO widget_tokens
+           (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at, card_ids_json, all_cards)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          tenantId,
+          apiKeyHash,
+          deviceId,
+          subscription.widgetKind,
+          token,
+          nowIso(),
+          json(subscription.cardIds),
+          subscription.allCards ? 1 : 0,
+        ),
+      );
+    }
+  }
+  await env.ZW_DB.batch(statements);
 }
 
 export async function deleteWidgetToken(
@@ -179,6 +249,18 @@ export async function deleteWidgetToken(
      WHERE tenant_id = ? AND device_id = ? AND widget_kind = ?`,
   )
     .bind(tenantId, deviceId, widgetKind)
+    .run();
+}
+
+export async function deleteWidgetTokenByValue(
+  env: Env,
+  tenantId: string,
+  token: string,
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `DELETE FROM widget_tokens WHERE tenant_id = ? AND token = ?`,
+  )
+    .bind(tenantId, token)
     .run();
 }
 
@@ -206,6 +288,35 @@ export async function listWidgetTokensForKind(
     .bind(tenantId, widgetKind)
     .all<TokenRow>();
   return rows.results.map((row) => row.token);
+}
+
+export async function listWidgetTokensForCard(
+  env: Env,
+  tenantId: string,
+  cardId: string,
+): Promise<string[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT token, card_ids_json, all_cards FROM widget_tokens
+     WHERE tenant_id = ?
+     ORDER BY device_id, widget_kind`,
+  )
+    .bind(tenantId)
+    .all<WidgetTokenRow>();
+  return [
+    ...new Set(
+      rows.results
+        .filter((row) => {
+          if (Number(row.all_cards) === 1) return true;
+          try {
+            const cardIds = parseJson<unknown>(row.card_ids_json);
+            return Array.isArray(cardIds) && cardIds.includes(cardId);
+          } catch {
+            return true;
+          }
+        })
+        .map((row) => row.token),
+    ),
+  ];
 }
 
 export async function putActivity(

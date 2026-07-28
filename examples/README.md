@@ -22,7 +22,7 @@ chmod +x *.sh
 
 Each call:
 1. Stores the latest state on the backend.
-2. Fan-outs a WidgetKit reload push to every registered widget token (once the iOS app has registered any).
+2. Fan-outs one deduplicated WidgetKit reload push to devices whose configured widgets can display that card.
 
 ### Live Activities (`/v1/live-activities/*`)
 

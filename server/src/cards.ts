@@ -1,18 +1,22 @@
 import type { Env } from "./types";
 import { DashboardCardSchema, RequestBodyLimits, type DashboardCard } from "./types";
 import * as storage from "./storage";
-import { sendWidgetReloadPush } from "./apns";
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
 import {
   isSharingEnabled,
   listAcceptedIncomingByKind,
-  listAcceptedShares,
   revokeSharesForCard,
 } from "./shares";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
+import { scheduleWidgetReloadForCard } from "./widgetPush";
 
-export async function upsertCard(req: Request, env: Env, auth: AuthContext): Promise<Response> {
+export async function upsertCard(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const body = await parseJson(req, RequestBodyLimits.card);
   if (!body) return badRequest("invalid JSON body");
   const parsed = DashboardCardSchema.safeParse(body);
@@ -30,33 +34,9 @@ export async function upsertCard(req: Request, env: Env, auth: AuthContext): Pro
   };
   await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
 
-  // Fan out a WidgetKit reload push to the owner's card/grid widgets, plus
-  // accepted-share recipients' card/grid widgets.
-  const tokens = await collectWidgetTokensForCard(env, auth.tenantId, card.id);
-  for (const token of tokens) {
-    const result = await sendWidgetReloadPush(env, token);
-    if (result.status !== 200 && result.status !== 0) {
-      console.log("widget push failed", { status: result.status, reason: result.reason });
-    }
-  }
+  scheduleWidgetReloadForCard(ctx, env, auth.tenantId, card.id);
 
   return json({ card }, 200);
-}
-
-async function collectWidgetTokensForCard(
-  env: Env,
-  ownerTenantId: string,
-  cardId: string,
-): Promise<string[]> {
-  const tokens = await listCardWidgetTokens(env, ownerTenantId);
-  if (!isSharingEnabled(env)) return tokens;
-  const accepted = await listAcceptedShares(env, ownerTenantId, "card", cardId);
-  for (const share of accepted) {
-    if (!share.recipientTenantId) continue;
-    const recipientTokens = await listCardWidgetTokens(env, share.recipientTenantId);
-    tokens.push(...recipientTokens);
-  }
-  return [...new Set(tokens)];
 }
 
 export async function listCards(req: Request, env: Env, auth: AuthContext): Promise<Response> {
@@ -142,12 +122,4 @@ async function readTextUpTo(req: Request, maxBytes: number): Promise<string> {
     offset += chunk.byteLength;
   }
   return new TextDecoder().decode(body);
-}
-
-async function listCardWidgetTokens(env: Env, tenantId: string): Promise<string[]> {
-  const widgetKinds = ["ZeroZeroWidgetCardWidget", "ZeroZeroWidgetCardGridWidget"];
-  const nested = await Promise.all(
-    widgetKinds.map((kind) => storage.listWidgetTokensForKind(env, tenantId, kind)),
-  );
-  return nested.flat();
 }

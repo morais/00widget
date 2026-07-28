@@ -103,7 +103,7 @@ targets:
           - group.com.example.zerozerowidget
         keychain-access-groups:
           - $(AppIdentifierPrefix)com.example.zerozerowidget
-        aps-environment: development                  # required for WidgetKit push (iOS 18+)
+        aps-environment: development                  # required for WidgetKit push (iOS 26+)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.widgets

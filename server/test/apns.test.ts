@@ -133,20 +133,22 @@ describe("APNs payload construction", () => {
     const captured: CapturedRequest[] = [];
     const fetcher = capturingFetch(captured);
     const env = apnsEnv();
-    const { sendApnsPush } = await import("../src/apns");
-
-    await sendApnsPush(env, {
-      pushToken: "widget-token-hex",
-      pushType: "widgets",
-      topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
-      priority: 5,
-      payload: { aps: { "content-changed": true } },
-      fetcher,
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetcher;
+    try {
+      await sendWidgetReloadPush(env, "widgettokenfeed");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
 
     expect(captured).toHaveLength(1);
     expect(captured[0].headers["apns-push-type"]).toBe("widgets");
     expect(captured[0].headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.widgets");
+    expect(captured[0].headers["apns-priority"]).toBe("5");
+    expect(captured[0].headers["apns-collapse-id"]).toBe("card-reload");
+    expect(Number(captured[0].headers["apns-expiration"])).toBeGreaterThan(
+      Math.floor(Date.now() / 1000),
+    );
     expect(captured[0].body).toEqual({ aps: { "content-changed": true } });
   });
 

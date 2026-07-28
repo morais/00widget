@@ -35,6 +35,8 @@ export const FieldLimits = {
   deviceId: 128,
   localActivityId: 128,
   widgetKind: 128,
+  widgetSubscriptionCount: 64,
+  widgetSubscriptionCardCount: 64,
   attributesType: 128,
   pushToken: 4096,
   appVersion: 64,
@@ -166,11 +168,45 @@ export const RegisterDeviceSchema = z.object({
   platform: z.string().max(FieldLimits.platform).default("ios"),
 });
 
-export const RegisterWidgetPushTokenSchema = z.object({
+const LegacyRegisterWidgetPushTokenSchema = z.object({
   deviceId: z.string().min(1).max(FieldLimits.deviceId),
   widgetKind: z.string().min(1).max(FieldLimits.widgetKind),
   widgetPushToken: PushTokenString,
 });
+
+export const WidgetPushSubscriptionSchema = z.object({
+  widgetKind: z.string().min(1).max(FieldLimits.widgetKind),
+  cardIds: z
+    .array(CardIdString)
+    .max(FieldLimits.widgetSubscriptionCardCount)
+    .default([]),
+  allCards: z.boolean().default(false),
+});
+
+const SyncWidgetPushTokenSchema = z
+  .object({
+    deviceId: z.string().min(1).max(FieldLimits.deviceId),
+    widgetPushToken: PushTokenString.optional(),
+    subscriptions: z
+      .array(WidgetPushSubscriptionSchema)
+      .max(FieldLimits.widgetSubscriptionCount),
+  })
+  .superRefine((value, ctx) => {
+    if (value.subscriptions.length > 0 && !value.widgetPushToken) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["widgetPushToken"],
+        message: "widgetPushToken is required when subscriptions are present",
+      });
+    }
+  });
+
+// Keep accepting the original one-kind registration until every installed app
+// has moved to canonical subscription snapshots.
+export const RegisterWidgetPushTokenSchema = z.union([
+  SyncWidgetPushTokenSchema,
+  LegacyRegisterWidgetPushTokenSchema,
+]);
 
 export const RegisterLiveActivitySchema = z.object({
   deviceId: z.string().min(1).max(FieldLimits.deviceId),

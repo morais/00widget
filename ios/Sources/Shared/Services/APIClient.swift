@@ -17,7 +17,8 @@ public struct APIClientConfig {
 
     public static func fromSettings() -> APIClientConfig? {
         let defaults = UserDefaults.standard
-        let urlString = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+        let urlString = SharedSettings.serverBaseURL
+            ?? defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
             ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         guard
             !urlString.isEmpty,
@@ -207,14 +208,26 @@ public final class APIClient {
         let _: EmptyBody = try await request("POST", path: "/v1/devices/register", body: body)
     }
 
-    public func registerWidgetPushToken(deviceId: String, widgetKind: String, widgetPushToken: String) async throws {
+    public func syncWidgetPushSubscriptions(
+        deviceId: String,
+        widgetPushToken: String?,
+        subscriptions: [WidgetPushSubscription]
+    ) async throws {
         struct Body: Codable {
             let deviceId: String
-            let widgetKind: String
-            let widgetPushToken: String
+            let widgetPushToken: String?
+            let subscriptions: [WidgetPushSubscription]
         }
-        let body = Body(deviceId: deviceId, widgetKind: widgetKind, widgetPushToken: widgetPushToken)
-        let _: EmptyBody = try await request("POST", path: "/v1/widgets/register-push-token", body: body)
+        let body = Body(
+            deviceId: deviceId,
+            widgetPushToken: widgetPushToken,
+            subscriptions: subscriptions
+        )
+        let _: EmptyBody = try await request(
+            "POST",
+            path: "/v1/widgets/register-push-token",
+            body: body
+        )
     }
 
     public func registerLiveActivity(
