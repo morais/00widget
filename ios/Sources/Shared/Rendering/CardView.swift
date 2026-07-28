@@ -240,59 +240,182 @@ public struct CardView: View {
     }
 
     private var appView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            switch card.template {
-            case .list:
-                listRows(max: 10)
-            case .progress:
-                if let p = card.progressValue {
-                    ProgressRow(progress: p, label: card.subtitle)
-                }
-                bigValue
-            case .summary, .action:
-                bigValue
-                if let subtitle = card.subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            appHeader
+            appContent
+
+            if density != .compact {
+                appControls
+
+                Label(
+                    card.updatedAt.formatted(.relative(presentation: .named)),
+                    systemImage: "clock"
+                )
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             }
-            if let actions = card.actions, !actions.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Actions").font(.caption).foregroundStyle(.secondary)
-                    ForEach(actions) { action in
-                        if let appActionHandler {
-                            Button {
-                                appActionHandler(action)
-                            } label: {
-                                Label(action.label, systemImage: "bolt.fill")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(action.role == .destructive ? .red : .accentColor)
-                        } else {
-                            Text(action.label)
-                                .font(.callout)
+        }
+        .padding(20)
+        .background(appBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
+    }
+
+    private var appHeader: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(card.status.tint.opacity(0.16))
+                Image(systemName: card.icon ?? "square.grid.2x2")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(card.status.tint)
+            }
+            .frame(width: 36, height: 36)
+
+            Text(card.title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            if let statusIcon = card.statusIcon {
+                Image(systemName: statusIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(card.status.tint)
+            }
+
+            StatusBadge(status: card.status, compact: true)
+
+            if density == .compact {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var appContent: some View {
+        switch card.template {
+        case .list:
+            appListRows
+        case .progress:
+            appValue
+            if let progress = card.progressValue {
+                ProgressView(value: progress)
+                    .tint(card.status.tint)
+            }
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+        case .summary, .action:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+        }
+    }
+
+    private var appValue: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(card.value ?? "—")
+                .font(.system(size: 48, weight: .semibold, design: .rounded))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            if let unit = card.unit {
+                Text(unit)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func appSubtitle(_ subtitle: String) -> some View {
+        Text(subtitle)
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .lineLimit(density == .compact ? 1 : 3)
+    }
+
+    @ViewBuilder
+    private var appListRows: some View {
+        if let items = card.items, !items.isEmpty {
+            VStack(spacing: 10) {
+                ForEach(items.prefix(density == .compact ? 3 : 10)) { item in
+                    HStack(spacing: 12) {
+                        Text(item.title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        if let value = item.value {
+                            Text("\(value)\(item.unit ?? "")")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(item.status?.tint ?? .primary)
                         }
                     }
                 }
             }
-            if let deepLink = card.deepLink {
-                Divider()
-                Link(destination: deepLink) {
-                    Label(deepLinkButtonTitle(deepLink), systemImage: "arrow.up.forward.app")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            Text("Updated \(card.updatedAt.formatted(.dateTime))")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+        } else {
+            Text("No items")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.08)))
+    }
+
+    @ViewBuilder
+    private var appControls: some View {
+        let actions = card.actions ?? []
+        if (!actions.isEmpty && appActionHandler != nil) || card.deepLink != nil {
+            Divider()
+
+            VStack(spacing: 10) {
+                if let appActionHandler {
+                    ForEach(actions) { action in
+                        Button {
+                            appActionHandler(action)
+                        } label: {
+                            Label(action.label, systemImage: actionIcon(action))
+                                .font(.body.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(action.role == .destructive ? .red : card.status.tint)
+                        .controlSize(.large)
+                    }
+                }
+
+                if let deepLink = card.deepLink {
+                    Link(destination: deepLink) {
+                        Label("Open link", systemImage: "arrow.up.forward.app")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(card.status.tint)
+                    .controlSize(.large)
+                }
+            }
+        }
+    }
+
+    private var appBackground: some ShapeStyle {
+        LinearGradient(
+            colors: [
+                card.status.tint.opacity(0.12),
+                Color.primary.opacity(0.055)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func actionIcon(_ action: ActionDefinition) -> String {
+        action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
     }
 
     private var actionSummary: some View {
@@ -361,15 +484,6 @@ public struct CardView: View {
         #endif
     }
 
-    private func deepLinkButtonTitle(_ url: URL) -> String {
-        guard let scheme = url.scheme?.lowercased(), !scheme.isEmpty else {
-            return "Open link"
-        }
-        if scheme == "http" || scheme == "https" {
-            return url.host.map { "Open \($0)" } ?? "Open \(scheme) link"
-        }
-        return "Open \(scheme):// link"
-    }
 }
 
 extension DashboardCard {
