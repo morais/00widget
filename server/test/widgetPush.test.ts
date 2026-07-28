@@ -131,6 +131,35 @@ describe("widget push subscriptions", () => {
       .resolves.toEqual([{ token: "aabbccdd", tenantIds: ["test-tenant"] }]);
   });
 
+  it("moves a reused WidgetKit token to the current device snapshot", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await storage.replaceWidgetTokensForDevice(
+      env,
+      "test-tenant",
+      hash,
+      "old-device",
+      "aabbccdd",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: ["solar"], allCards: false }],
+    );
+
+    await storage.replaceWidgetTokensForDevice(
+      env,
+      "test-tenant",
+      hash,
+      "new-device",
+      "aabbccdd",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: ["washer"], allCards: false }],
+    );
+
+    await expect(storage.listWidgetTokensForCard(env, "test-tenant", "solar"))
+      .resolves.toEqual([]);
+    await expect(storage.listWidgetTokensForCard(env, "test-tenant", "washer"))
+      .resolves.toEqual(["aabbccdd"]);
+    await expect(storage.listWidgetTokens(env, "test-tenant"))
+      .resolves.toEqual(["aabbccdd"]);
+  });
+
   it("retries transient failures and prunes permanently dead tokens", async () => {
     const env = makeEnv();
     const hash = await sha256Hex("test-key");
@@ -154,6 +183,23 @@ describe("widget push subscriptions", () => {
     );
     expect(retried).toEqual([{ status: 200, apnsId: "accepted", attempts: 2 }]);
     expect(wait).toHaveBeenCalledOnce();
+
+    const retryAfterWait = vi.fn().mockResolvedValue(undefined);
+    const rateLimitedSender = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 429,
+        reason: "TooManyRequests",
+        retryAfterSeconds: 60,
+      })
+      .mockResolvedValueOnce({ status: 200, apnsId: "accepted-after-rate-limit" });
+    const rateLimited = await deliverWidgetReloads(
+      env,
+      [{ token: "aabbccdd", tenantIds: ["test-tenant"] }],
+      { sender: rateLimitedSender, sleep: retryAfterWait },
+    );
+    expect(rateLimited[0]).toMatchObject({ status: 200, attempts: 2 });
+    expect(retryAfterWait).toHaveBeenCalledWith(5_000);
 
     const dead = await deliverWidgetReloads(
       env,

@@ -152,6 +152,60 @@ describe("APNs payload construction", () => {
     expect(captured[0].body).toEqual({ aps: { "content-changed": true } });
   });
 
+  it("surfaces APNs Retry-After timing", async () => {
+    __resetApnsJwtCache();
+    const env = apnsEnv();
+    const { sendApnsPush } = await import("../src/apns");
+    const result = await sendApnsPush(env, {
+      pushToken: "feedface",
+      pushType: "widgets",
+      topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
+      payload: { aps: { "content-changed": true } },
+      fetcher: async () => new Response(JSON.stringify({ reason: "TooManyRequests" }), {
+        status: 429,
+        headers: { "retry-after": "3" },
+      }),
+    });
+    expect(result).toMatchObject({
+      status: 429,
+      reason: "TooManyRequests",
+      retryAfterSeconds: 3,
+    });
+  });
+
+  it("refreshes a rejected cached provider token once", async () => {
+    __resetApnsJwtCache();
+    const env = apnsEnv();
+    const { sendApnsPush } = await import("../src/apns");
+    const options = {
+      pushToken: "feedface",
+      pushType: "widgets" as const,
+      topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
+      payload: { aps: { "content-changed": true } },
+    };
+
+    await sendApnsPush(env, {
+      ...options,
+      fetcher: async () => new Response("{}", { status: 200 }),
+    });
+
+    let calls = 0;
+    const result = await sendApnsPush(env, {
+      ...options,
+      fetcher: async () => {
+        calls++;
+        if (calls === 1) {
+          return new Response(JSON.stringify({ reason: "InvalidProviderToken" }), {
+            status: 403,
+          });
+        }
+        return new Response("{}", { status: 200 });
+      },
+    });
+    expect(calls).toBe(2);
+    expect(result.status).toBe(200);
+  });
+
   it("live activity start requests an update token and includes the required alert", async () => {
     __resetApnsJwtCache();
     const captured: CapturedRequest[] = [];

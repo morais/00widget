@@ -143,6 +143,40 @@ describe("cards endpoints", () => {
     expect(data2.cards).toHaveLength(0);
   });
 
+  it("schedules a widget reload when a card is deleted", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await storage.putCard(env, "test-tenant", hash, {
+      id: "solar-home",
+      template: "summary",
+      title: "Solar",
+      status: "good",
+    });
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "feedface",
+    );
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(task: Promise<unknown>) { pending.push(task); },
+    } as ExecutionContext;
+
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/solar-home", { method: "DELETE" }),
+      env,
+      ctx,
+    );
+
+    expect(response.status).toBe(200);
+    expect(pending).toHaveLength(1);
+    await Promise.all(pending);
+    await expect(storage.getCard(env, "test-tenant", "solar-home")).resolves.toBeNull();
+  });
+
   it("isolates cards with the same id across tenants", async () => {
     const env = makeEnv();
     await seedApiKey(env, "tenant-a-token", "tenant-a");

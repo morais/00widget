@@ -15,6 +15,7 @@ export interface WidgetPushDeliveryResult extends ApnsResult {
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1_000];
+const MAX_RETRY_AFTER_MS = 5_000;
 const DEAD_TOKEN_REASONS = new Set([
   "BadDeviceToken",
   "DeviceTokenNotForTopic",
@@ -88,19 +89,39 @@ export function scheduleWidgetReloadForCard(
 ): void {
   const task = collectWidgetPushTargetsForCard(env, ownerTenantId, cardId)
     .then((targets) => deliverWidgetReloads(env, targets))
-    .then(() => undefined)
-    .catch((error) => {
-      console.error("widget push fan-out failed", {
-        tenantId: ownerTenantId,
-        cardId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    .then(() => undefined);
+  scheduleTask(ctx, task, { tenantId: ownerTenantId, cardId });
+}
+
+export function scheduleWidgetReloads(
+  ctx: ExecutionContext,
+  env: Env,
+  targets: WidgetPushTarget[],
+  context: { tenantId: string; cardId: string },
+): void {
+  scheduleTask(
+    ctx,
+    deliverWidgetReloads(env, targets).then(() => undefined),
+    context,
+  );
+}
+
+function scheduleTask(
+  ctx: ExecutionContext,
+  task: Promise<void>,
+  context: { tenantId: string; cardId: string },
+): void {
+  const guarded = task.catch((error) => {
+    console.error("widget push fan-out failed", {
+      ...context,
+      error: error instanceof Error ? error.message : String(error),
     });
+  });
   const waitUntil = (ctx as Partial<ExecutionContext> | undefined)?.waitUntil;
   if (typeof waitUntil === "function") {
-    waitUntil.call(ctx, task);
+    waitUntil.call(ctx, guarded);
   } else {
-    void task;
+    void guarded;
   }
 }
 
@@ -122,7 +143,7 @@ async function deliverOne(
       };
     }
     if (!isTransient(result) || attempts === MAX_ATTEMPTS) break;
-    await wait(RETRY_DELAYS_MS[attempts - 1] ?? 0);
+    await wait(retryDelay(result, attempts));
   }
 
   if (DEAD_TOKEN_REASONS.has(result.reason ?? "")) {
@@ -150,9 +171,15 @@ function isTransient(result: ApnsResult): boolean {
   return (
     (result.status === 0 && result.reason !== "apns-not-configured") ||
     result.status === 429 ||
-    result.status === 500 ||
-    result.status === 503
+    (result.status >= 500 && result.status <= 599)
   );
+}
+
+function retryDelay(result: ApnsResult, attempts: number): number {
+  if (result.status === 429 && result.retryAfterSeconds !== undefined) {
+    return Math.min(result.retryAfterSeconds * 1_000, MAX_RETRY_AFTER_MS);
+  }
+  return RETRY_DELAYS_MS[attempts - 1] ?? 0;
 }
 
 function sleep(ms: number): Promise<void> {

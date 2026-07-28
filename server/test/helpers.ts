@@ -259,6 +259,21 @@ export class FakeD1 {
       }
       return count;
     }
+    if (normalized === "DELETE FROM widget_tokens WHERE tenant_id = ? AND token = ? AND device_id <> ?") {
+      const [tenant_id, token, device_id] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.widgetTokens.entries()) {
+        if (
+          row.tenant_id === tenant_id &&
+          row.token === token &&
+          row.device_id !== device_id
+        ) {
+          this.widgetTokens.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
     if (normalized.startsWith("DELETE FROM widget_tokens")) {
       const [tenant_id, device_id, widget_kind] = values.map(String);
       this.widgetTokens.delete(`${tenant_id}:${device_id}:${widget_kind}`);

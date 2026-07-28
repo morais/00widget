@@ -206,6 +206,15 @@ export async function replaceWidgetTokensForDevice(
     ).bind(tenantId, deviceId),
   ];
   if (token) {
+    // WidgetKit tokens are device-specific. If an app reinstall creates a new
+    // device id while WidgetKit reissues the same token, move that token to the
+    // current device instead of leaving an orphan that can later fan out twice.
+    statements.push(
+      env.ZW_DB.prepare(
+        `DELETE FROM widget_tokens
+         WHERE tenant_id = ? AND token = ? AND device_id <> ?`,
+      ).bind(tenantId, token, deviceId),
+    );
     const merged = new Map<string, WidgetPushSubscription>();
     for (const subscription of subscriptions) {
       const existing = merged.get(subscription.widgetKind);
