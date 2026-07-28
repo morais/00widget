@@ -13,75 +13,74 @@ struct TVWebLinkView: View {
     let link: TVWebLink
 
     var body: some View {
-        VStack(spacing: 44) {
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(link.cardTitle)
-                        .font(.largeTitle.weight(.bold))
-                    Text("Open this link on your phone")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Back", systemImage: "chevron.backward") {
-                    dismiss()
-                }
-            }
+        ZStack {
+            Color(red: 0.025, green: 0.03, blue: 0.05)
+                .ignoresSafeArea()
 
-            HStack(spacing: 72) {
-                VStack(alignment: .leading, spacing: 28) {
-                    Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                        .font(.system(size: 88))
-                        .foregroundStyle(.tint)
-
-                    Text("Scan the QR code with your phone’s camera.")
-                        .font(.title2.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text("Apple TV doesn’t include a web browser, so web links are handed off this way.")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(link.url.absoluteString)
-                        .font(.body.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(4)
-                }
-                .frame(maxWidth: 680, alignment: .leading)
-
-                Spacer(minLength: 0)
-
-                if let image = QRCode.image(for: link.url.absoluteString) {
-                    image
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(34)
-                        .background(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 32))
-                        .frame(width: 430, height: 430)
-                        .accessibilityLabel("QR code for \(link.url.absoluteString)")
-                } else {
-                    ContentUnavailableView(
-                        "Couldn’t create QR code",
-                        systemImage: "qrcode",
-                        description: Text(link.url.absoluteString)
-                    )
-                    .frame(width: 430, height: 430)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .padding(.horizontal, 100)
-        .padding(.vertical, 60)
-        .background {
             LinearGradient(
-                colors: [Color.black.opacity(0.15), Color.accentColor.opacity(0.12)],
+                colors: [Color.clear, Color.accentColor.opacity(0.18)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+
+            VStack(spacing: 44) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(link.cardTitle)
+                            .font(.largeTitle.weight(.bold))
+                        Text("Open this link on your phone")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Back", systemImage: "chevron.backward") {
+                        dismiss()
+                    }
+                }
+
+                HStack(spacing: 72) {
+                    VStack(alignment: .leading, spacing: 28) {
+                        Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                            .font(.system(size: 88))
+                            .foregroundStyle(.tint)
+
+                        Text("Scan the QR code with your phone’s camera.")
+                            .font(.title2.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(link.url.absoluteString)
+                            .font(.body.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                    }
+                    .frame(maxWidth: 680, alignment: .leading)
+
+                    Spacer(minLength: 0)
+
+                    if let image = QRCode.image(for: link.url.absoluteString) {
+                        image
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(34)
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 32))
+                            .frame(width: 430, height: 430)
+                            .accessibilityLabel("QR code for \(link.url.absoluteString)")
+                    } else {
+                        ContentUnavailableView(
+                            "Couldn’t create QR code",
+                            systemImage: "qrcode",
+                            description: Text(link.url.absoluteString)
+                        )
+                        .frame(width: 430, height: 430)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(.horizontal, 100)
+            .padding(.vertical, 60)
         }
     }
 }

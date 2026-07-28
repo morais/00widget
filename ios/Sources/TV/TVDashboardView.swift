@@ -4,6 +4,9 @@ struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
     @State private var showingSettings = false
     @State private var selectedLink: TVWebLink?
+    @State private var pendingAction: TVPendingAction?
+    @State private var runningActionID: String?
+    @State private var actionError: String?
 
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: 40, alignment: .top),
@@ -32,6 +35,37 @@ struct TVDashboardView: View {
         }
         .fullScreenCover(item: $selectedLink) { link in
             TVWebLinkView(link: link)
+        }
+        .confirmationDialog(
+            "Run action?",
+            isPresented: Binding(
+                get: { pendingAction != nil },
+                set: { if !$0 { pendingAction = nil } }
+            ),
+            presenting: pendingAction
+        ) { pending in
+            Button(
+                pending.action.label,
+                role: pending.action.role == .destructive ? .destructive : nil
+            ) {
+                run(pending.action, for: pending.card)
+                pendingAction = nil
+            }
+        } message: { pending in
+            Text("Run \(pending.action.label) for \(pending.card.title)?")
+        }
+        .alert(
+            "Action failed",
+            isPresented: Binding(
+                get: { actionError != nil },
+                set: { if !$0 { actionError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                actionError = nil
+            }
+        } message: {
+            Text(actionError ?? "Please try again.")
         }
     }
 
@@ -86,17 +120,12 @@ struct TVDashboardView: View {
             ScrollView {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 40) {
                     ForEach(env.cards) { card in
-                        Button {
-                            if let url = card.deepLink {
-                                selectedLink = TVWebLink(cardTitle: card.title, url: url)
-                            }
-                        } label: {
-                            TVDashboardCardView(card: card)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 248)
-                        }
-                        .buttonStyle(.card)
-                        .accessibilityHint(card.deepLink == nil ? "Widget summary" : "Shows a QR code for the web link")
+                        TVDashboardCardView(
+                            card: card,
+                            runningActionID: runningActionID,
+                            openLink: { openLink(for: card) },
+                            runAction: { request($0, for: card) }
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -119,33 +148,79 @@ struct TVDashboardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    private func openLink(for card: DashboardCard) {
+        guard let url = card.deepLink else { return }
+        selectedLink = TVWebLink(cardTitle: card.title, url: url)
+    }
+
+    private func request(_ action: ActionDefinition, for card: DashboardCard) {
+        if action.confirm || action.role == .destructive {
+            pendingAction = TVPendingAction(card: card, action: action)
+        } else {
+            run(action, for: card)
+        }
+    }
+
+    private func run(_ action: ActionDefinition, for card: DashboardCard) {
+        let actionID = "\(card.id)|\(action.id)"
+        runningActionID = actionID
+        actionError = nil
+
+        Task {
+            defer { runningActionID = nil }
+            guard let client = env.apiClient() else {
+                actionError = "The server connection is unavailable."
+                return
+            }
+            do {
+                try await client.runAction(id: action.id, cardId: card.id, source: "app")
+                await env.fetchCards()
+            } catch {
+                actionError = error.localizedDescription
+            }
+        }
+    }
 }
 
 private struct TVDashboardCardView: View {
     let card: DashboardCard
+    let runningActionID: String?
+    let openLink: () -> Void
+    let runAction: (ActionDefinition) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
+        VStack(spacing: 14) {
+            Button(action: openLink) {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
 
-            switch card.template {
-            case .list:
-                listContent
-            case .progress:
-                valueContent
-                if let progress = card.progressValue {
-                    ProgressView(value: progress)
-                        .tint(card.status.tint)
+                    switch card.template {
+                    case .list:
+                        listContent
+                    case .progress:
+                        valueContent
+                        if let progress = card.progressValue {
+                            ProgressView(value: progress)
+                                .tint(card.status.tint)
+                        }
+                    case .summary, .action:
+                        valueContent
+                    }
+
+                    Spacer(minLength: 0)
                 }
-            case .summary, .action:
-                valueContent
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 220)
+                .contentShape(RoundedRectangle(cornerRadius: 24))
             }
+            .buttonStyle(.card)
+            .accessibilityHint(card.deepLink == nil ? "Widget summary" : "Shows a QR code for the web link")
 
-            Spacer(minLength: 0)
-            footer
+            controls
         }
-        .padding(26)
-        .contentShape(RoundedRectangle(cornerRadius: 24))
     }
 
     private var header: some View {
@@ -171,17 +246,10 @@ private struct TVDashboardCardView: View {
 
     private var valueContent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(card.value ?? "—")
-                    .font(.system(size: 44, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                if let unit = card.unit {
-                    Text(unit)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text("\(card.value ?? "—")\(card.unit ?? "")")
+                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.headline)
@@ -217,23 +285,52 @@ private struct TVDashboardCardView: View {
         }
     }
 
-    private var footer: some View {
-        HStack(spacing: 14) {
-            Text(card.updatedAt, style: .relative)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+    @ViewBuilder
+    private var controls: some View {
+        let actions = card.actions ?? []
+        if !actions.isEmpty || card.deepLink != nil {
+            ScrollView(.horizontal) {
+                HStack(spacing: 12) {
+                    ForEach(actions) { action in
+                        let actionID = "\(card.id)|\(action.id)"
+                        Button {
+                            runAction(action)
+                        } label: {
+                            if runningActionID == actionID {
+                                ProgressView()
+                                    .frame(minWidth: 120)
+                            } else {
+                                Label(action.label, systemImage: actionIcon(action))
+                            }
+                        }
+                        .disabled(runningActionID != nil)
+                    }
 
-            Spacer()
-
-            if let actions = card.actions, !actions.isEmpty {
-                Label("\(actions.count) action\(actions.count == 1 ? "" : "s")", systemImage: "bolt.fill")
+                    if card.deepLink != nil {
+                        Button(action: openLink) {
+                            Label("Open link", systemImage: "qrcode")
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
             }
-            if card.deepLink != nil {
-                Label("Open link", systemImage: "qrcode")
-            }
+            .scrollIndicators(.hidden)
+            .frame(height: 72)
+        } else {
+            Color.clear
+                .frame(height: 72)
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
-        .labelStyle(.titleAndIcon)
     }
+
+    private func actionIcon(_ action: ActionDefinition) -> String {
+        action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
+    }
+}
+
+private struct TVPendingAction: Identifiable {
+    let card: DashboardCard
+    let action: ActionDefinition
+
+    var id: String { "\(card.id)|\(action.id)" }
 }
