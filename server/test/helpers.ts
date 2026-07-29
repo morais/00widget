@@ -42,6 +42,7 @@ export class FakeD1 {
   private webhookIntegrations = new Map<string, FakeRow>();
   private shares = new Map<string, FakeRow>();
   private rateLimitBuckets = new Map<string, FakeRow>();
+  private widgetPushCadence = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -162,6 +163,8 @@ export class FakeD1 {
         updated_at,
         card_ids_json = "[]",
         all_cards = "1",
+        app_version = "0.0",
+        platform = "ios",
       ] = values.map(String);
       this.widgetTokens.set(`${tenant_id}:${device_id}:${widget_kind}`, {
         tenant_id,
@@ -172,6 +175,8 @@ export class FakeD1 {
         updated_at,
         card_ids_json,
         all_cards,
+        app_version,
+        platform,
       });
       return 1;
     }
@@ -395,6 +400,13 @@ export class FakeD1 {
       });
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO widget_push_cadence")) {
+      const [tenant_id, last_sent_at, cutoff] = values.map(String);
+      const existing = this.widgetPushCadence.get(tenant_id);
+      if (existing && Number(existing.last_sent_at) > Number(cutoff)) return 0;
+      this.widgetPushCadence.set(tenant_id, { tenant_id, last_sent_at });
+      return 1;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
@@ -532,6 +544,33 @@ export class FakeD1 {
       return byTenant(this.widgetTokens, tenant_id)
         .sort(by("api_key_hash", "device_id", "widget_kind"))
         .map(select("api_key_hash", "device_id", "widget_kind", "token"));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform FROM widget_tokens WHERE tenant_id = ? ORDER BY api_key_hash, device_id, widget_kind") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.widgetTokens, tenant_id)
+        .sort(by("api_key_hash", "device_id", "widget_kind"))
+        .map(select(
+          "api_key_hash",
+          "device_id",
+          "widget_kind",
+          "token",
+          "updated_at",
+          "app_version",
+          "platform",
+        ));
+    }
+    if (normalized === "SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform FROM widget_tokens ORDER BY api_key_hash, device_id, widget_kind") {
+      return [...this.widgetTokens.values()]
+        .sort(by("api_key_hash", "device_id", "widget_kind"))
+        .map(select(
+          "api_key_hash",
+          "device_id",
+          "widget_kind",
+          "token",
+          "updated_at",
+          "app_version",
+          "platform",
+        ));
     }
     if (normalized === "SELECT api_key_hash, external_id, json FROM activities ORDER BY api_key_hash, external_id") {
       return [...this.activities.values()]

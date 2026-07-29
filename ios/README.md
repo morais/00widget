@@ -88,6 +88,7 @@ The iOS app **does not** hold the APNs private key. It only:
 - Observes `Activity.activityUpdates` so remotely started activities register their per-activity push tokens (`POST /v1/live-activities/register`).
 - Replays current start/activity tokens after login or configuration changes.
 - Persists WidgetKit token/configuration snapshots through `WidgetConfiguration.pushHandler`, registers them immediately when the extension gets enough runtime, and retries/reconciles through `WidgetCenter.currentPushInfo` at launch and on later foregrounds until the server acknowledges the snapshot.
+- After a successful foreground card fetch, saves the App Group cache and explicitly reloads both widget kinds so the visible widget catches up while the app is active instead of waiting for its background timeline budget.
 - Shares the runtime server URL and stable device id through the App Group so the app and widget extension always register and fetch against the same account.
 
 The APNs `.p8` key lives only on the backend. See `server/README.md`.

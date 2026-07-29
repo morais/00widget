@@ -26,7 +26,21 @@ export async function registerWidgetPushToken(
       parsed.data.deviceId,
       parsed.data.widgetPushToken,
       parsed.data.subscriptions,
+      {
+        appVersion: parsed.data.appVersion,
+        platform: parsed.data.platform,
+      },
     );
+    console.log("widget registration synced", {
+      event: "widget.registration.synced",
+      tenantId: auth.tenantId,
+      devicePrefix: parsed.data.deviceId.slice(0, 8),
+      appVersion: parsed.data.appVersion,
+      platform: parsed.data.platform,
+      tokenPresent: Boolean(parsed.data.widgetPushToken),
+      subscriptionCount: parsed.data.subscriptions.length,
+      widgetKinds: [...new Set(parsed.data.subscriptions.map((item) => item.widgetKind))],
+    });
   } else {
     const { deviceId, widgetKind, widgetPushToken } = parsed.data;
     await storage.putWidgetToken(
@@ -37,6 +51,12 @@ export async function registerWidgetPushToken(
       widgetKind,
       widgetPushToken,
     );
+    console.log("legacy widget registration synced", {
+      event: "widget.registration.legacy",
+      tenantId: auth.tenantId,
+      devicePrefix: deviceId.slice(0, 8),
+      widgetKind,
+    });
   }
   return json({ ok: true });
 }

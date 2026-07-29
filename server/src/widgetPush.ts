@@ -16,6 +16,9 @@ export interface WidgetPushDeliveryResult extends ApnsResult {
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1_000];
 const MAX_RETRY_AFTER_MS = 5_000;
+// Apple budgets WidgetKit reloads over a rolling day. Keeping the server below
+// two pushes/hour leaves room for timeline and foreground-triggered reloads.
+const MIN_PUSH_INTERVAL_SECONDS = 30 * 60;
 const DEAD_TOKEN_REASONS = new Set([
   "BadDeviceToken",
   "DeviceTokenNotForTopic",
@@ -57,6 +60,46 @@ export async function collectWidgetPushTargetsForCard(
   }));
 }
 
+export async function collectWidgetPushTargetsForCards(
+  env: Env,
+  ownerTenantId: string,
+  cardIds: string[],
+): Promise<WidgetPushTarget[]> {
+  const collected = await Promise.all(
+    [...new Set(cardIds)].map((cardId) =>
+      collectWidgetPushTargetsForCard(env, ownerTenantId, cardId),
+    ),
+  );
+  const targets = new Map<string, Set<string>>();
+  for (const entries of collected) {
+    for (const entry of entries) {
+      const tenants = targets.get(entry.token) ?? new Set<string>();
+      for (const tenantId of entry.tenantIds) tenants.add(tenantId);
+      targets.set(entry.token, tenants);
+    }
+  }
+  return [...targets].map(([token, tenantIds]) => ({
+    token,
+    tenantIds: [...tenantIds],
+  }));
+}
+
+export async function claimWidgetPushWindow(
+  env: Env,
+  tenantId: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): Promise<boolean> {
+  const result = await env.ZW_DB.prepare(
+    `INSERT INTO widget_push_cadence (tenant_id, last_sent_at)
+     VALUES (?, ?)
+     ON CONFLICT(tenant_id) DO UPDATE SET last_sent_at = excluded.last_sent_at
+     WHERE widget_push_cadence.last_sent_at <= ?`,
+  )
+    .bind(tenantId, nowSeconds, nowSeconds - MIN_PUSH_INTERVAL_SECONDS)
+    .run();
+  return Number(result.meta.changes ?? 0) > 0;
+}
+
 export async function deliverWidgetReloads(
   env: Env,
   targets: WidgetPushTarget[],
@@ -87,10 +130,30 @@ export function scheduleWidgetReloadForCard(
   ownerTenantId: string,
   cardId: string,
 ): void {
-  const task = collectWidgetPushTargetsForCard(env, ownerTenantId, cardId)
-    .then((targets) => deliverWidgetReloads(env, targets))
-    .then(() => undefined);
-  scheduleTask(ctx, task, { tenantId: ownerTenantId, cardId });
+  scheduleWidgetReloadForCards(ctx, env, ownerTenantId, [cardId]);
+}
+
+export function scheduleWidgetReloadForCards(
+  ctx: ExecutionContext,
+  env: Env,
+  ownerTenantId: string,
+  cardIds: string[],
+): void {
+  const context = { tenantId: ownerTenantId, cardIds: [...new Set(cardIds)] };
+  const task = collectWidgetPushTargetsForCards(
+    env,
+    ownerTenantId,
+    context.cardIds,
+  ).then(async (targets) => {
+    // Don't consume a tenant's cadence window before their first widget has
+    // registered; the next card update should be able to refresh it.
+    if (targets.length === 0) return;
+    const claimed = await claimWidgetPushWindow(env, ownerTenantId);
+    if (!claimed) return;
+    const results = await deliverWidgetReloads(env, targets);
+    logDeliverySummary(context, targets.length, results);
+  });
+  scheduleTask(ctx, task, context);
 }
 
 export function scheduleWidgetReloads(
@@ -99,17 +162,20 @@ export function scheduleWidgetReloads(
   targets: WidgetPushTarget[],
   context: { tenantId: string; cardId: string },
 ): void {
+  const taskContext = { tenantId: context.tenantId, cardIds: [context.cardId] };
   scheduleTask(
     ctx,
-    deliverWidgetReloads(env, targets).then(() => undefined),
-    context,
+    deliverWidgetReloads(env, targets).then((results) => {
+      logDeliverySummary(taskContext, targets.length, results);
+    }),
+    taskContext,
   );
 }
 
 function scheduleTask(
   ctx: ExecutionContext,
   task: Promise<void>,
-  context: { tenantId: string; cardId: string },
+  context: { tenantId: string; cardIds: string[] },
 ): void {
   const guarded = task.catch((error) => {
     console.error("widget push fan-out failed", {
@@ -123,6 +189,40 @@ function scheduleTask(
   } else {
     void guarded;
   }
+}
+
+function logDeliverySummary(
+  context: { tenantId: string; cardIds: string[] },
+  targetCount: number,
+  results: WidgetPushDeliveryResult[],
+): void {
+  const accepted = results.filter((result) => result.status === 200).length;
+  const skipped = results.filter(
+    (result) => result.status === 0 && result.reason === "apns-not-configured",
+  ).length;
+  const failed = results.length - accepted - skipped;
+  const summary = {
+    event: "widget.push.summary",
+    tenantId: context.tenantId,
+    cardCount: context.cardIds.length,
+    targetCount,
+    accepted,
+    skipped,
+    failed,
+    attempts: results.reduce((total, result) => total + result.attempts, 0),
+  };
+  if (failed > 0) {
+    console.warn("widget push delivery incomplete", summary);
+  } else if (accepted > 0 && sampleSuccess(context.tenantId)) {
+    console.log("widget push delivery sampled", summary);
+  }
+}
+
+function sampleSuccess(tenantId: string): boolean {
+  const hour = Math.floor(Date.now() / (60 * 60 * 1_000));
+  let hash = hour;
+  for (const char of tenantId) hash = ((hash * 31) + char.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 20 === 0;
 }
 
 async function deliverOne(

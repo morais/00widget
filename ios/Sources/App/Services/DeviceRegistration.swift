@@ -8,7 +8,7 @@ public enum DeviceRegistration {
     }
 
     public static func appVersion() -> String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+        ZeroZeroWidgetConstants.appVersion
     }
 
     public static func requestNotificationAuthorization() async -> Bool {

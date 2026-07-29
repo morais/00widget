@@ -235,7 +235,11 @@ export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise
     pushToken,
     pushType: "widgets",
     topic: `${env.APNS_BUNDLE_ID}.push-type.widgets`,
-    priority: 5,
+    // Apple's WidgetKit example omits apns-priority, which uses APNs' default
+    // priority 10. Cadence limiting happens before this request, so accepted
+    // reloads should reach the device promptly instead of being queued as a
+    // low-priority background delivery.
+    priority: 10,
     // Every push causes the widget to fetch current server state, so older
     // queued reloads have no value after a newer one exists.
     collapseId: "card-reload",

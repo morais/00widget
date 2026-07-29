@@ -357,7 +357,7 @@ function renderDashboard(d: DashboardData): string {
 interface TenantRows {
   cards: storage.ScopedEntry<unknown>[];
   devices: storage.ScopedEntry<unknown>[];
-  widgetTokens: storage.ScopedEntry<string>[];
+  widgetTokens: storage.ScopedEntry<storage.WidgetTokenRecord>[];
   activities: storage.ScopedEntry<unknown>[];
   pending: storage.ScopedEntry<unknown>[];
   startTokens: storage.ScopedEntry<string>[];
@@ -557,7 +557,11 @@ function renderTokenSection(
   );
 }
 
-function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntry<string>[], csrf: string): string {
+function renderWidgetTokensSection(
+  tenantId: string,
+  entries: storage.ScopedEntry<storage.WidgetTokenRecord>[],
+  csrf: string,
+): string {
   if (entries.length === 0) return section("Widget push tokens", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const parts = entry.key.split(":"); // widget-token:hash:deviceId:kind
@@ -567,13 +571,16 @@ function renderWidgetTokensSection(tenantId: string, entries: storage.ScopedEntr
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
       <td><code>${esc(deviceId)}</code></td>
       <td><code>${esc(widgetKind)}</code></td>
-      <td><code class="tok">${esc(truncate(entry.value, 24))}</code></td>
+      <td><code class="tok">${esc(truncate(entry.value.token, 24))}</code></td>
+      <td>${esc(entry.value.appVersion)}</td>
+      <td>${esc(entry.value.platform)}</td>
+      <td class="ts">${esc(entry.value.updatedAt)}</td>
       <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/widget-tokens/${enc(deviceId)}/${enc(widgetKind)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
     `Widget push tokens <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th><th>app build</th><th>platform</th><th>registered</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 

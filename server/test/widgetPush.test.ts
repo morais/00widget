@@ -4,6 +4,7 @@ import { sha256Hex } from "../src/auth";
 import * as storage from "../src/storage";
 import {
   collectWidgetPushTargetsForCard,
+  claimWidgetPushWindow,
   deliverWidgetReloads,
 } from "../src/widgetPush";
 import { authedRequest, makeEnv } from "./helpers";
@@ -71,6 +72,8 @@ describe("widget push subscriptions", () => {
               allCards: false,
             },
           ],
+          appVersion: "1.0 (202607292000)",
+          platform: "ios",
         }),
       }),
       env,
@@ -79,6 +82,14 @@ describe("widget push subscriptions", () => {
     expect(sync.status).toBe(200);
     await expect(storage.listWidgetTokensForCard(env, "test-tenant", "solar"))
       .resolves.toEqual(["aabbccdd"]);
+    await expect(storage.listTenantWidgetTokens(env, "test-tenant")).resolves.toMatchObject([
+      {
+        value: {
+          appVersion: "1.0 (202607292000)",
+          platform: "ios",
+        },
+      },
+    ]);
 
     const remove = await (handler.fetch as any)(
       authedRequest("https://x/v1/widgets/register-push-token", {
@@ -90,6 +101,14 @@ describe("widget push subscriptions", () => {
     );
     expect(remove.status).toBe(200);
     await expect(storage.listWidgetTokens(env, "test-tenant")).resolves.toEqual([]);
+  });
+
+  it("claims at most one push window per tenant every thirty minutes", async () => {
+    const env = makeEnv();
+    await expect(claimWidgetPushWindow(env, "tenant-a", 10_000)).resolves.toBe(true);
+    await expect(claimWidgetPushWindow(env, "tenant-a", 11_799)).resolves.toBe(false);
+    await expect(claimWidgetPushWindow(env, "tenant-a", 11_800)).resolves.toBe(true);
+    await expect(claimWidgetPushWindow(env, "tenant-b", 10_001)).resolves.toBe(true);
   });
 
   it("rejects subscriptions without a WidgetKit push token", async () => {

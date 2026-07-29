@@ -151,6 +151,7 @@ public final class AppEnvironment: ObservableObject {
             lastSyncAt = Date()
             lastSyncError = nil
             UserDefaults.standard.set(lastSyncAt, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
+            reloadWidgetTimelines()
         } catch {
             lastSyncError = error.localizedDescription
         }
@@ -247,11 +248,13 @@ public final class AppEnvironment: ObservableObject {
         let samples = SampleDataFactory.makeCards()
         try? CardCache.save(samples)
         cards = samples
+        reloadWidgetTimelines()
     }
 
     public func clearCache() {
         CardCache.clear()
         cards = []
+        reloadWidgetTimelines()
     }
 
     private func clearTenantScopedState() {
@@ -266,6 +269,13 @@ public final class AppEnvironment: ObservableObject {
         lastSyncAt = nil
         lastSyncError = nil
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt)
+        reloadWidgetTimelines()
+    }
+
+    private func reloadWidgetTimelines() {
+        for kind in ZeroZeroWidgetConstants.WidgetKinds.all {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
     }
 
     private func scheduleCredentialRegistration() {
