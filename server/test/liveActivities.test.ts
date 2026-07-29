@@ -425,6 +425,7 @@ describe("live activities", () => {
 
     const endState = captured[2].aps["content-state"];
     expect(captured[2].aps.event).toBe("end");
+    expect(captured[2].aps["dismissal-date"]).toBe(captured[2].aps.timestamp - 1);
     expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing" });
     expect(typeof endState.updatedAt).toBe("number");
     expect(typeof endState.endsAt).toBe("number");

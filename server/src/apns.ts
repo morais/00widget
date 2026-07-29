@@ -1,6 +1,6 @@
 import type { Env } from "./types";
 
-// APNs payload shapes verified against Apple's current docs as of 2026-07-28:
+// APNs payload shapes verified against Apple's current docs as of 2026-07-29:
 //   https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications
 //   https://developer.apple.com/documentation/WidgetKit/Updating-widgets-with-widgetkit-push-notifications
 // If Apple changes payload field names, header values, or priority requirements
@@ -208,14 +208,19 @@ export async function sendLiveActivityEnd(
   pushToken: string,
   payload: LiveActivityEndPayload = {},
 ): Promise<ApnsResult> {
-  // Live Activity end: aps.event = "end". `dismissal-date` is unix seconds —
-  // omit to let iOS apply the default dismissal policy (~4 hours).
+  // Live Activity end: aps.event = "end". Apple requires a dismissal date in
+  // the past for immediate removal; otherwise the default UI can remain for
+  // about four hours. Preserve an explicit future date when the producer wants
+  // the final state to stay glanceable for a short window.
+  const timestamp = Math.floor(Date.now() / 1000);
   const aps: Record<string, unknown> = {
-    timestamp: Math.floor(Date.now() / 1000),
+    timestamp,
     event: "end",
+    "dismissal-date": payload.dismissalDate
+      ? Math.floor(new Date(payload.dismissalDate).getTime() / 1000)
+      : timestamp - 1,
   };
   if (payload.finalContentState) aps["content-state"] = payload.finalContentState;
-  if (payload.dismissalDate) aps["dismissal-date"] = Math.floor(new Date(payload.dismissalDate).getTime() / 1000);
   if (payload.alert) aps.alert = payload.alert;
 
   return sendApnsPush(env, {
