@@ -324,6 +324,8 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/end" \
 
 Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
 
+When `dismissalDate` is omitted, 00Widget dismisses the ended Live Activity immediately. To keep the final state visible briefly, set `dismissalDate` to an ISO-8601 time within Apple's four-hour dismissal window. The free-form `state` field does not end an activity by itself, even when its value is `finished`.
+
 ## Actions
 
 If your card has buttons, define them as `actions` on the card:

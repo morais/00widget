@@ -241,12 +241,29 @@ describe("APNs payload construction", () => {
     expect(body.aps.alert).toEqual({ title: "Washer", body: "Cycle started" });
   });
 
-  it("exposes live activity end helper with event=end and optional dismissal-date", () => {
-    // Construction-only check — calling send* with fetch would hit network unless
-    // we inject a fetcher. Those helpers don't take a fetcher today, so this
-    // asserts the module surface remains stable.
-    expect(typeof sendLiveActivityUpdate).toBe("function");
-    expect(typeof sendLiveActivityEnd).toBe("function");
-    expect(typeof sendWidgetReloadPush).toBe("function");
+  it("dismisses ended live activities immediately by default and preserves an explicit date", async () => {
+    __resetApnsJwtCache();
+    const captured: CapturedRequest[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = capturingFetch(captured);
+    try {
+      await sendLiveActivityEnd(apnsEnv(), "defaultdismissaltoken", {
+        finalContentState: { state: "finished" },
+      });
+      await sendLiveActivityEnd(apnsEnv(), "scheduleddismissaltoken", {
+        finalContentState: { state: "finished" },
+        dismissalDate: "2026-07-29T14:00:00Z",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const defaultAps = (captured[0].body as { aps: Record<string, unknown> }).aps;
+    expect(defaultAps.event).toBe("end");
+    expect(defaultAps["dismissal-date"]).toBe((defaultAps.timestamp as number) - 1);
+
+    const scheduledAps = (captured[1].body as { aps: Record<string, unknown> }).aps;
+    expect(scheduledAps.event).toBe("end");
+    expect(scheduledAps["dismissal-date"]).toBe(1_785_333_600);
   });
 });
