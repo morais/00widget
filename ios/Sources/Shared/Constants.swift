@@ -28,6 +28,13 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.object(forInfoDictionaryKey: "ZWDebugTabEnabled") as? Bool ?? true
     }
 
+    public static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "0.0"
+        let build = info?["CFBundleVersion"] as? String ?? "0"
+        return "\(version) (\(build))"
+    }
+
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 

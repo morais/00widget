@@ -59,6 +59,16 @@ export interface WidgetPushSubscription {
   allCards: boolean;
 }
 
+export interface WidgetTokenMetadata {
+  appVersion: string;
+  platform: string;
+}
+
+export interface WidgetTokenRecord extends WidgetTokenMetadata {
+  token: string;
+  updatedAt: string;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -92,6 +102,29 @@ export async function putCard(
   card: DashboardCard,
 ): Promise<void> {
   await upsertCardD1(env, tenantId, apiKeyHash, card);
+}
+
+export async function putCards(
+  env: Env,
+  tenantId: string,
+  apiKeyHash: string,
+  cards: DashboardCard[],
+): Promise<void> {
+  if (cards.length === 0) return;
+  await env.ZW_DB.batch(
+    cards.map((card) =>
+      env.ZW_DB.prepare(
+        `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(
+        tenantId,
+        apiKeyHash,
+        card.id,
+        json(card),
+        card.updatedAt ?? nowIso(),
+      ),
+    ),
+  );
 }
 
 export async function getCard(env: Env, tenantId: string, id: string): Promise<DashboardCard | null> {
@@ -173,11 +206,13 @@ export async function putWidgetToken(
     cardIds: [],
     allCards: true,
   },
+  metadata: WidgetTokenMetadata = { appVersion: "0.0", platform: "ios" },
 ): Promise<void> {
   await env.ZW_DB.prepare(
     `INSERT OR REPLACE INTO widget_tokens
-     (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at, card_ids_json, all_cards)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+     (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at,
+      card_ids_json, all_cards, app_version, platform)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       tenantId,
@@ -188,6 +223,8 @@ export async function putWidgetToken(
       nowIso(),
       json([...new Set(subscription.cardIds)]),
       subscription.allCards ? 1 : 0,
+      metadata.appVersion,
+      metadata.platform,
     )
     .run();
 }
@@ -199,6 +236,7 @@ export async function replaceWidgetTokensForDevice(
   deviceId: string,
   token: string | undefined,
   subscriptions: WidgetPushSubscription[],
+  metadata: WidgetTokenMetadata = { appVersion: "0.0", platform: "ios" },
 ): Promise<void> {
   const statements: D1PreparedStatement[] = [
     env.ZW_DB.prepare(
@@ -229,8 +267,9 @@ export async function replaceWidgetTokensForDevice(
       statements.push(
         env.ZW_DB.prepare(
           `INSERT OR REPLACE INTO widget_tokens
-           (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at, card_ids_json, all_cards)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (tenant_id, api_key_hash, device_id, widget_kind, token, updated_at,
+            card_ids_json, all_cards, app_version, platform)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           tenantId,
           apiKeyHash,
@@ -240,6 +279,8 @@ export async function replaceWidgetTokensForDevice(
           nowIso(),
           json(subscription.cardIds),
           subscription.allCards ? 1 : 0,
+          metadata.appVersion,
+          metadata.platform,
         ),
       );
     }
@@ -540,19 +581,32 @@ export async function listTenantDevices(
 export async function listTenantWidgetTokens(
   env: Env,
   tenantId: string,
-): Promise<ScopedEntry<string>[]> {
+): Promise<ScopedEntry<WidgetTokenRecord>[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT api_key_hash, device_id, widget_kind, token
+    `SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform
      FROM widget_tokens
      WHERE tenant_id = ?
      ORDER BY api_key_hash, device_id, widget_kind`,
   )
     .bind(tenantId)
-    .all<{ api_key_hash: string; device_id: string; widget_kind: string; token: string }>();
+    .all<{
+      api_key_hash: string;
+      device_id: string;
+      widget_kind: string;
+      token: string;
+      updated_at: string;
+      app_version: string;
+      platform: string;
+    }>();
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
     key: keys.widgetToken(row.api_key_hash, row.device_id, row.widget_kind),
-    value: row.token,
+    value: {
+      token: row.token,
+      updatedAt: row.updated_at,
+      appVersion: row.app_version,
+      platform: row.platform,
+    },
   }));
 }
 
@@ -635,16 +689,29 @@ export async function listAllDevices(env: Env): Promise<ScopedEntry<DeviceRecord
   }));
 }
 
-export async function listAllWidgetTokens(env: Env): Promise<ScopedEntry<string>[]> {
+export async function listAllWidgetTokens(env: Env): Promise<ScopedEntry<WidgetTokenRecord>[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT api_key_hash, device_id, widget_kind, token
+    `SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform
      FROM widget_tokens
      ORDER BY api_key_hash, device_id, widget_kind`,
-  ).all<{ api_key_hash: string; device_id: string; widget_kind: string; token: string }>();
+  ).all<{
+    api_key_hash: string;
+    device_id: string;
+    widget_kind: string;
+    token: string;
+    updated_at: string;
+    app_version: string;
+    platform: string;
+  }>();
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
     key: keys.widgetToken(row.api_key_hash, row.device_id, row.widget_kind),
-    value: row.token,
+    value: {
+      token: row.token,
+      updatedAt: row.updated_at,
+      appVersion: row.app_version,
+      platform: row.platform,
+    },
   }));
 }
 

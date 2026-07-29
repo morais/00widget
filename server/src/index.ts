@@ -34,6 +34,8 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),
+  authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, (req, env, auth, _match, ctx) =>
+    cards.upsertCardsBatch(req, env, auth, ctx)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m, ctx) =>

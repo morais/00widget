@@ -8,6 +8,7 @@ This document is the entire contract you need. You do **not** need to read the r
 
 - Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`.
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
+- If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
 - Pick a `template` (`summary`, `progress`, `list`, `action`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
@@ -106,6 +107,7 @@ Request body limits:
 | Endpoint group | Limit |
 | -------------- | ----: |
 | `POST /v1/cards/upsert` | 32 KiB |
+| `POST /v1/cards/upsert-batch` | 128 KiB, at most 32 cards |
 | Live Activity start/update/end | 16 KiB |
 | Device, widget token, and Live Activity token registration | 8 KiB |
 | Action runs, webhook integration, and share requests | 4 KiB |
@@ -198,6 +200,25 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
 ```
 
 200 with `{ "card": {...} }` means it landed. Re-POST with the same `id` to update — there's no separate update endpoint and no need to delete first.
+
+### Publishing multiple cards from one snapshot
+
+When a poll, cron run, webhook, or agent turn produces more than one related card, use the batch endpoint. It validates and stores the cards together, returns `{ "cards": [...] }`, and makes one coalesced WidgetKit reload decision for the whole snapshot. This is the preferred integration whenever several cards describe one producer snapshot.
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert-batch" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "cards": [
+      {"id":"api-status","template":"summary","title":"API","value":"Healthy","status":"good"},
+      {"id":"queue-depth","template":"summary","title":"Queue","value":"12","unit":"jobs","status":"running"},
+      {"id":"database-status","template":"summary","title":"Database","value":"Healthy","status":"good"}
+    ]
+  }'
+```
+
+Card ids must be unique within the batch. The per-card schema and stable-id rules are identical to the single-card endpoint. Keep the single-card endpoint for genuinely independent updates; never implement a multi-card snapshot as `Promise.all(cards.map(upsert))`.
 
 To verify the stored card, including `deepLink`, call:
 
@@ -391,7 +412,7 @@ Only `role: "normal"` + `confirm: false` actions run directly from widgets. `con
 | Share mutations | tenant | 120 / day |
 | Apple app login token exchange | Apple user | 30 / hour |
 
-Agents should coalesce state changes and avoid hot loops. A good default is to publish a given card no more than once per minute, unless the displayed value materially changed and occasional `429` responses are acceptable.
+Agents should coalesce state changes and avoid hot loops. Publish one batch per producer snapshot, skip a publish when none of the displayed values changed, and respect `429 Retry-After` instead of retrying immediately.
 
 ## Errors
 
@@ -494,7 +515,8 @@ struct WidgetClient {
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
 - **Don't** make destructive actions auto-run from widgets. Set `confirm: true` or `role: destructive` and let the iOS app handle confirmation.
-- **Don't** publish more than ~once a minute per card unless the value genuinely changed. Each publish triggers a widget reload via APNs.
+- **Don't** loop over `/v1/cards/upsert` for cards from the same producer snapshot. Use `/v1/cards/upsert-batch` so the snapshot creates one coalesced reload decision.
+- **Don't** treat a Home Screen widget as a real-time display. WidgetKit budgets reloads; publish current state whenever it changes, and let 00Widget coalesce reload pushes. Use a Live Activity for frequent, time-sensitive updates.
 
 ## Notes for Cloudflare Workers callers
 
@@ -516,13 +538,13 @@ Then in code:
 
 ```ts
 const res = await env.ZEROZEROWIDGET.fetch(
-  new Request("https://zerozerowidget/v1/cards/upsert", {
+  new Request("https://zerozerowidget/v1/cards/upsert-batch", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${env.WIDGET_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(card),
+    body: JSON.stringify({ cards }),
   }),
 );
 ```
@@ -531,7 +553,7 @@ The hostname in the URL is irrelevant — Service Bindings route by binding name
 
 ### Sub-request budget
 
-Every Worker invocation has a sub-request quota (50 on free, 1000 on paid). Each `fetch` or Service Binding call to 00Widget consumes one. If your Worker is already making a lot of outbound calls, one upsert per state change is fine; **don't** publish on a hot loop.
+Every Worker invocation has a sub-request quota (50 on free, 1000 on paid). Each `fetch` or Service Binding call to 00Widget consumes one. A batch of related cards consumes one caller subrequest instead of one per card; **don't** publish on a hot loop.
 
 ### CPU time
 
@@ -547,4 +569,4 @@ If you're integrating from Vercel, Lambda, a Cloudflare Pages static site (no fu
 - The data model in TypeScript (zod) lives at [`server/src/types.ts`](../server/src/types.ts).
 - The same model in Swift (for reference) lives at [`ios/Sources/Shared/Models/`](../ios/Sources/Shared/Models/).
 
-If you're integrating from a project that doesn't have an obvious place to call from, prefer the smallest possible code path: a single function that builds the card JSON and POSTs it. Resist the urge to wrap this in a class hierarchy.
+If you're integrating from a project that doesn't have an obvious place to call from, prefer the smallest possible code path: one function that builds the card JSON and POSTs one card or one batch. Resist the urge to wrap this in a class hierarchy.

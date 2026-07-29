@@ -164,6 +164,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | ------ | -------------------------------------------- | -------------------------------------- |
 | GET    | `/health`                                    | Health check, no auth.                 |
 | POST   | `/v1/cards/upsert`                           | Create or update a dashboard card.     |
+| POST   | `/v1/cards/upsert-batch`                     | Store up to 32 related cards with one coalesced reload decision. |
 | GET    | `/v1/cards`                                  | List all cards for the API key.        |
 | GET    | `/v1/cards/:id`                              | Get one card.                          |
 | DELETE | `/v1/cards/:id`                              | Delete one card.                       |
@@ -220,7 +221,8 @@ Tables:
 | `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
 | `cards` | `(tenant_id, id)` | Dashboard cards. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
-| `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens plus card-level subscriptions. |
+| `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens, card-level subscriptions, app build, and platform. |
+| `widget_push_cadence` | `tenant_id` | One timestamp per tenant used to bound reload pushes; suppressed pushes create no diagnostic rows. |
 | `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
 | `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
@@ -243,6 +245,6 @@ The Worker constructs payloads that match the documented ActivityKit / WidgetKit
 - **Live Activity start** — `event: "start"`, complete Codable `content-state`, `attributes-type`, `attributes`, required `alert`, and `input-push-token: 1` so iOS returns the per-activity token used for subsequent pushes.
 - **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack.
 - **Live Activity end** — same headers, `event: "end"`, complete final `content-state`, optional `dismissal-date`.
-- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Upserts, action-returned card changes, and card deletions all reload affected devices. Permanent token failures are pruned; transient APNs failures use bounded background retries, honor short `Retry-After` windows, and time out stalled requests.
+- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Batch upserts make one reload decision for all cards, and ordinary upserts are bounded to one push window per tenant every 30 minutes so Apple’s daily WidgetKit budget is not exhausted. Card deletions still reload immediately. Permanent token failures are pruned; transient APNs failures use bounded background retries, honor short `Retry-After` windows, and time out stalled requests. Diagnostics use infrequent registration logs, failure logs, and sampled successful delivery summaries rather than per-push D1 history.
 
 These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

@@ -29,7 +29,7 @@ Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET
 Then:
 1. Identify the surfaces in this project that an iOS widget should reflect (status, build state, queue depth, in-progress jobs, etc.).
 2. For each, pick a template (`summary`, `progress`, `list`, or `action`) per llms.md's decision matrix.
-3. Add the smallest possible publish path — a single function that POSTs to /v1/cards/upsert with a stable `id`. No SDK, no class hierarchy.
+3. Add the smallest possible publish path — POST one card to `/v1/cards/upsert`, or one related snapshot to `/v1/cards/upsert-batch`, using stable ids. No SDK, no class hierarchy.
 4. If something is time-bounded with a clear end (a build, a charge cycle, a delivery), use a Live Activity instead of a card.
 
 Constraints:
@@ -121,7 +121,7 @@ Working end-to-end. Cards publish, Live Activities start/update/end, push-to-sta
 
 **Push-to-start (ActivityKit, iOS 17.2+)** — fully implemented. iOS observes `Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates` from `didFinishLaunchingWithOptions`, registers via `POST /v1/live-activities/register-start-token`. The backend's `POST /v1/live-activities/start` sends the start event to all registered devices and falls back to the pending-queue path if no token is registered (or if the APNs delivery fails). End-to-end verification needs `.p8` credentials configured on the Worker.
 
-**WidgetKit `pushHandler` (iOS 26+)** — fully implemented. Each widget configuration calls `.pushHandler(ZeroZeroWidgetPushHandler.self)`. The handler runs in the widget extension when iOS issues a push token, writes the per-kind token into the App-Group-shared `WidgetPushTokenStore`, and the host app picks up + registers each token via `POST /v1/widgets/register-push-token` on next launch. Backend pushes carry `aps.content-changed: true`, which iOS responds to by reloading the matching widget timelines. End-to-end verification also needs `.p8` credentials.
+**WidgetKit `pushHandler` (iOS 26+)** — fully implemented. Each widget configuration calls `.pushHandler(ZeroZeroWidgetPushHandler.self)`. The handler persists WidgetKit’s canonical token/configuration snapshot in the App Group, and the host app reconciles it at launch, on foreground, and after app-build changes via `POST /v1/widgets/register-push-token`. Backend pushes carry `aps.content-changed: true`, use budget-aware per-tenant cadence, and batch related card changes into one reload decision. A successful foreground app fetch also requests targeted timeline reloads immediately. End-to-end verification still needs `.p8` credentials and a physical device.
 
 ## License
 

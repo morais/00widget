@@ -143,6 +143,52 @@ describe("cards endpoints", () => {
     expect(data2.cards).toHaveLength(0);
   });
 
+  it("upserts a card batch and schedules one coalesced widget reload", async () => {
+    const env = makeEnv();
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(task: Promise<unknown>) { pending.push(task); },
+    } as ExecutionContext;
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert-batch", {
+        method: "POST",
+        body: JSON.stringify({
+          cards: [
+            { id: "api-status", template: "summary", title: "API", value: "Healthy" },
+            { id: "queue-depth", template: "summary", title: "Queue", value: "12" },
+            { id: "database-status", template: "summary", title: "Database", value: "Healthy" },
+          ],
+        }),
+      }),
+      env,
+      ctx,
+    );
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { cards: unknown[] }).cards).toHaveLength(3);
+    expect(pending).toHaveLength(1);
+    await Promise.all(pending);
+    await expect(storage.listCards(env, "test-tenant")).resolves.toHaveLength(3);
+  });
+
+  it("rejects duplicate ids in a card batch", async () => {
+    const env = makeEnv();
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert-batch", {
+        method: "POST",
+        body: JSON.stringify({
+          cards: [
+            { id: "same", template: "summary", title: "First" },
+            { id: "same", template: "summary", title: "Second" },
+          ],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("schedules a widget reload when a card is deleted", async () => {
     const env = makeEnv();
     const hash = await sha256Hex("test-key");

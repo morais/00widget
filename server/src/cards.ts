@@ -1,5 +1,10 @@
 import type { Env } from "./types";
-import { DashboardCardSchema, RequestBodyLimits, type DashboardCard } from "./types";
+import {
+  BatchUpsertCardsSchema,
+  DashboardCardSchema,
+  RequestBodyLimits,
+  type DashboardCard,
+} from "./types";
 import * as storage from "./storage";
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
@@ -8,10 +13,16 @@ import {
   listAcceptedIncomingByKind,
   revokeSharesForCard,
 } from "./shares";
-import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
+import {
+  enforceRateLimits,
+  enforceTenantRateLimits,
+  tenantKey,
+  tenantResourceKey,
+} from "./rateLimit";
 import {
   collectWidgetPushTargetsForCard,
   scheduleWidgetReloadForCard,
+  scheduleWidgetReloadForCards,
   scheduleWidgetReloads,
 } from "./widgetPush";
 
@@ -41,6 +52,46 @@ export async function upsertCard(
   scheduleWidgetReloadForCard(ctx, env, auth.tenantId, card.id);
 
   return json({ card }, 200);
+}
+
+export async function upsertCardsBatch(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const body = await parseJson(req, RequestBodyLimits.cardBatch);
+  if (!body) return badRequest("invalid JSON body");
+  const parsed = BatchUpsertCardsSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest(`validation failed: ${parsed.error.message}`);
+  }
+  const limited = await enforceRateLimits(env, [
+    { policy: "anyWriteTenantHour", key: tenantKey(auth.tenantId) },
+    ...parsed.data.cards.map(() => ({
+      policy: "cardUpsertTenantHour" as const,
+      key: tenantKey(auth.tenantId),
+    })),
+    ...parsed.data.cards.map((card) => ({
+      policy: "cardUpsertCardHour" as const,
+      key: tenantResourceKey(auth.tenantId, "card", card.id),
+    })),
+  ]);
+  if (limited) return limited;
+
+  const receivedAt = new Date().toISOString();
+  const cards = parsed.data.cards.map((card) => ({
+    ...card,
+    updatedAt: card.updatedAt ?? receivedAt,
+  }));
+  await storage.putCards(env, auth.tenantId, auth.apiKeyHash, cards);
+  scheduleWidgetReloadForCards(
+    ctx,
+    env,
+    auth.tenantId,
+    cards.map((card) => card.id),
+  );
+  return json({ cards }, 200);
 }
 
 export async function listCards(req: Request, env: Env, auth: AuthContext): Promise<Response> {

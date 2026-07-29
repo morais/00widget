@@ -21,17 +21,20 @@ public enum WidgetPushTokenStore {
         public var subscriptions: [WidgetPushSubscription]
         public var updatedAt: Date
         public var registeredAt: Date?
+        public var registeredAppVersion: String?
 
         public init(
             pushToken: String?,
             subscriptions: [WidgetPushSubscription],
             updatedAt: Date = Date(),
-            registeredAt: Date? = nil
+            registeredAt: Date? = nil,
+            registeredAppVersion: String? = nil
         ) {
             self.pushToken = pushToken
             self.subscriptions = Self.normalized(subscriptions)
             self.updatedAt = updatedAt
             self.registeredAt = registeredAt
+            self.registeredAppVersion = registeredAppVersion
         }
 
         private static func normalized(
@@ -71,6 +74,7 @@ public enum WidgetPushTokenStore {
            current.pushToken == snapshot.pushToken,
            current.subscriptions == snapshot.subscriptions {
             snapshot.registeredAt = current.registeredAt
+            snapshot.registeredAppVersion = current.registeredAppVersion
         }
         save(snapshot)
         return snapshot
@@ -97,6 +101,9 @@ public enum WidgetPushTokenStore {
     }
 
     public static func needsRegistration(_ snapshot: Snapshot, now: Date = Date()) -> Bool {
+        guard snapshot.registeredAppVersion == ZeroZeroWidgetConstants.appVersion else {
+            return true
+        }
         guard let registeredAt = snapshot.registeredAt else { return true }
         return now.timeIntervalSince(registeredAt) >= registrationRefreshInterval
     }
@@ -106,12 +113,14 @@ public enum WidgetPushTokenStore {
               current.pushToken == registered.pushToken,
               current.subscriptions == registered.subscriptions else { return }
         current.registeredAt = date
+        current.registeredAppVersion = ZeroZeroWidgetConstants.appVersion
         save(current)
     }
 
     public static func invalidateRegistration() {
         guard var snapshot = load() else { return }
         snapshot.registeredAt = nil
+        snapshot.registeredAppVersion = nil
         save(snapshot)
     }
 

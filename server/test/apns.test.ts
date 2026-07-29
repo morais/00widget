@@ -144,7 +144,7 @@ describe("APNs payload construction", () => {
     expect(captured).toHaveLength(1);
     expect(captured[0].headers["apns-push-type"]).toBe("widgets");
     expect(captured[0].headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.widgets");
-    expect(captured[0].headers["apns-priority"]).toBe("5");
+    expect(captured[0].headers["apns-priority"]).toBe("10");
     expect(captured[0].headers["apns-collapse-id"]).toBe("card-reload");
     expect(Number(captured[0].headers["apns-expiration"])).toBeGreaterThan(
       Math.floor(Date.now() / 1000),

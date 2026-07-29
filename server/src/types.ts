@@ -4,6 +4,7 @@ const KiB = 1024;
 
 export const RequestBodyLimits = {
   card: 32 * KiB,
+  cardBatch: 128 * KiB,
   liveActivity: 16 * KiB,
   registration: 8 * KiB,
   actionRun: 4 * KiB,
@@ -15,6 +16,7 @@ export const RequestBodyLimits = {
 export const FieldLimits = {
   id: 96,
   cardId: 96,
+  cardBatchCount: 32,
   title: 120,
   subtitle: 240,
   value: 80,
@@ -157,6 +159,27 @@ export const DashboardCardSchema = z.object({
   sharedBy: SharedByInfoSchema.optional(),
 });
 
+export const BatchUpsertCardsSchema = z
+  .object({
+    cards: z
+      .array(DashboardCardSchema)
+      .min(1)
+      .max(FieldLimits.cardBatchCount),
+  })
+  .superRefine((value, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, card] of value.cards.entries()) {
+      if (seen.has(card.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cards", index, "id"],
+          message: "card ids must be unique within a batch",
+        });
+      }
+      seen.add(card.id);
+    }
+  });
+
 export const LiveActivityKindSchema = z
   .enum(["generic", "progress", "charging", "appliance", "job", "timer"])
   .catch("generic");
@@ -190,6 +213,8 @@ const SyncWidgetPushTokenSchema = z
     subscriptions: z
       .array(WidgetPushSubscriptionSchema)
       .max(FieldLimits.widgetSubscriptionCount),
+    appVersion: z.string().max(FieldLimits.appVersion).default("0.0"),
+    platform: z.string().max(FieldLimits.platform).default("ios"),
   })
   .superRefine((value, ctx) => {
     if (value.subscriptions.length > 0 && !value.widgetPushToken) {
@@ -354,6 +379,7 @@ export const CreateShareSchema = z.object({
 });
 
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;
+export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
 export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>;

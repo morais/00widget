@@ -22,7 +22,9 @@ chmod +x *.sh
 
 Each call:
 1. Stores the latest state on the backend.
-2. Fan-outs one deduplicated WidgetKit reload push to devices whose configured widgets can display that card.
+2. Makes a budget-aware WidgetKit reload decision for devices whose configured widgets can display that card.
+
+If one producer run emits multiple related cards, use `/v1/cards/upsert-batch` with `{ "cards": [...] }`. The Worker stores the batch efficiently and makes one reload decision instead of one per card.
 
 ### Live Activities (`/v1/live-activities/*`)
 

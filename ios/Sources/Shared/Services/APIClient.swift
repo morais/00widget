@@ -217,11 +217,15 @@ public final class APIClient {
             let deviceId: String
             let widgetPushToken: String?
             let subscriptions: [WidgetPushSubscription]
+            let appVersion: String
+            let platform: String
         }
         let body = Body(
             deviceId: deviceId,
             widgetPushToken: widgetPushToken,
-            subscriptions: subscriptions
+            subscriptions: subscriptions,
+            appVersion: ZeroZeroWidgetConstants.appVersion,
+            platform: "ios"
         )
         let _: EmptyBody = try await request(
             "POST",
