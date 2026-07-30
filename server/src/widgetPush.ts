@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import type { Env, WidgetReloadQueueMessage } from "./types";
 import type { ApnsResult } from "./apns";
 import { sendWidgetReloadPush } from "./apns";
 import * as storage from "./storage";
@@ -18,7 +18,8 @@ const RETRY_DELAYS_MS = [250, 1_000];
 const MAX_RETRY_AFTER_MS = 5_000;
 // Apple budgets WidgetKit reloads over a rolling day. Keeping the server below
 // two pushes/hour leaves room for timeline and foreground-triggered reloads.
-const MIN_PUSH_INTERVAL_SECONDS = 30 * 60;
+export const MIN_PUSH_INTERVAL_SECONDS = 30 * 60;
+const TRANSIENT_QUEUE_RETRY_SECONDS = 5 * 60;
 const DEAD_TOKEN_REASONS = new Set([
   "BadDeviceToken",
   "DeviceTokenNotForTopic",
@@ -100,6 +101,127 @@ export async function claimWidgetPushWindow(
   return Number(result.meta.changes ?? 0) > 0;
 }
 
+export interface PendingWidgetReload {
+  tenantId: string;
+  generation: number;
+  queuedAt: number;
+}
+
+export async function enqueuePendingWidgetReload(
+  env: Env,
+  tenantId: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): Promise<void> {
+  const existing = await getPendingWidgetReload(env, tenantId);
+  if (!existing && env.WIDGET_RELOAD_QUEUE) {
+    const delaySeconds = await secondsUntilWidgetPushWindow(env, tenantId, nowSeconds);
+    await env.WIDGET_RELOAD_QUEUE.send(
+      { tenantId },
+      { delaySeconds: Math.max(1, delaySeconds) },
+    );
+  }
+  await env.ZW_DB.prepare(
+    `INSERT INTO widget_push_pending (tenant_id, generation, queued_at)
+     VALUES (?, 1, ?)
+     ON CONFLICT(tenant_id) DO UPDATE SET
+       generation = widget_push_pending.generation + 1,
+       queued_at = excluded.queued_at`,
+  )
+    .bind(tenantId, nowSeconds)
+    .run();
+}
+
+export async function getPendingWidgetReload(
+  env: Env,
+  tenantId: string,
+): Promise<PendingWidgetReload | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT tenant_id, generation, queued_at
+     FROM widget_push_pending
+     WHERE tenant_id = ?`,
+  )
+    .bind(tenantId)
+    .first<{ tenant_id: string; generation: number; queued_at: number }>();
+  return row ? pendingFromRow(row) : null;
+}
+
+async function secondsUntilWidgetPushWindow(
+  env: Env,
+  tenantId: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): Promise<number> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT last_sent_at
+     FROM widget_push_cadence
+     WHERE tenant_id = ?`,
+  )
+    .bind(tenantId)
+    .first<{ last_sent_at: number }>();
+  if (!row) return 0;
+  return Math.max(0, Number(row.last_sent_at) + MIN_PUSH_INTERVAL_SECONDS - nowSeconds);
+}
+
+export interface PendingWidgetReloadOutcome {
+  delivered: boolean;
+  retryAfterSeconds?: number;
+}
+
+export async function processPendingWidgetReload(
+  env: Env,
+  message: WidgetReloadQueueMessage,
+  options: {
+    nowSeconds?: number;
+    sender?: (env: Env, token: string) => Promise<ApnsResult>;
+    sleep?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<PendingWidgetReloadOutcome> {
+  const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1_000);
+  const pending = await getPendingWidgetReload(env, message.tenantId);
+  if (!pending) return { delivered: false };
+
+  const delaySeconds = await secondsUntilWidgetPushWindow(
+    env,
+    pending.tenantId,
+    nowSeconds,
+  );
+  if (delaySeconds > 0) {
+    return { delivered: false, retryAfterSeconds: delaySeconds };
+  }
+
+  const tokens = [...new Set(await storage.listWidgetTokens(env, pending.tenantId))];
+  if (tokens.length === 0) {
+    await deletePendingWidgetReload(env, pending);
+    return { delivered: false };
+  }
+  if (!(await claimWidgetPushWindow(env, pending.tenantId, nowSeconds))) {
+    return {
+      delivered: false,
+      retryAfterSeconds: Math.max(
+        1,
+        await secondsUntilWidgetPushWindow(env, pending.tenantId, nowSeconds),
+      ),
+    };
+  }
+  const targets = tokens.map((token) => ({ token, tenantIds: [pending.tenantId] }));
+  const results = await deliverWidgetReloads(env, targets, options);
+  logDeliverySummary(
+    { tenantId: pending.tenantId, cardIds: [] },
+    targets.length,
+    results,
+  );
+  if (hasRetryableFailure(results)) {
+    return { delivered: false, retryAfterSeconds: TRANSIENT_QUEUE_RETRY_SECONDS };
+  }
+  const cleared = await deletePendingWidgetReload(env, pending);
+  if (!cleared) {
+    return {
+      delivered: true,
+      retryAfterSeconds: MIN_PUSH_INTERVAL_SECONDS,
+    };
+  }
+  return { delivered: true };
+}
+
 export async function deliverWidgetReloads(
   env: Env,
   targets: WidgetPushTarget[],
@@ -144,15 +266,7 @@ export function scheduleWidgetReloadForCards(
     env,
     ownerTenantId,
     context.cardIds,
-  ).then(async (targets) => {
-    // Don't consume a tenant's cadence window before their first widget has
-    // registered; the next card update should be able to refresh it.
-    if (targets.length === 0) return;
-    const claimed = await claimWidgetPushWindow(env, ownerTenantId);
-    if (!claimed) return;
-    const results = await deliverWidgetReloads(env, targets);
-    logDeliverySummary(context, targets.length, results);
-  });
+  ).then((targets) => deliverOrEnqueueWidgetReloads(env, targets, context));
   scheduleTask(ctx, task, context);
 }
 
@@ -165,11 +279,91 @@ export function scheduleWidgetReloads(
   const taskContext = { tenantId: context.tenantId, cardIds: [context.cardId] };
   scheduleTask(
     ctx,
-    deliverWidgetReloads(env, targets).then((results) => {
-      logDeliverySummary(taskContext, targets.length, results);
-    }),
+    deliverOrEnqueueWidgetReloads(env, targets, taskContext),
     taskContext,
   );
+}
+
+async function deliverOrEnqueueWidgetReloads(
+  env: Env,
+  targets: WidgetPushTarget[],
+  context: { tenantId: string; cardIds: string[] },
+): Promise<void> {
+  const grouped = groupTargetsByTenant(targets);
+  await Promise.all(
+    [...grouped.entries()].map(async ([tenantId, tenantTargets]) => {
+      const claimed = await claimWidgetPushWindow(env, tenantId);
+      if (!claimed) {
+        await enqueuePendingWidgetReload(env, tenantId);
+        return;
+      }
+
+      // If an older suppressed change is already queued, one generic reload of
+      // every token for the tenant covers both it and the current change.
+      const pending = await getPendingWidgetReload(env, tenantId);
+      let deliveryTargets = tenantTargets;
+      if (pending) {
+        const tokens = [...new Set(await storage.listWidgetTokens(env, tenantId))];
+        deliveryTargets = tokens.map((token) => ({ token, tenantIds: [tenantId] }));
+      }
+      const results = await deliverWidgetReloads(env, deliveryTargets);
+      logDeliverySummary(
+        { tenantId, cardIds: context.cardIds },
+        deliveryTargets.length,
+        results,
+      );
+      if (hasRetryableFailure(results)) {
+        await enqueuePendingWidgetReload(env, tenantId);
+      } else if (pending) {
+        await deletePendingWidgetReload(env, pending);
+      }
+    }),
+  );
+}
+
+function groupTargetsByTenant(
+  targets: WidgetPushTarget[],
+): Map<string, WidgetPushTarget[]> {
+  const grouped = new Map<string, Map<string, WidgetPushTarget>>();
+  for (const target of targets) {
+    for (const tenantId of target.tenantIds) {
+      const byToken = grouped.get(tenantId) ?? new Map<string, WidgetPushTarget>();
+      byToken.set(target.token, { token: target.token, tenantIds: [tenantId] });
+      grouped.set(tenantId, byToken);
+    }
+  }
+  return new Map(
+    [...grouped].map(([tenantId, byToken]) => [tenantId, [...byToken.values()]]),
+  );
+}
+
+async function deletePendingWidgetReload(
+  env: Env,
+  pending: PendingWidgetReload,
+): Promise<boolean> {
+  const result = await env.ZW_DB.prepare(
+    `DELETE FROM widget_push_pending
+     WHERE tenant_id = ? AND generation = ?`,
+  )
+    .bind(pending.tenantId, pending.generation)
+    .run();
+  return Number(result.meta.changes ?? 0) > 0;
+}
+
+function pendingFromRow(row: {
+  tenant_id: string;
+  generation: number;
+  queued_at: number;
+}): PendingWidgetReload {
+  return {
+    tenantId: row.tenant_id,
+    generation: Number(row.generation),
+    queuedAt: Number(row.queued_at),
+  };
+}
+
+function hasRetryableFailure(results: WidgetPushDeliveryResult[]): boolean {
+  return results.some(isTransient);
 }
 
 function scheduleTask(

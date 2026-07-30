@@ -33,6 +33,15 @@ npx wrangler d1 migrations apply zerozerowidget --local
 npx wrangler d1 migrations apply zerozerowidget --remote
 ```
 
+Create the delayed delivery queue named by `wrangler.toml`:
+
+```
+npx wrangler queues create zerozerowidget-widget-reloads
+```
+
+The Worker is both producer and consumer. Wrangler attaches both bindings on
+deploy; no scheduled trigger is required.
+
 ### 2. Configure local secrets
 
 ```
@@ -222,7 +231,8 @@ Tables:
 | `cards` | `(tenant_id, id)` | Dashboard cards. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
 | `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens, card-level subscriptions, app build, and platform. |
-| `widget_push_cadence` | `tenant_id` | One timestamp per tenant used to bound reload pushes; suppressed pushes create no diagnostic rows. |
+| `widget_push_cadence` | `tenant_id` | Last accepted reload window per receiving tenant, used to protect WidgetKit's daily budget. |
+| `widget_push_pending` | `tenant_id` | One generation-counted row coalescing cadence-suppressed or transiently failed reloads until its delayed queue message can deliver them. |
 | `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
 | `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
@@ -245,6 +255,6 @@ The Worker constructs payloads that match the documented ActivityKit / WidgetKit
 - **Live Activity start** — `event: "start"`, complete Codable `content-state`, `attributes-type`, `attributes`, required `alert`, and `input-push-token: 1` so iOS returns the per-activity token used for subsequent pushes.
 - **Live Activity update** — `apns-push-type: liveactivity`, `apns-topic: <bundleId>.push-type.liveactivity`, body `{ aps: { timestamp, event: "update", "content-state": {...}, "stale-date": ..., "relevance-score": ... } }`. `relevance-score` is optional and ranks the activity in the iPhone and Apple Watch Smart Stack. When `endsAt` is present, `countdownGranularity` is preserved in content state as `second` (default) or `minute`; minute mode is rendered locally without additional pushes.
 - **Live Activity end** — same headers, `event: "end"`, complete final `content-state`, and a `dismissal-date` in the past for immediate removal by default. Producers can provide an explicit future `dismissalDate` within Apple's four-hour window to keep the final state visible briefly.
-- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Batch upserts make one reload decision for all cards, and ordinary upserts are bounded to one push window per tenant every 30 minutes so Apple’s daily WidgetKit budget is not exhausted. Card deletions still reload immediately. Permanent token failures are pruned; transient APNs failures use bounded background retries, honor short `Retry-After` windows, and time out stalled requests. Diagnostics use infrequent registration logs, failure logs, and sampled successful delivery summaries rather than per-push D1 history.
+- **WidgetKit push** — `apns-push-type: widgets`, `apns-topic: <bundleId>.push-type.widgets`, `content-changed: true`, a short expiration, and a stable collapse id because every reload fetches the latest card state. Batch upserts make one reload decision for all cards, and reloads are bounded to one push window per receiving tenant every 30 minutes so Apple’s daily WidgetKit budget is not exhausted. Changes arriving inside that window update one durable `widget_push_pending` row; one delayed Cloudflare Queue message delivers the latest coalesced state when the window opens. Permanent token failures are pruned; transient APNs failures use bounded in-request retries and retain and retry the coalesced row. An empty queue does not invoke the Worker, and diagnostics use failure logs plus sampled successes rather than per-push history.
 
 These shapes are documented in `src/apns.ts` with the verification date. Re-check Apple's live documentation before changing them; push payload details (priority, required fields, `attributes`/`attributes-type` for push-to-start, `content-state` encoding) have shifted between iOS versions.

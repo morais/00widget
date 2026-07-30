@@ -6,6 +6,10 @@ import {
   collectWidgetPushTargetsForCard,
   claimWidgetPushWindow,
   deliverWidgetReloads,
+  enqueuePendingWidgetReload,
+  getPendingWidgetReload,
+  processPendingWidgetReload,
+  scheduleWidgetReloadForCard,
 } from "../src/widgetPush";
 import { authedRequest, makeEnv } from "./helpers";
 
@@ -109,6 +113,122 @@ describe("widget push subscriptions", () => {
     await expect(claimWidgetPushWindow(env, "tenant-a", 11_799)).resolves.toBe(false);
     await expect(claimWidgetPushWindow(env, "tenant-a", 11_800)).resolves.toBe(true);
     await expect(claimWidgetPushWindow(env, "tenant-b", 10_001)).resolves.toBe(true);
+  });
+
+  it("coalesces suppressed reloads and delivers them after the cadence window", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await claimWidgetPushWindow(env, "test-tenant", 10_000);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_002);
+
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toMatchObject({
+      generation: 2,
+      queuedAt: 10_002,
+    });
+    await expect(
+      processPendingWidgetReload(env, { tenantId: "test-tenant" }, { nowSeconds: 11_799 }),
+    ).resolves.toEqual({ delivered: false, retryAfterSeconds: 1 });
+
+    const sender = vi.fn().mockResolvedValue({ status: 200, apnsId: "deferred" });
+    await expect(
+      processPendingWidgetReload(
+        env,
+        { tenantId: "test-tenant" },
+        { nowSeconds: 11_800, sender },
+      ),
+    ).resolves.toEqual({ delivered: true });
+    expect(sender).toHaveBeenCalledOnce();
+    expect(sender).toHaveBeenCalledWith(env, "aabbccdd");
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+  });
+
+  it("keeps a deferred reload durable after transient APNs failure", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_000);
+
+    const failed = vi.fn().mockResolvedValue({ status: 503, reason: "ServiceUnavailable" });
+    await expect(
+      processPendingWidgetReload(
+        env,
+        { tenantId: "test-tenant" },
+        { nowSeconds: 10_000, sender: failed, sleep: async () => {} },
+      ),
+    ).resolves.toEqual({ delivered: false, retryAfterSeconds: 300 });
+    expect(failed).toHaveBeenCalledTimes(3);
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.not.toBeNull();
+
+    const recovered = vi.fn().mockResolvedValue({ status: 200, apnsId: "recovered" });
+    await expect(
+      processPendingWidgetReload(
+        env,
+        { tenantId: "test-tenant" },
+        { nowSeconds: 11_800, sender: recovered },
+      ),
+    ).resolves.toEqual({ delivered: true });
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+  });
+
+  it("schedules only one delayed queue message while reloads coalesce", async () => {
+    const queue = { send: vi.fn().mockResolvedValue(undefined) };
+    const env = { ...makeEnv(), WIDGET_RELOAD_QUEUE: queue } as unknown as ReturnType<typeof makeEnv>;
+    await claimWidgetPushWindow(env, "test-tenant", 10_000);
+
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_002);
+
+    expect(queue.send).toHaveBeenCalledOnce();
+    expect(queue.send).toHaveBeenCalledWith(
+      { tenantId: "test-tenant" },
+      { delaySeconds: 1_799 },
+    );
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toMatchObject({
+      generation: 2,
+    });
+  });
+
+  it("queues a second card change when the immediate push window is closed", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex("test-key");
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    const pendingTasks: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(task: Promise<unknown>) { pendingTasks.push(task); },
+    } as ExecutionContext;
+
+    scheduleWidgetReloadForCard(ctx, env, "test-tenant", "solar");
+    await Promise.all(pendingTasks.splice(0));
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+
+    scheduleWidgetReloadForCard(ctx, env, "test-tenant", "solar");
+    await Promise.all(pendingTasks.splice(0));
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toMatchObject({
+      generation: 1,
+    });
   });
 
   it("rejects subscriptions without a WidgetKit push token", async () => {

@@ -23,3 +23,16 @@ migrations_dir = "migrations"
 
 [observability]
 enabled = true
+
+# One delayed message per receiving tenant drains its durable coalesced reload
+# as soon as the 30-minute WidgetKit cadence window opens. Empty queues do not
+# invoke the Worker.
+[[queues.producers]]
+binding = "WIDGET_RELOAD_QUEUE"
+queue = "zerozerowidget-widget-reloads"
+
+[[queues.consumers]]
+queue = "zerozerowidget-widget-reloads"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 10

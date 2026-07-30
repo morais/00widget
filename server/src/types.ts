@@ -400,8 +400,13 @@ export type ShareResourceKind = z.infer<typeof ShareResourceKindSchema>;
 export type ShareStatus = z.infer<typeof ShareStatusSchema>;
 export type CreateShareRequest = z.infer<typeof CreateShareSchema>;
 
+export interface WidgetReloadQueueMessage {
+  tenantId: string;
+}
+
 export interface Env {
   ZW_DB: D1Database;
+  WIDGET_RELOAD_QUEUE?: Queue<WidgetReloadQueueMessage>;
   API_KEYS?: string;
   APNS_TEAM_ID?: string;
   APNS_KEY_ID?: string;

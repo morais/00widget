@@ -22,19 +22,22 @@ public enum WidgetPushTokenStore {
         public var updatedAt: Date
         public var registeredAt: Date?
         public var registeredAppVersion: String?
+        public var registeredDeviceId: String?
 
         public init(
             pushToken: String?,
             subscriptions: [WidgetPushSubscription],
             updatedAt: Date = Date(),
             registeredAt: Date? = nil,
-            registeredAppVersion: String? = nil
+            registeredAppVersion: String? = nil,
+            registeredDeviceId: String? = nil
         ) {
             self.pushToken = pushToken
             self.subscriptions = Self.normalized(subscriptions)
             self.updatedAt = updatedAt
             self.registeredAt = registeredAt
             self.registeredAppVersion = registeredAppVersion
+            self.registeredDeviceId = registeredDeviceId
         }
 
         private static func normalized(
@@ -75,6 +78,7 @@ public enum WidgetPushTokenStore {
            current.subscriptions == snapshot.subscriptions {
             snapshot.registeredAt = current.registeredAt
             snapshot.registeredAppVersion = current.registeredAppVersion
+            snapshot.registeredDeviceId = current.registeredDeviceId
         }
         save(snapshot)
         return snapshot
@@ -101,6 +105,9 @@ public enum WidgetPushTokenStore {
     }
 
     public static func needsRegistration(_ snapshot: Snapshot, now: Date = Date()) -> Bool {
+        guard snapshot.registeredDeviceId == SharedSettings.deviceId() else {
+            return true
+        }
         guard snapshot.registeredAppVersion == ZeroZeroWidgetConstants.appVersion else {
             return true
         }
@@ -114,6 +121,7 @@ public enum WidgetPushTokenStore {
               current.subscriptions == registered.subscriptions else { return }
         current.registeredAt = date
         current.registeredAppVersion = ZeroZeroWidgetConstants.appVersion
+        current.registeredDeviceId = SharedSettings.deviceId()
         save(current)
     }
 
@@ -121,6 +129,7 @@ public enum WidgetPushTokenStore {
         guard var snapshot = load() else { return }
         snapshot.registeredAt = nil
         snapshot.registeredAppVersion = nil
+        snapshot.registeredDeviceId = nil
         save(snapshot)
     }
 
