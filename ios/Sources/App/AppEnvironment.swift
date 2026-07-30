@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 import WidgetKit
+import os
 
 public enum ConnectionHealthStatus: Equatable {
     case unknown
@@ -13,6 +14,18 @@ public enum ConnectionHealthStatus: Equatable {
 
 @MainActor
 public final class AppEnvironment: ObservableObject {
+    private static let widgetPushLog = Logger(
+        subsystem: "com.example.zerozerowidget",
+        category: "WidgetPush"
+    )
+    private static let widgetTokenRetryDelaysNanoseconds: [UInt64] = [
+        1_000_000_000,
+        2_000_000_000,
+        4_000_000_000,
+        8_000_000_000,
+        16_000_000_000
+    ]
+
     @Published public var serverBaseURL: String {
         didSet {
             UserDefaults.standard.set(serverBaseURL, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
@@ -49,6 +62,7 @@ public final class AppEnvironment: ObservableObject {
 
     public let liveActivityController = LiveActivityController.shared
     private var apiKeyRegistrationTask: Task<Void, Never>?
+    private var widgetTokenRetryTask: Task<Void, Never>?
     private var lastForegroundFetchAt: Date?
 
     public init() {
@@ -331,36 +345,104 @@ public final class AppEnvironment: ObservableObject {
     /// Reconciles WidgetKit's current token/configurations with the durable
     /// extension snapshot, then retries server registration when needed.
     public func registerPendingWidgetTokens() async {
-        guard apiClient() != nil else { return }
+        let needsRetry = await reconcileWidgetPushToken()
+        if needsRetry {
+            scheduleWidgetTokenRetries()
+        } else {
+            widgetTokenRetryTask?.cancel()
+            widgetTokenRetryTask = nil
+        }
+    }
+
+    /// WidgetKit can report configured widgets before its shared push token has
+    /// finished generating. Retry that short bootstrap window without polling
+    /// card data or keeping the app alive indefinitely.
+    private func reconcileWidgetPushToken(
+        allowEmptyConfigurations: Bool = false
+    ) async -> Bool {
+        guard apiClient() != nil else { return false }
         do {
             let configured = try await WidgetCenter.shared.currentConfigurations()
                 .filter { ZeroZeroWidgetConstants.WidgetKinds.all.contains($0.kind) }
             if configured.isEmpty {
-                WidgetPushTokenStore.replace(pushToken: nil, subscriptions: [])
-            } else if let pushInfo = await WidgetCenter.shared.currentPushInfo {
-                let token = pushInfo.token.map { String(format: "%02x", $0) }.joined()
-                let configuredKinds = Set(configured.map(\.kind))
                 let existing = WidgetPushTokenStore.load()
-                let existingKinds = Set(existing?.subscriptions.map(\.widgetKind) ?? [])
-                let subscriptions: [WidgetPushSubscription]
-                if existing?.pushToken == token, configuredKinds == existingKinds {
-                    subscriptions = existing?.subscriptions ?? []
-                } else {
-                    // The handler normally provides card-level subscriptions.
-                    // If startup wins the race, register a conservative kind-
-                    // level snapshot until the callback supplies more detail.
-                    subscriptions = configuredKinds.map {
-                        WidgetPushSubscription(widgetKind: $0, allCards: true)
-                    }
+                let hasConfirmedEmptySnapshot = existing?.pushToken == nil
+                    && existing?.subscriptions.isEmpty == true
+                if !allowEmptyConfigurations && !hasConfirmedEmptySnapshot {
+                    Self.widgetPushLog.info(
+                        "widget configurations are not available yet; waiting before clearing registration"
+                    )
+                    return true
                 }
-                WidgetPushTokenStore.replace(
-                    pushToken: token,
-                    subscriptions: subscriptions
-                )
+                WidgetPushTokenStore.replace(pushToken: nil, subscriptions: [])
+                _ = try await WidgetPushTokenRegistrar.registerCurrent()
+                return false
             }
+
+            guard let pushInfo = await WidgetCenter.shared.currentPushInfo else {
+                // A saved token can still repair a changed device id while
+                // WidgetKit finishes generating or rotating currentPushInfo.
+                _ = try await WidgetPushTokenRegistrar.registerCurrent()
+                Self.widgetPushLog.info(
+                    "widget push token is still generating for \(configured.count, privacy: .public) configured widgets"
+                )
+                return true
+            }
+
+            let token = pushInfo.token.map { String(format: "%02x", $0) }.joined()
+            let configuredKinds = Set(configured.map(\.kind))
+            let existing = WidgetPushTokenStore.load()
+            let existingKinds = Set(existing?.subscriptions.map(\.widgetKind) ?? [])
+            let subscriptions: [WidgetPushSubscription]
+            if existing?.pushToken == token, configuredKinds == existingKinds {
+                subscriptions = existing?.subscriptions ?? []
+            } else {
+                // The handler normally provides card-level subscriptions. If
+                // startup wins the race, use a conservative kind-level snapshot
+                // until the callback supplies the exact selected card ids.
+                subscriptions = configuredKinds.map {
+                    WidgetPushSubscription(widgetKind: $0, allCards: true)
+                }
+            }
+            WidgetPushTokenStore.replace(
+                pushToken: token,
+                subscriptions: subscriptions
+            )
             _ = try await WidgetPushTokenRegistrar.registerCurrent()
+            Self.widgetPushLog.info(
+                "widget push token reconciled for \(configured.count, privacy: .public) configured widgets"
+            )
+            return false
         } catch {
             lastSyncError = "widget token register: \(error.localizedDescription)"
+            Self.widgetPushLog.error(
+                "widget token reconciliation failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return true
+        }
+    }
+
+    private func scheduleWidgetTokenRetries() {
+        guard widgetTokenRetryTask == nil else { return }
+        widgetTokenRetryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.widgetTokenRetryTask = nil }
+            for delay in Self.widgetTokenRetryDelaysNanoseconds {
+                do {
+                    try await Task.sleep(nanoseconds: delay)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                if !(await self.reconcileWidgetPushToken()) {
+                    return
+                }
+            }
+            if await self.reconcileWidgetPushToken(allowEmptyConfigurations: true) {
+                Self.widgetPushLog.error(
+                    "widget push token remained unavailable after bounded retries"
+                )
+            }
         }
     }
 

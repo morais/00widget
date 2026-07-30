@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import type { Env, WidgetReloadQueueMessage } from "./types";
 import { requireAuth, AuthError } from "./auth";
 import { json, notFound, unauthorized } from "./http";
 import * as cards from "./cards";
@@ -10,6 +10,7 @@ import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as landing from "./landing";
 import * as shares from "./shares";
+import { processPendingWidgetReload } from "./widgetPush";
 
 interface Route {
   method: string;
@@ -141,7 +142,7 @@ function authed(method: string, pattern: RegExp, handler: AuthedHandler): Route 
   };
 }
 
-const handler: ExportedHandler<Env> = {
+const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
     for (const route of routes) {
@@ -156,6 +157,29 @@ const handler: ExportedHandler<Env> = {
       }
     }
     return notFound();
+  },
+  async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env) {
+    for (const message of batch.messages) {
+      try {
+        if (!message.body || typeof message.body.tenantId !== "string") {
+          console.error("invalid widget reload queue message");
+          message.ack();
+          continue;
+        }
+        const outcome = await processPendingWidgetReload(env, message.body);
+        if (outcome.retryAfterSeconds) {
+          message.retry({ delaySeconds: outcome.retryAfterSeconds });
+        } else {
+          message.ack();
+        }
+      } catch (error) {
+        console.error("widget reload queue delivery failed", {
+          tenantId: message.body?.tenantId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        message.retry({ delaySeconds: 5 * 60 });
+      }
+    }
   },
 };
 

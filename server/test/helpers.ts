@@ -43,6 +43,7 @@ export class FakeD1 {
   private shares = new Map<string, FakeRow>();
   private rateLimitBuckets = new Map<string, FakeRow>();
   private widgetPushCadence = new Map<string, FakeRow>();
+  private widgetPushPending = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -407,6 +408,23 @@ export class FakeD1 {
       this.widgetPushCadence.set(tenant_id, { tenant_id, last_sent_at });
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO widget_push_pending")) {
+      const [tenant_id, queued_at] = values.map(String);
+      const existing = this.widgetPushPending.get(tenant_id);
+      this.widgetPushPending.set(tenant_id, {
+        tenant_id,
+        generation: String(Number(existing?.generation ?? 0) + 1),
+        queued_at,
+      });
+      return 1;
+    }
+    if (normalized.startsWith("DELETE FROM widget_push_pending")) {
+      const [tenant_id, generation] = values.map(String);
+      const existing = this.widgetPushPending.get(tenant_id);
+      if (!existing || existing.generation !== generation) return 0;
+      this.widgetPushPending.delete(tenant_id);
+      return 1;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
@@ -491,6 +509,14 @@ export class FakeD1 {
       return byTenant(this.widgetTokens, tenant_id)
         .sort(by("device_id", "widget_kind"))
         .map(select("token", "card_ids_json", "all_cards"));
+    }
+    if (normalized === "SELECT tenant_id, generation, queued_at FROM widget_push_pending WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      return pick(this.widgetPushPending.get(tenant_id), ["tenant_id", "generation", "queued_at"]);
+    }
+    if (normalized === "SELECT last_sent_at FROM widget_push_cadence WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      return pick(this.widgetPushCadence.get(tenant_id), ["last_sent_at"]);
     }
     if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? ORDER BY device_id") {
       const [tenant_id, external_id] = values.map(String);
