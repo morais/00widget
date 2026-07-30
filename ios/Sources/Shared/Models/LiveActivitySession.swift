@@ -14,6 +14,16 @@ public enum LiveActivityKind: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum CountdownGranularity: String, Codable, Hashable, Sendable {
+    case second
+    case minute
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = CountdownGranularity(rawValue: raw) ?? .second
+    }
+}
+
 public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var externalActivityId: String
     public var kind: LiveActivityKind
@@ -25,6 +35,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var unit: String?
     public var progress: Double?
     public var endsAt: Date?
+    public var countdownGranularity: CountdownGranularity?
     public var startedAt: Date?
     public var updatedAt: Date
     public var staleAt: Date?
@@ -47,6 +58,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         unit: String? = nil,
         progress: Double? = nil,
         endsAt: Date? = nil,
+        countdownGranularity: CountdownGranularity? = nil,
         startedAt: Date? = nil,
         updatedAt: Date = Date(),
         staleAt: Date? = nil,
@@ -64,6 +76,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.progress = progress
         self.endsAt = endsAt
+        self.countdownGranularity = countdownGranularity
         self.startedAt = startedAt
         self.updatedAt = updatedAt
         self.staleAt = staleAt

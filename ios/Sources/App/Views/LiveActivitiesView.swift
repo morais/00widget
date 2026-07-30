@@ -135,9 +135,13 @@ private struct ActivityCard: View {
     @ViewBuilder
     private var trailingValue: some View {
         if let endsAt = session.endsAt {
-            Text(endsAt, style: .timer)
+            LiveActivityCountdownText(
+                endsAt: endsAt,
+                granularity: session.countdownGranularity
+            )
                 .font(.headline)
                 .monospacedDigit()
+                .lineLimit(1)
         } else if let value = session.value {
             VStack(alignment: .trailing, spacing: 0) {
                 Text(value).font(.title3.weight(.semibold))

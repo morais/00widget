@@ -145,6 +145,7 @@ public final class LiveActivityController: ObservableObject {
                 unit: state.unit,
                 progress: state.progress,
                 endsAt: state.endsAt,
+                countdownGranularity: state.countdownGranularity,
                 updatedAt: state.updatedAt,
                 staleAt: state.staleAt,
                 deepLink: attributes.deepLink

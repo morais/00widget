@@ -184,6 +184,8 @@ export const LiveActivityKindSchema = z
   .enum(["generic", "progress", "charging", "appliance", "job", "timer"])
   .catch("generic");
 
+export const CountdownGranularitySchema = z.enum(["second", "minute"]);
+
 export const RegisterDeviceSchema = z.object({
   deviceId: z.string().min(1).max(FieldLimits.deviceId),
   apnsDeviceToken: PushTokenString.optional(),
@@ -258,6 +260,7 @@ export const StartLiveActivitySchema = z.object({
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
+  countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
   // Surfaced as aps.relevance-score on the APNs payload — Smart Stack on
   // iPhone and Apple Watch ranks Live Activities by this. Range is 0+;
@@ -282,6 +285,7 @@ export const UpdateLiveActivitySchema = z.object({
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   endsAt: IsoDate.optional(),
+  countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
   relevanceScore: z.number().min(0).optional(),
   alert: z
@@ -386,6 +390,7 @@ export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>;
 export type RegisterWidgetPushToken = z.infer<typeof RegisterWidgetPushTokenSchema>;
 export type RegisterLiveActivity = z.infer<typeof RegisterLiveActivitySchema>;
 export type RegisterLiveActivityStartToken = z.infer<typeof RegisterLiveActivityStartTokenSchema>;
+export type CountdownGranularity = z.infer<typeof CountdownGranularitySchema>;
 export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;

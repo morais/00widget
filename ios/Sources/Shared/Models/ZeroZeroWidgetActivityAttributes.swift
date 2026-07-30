@@ -11,6 +11,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         public var unit: String?
         public var progress: Double?
         public var endsAt: Date?
+        public var countdownGranularity: CountdownGranularity?
         public var updatedAt: Date
         public var staleAt: Date?
 
@@ -22,6 +23,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
             unit: String? = nil,
             progress: Double? = nil,
             endsAt: Date? = nil,
+            countdownGranularity: CountdownGranularity? = nil,
             updatedAt: Date = Date(),
             staleAt: Date? = nil
         ) {
@@ -32,6 +34,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
             self.unit = unit
             self.progress = progress
             self.endsAt = endsAt
+            self.countdownGranularity = countdownGranularity
             self.updatedAt = updatedAt
             self.staleAt = staleAt
         }
@@ -75,6 +78,7 @@ public extension ZeroZeroWidgetActivityAttributes {
             unit: session.unit,
             progress: session.progress,
             endsAt: session.endsAt,
+            countdownGranularity: session.countdownGranularity,
             updatedAt: session.updatedAt,
             staleAt: session.staleAt
         )
