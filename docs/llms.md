@@ -311,6 +311,11 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
 
 Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly.
 
+To inspect the tenant's currently ongoing activities, call `GET /v1/live-activities`.
+The response is `{ "activities": [...] }` using the same session fields as the
+start/update payloads. Pending starts and registered device instances are
+deduplicated by `externalActivityId`; ended activities are omitted.
+
 ### End
 
 ```sh

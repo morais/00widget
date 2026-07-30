@@ -58,6 +58,15 @@ public struct CardsListResponse: Codable {
     public let shared: [DashboardCard]?
 }
 
+public struct LiveActivitiesListResponse: Codable {
+    public let activities: [LiveActivitySession]
+}
+
+public struct DashboardResponse: Codable {
+    public let cards: [DashboardCard]
+    public let activities: [LiveActivitySession]
+}
+
 public struct AppleTokenResponse: Codable {
     public struct Tenant: Codable {
         public let id: String
@@ -131,6 +140,18 @@ public final class APIClient {
     public func fetchCardsIncludingShared() async throws -> (own: [DashboardCard], shared: [DashboardCard]) {
         let resp: CardsListResponse = try await request("GET", path: "/v1/cards?include=shared")
         return (resp.cards, resp.shared ?? [])
+    }
+
+    public func fetchLiveActivities() async throws -> [LiveActivitySession] {
+        let resp: LiveActivitiesListResponse = try await request(
+            "GET",
+            path: "/v1/live-activities"
+        )
+        return resp.activities
+    }
+
+    public func fetchDashboard() async throws -> DashboardResponse {
+        try await request("GET", path: "/v1/dashboard")
     }
 
     #if ZW_SHARING_ENABLED

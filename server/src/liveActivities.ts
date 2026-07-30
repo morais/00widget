@@ -1,10 +1,15 @@
-import type { CountdownGranularity, Env } from "./types";
+import type {
+  CountdownGranularity,
+  Env,
+  LiveActivitySession,
+} from "./types";
 import {
   RegisterLiveActivitySchema,
   RegisterLiveActivityStartTokenSchema,
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
   EndLiveActivitySchema,
+  LiveActivitySessionSchema,
   RequestBodyLimits,
 } from "./types";
 import * as storage from "./storage";
@@ -99,6 +104,11 @@ export async function registerLiveActivity(
     deviceId: d.deviceId,
     localActivityId: d.localActivityId,
     kind: d.kind,
+    title: pending?.title ?? anyExisting?.title,
+    icon: pending?.icon ?? anyExisting?.icon,
+    deepLink: pending?.deepLink ?? anyExisting?.deepLink,
+    startedAt: pending?.startedAt ?? anyExisting?.startedAt,
+    relevanceScore: pending?.relevanceScore ?? anyExisting?.relevanceScore,
     updatedAt: new Date().toISOString(),
     lastState: pending
       ? initialContentState(pending, pending.updatedAt)
@@ -247,6 +257,74 @@ export async function pendingActivities(
   return json({ activities });
 }
 
+export async function activeActivities(
+  _req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  return json({ activities: await listActiveActivitySessions(env, auth.tenantId) });
+}
+
+export async function listActiveActivitySessions(
+  env: Env,
+  tenantId: string,
+): Promise<LiveActivitySession[]> {
+  const [pending, registered] = await Promise.all([
+    storage.listPendingActivities(env, tenantId),
+    storage.listActiveActivities(env, tenantId),
+  ]);
+  const sessions = new Map<string, LiveActivitySession>();
+  for (const activity of pending) {
+    sessions.set(activity.externalActivityId, LiveActivitySessionSchema.parse(activity));
+  }
+  for (const activity of registered) {
+    const session = sessionFromRegistered(activity.externalActivityId, activity.record);
+    const existing = sessions.get(session.externalActivityId);
+    if (!existing || Date.parse(session.updatedAt) >= Date.parse(existing.updatedAt)) {
+      sessions.set(session.externalActivityId, session);
+    }
+  }
+  return [...sessions.values()].sort((a, b) =>
+    Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+function sessionFromRegistered(
+  externalActivityId: string,
+  record: storage.ActivityRecord,
+): LiveActivitySession {
+  const state = storedContentState(record.lastState);
+  return LiveActivitySessionSchema.parse({
+    externalActivityId,
+    kind: record.kind,
+    title: record.title?.length ? record.title : externalActivityId,
+    subtitle: optionalString(state.subtitle),
+    state: optionalNonemptyString(state.state) ?? "unknown",
+    icon: optionalString(state.icon) ?? record.icon,
+    value: optionalString(state.value),
+    unit: optionalString(state.unit),
+    progress: optionalNumber(state.progress),
+    endsAt: optionalString(state.endsAt),
+    countdownGranularity: optionalString(state.countdownGranularity),
+    startedAt: record.startedAt,
+    updatedAt: optionalString(state.updatedAt) ?? record.updatedAt,
+    staleAt: optionalString(state.staleAt),
+    relevanceScore: record.relevanceScore,
+    deepLink: record.deepLink,
+  });
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function optionalNonemptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
 interface StartTokenEntry {
   token: string;
   tenantId: string;
@@ -334,6 +412,8 @@ export async function updateLiveActivity(
       ownerResults.push(result);
       await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
         ...ownerRecord,
+        title: d.title ?? ownerRecord.title,
+        relevanceScore: d.relevanceScore ?? ownerRecord.relevanceScore,
         updatedAt: now,
         lastState: contentState,
       });
@@ -359,7 +439,13 @@ export async function updateLiveActivity(
             share.recipientTenantId,
             `share:${share.id}`,
             d.externalActivityId,
-            { ...recRecord, updatedAt: now, lastState: contentState },
+            {
+              ...recRecord,
+              title: d.title ?? recRecord.title,
+              relevanceScore: d.relevanceScore ?? recRecord.relevanceScore,
+              updatedAt: now,
+              lastState: contentState,
+            },
           );
         }
       }

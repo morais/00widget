@@ -525,6 +525,12 @@ export class FakeD1 {
         .sort(by("device_id"))
         .map(select("json"));
     }
+    if (normalized === "SELECT external_id, json FROM activities WHERE tenant_id = ? ORDER BY external_id, device_id") {
+      const [tenant_id] = values.map(String);
+      return byTenant(this.activities, tenant_id)
+        .sort(by("external_id", "device_id"))
+        .map(select("external_id", "json"));
+    }
     if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? AND device_id = ?") {
       const [tenant_id, external_id, device_id] = values.map(String);
       return pick(this.activities.get(`${tenant_id}:${external_id}:${device_id}`), ["json"]);

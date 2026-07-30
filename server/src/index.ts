@@ -10,6 +10,7 @@ import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as landing from "./landing";
 import * as shares from "./shares";
+import * as dashboard from "./dashboard";
 import { processPendingWidgetReload } from "./widgetPush";
 
 interface Route {
@@ -38,6 +39,9 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, (req, env, auth, _match, ctx) =>
     cards.upsertCardsBatch(req, env, auth, ctx)),
   authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
+  authed("GET", /^\/v1\/dashboard\/?$/, (req, env, auth) =>
+    dashboard.getDashboard(req, env, auth),
+  ),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m, ctx) =>
     cards.deleteCard(req, env, auth, m[1], ctx)),
@@ -56,6 +60,9 @@ const routes: Route[] = [
   ),
   authed("GET", /^\/v1\/live-activities\/pending\/?$/, (req, env, auth) =>
     liveActivities.pendingActivities(req, env, auth),
+  ),
+  authed("GET", /^\/v1\/live-activities\/?$/, (req, env, auth) =>
+    liveActivities.activeActivities(req, env, auth),
   ),
   authed("POST", /^\/v1\/live-activities\/update\/?$/, (req, env, auth) =>
     liveActivities.updateLiveActivity(req, env, auth),

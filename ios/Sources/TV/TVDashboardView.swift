@@ -114,18 +114,33 @@ struct TVDashboardView: View {
 
     @ViewBuilder
     private var content: some View {
-        if env.cards.isEmpty {
+        if env.cards.isEmpty && env.liveActivities.isEmpty {
             emptyState
         } else {
             ScrollView {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 40) {
-                    ForEach(env.cards) { card in
-                        TVDashboardCardView(
-                            card: card,
-                            runningActionID: runningActionID,
-                            openLink: { openLink(for: card) },
-                            runAction: { request($0, for: card) }
-                        )
+                VStack(alignment: .leading, spacing: 42) {
+                    if !env.liveActivities.isEmpty {
+                        dashboardSection(title: "Ongoing Activities", icon: "waveform") {
+                            ForEach(env.liveActivities) { activity in
+                                TVLiveActivityCardView(
+                                    activity: activity,
+                                    openLink: { openLink(for: activity) }
+                                )
+                            }
+                        }
+                    }
+
+                    if !env.cards.isEmpty {
+                        dashboardSection(title: "Widgets", icon: "square.grid.2x2") {
+                            ForEach(env.cards) { card in
+                                TVDashboardCardView(
+                                    card: card,
+                                    runningActionID: runningActionID,
+                                    openLink: { openLink(for: card) },
+                                    runAction: { request($0, for: card) }
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -135,14 +150,30 @@ struct TVDashboardView: View {
         }
     }
 
+    private func dashboardSection<Content: View>(
+        title: String,
+        icon: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Label(title, systemImage: icon)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 40) {
+                content()
+            }
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 24) {
             Image(systemName: "square.dashed")
                 .font(.system(size: 96))
                 .foregroundStyle(.secondary)
-            Text("No widgets yet")
+            Text("Nothing to show yet")
                 .font(.title)
-            Text("Publish one from your agent.")
+            Text("Publish a widget or start a Live Activity from your agent.")
                 .font(.title3)
                 .foregroundStyle(.secondary)
         }
@@ -152,6 +183,11 @@ struct TVDashboardView: View {
     private func openLink(for card: DashboardCard) {
         guard let url = card.deepLink else { return }
         selectedLink = TVWebLink(cardTitle: card.title, url: url)
+    }
+
+    private func openLink(for activity: LiveActivitySession) {
+        guard let url = activity.deepLink else { return }
+        selectedLink = TVWebLink(cardTitle: activity.title, url: url)
     }
 
     private func request(_ action: ActionDefinition, for card: DashboardCard) {
@@ -179,6 +215,121 @@ struct TVDashboardView: View {
             } catch {
                 actionError = error.localizedDescription
             }
+        }
+    }
+}
+
+private struct TVLiveActivityCardView: View {
+    let activity: LiveActivitySession
+    let openLink: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Button(action: openLink) {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let subtitle = activity.subtitle {
+                                Text(subtitle)
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Text("Updated \(activity.updatedAt.formatted(.relative(presentation: .named)))")
+                                .font(.callout)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer(minLength: 12)
+                        trailingValue
+                    }
+
+                    if let progress = activity.progress, activity.endsAt == nil {
+                        ProgressView(value: max(0, min(progress, 1)))
+                            .tint(.accentColor)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 220)
+                .contentShape(RoundedRectangle(cornerRadius: 24))
+            }
+            .buttonStyle(.card)
+            .accessibilityHint(
+                activity.deepLink == nil
+                    ? "Live Activity summary"
+                    : "Shows a QR code for the activity link"
+            )
+
+            if activity.deepLink != nil {
+                Button(action: openLink) {
+                    Label("Open link", systemImage: "qrcode")
+                }
+                .frame(height: 72)
+            } else {
+                Color.clear.frame(height: 72)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Image(systemName: iconName)
+                .font(.title2)
+                .foregroundStyle(Color.accentColor)
+            Text(activity.title)
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 8)
+            Text(activity.state.capitalized)
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.accentColor.opacity(0.18)))
+                .foregroundStyle(Color.accentColor)
+        }
+    }
+
+    @ViewBuilder
+    private var trailingValue: some View {
+        if let endsAt = activity.endsAt {
+            LiveActivityCountdownText(
+                endsAt: endsAt,
+                granularity: activity.countdownGranularity
+            )
+            .font(.system(size: 32, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+        } else if let value = activity.value {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(value)
+                    .font(.system(size: 40, weight: .semibold, design: .rounded))
+                if let unit = activity.unit {
+                    Text(unit)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Text(activity.state.capitalized)
+                .font(.title3.weight(.semibold))
+        }
+    }
+
+    private var iconName: String {
+        if let icon = activity.icon { return icon }
+        switch activity.kind {
+        case .generic: return "square.dashed"
+        case .progress: return "chart.bar"
+        case .charging: return "bolt.car"
+        case .appliance: return "washer"
+        case .job: return "hammer"
+        case .timer: return "timer"
         }
     }
 }

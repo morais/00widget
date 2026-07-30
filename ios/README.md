@@ -55,7 +55,7 @@ The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appi
 
 - **ZeroZeroWidgetApp** — SwiftUI app with four tabs: Dashboard, Activities, Settings, Debug.
 - **ZeroZeroWidgetWidgets** — widget extension containing the single-card widget, the grid widget, and the Live Activity (`ZeroZeroWidgetLiveActivityWidget`).
-- **ZeroZeroWidgetTV** — Apple TV dashboard with Sign in with Apple and automatic card refresh.
+- **ZeroZeroWidgetTV** — Apple TV dashboard with Sign in with Apple and automatic card and Live Activity refresh.
 
 The shared Swift sources (`Sources/Shared/`) are compiled into each target as source files rather than a framework — this keeps the extension small and avoids dynamic-linking overhead.
 
@@ -67,7 +67,7 @@ Pick an iOS 26 device/simulator and run the **ZeroZeroWidgetApp** scheme. On fir
 2. Add a 00Widget widget from the Home Screen or Lock Screen — long-press an empty area → **Edit** → **Add Widget** → search for *00Widget*.
 3. Ask an agent to call `POST /v1/live-activities/start`. The Live Activity starts remotely and appears automatically on the Lock Screen / Dynamic Island.
 
-For Apple TV, pick a tvOS 26 device/simulator and run the **ZeroZeroWidgetTV** scheme. Sign in with Apple, then the app fetches the tenant's cards and refreshes every 30 seconds.
+For Apple TV, pick a tvOS 26 device/simulator and run the **ZeroZeroWidgetTV** scheme. Sign in with Apple, then the app fetches the tenant's cards and ongoing Live Activities together every 30 seconds. Pending and device-registered activity instances are deduplicated by external activity id; countdowns and progress render locally between fetches. The combined dashboard endpoint keeps each refresh to one Worker invocation.
 
 For TestFlight, update `CURRENT_PROJECT_VERSION` only in the gitignored local `project.yml`, regenerate with `xcodegen`, and archive `ZeroZeroWidgetApp` and `ZeroZeroWidgetTV` separately. The exact archive, version-verification, and upload commands are documented in `AGENTS.md`.
 
