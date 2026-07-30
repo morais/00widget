@@ -268,6 +268,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
     "icon": "hammer",
     "progress": 0.2,
     "endsAt": "2026-04-26T18:45:00Z",
+    "countdownGranularity": "minute",
     "staleAt": "2026-04-26T19:00:00Z",
     "alert": {
       "title": "CI build started",
@@ -285,7 +286,8 @@ Live Activity rendering fields:
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `progress`: optional `0.0`–`1.0` progress bar.
-- `endsAt`: optional ISO-8601 end time. When present, iOS renders a native countdown driven by the device clock; you do not need periodic updates just to tick time forward.
+- `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
+- `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.
 - `relevanceScore`: optional non-negative number. Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins, no fixed ceiling). Send a low score early in a long-running activity and ramp it up as the activity gets more urgent or interesting; spike it on the finishing update so the wrist surfaces it. Accepted on both `start` and `update`.
 
 For a time-bounded operation, prefer `endsAt` over server-ticked percentage updates. A "boosting until 21:30" activity can be `start` with `endsAt`, then `end` when finished or cancelled.
@@ -302,6 +304,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
     "subtitle": "linting",
     "progress": 0.6,
     "endsAt": "2026-04-26T18:45:00Z",
+    "countdownGranularity": "minute",
     "relevanceScore": 60
   }'
 ```

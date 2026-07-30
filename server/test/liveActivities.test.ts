@@ -32,6 +32,28 @@ describe("live activities", () => {
         },
       }).success,
     ).toBe(false);
+    expect(
+      StartLiveActivitySchema.safeParse({
+        externalActivityId: "countdown-minute",
+        kind: "timer",
+        title: "Estimate",
+        state: "running",
+        endsAt: "2026-07-30T14:30:00Z",
+        countdownGranularity: "minute",
+      }).success,
+    ).toBe(true);
+    expect(
+      UpdateLiveActivitySchema.safeParse({
+        externalActivityId: "countdown-second",
+        countdownGranularity: "second",
+      }).success,
+    ).toBe(true);
+    expect(
+      UpdateLiveActivitySchema.safeParse({
+        externalActivityId: "countdown-invalid",
+        countdownGranularity: "hour",
+      }).success,
+    ).toBe(false);
   });
 
   it("registers and lists pending", async () => {
@@ -46,6 +68,7 @@ describe("live activities", () => {
           title: "Washer",
           state: "running",
           progress: 0.1,
+          countdownGranularity: "minute",
         }),
       }),
       env,
@@ -60,11 +83,18 @@ describe("live activities", () => {
     );
     expect(pending.status).toBe(200);
     const data = (await pending.json()) as {
-      activities: Array<{ updatedAt?: string; startedAt?: string; icon?: string; endsAt?: string }>;
+      activities: Array<{
+        updatedAt?: string;
+        startedAt?: string;
+        icon?: string;
+        endsAt?: string;
+        countdownGranularity?: string;
+      }>;
     };
     expect(data.activities).toHaveLength(1);
     expect(Date.parse(data.activities[0].updatedAt ?? "")).not.toBeNaN();
     expect(Date.parse(data.activities[0].startedAt ?? "")).not.toBeNaN();
+    expect(data.activities[0].countdownGranularity).toBeUndefined();
   });
 
   it("registers a push token and ends without APNs configured", async () => {
@@ -149,6 +179,7 @@ describe("live activities", () => {
           state: "running",
           icon: "washer",
           endsAt: "2026-05-01T21:00:00Z",
+          countdownGranularity: "minute",
           progress: 0.1,
         }),
       }),
@@ -180,7 +211,14 @@ describe("live activities", () => {
       executionCtx,
     );
     const data = (await pending.json()) as {
-      activities: Array<{ state: string; subtitle?: string; icon?: string; progress?: number; endsAt?: string }>;
+      activities: Array<{
+        state: string;
+        subtitle?: string;
+        icon?: string;
+        progress?: number;
+        endsAt?: string;
+        countdownGranularity?: string;
+      }>;
     };
     expect(data.activities).toHaveLength(1);
     expect(data.activities[0].state).toBe("rinse");
@@ -188,6 +226,7 @@ describe("live activities", () => {
     expect(data.activities[0].icon).toBe("flame.fill");
     expect(data.activities[0].progress).toBe(0.5);
     expect(data.activities[0].endsAt).toBe("2026-05-01T21:30:00Z");
+    expect(data.activities[0].countdownGranularity).toBe("minute");
   });
 
   it("removes pending activities when they are ended before registration", async () => {
@@ -414,12 +453,14 @@ describe("live activities", () => {
     expect(startAps["input-push-token"]).toBe(1);
     expect(startAps.alert).toEqual({ title: "Washer started", body: "Washing" });
     expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing" });
+    expect(startAps["content-state"].countdownGranularity).toBe("second");
     expect(typeof startAps["content-state"].updatedAt).toBe("number");
     expect(typeof startAps["content-state"].endsAt).toBe("number");
 
     const updateState = captured[1].aps["content-state"];
     expect(captured[1].aps.event).toBe("update");
     expect(updateState).toMatchObject({ state: "running", subtitle: "Rinsing" });
+    expect(updateState.countdownGranularity).toBe("second");
     expect(typeof updateState.updatedAt).toBe("number");
     expect(typeof updateState.endsAt).toBe("number");
 
@@ -427,6 +468,7 @@ describe("live activities", () => {
     expect(captured[2].aps.event).toBe("end");
     expect(captured[2].aps["dismissal-date"]).toBe(captured[2].aps.timestamp - 1);
     expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing" });
+    expect(endState.countdownGranularity).toBe("second");
     expect(typeof endState.updatedAt).toBe("number");
     expect(typeof endState.endsAt).toBe("number");
   });

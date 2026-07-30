@@ -17,9 +17,13 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if let endsAt = context.state.endsAt {
-                        Text(endsAt, style: .timer)
+                        LiveActivityCountdownText(
+                            endsAt: endsAt,
+                            granularity: context.state.countdownGranularity
+                        )
                             .font(.headline)
                             .monospacedDigit()
+                            .lineLimit(1)
                     } else if let value = context.state.value {
                         HStack(spacing: 2) {
                             Text(value).font(.headline)
@@ -47,8 +51,12 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 Image(systemName: iconName(attributes: context.attributes, state: context.state))
             } compactTrailing: {
                 if let endsAt = context.state.endsAt {
-                    Text(endsAt, style: .timer)
+                    LiveActivityCountdownText(
+                        endsAt: endsAt,
+                        granularity: context.state.countdownGranularity
+                    )
                         .monospacedDigit()
+                        .lineLimit(1)
                 } else if let value = context.state.value {
                     Text(value)
                 } else if let p = context.state.progress {
@@ -121,9 +129,13 @@ private struct LockScreenView: View {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
                 if let endsAt = state.endsAt {
-                    Text(endsAt, style: .timer)
+                    LiveActivityCountdownText(
+                        endsAt: endsAt,
+                        granularity: state.countdownGranularity
+                    )
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
+                        .lineLimit(1)
                 } else if let p = state.progress {
                     ProgressView(value: max(0, min(p, 1)))
                         .progressViewStyle(.linear)
@@ -183,7 +195,10 @@ private struct LockScreenView: View {
     @ViewBuilder
     private var primaryWatchValue: some View {
         if let endsAt = state.endsAt {
-            Text(endsAt, style: .timer)
+            LiveActivityCountdownText(
+                endsAt: endsAt,
+                granularity: state.countdownGranularity
+            )
                 .font(.headline)
                 .monospacedDigit()
                 .lineLimit(1)

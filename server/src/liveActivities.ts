@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import type { CountdownGranularity, Env } from "./types";
 import {
   RegisterLiveActivitySchema,
   RegisterLiveActivityStartTokenSchema,
@@ -39,6 +39,7 @@ function initialContentState(
     unit?: string;
     progress?: number;
     endsAt?: string;
+    countdownGranularity?: CountdownGranularity;
     staleAt?: string;
   },
   updatedAt: string,
@@ -49,7 +50,10 @@ function initialContentState(
   if (activity.value !== undefined) state.value = activity.value;
   if (activity.unit !== undefined) state.unit = activity.unit;
   if (activity.progress !== undefined) state.progress = activity.progress;
-  if (activity.endsAt !== undefined) state.endsAt = activity.endsAt;
+  if (activity.endsAt !== undefined) {
+    state.endsAt = activity.endsAt;
+    state.countdownGranularity = activity.countdownGranularity ?? "second";
+  }
   if (activity.staleAt !== undefined) state.staleAt = activity.staleAt;
   return state;
 }
@@ -135,6 +139,9 @@ export async function startLiveActivity(
   ]);
   if (limited) return limited;
   const now = new Date().toISOString();
+  const countdownGranularity = d.endsAt === undefined
+    ? undefined
+    : d.countdownGranularity ?? "second";
 
   // Try push-to-start first. If any device has registered a start token for
   // ZeroZeroWidgetActivityAttributes, send the start event over APNs. Shared
@@ -160,7 +167,7 @@ export async function startLiveActivity(
     if (d.icon !== undefined) attributes.icon = d.icon;
     if (d.deepLink) attributes.deepLink = d.deepLink;
 
-    const contentState = initialContentState(d, now);
+    const contentState = initialContentState({ ...d, countdownGranularity }, now);
 
     for (const entry of startTokens) {
       const result = await sendLiveActivityStart(env, entry.token, {
@@ -202,6 +209,7 @@ export async function startLiveActivity(
   // include shared kinds, and through the start push above.
   await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
     ...d,
+    countdownGranularity,
     startedAt: now,
     updatedAt: now,
   });
@@ -217,7 +225,7 @@ export async function startLiveActivity(
         share.recipientTenantId,
         `share:${share.id}`,
         d.externalActivityId,
-        { ...d, startedAt: now, updatedAt: now },
+        { ...d, countdownGranularity, startedAt: now, updatedAt: now },
       );
     }
   }
@@ -302,6 +310,12 @@ export async function updateLiveActivity(
   if (d.unit !== undefined) contentState.unit = d.unit;
   if (d.progress !== undefined) contentState.progress = d.progress;
   if (d.endsAt !== undefined) contentState.endsAt = d.endsAt;
+  if (typeof contentState.endsAt === "string") {
+    const granularity = d.countdownGranularity ?? contentState.countdownGranularity;
+    contentState.countdownGranularity = granularity === "minute" ? "minute" : "second";
+  } else {
+    delete contentState.countdownGranularity;
+  }
   contentState.updatedAt = now;
   if (d.staleAt) contentState.staleAt = d.staleAt;
 
@@ -353,6 +367,10 @@ export async function updateLiveActivity(
   } else {
     const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
     if (pending) {
+      const endsAt = d.endsAt ?? pending.endsAt;
+      const countdownGranularity = endsAt === undefined
+        ? undefined
+        : d.countdownGranularity ?? pending.countdownGranularity ?? "second";
       await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
         ...pending,
         title: d.title ?? pending.title,
@@ -362,7 +380,8 @@ export async function updateLiveActivity(
         value: d.value ?? pending.value,
         unit: d.unit ?? pending.unit,
         progress: d.progress ?? pending.progress,
-        endsAt: d.endsAt ?? pending.endsAt,
+        endsAt,
+        countdownGranularity,
         staleAt: d.staleAt ?? pending.staleAt,
         relevanceScore: d.relevanceScore ?? pending.relevanceScore,
         updatedAt: now,
