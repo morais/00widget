@@ -277,8 +277,8 @@ export const StartLiveActivitySchema = z.object({
 
 export const UpdateLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
-  state: z.string().max(FieldLimits.activityState).optional(),
-  title: z.string().max(FieldLimits.title).optional(),
+  state: z.string().min(1).max(FieldLimits.activityState).optional(),
+  title: z.string().min(1).max(FieldLimits.title).optional(),
   subtitle: OptionalSubtitleString,
   icon: OptionalIconString,
   value: OptionalValueString,
@@ -294,6 +294,25 @@ export const UpdateLiveActivitySchema = z.object({
       body: z.string().max(FieldLimits.alertBody).optional(),
     })
     .optional(),
+});
+
+export const LiveActivitySessionSchema = z.object({
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
+  kind: LiveActivityKindSchema,
+  title: TitleString,
+  subtitle: OptionalSubtitleString,
+  state: z.string().min(1).max(FieldLimits.activityState),
+  icon: OptionalIconString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
+  progress: z.number().min(0).max(1).optional(),
+  endsAt: IsoDate.optional(),
+  countdownGranularity: CountdownGranularitySchema.optional(),
+  startedAt: IsoDate.optional(),
+  updatedAt: IsoDate,
+  staleAt: IsoDate.optional(),
+  relevanceScore: z.number().min(0).optional(),
+  deepLink: OptionalDeepLink,
 });
 
 export const EndLiveActivitySchema = z.object({
@@ -393,6 +412,7 @@ export type RegisterLiveActivityStartToken = z.infer<typeof RegisterLiveActivity
 export type CountdownGranularity = z.infer<typeof CountdownGranularitySchema>;
 export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
+export type LiveActivitySession = z.infer<typeof LiveActivitySessionSchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
 export type RunAction = z.infer<typeof RunActionSchema>;
 export type WebhookIntegration = z.infer<typeof WebhookIntegrationSchema>;

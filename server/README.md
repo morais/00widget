@@ -177,10 +177,12 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | GET    | `/v1/cards`                                  | List all cards for the API key.        |
 | GET    | `/v1/cards/:id`                              | Get one card.                          |
 | DELETE | `/v1/cards/:id`                              | Delete one card.                       |
+| GET    | `/v1/dashboard`                              | Fetch cards and ongoing activities in one polling-efficient response. |
 | POST   | `/v1/devices/register`                       | Store the app APNs device token.       |
 | POST   | `/v1/widgets/register-push-token`            | Reconcile WidgetKit push subscriptions. |
 | POST   | `/v1/live-activities/register`               | Store an ActivityKit push token.       |
 | POST   | `/v1/live-activities/start`                  | Start a Live Activity through APNs.    |
+| GET    | `/v1/live-activities`                        | List current activities, deduplicated across pending and registered devices. |
 | GET    | `/v1/live-activities/pending`                | Compatibility fallback for older apps. |
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |

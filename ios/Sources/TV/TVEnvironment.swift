@@ -9,6 +9,7 @@ final class TVEnvironment: ObservableObject {
     @Published private(set) var appleLoginInProgress = false
     @Published private(set) var cards: [DashboardCard] = []
     @Published private(set) var sharedCards: [DashboardCard] = []
+    @Published private(set) var liveActivities: [LiveActivitySession] = []
     @Published private(set) var lastSyncAt: Date?
     @Published private(set) var lastSyncError: String?
     @Published private(set) var isRefreshing = false
@@ -86,6 +87,7 @@ final class TVEnvironment: ObservableObject {
         CardCache.clear()
         cards = []
         sharedCards = []
+        liveActivities = []
         lastSyncAt = nil
         lastSyncError = nil
     }
@@ -98,9 +100,10 @@ final class TVEnvironment: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let fetched = try await client.fetchCards()
-            cards = fetched
-            try? CardCache.save(fetched)
+            let dashboard = try await client.fetchDashboard()
+            cards = dashboard.cards
+            liveActivities = dashboard.activities
+            try? CardCache.save(dashboard.cards)
             lastSyncAt = Date()
             lastSyncError = nil
         } catch {

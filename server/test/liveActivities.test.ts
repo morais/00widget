@@ -95,6 +95,22 @@ describe("live activities", () => {
     expect(Date.parse(data.activities[0].updatedAt ?? "")).not.toBeNaN();
     expect(Date.parse(data.activities[0].startedAt ?? "")).not.toBeNaN();
     expect(data.activities[0].countdownGranularity).toBeUndefined();
+
+    const active = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(active.status).toBe(200);
+    expect((await active.json()) as unknown).toMatchObject({
+      activities: [{
+        externalActivityId: "washer-1",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+        progress: 0.1,
+      }],
+    });
   });
 
   it("registers a push token and ends without APNs configured", async () => {
@@ -138,6 +154,21 @@ describe("live activities", () => {
     );
     expect(((await afterRegister.json()) as { activities: unknown[] }).activities).toHaveLength(0);
 
+    const registered = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await registered.json()) as unknown).toMatchObject({
+      activities: [{
+        externalActivityId: "washer-1",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+        progress: 0.1,
+      }],
+    });
+
     const update = await (handler.fetch as any)(
       authedRequest("https://x/v1/live-activities/update", {
         method: "POST",
@@ -155,6 +186,15 @@ describe("live activities", () => {
     // APNs is not configured in tests, so the helper reports as such.
     expect(updateBody.apnsResult.reason).toBe("apns-not-configured");
 
+    const updated = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await updated.json()) as unknown).toMatchObject({
+      activities: [{ state: "rinse", progress: 0.5 }],
+    });
+
     const end = await (handler.fetch as any)(
       authedRequest("https://x/v1/live-activities/end", {
         method: "POST",
@@ -164,6 +204,13 @@ describe("live activities", () => {
       executionCtx,
     );
     expect(end.status).toBe(200);
+
+    const ended = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await ended.json()) as { activities: unknown[] }).toEqual({ activities: [] });
   });
 
   it("merges updates into pending activities before a push token exists", async () => {
@@ -516,6 +563,17 @@ describe("live activities", () => {
       );
       expect(response.status).toBe(200);
     }
+
+    const listed = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const listedData = (await listed.json()) as { activities: unknown[] };
+    expect(listedData).toMatchObject({
+      activities: [{ externalActivityId: "washer-multi", title: "Washer" }],
+    });
+    expect(listedData.activities).toHaveLength(1);
 
     const pushedTokens: string[] = [];
     const originalFetch = globalThis.fetch;

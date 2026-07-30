@@ -24,8 +24,18 @@ export interface ActivityRecord {
   deviceId: string;
   localActivityId: string;
   kind: string;
+  title?: string;
+  icon?: string;
+  deepLink?: string;
+  startedAt?: string;
+  relevanceScore?: number;
   updatedAt: string;
   lastState?: unknown;
+}
+
+export interface ActiveActivityRecord {
+  externalActivityId: string;
+  record: ActivityRecord;
 }
 
 export interface PendingActivityRecord extends StartLiveActivity {
@@ -421,6 +431,23 @@ export async function getActivity(
   externalId: string,
 ): Promise<ActivityRecord | null> {
   return (await listActivities(env, tenantId, externalId))[0] ?? null;
+}
+
+export async function listActiveActivities(
+  env: Env,
+  tenantId: string,
+): Promise<ActiveActivityRecord[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT external_id, json FROM activities
+     WHERE tenant_id = ?
+     ORDER BY external_id, device_id`,
+  )
+    .bind(tenantId)
+    .all<{ external_id: string; json: string }>();
+  return rows.results.map((row) => ({
+    externalActivityId: row.external_id,
+    record: parseJson<ActivityRecord>(row.json),
+  }));
 }
 
 export async function deleteActivity(env: Env, tenantId: string, externalId: string): Promise<void> {

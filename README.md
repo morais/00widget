@@ -121,6 +121,8 @@ Working end-to-end. Cards publish, Live Activities start/update/end, push-to-sta
 
 **Push-to-start (ActivityKit, iOS 17.2+)** — fully implemented. iOS observes `Activity<ZeroZeroWidgetActivityAttributes>.pushToStartTokenUpdates` from `didFinishLaunchingWithOptions`, registers via `POST /v1/live-activities/register-start-token`. The backend's `POST /v1/live-activities/start` sends the start event to all registered devices and falls back to the pending-queue path if no token is registered (or if the APNs delivery fails). End-to-end verification needs `.p8` credentials configured on the Worker.
 
+**tvOS activity dashboard** — the Apple TV app lists ongoing Live Activities above its widgets. The backend exposes one deduplicated tenant-scoped view across pending starts and registered device activities, while tvOS renders countdowns and progress locally.
+
 **WidgetKit `pushHandler` (iOS 26+)** — fully implemented. Each widget configuration calls `.pushHandler(ZeroZeroWidgetPushHandler.self)`. The handler persists WidgetKit’s canonical token/configuration snapshot in the App Group, and the host app reconciles it at launch, on foreground, after app-build changes, and through a short bounded retry while WidgetKit finishes generating a token. Backend pushes carry `aps.content-changed: true`, use budget-aware per-tenant cadence, and durably coalesce suppressed changes into one delayed queue delivery when the cadence window opens. A successful foreground app fetch also requests targeted timeline reloads immediately. End-to-end verification still needs `.p8` credentials and a physical device.
 
 ## License
