@@ -262,7 +262,9 @@ export async function handleAdminDeleteLiveActivity(
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
-  await endAndDeleteActivity(env, tenantId, dec(externalActivityIdRaw));
+  await endAndDeleteActivity(env, tenantId, dec(externalActivityIdRaw), {}, {
+    deleteOnDeliveryFailure: true,
+  });
   return redirectToTenant(tenantId);
 }
 

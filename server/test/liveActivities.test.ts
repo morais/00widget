@@ -113,7 +113,7 @@ describe("live activities", () => {
     });
   });
 
-  it("registers a push token and ends without APNs configured", async () => {
+  it("retains a registered activity when APNs is not configured", async () => {
     const env = makeEnv();
 
     await (handler.fetch as any)(
@@ -203,8 +203,97 @@ describe("live activities", () => {
       env,
       executionCtx,
     );
-    expect(end.status).toBe(200);
+    expect(end.status).toBe(502);
 
+    const retained = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await retained.json()) as unknown).toMatchObject({
+      activities: [{ externalActivityId: "washer-1", state: "rinse" }],
+    });
+  });
+
+  it("retains a failed end delivery and deletes it after a successful retry", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-retry-end",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "dev-retry",
+          localActivityId: "local-retry",
+          externalActivityId: "washer-retry-end",
+          kind: "appliance",
+          pushToken: "aaaabbbbccccdddd",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const originalFetch = globalThis.fetch;
+    let attempts = 0;
+    globalThis.fetch = (async () => {
+      attempts += 1;
+      return attempts === 1
+        ? new Response(JSON.stringify({ reason: "InternalServerError" }), { status: 500 })
+        : new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      const failedEnd = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-retry-end" }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(failedEnd.status).toBe(502);
+
+      const retained = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities", { method: "GET" }),
+        env,
+        executionCtx,
+      );
+      expect((await retained.json()) as unknown).toMatchObject({
+        activities: [{ externalActivityId: "washer-retry-end" }],
+      });
+
+      const successfulEnd = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-retry-end" }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(successfulEnd.status).toBe(200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(attempts).toBe(2);
     const ended = await (handler.fetch as any)(
       authedRequest("https://x/v1/live-activities", { method: "GET" }),
       env,
