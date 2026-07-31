@@ -7,11 +7,13 @@ struct TVDashboardView: View {
     @State private var pendingAction: TVPendingAction?
     @State private var runningActionID: String?
     @State private var actionError: String?
+    @FocusState private var settingsFocused: Bool
 
-    private let columns = Array(
+    private let widgetColumns = Array(
         repeating: GridItem(.flexible(), spacing: 40, alignment: .top),
         count: 3
     )
+    private let activityColumns = [GridItem(.flexible(), alignment: .top)]
 
     var body: some View {
         VStack(spacing: 32) {
@@ -91,6 +93,7 @@ struct TVDashboardView: View {
                     .font(.headline)
                     .padding(.horizontal, 8)
             }
+            .focused($settingsFocused)
         }
     }
 
@@ -120,18 +123,27 @@ struct TVDashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 42) {
                     if !env.liveActivities.isEmpty {
-                        dashboardSection(title: "Ongoing Activities", icon: "waveform") {
+                        dashboardSection(
+                            title: "Ongoing Activities",
+                            icon: "waveform",
+                            columns: activityColumns
+                        ) {
                             ForEach(env.liveActivities) { activity in
                                 TVLiveActivityCardView(
                                     activity: activity,
-                                    openLink: { openLink(for: activity) }
+                                    openLink: { openLink(for: activity) },
+                                    focusSettings: { settingsFocused = true }
                                 )
                             }
                         }
                     }
 
                     if !env.cards.isEmpty {
-                        dashboardSection(title: "Widgets", icon: "square.grid.2x2") {
+                        dashboardSection(
+                            title: "Widgets",
+                            icon: "square.grid.2x2",
+                            columns: widgetColumns
+                        ) {
                             ForEach(env.cards) { card in
                                 TVDashboardCardView(
                                     card: card,
@@ -153,6 +165,7 @@ struct TVDashboardView: View {
     private func dashboardSection<Content: View>(
         title: String,
         icon: String,
+        columns: [GridItem],
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -222,6 +235,7 @@ struct TVDashboardView: View {
 private struct TVLiveActivityCardView: View {
     let activity: LiveActivitySession
     let openLink: () -> Void
+    let focusSettings: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -236,9 +250,6 @@ private struct TVLiveActivityCardView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
                             }
-                            Text("Updated \(activity.updatedAt.formatted(.relative(presentation: .named)))")
-                                .font(.callout)
-                                .foregroundStyle(.tertiary)
                         }
                         Spacer(minLength: 12)
                         trailingValue
@@ -258,6 +269,11 @@ private struct TVLiveActivityCardView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 24))
             }
             .buttonStyle(.card)
+            .onMoveCommand { direction in
+                if direction == .up {
+                    focusSettings()
+                }
+            }
             .accessibilityHint(
                 activity.deepLink == nil
                     ? "Live Activity summary"
