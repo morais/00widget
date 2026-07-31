@@ -17,6 +17,7 @@ import {
   sendLiveActivityStart,
   sendLiveActivityUpdate,
   sendLiveActivityEnd,
+  type ApnsResult,
 } from "./apns";
 import { json, badRequest } from "./http";
 import type { AuthContext } from "./auth";
@@ -499,32 +500,58 @@ export async function endLiveActivity(
   Object.assign(completeFinalState, finalContentState);
   if (typeof completeFinalState.state !== "string") completeFinalState.state = "finished";
   completeFinalState.updatedAt = new Date().toISOString();
-  const apnsResult = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
+  const result = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
     finalContentState: record
       ? activityKitContentState(completeFinalState)
       : undefined,
     dismissalDate: d.dismissalDate,
   });
-  return json({ ok: true, apnsResult });
+  if (result.deliveryFailures.length > 0) {
+    return json({
+      error: "live activity end delivery failed; activity retained for retry",
+      apnsResult: result.apnsResult,
+      recipientResults: result.recipientResults,
+      deliveryFailures: result.deliveryFailures,
+    }, 502);
+  }
+  return json({
+    ok: true,
+    apnsResult: result.apnsResult,
+    recipientResults: result.recipientResults,
+  });
 }
 
-// Send the APNs end push (if we still have a push token) and delete both the
-// activity row and any pending row. Used by the public end endpoint and by
-// the admin Delete button so the activity actually stops on the device.
-// Also fans out the end push to accepted-share recipients so their copies of
-// the Live Activity terminate at the same time.
+export interface EndAndDeleteActivityResult {
+  apnsResult: ApnsResult | null;
+  recipientResults: ApnsResult[];
+  deliveryFailures: ApnsResult[];
+}
+
+function endDeliverySucceeded(result: ApnsResult): boolean {
+  return result.status === 200 || isDeadTokenReason(result.reason);
+}
+
+// Send the APNs end push (if we still have a push token), then delete both the
+// activity row and any pending row only after every delivery has reached a
+// terminal result. A transient APNs/configuration failure retains all rows so
+// the producer can safely retry the same end request. Also fans out the end
+// push to accepted-share recipients so their copies terminate at the same time.
 export async function endAndDeleteActivity(
   env: Env,
   tenantId: string,
   externalActivityId: string,
   endPayload: { finalContentState?: Record<string, unknown>; dismissalDate?: string } = {},
-): Promise<unknown> {
+  options: { deleteOnDeliveryFailure?: boolean } = {},
+): Promise<EndAndDeleteActivityResult> {
   const records = await storage.listActivities(env, tenantId, externalActivityId);
   const record = records[0];
-  let apnsResult: unknown = null;
+  let apnsResult: ApnsResult | null = null;
+  const recipientResults: ApnsResult[] = [];
+  const deliveryFailures: ApnsResult[] = [];
   for (const [index, ownerRecord] of records.entries()) {
     const result = await sendLiveActivityEnd(env, ownerRecord.pushToken, endPayload);
     if (index === 0) apnsResult = result;
+    if (!endDeliverySucceeded(result)) deliveryFailures.push(result);
   }
   if (record && isSharingEnabled(env)) {
     const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
@@ -532,13 +559,23 @@ export async function endAndDeleteActivity(
       if (!share.recipientTenantId) continue;
       const recRecords = await storage.listActivities(env, share.recipientTenantId, externalActivityId);
       for (const recRecord of recRecords) {
-        await sendLiveActivityEnd(env, recRecord.pushToken, endPayload);
+        const result = await sendLiveActivityEnd(env, recRecord.pushToken, endPayload);
+        recipientResults.push(result);
+        if (!endDeliverySucceeded(result)) deliveryFailures.push(result);
       }
-      await storage.deleteActivity(env, share.recipientTenantId, externalActivityId);
-      await storage.deletePendingActivity(env, share.recipientTenantId, externalActivityId);
     }
   }
-  await storage.deleteActivity(env, tenantId, externalActivityId);
-  await storage.deletePendingActivity(env, tenantId, externalActivityId);
-  return apnsResult;
+  if (deliveryFailures.length === 0 || options.deleteOnDeliveryFailure === true) {
+    if (record && isSharingEnabled(env)) {
+      const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
+      for (const share of accepted) {
+        if (!share.recipientTenantId) continue;
+        await storage.deleteActivity(env, share.recipientTenantId, externalActivityId);
+        await storage.deletePendingActivity(env, share.recipientTenantId, externalActivityId);
+      }
+    }
+    await storage.deleteActivity(env, tenantId, externalActivityId);
+    await storage.deletePendingActivity(env, tenantId, externalActivityId);
+  }
+  return { apnsResult, recipientResults, deliveryFailures };
 }

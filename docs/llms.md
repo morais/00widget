@@ -334,6 +334,8 @@ Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
 
 When `dismissalDate` is omitted, 00Widget dismisses the ended Live Activity immediately. To keep the final state visible briefly, set `dismissalDate` to an ISO-8601 time within Apple's four-hour dismissal window. The free-form `state` field does not end an activity by itself, even when its value is `finished`.
 
+An end is acknowledged with `200` only after APNs accepts the end event (or reports that the device token is permanently gone). If APNs delivery fails, 00Widget returns `502` and retains the activity record. Retry the same end request; do not discard your `externalActivityId` until a `2xx` response is received.
+
 ## Actions
 
 If your card has buttons, define them as `actions` on the card:
