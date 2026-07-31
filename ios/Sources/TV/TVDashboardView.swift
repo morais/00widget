@@ -224,7 +224,7 @@ private struct TVLiveActivityCardView: View {
     let openLink: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             Button(action: openLink) {
                 VStack(alignment: .leading, spacing: 14) {
                     header
