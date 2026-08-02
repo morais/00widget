@@ -146,6 +146,24 @@ describe("admin routes (no Apple call required)", () => {
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("form-action 'self'");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("sensitive API responses and errors cannot be cached", async () => {
+    const env = adminEnv();
+    const unauthorized = await (handler.fetch as any)(
+      new Request("https://x/v1/cards"),
+      env,
+      ctx,
+    );
+    const missing = await (handler.fetch as any)(
+      new Request("https://x/v1/not-a-route"),
+      env,
+      ctx,
+    );
+
+    expect(unauthorized.headers.get("cache-control")).toBe("no-store");
+    expect(missing.headers.get("cache-control")).toBe("no-store");
   });
 
   it("/admin/login hides API-token form unless ADMIN_API_TOKEN_LOGIN=true", async () => {

@@ -157,13 +157,19 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
       const match = route.pattern.exec(url.pathname);
       if (!match) continue;
       try {
-        return await route.handler(req, env, match, ctx);
+        return preventSensitiveResponseCaching(
+          url.pathname,
+          await route.handler(req, env, match, ctx),
+        );
       } catch (err) {
         console.error("handler error", err);
-        return json({ error: "internal error" }, 500);
+        return preventSensitiveResponseCaching(
+          url.pathname,
+          json({ error: "internal error" }, 500),
+        );
       }
     }
-    return notFound();
+    return preventSensitiveResponseCaching(url.pathname, notFound());
   },
   async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env) {
     for (const message of batch.messages) {
@@ -189,5 +195,16 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
     }
   },
 };
+
+function preventSensitiveResponseCaching(pathname: string, response: Response): Response {
+  const sensitive = pathname === "/v1"
+    || pathname.startsWith("/v1/")
+    || pathname === "/admin"
+    || pathname.startsWith("/admin/");
+  if (sensitive) {
+    response.headers.set("cache-control", "no-store");
+  }
+  return response;
+}
 
 export default handler;
