@@ -35,11 +35,25 @@ Constraints:
 If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in llms.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.`;
 
 export async function handleLanding(_req: Request): Promise<Response> {
-  return new Response(renderLandingHTML(), {
+  const nonce = contentSecurityPolicyNonce();
+  return new Response(renderLandingHTML(nonce), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "public, max-age=300",
+      "content-security-policy": [
+        "default-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+        "object-src 'none'",
+        `script-src 'nonce-${nonce}'`,
+        `style-src 'nonce-${nonce}'`,
+      ].join("; "),
+      "permissions-policy": "camera=(), geolocation=(), microphone=()",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
     },
   });
 }
@@ -115,7 +129,7 @@ from the operator's /admin dashboard, not from this file.
 
 // ---------- HTML rendering ----------
 
-function renderLandingHTML(): string {
+function renderLandingHTML(nonce: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -123,7 +137,7 @@ function renderLandingHTML(): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>00Widget — Widgets for all your agents</title>
 <meta name="description" content="A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS widgets, Live Activities, and the Dynamic Island.">
-<style>
+<style nonce="${nonce}">
   :root {
     color-scheme: light dark;
     --bg: #f8fbff;
@@ -216,7 +230,7 @@ function renderLandingHTML(): string {
   Source: <a href="https://github.com/morais/00widget">github.com/morais/00widget</a> · MIT
 </footer>
 
-<script>
+<script nonce="${nonce}">
   document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
     btn.addEventListener("click", async function () {
       var id = btn.getAttribute("data-copy-target");
@@ -247,6 +261,14 @@ function renderLandingHTML(): string {
 </script>
 </body>
 </html>`;
+}
+
+function contentSecurityPolicyNonce(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function escapeHtml(s: string): string {

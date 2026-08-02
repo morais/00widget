@@ -26,6 +26,25 @@ describe("public landing + docs endpoints", () => {
     expect(body).toContain("navigator.clipboard.writeText");
   });
 
+  it("landing HTML has nonce-based browser security headers", async () => {
+    const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("permissions-policy")).toContain("camera=()");
+
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain("'unsafe-inline'");
+    const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1];
+    expect(nonce).toMatch(/^[A-Za-z0-9_-]+$/);
+
+    const body = await res.text();
+    expect(body).toContain(`<style nonce="${nonce}">`);
+    expect(body).toContain(`<script nonce="${nonce}">`);
+  });
+
   it("GET /llms.md returns hosted agent markdown as text/markdown", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/llms.md"),
