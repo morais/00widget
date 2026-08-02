@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import {
   BatchUpsertCardsSchema,
-  DashboardCardSchema,
+  DashboardCardInputSchema,
   RequestBodyLimits,
   type DashboardCard,
 } from "./types";
@@ -34,7 +34,7 @@ export async function upsertCard(
 ): Promise<Response> {
   const body = await parseJson(req, RequestBodyLimits.card);
   if (!body) return badRequest("invalid JSON body");
-  const parsed = DashboardCardSchema.safeParse(body);
+  const parsed = DashboardCardInputSchema.safeParse(body);
   if (!parsed.success) {
     return badRequest(`validation failed: ${parsed.error.message}`);
   }
@@ -43,11 +43,11 @@ export async function upsertCard(
     { policy: "cardUpsertCardHour", key: tenantResourceKey(auth.tenantId, "card", parsed.data.id) },
   ]);
   if (limited) return limited;
-  const card = {
+  const inputCard = {
     ...parsed.data,
     updatedAt: parsed.data.updatedAt ?? new Date().toISOString(),
   };
-  await storage.putCard(env, auth.tenantId, auth.apiKeyHash, card);
+  const card = await storage.putCard(env, auth.tenantId, auth.apiKeyHash, inputCard);
 
   scheduleWidgetReloadForCard(ctx, env, auth.tenantId, card.id);
 
@@ -80,11 +80,11 @@ export async function upsertCardsBatch(
   if (limited) return limited;
 
   const receivedAt = new Date().toISOString();
-  const cards = parsed.data.cards.map((card) => ({
+  const inputCards = parsed.data.cards.map((card) => ({
     ...card,
     updatedAt: card.updatedAt ?? receivedAt,
   }));
-  await storage.putCards(env, auth.tenantId, auth.apiKeyHash, cards);
+  const cards = await storage.putCards(env, auth.tenantId, auth.apiKeyHash, inputCards);
   scheduleWidgetReloadForCards(
     ctx,
     env,

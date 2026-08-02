@@ -10,20 +10,17 @@ public struct ActionDefinition: Codable, Hashable, Identifiable, Sendable {
     public var label: String
     public var role: Role
     public var confirm: Bool
-    public var payload: [String: String]?
 
     public init(
         id: String,
         label: String,
         role: Role = .normal,
-        confirm: Bool = false,
-        payload: [String: String]? = nil
+        confirm: Bool = false
     ) {
         self.id = id
         self.label = label
         self.role = role
         self.confirm = confirm
-        self.payload = payload
     }
 
     public init(from decoder: Decoder) throws {
@@ -33,11 +30,10 @@ public struct ActionDefinition: Codable, Hashable, Identifiable, Sendable {
         let rawRole = try c.decodeIfPresent(String.self, forKey: .role) ?? "normal"
         role = Role(rawValue: rawRole) ?? .destructive
         confirm = try c.decodeIfPresent(Bool.self, forKey: .confirm) ?? false
-        payload = try c.decodeIfPresent([String: String].self, forKey: .payload)
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, role, confirm, payload
+        case id, label, role, confirm
     }
 
     public var isSafeFromWidget: Bool {

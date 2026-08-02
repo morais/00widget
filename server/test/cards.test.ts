@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
-import { DashboardCardSchema, FieldLimits, RequestBodyLimits } from "../src/types";
+import {
+  DashboardCardInputSchema,
+  DashboardCardSchema,
+  FieldLimits,
+  RequestBodyLimits,
+} from "../src/types";
 import { sha256Hex } from "../src/auth";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 import * as storage from "../src/storage";
@@ -46,7 +51,7 @@ describe("DashboardCardSchema", () => {
 
   it("rejects fields and arrays beyond published limits", () => {
     expect(
-      DashboardCardSchema.safeParse({
+      DashboardCardInputSchema.safeParse({
         id: "a".repeat(FieldLimits.cardId + 1),
         template: "summary",
         title: "x",
@@ -64,7 +69,7 @@ describe("DashboardCardSchema", () => {
       }).success,
     ).toBe(false);
     expect(
-      DashboardCardSchema.safeParse({
+      DashboardCardInputSchema.safeParse({
         id: "a",
         template: "action",
         title: "x",
@@ -76,6 +81,17 @@ describe("DashboardCardSchema", () => {
     ).toBe(false);
   });
 
+  it("strips write-only payloads from the public card schema", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "a",
+      template: "action",
+      title: "Controls",
+      actions: [{ id: "run", label: "Run", payload: { secret: "do-not-return" } }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.actions?.[0]).not.toHaveProperty("payload");
+  });
+
   it("rejects oversized action payloads", () => {
     const payload = Object.fromEntries(
       Array.from({ length: FieldLimits.actionPayloadKeys + 1 }, (_, index) => [
@@ -84,7 +100,7 @@ describe("DashboardCardSchema", () => {
       ]),
     );
     expect(
-      DashboardCardSchema.safeParse({
+      DashboardCardInputSchema.safeParse({
         id: "a",
         template: "action",
         title: "x",
@@ -173,6 +189,70 @@ describe("cards endpoints", () => {
     expect(data2.cards).toHaveLength(0);
   });
 
+  it("extracts action payloads before cards reach any read response", async () => {
+    const env = makeEnv();
+    const body = {
+      id: "private-action",
+      template: "action",
+      title: "Private action",
+      actions: [{
+        id: "run-private",
+        label: "Run",
+        payload: { accessToken: "must-not-leave-server" },
+      }],
+    };
+    const upsert = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(upsert.status).toBe(200);
+
+    const responses = [
+      await upsert.json(),
+      await (await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/private-action"),
+        env,
+        executionCtx,
+      )).json(),
+      await (await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards"),
+        env,
+        executionCtx,
+      )).json(),
+      await (await (handler.fetch as any)(
+        authedRequest("https://x/v1/dashboard"),
+        env,
+        executionCtx,
+      )).json(),
+    ];
+    for (const response of responses) {
+      expect(JSON.stringify(response)).not.toContain("must-not-leave-server");
+      expect(JSON.stringify(response)).not.toContain("accessToken");
+    }
+    await expect(
+      storage.getActionPayload(env, "test-tenant", "private-action", "run-private"),
+    ).resolves.toEqual({ accessToken: "must-not-leave-server" });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({
+          ...body,
+          actions: [{ id: "run-private", label: "Run" }],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    await expect(
+      storage.getActionPayload(env, "test-tenant", "private-action", "run-private"),
+    ).resolves.toBeNull();
+  });
+
   it("upserts a card batch and schedules one coalesced widget reload", async () => {
     const env = makeEnv();
     const pending: Promise<unknown>[] = [];
@@ -186,7 +266,12 @@ describe("cards endpoints", () => {
           cards: [
             { id: "api-status", template: "summary", title: "API", value: "Healthy" },
             { id: "queue-depth", template: "summary", title: "Queue", value: "12" },
-            { id: "database-status", template: "summary", title: "Database", value: "Healthy" },
+            {
+              id: "database-status",
+              template: "action",
+              title: "Database",
+              actions: [{ id: "restart", label: "Restart", payload: { node: "primary" } }],
+            },
           ],
         }),
       }),
@@ -195,10 +280,15 @@ describe("cards endpoints", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(((await response.json()) as { cards: unknown[] }).cards).toHaveLength(3);
+    const responseBody = (await response.json()) as { cards: unknown[] };
+    expect(responseBody.cards).toHaveLength(3);
+    expect(JSON.stringify(responseBody)).not.toContain("primary");
     expect(pending).toHaveLength(1);
     await Promise.all(pending);
     await expect(storage.listCards(env, "test-tenant")).resolves.toHaveLength(3);
+    await expect(
+      storage.getActionPayload(env, "test-tenant", "database-status", "restart"),
+    ).resolves.toEqual({ node: "primary" });
   });
 
   it("rejects duplicate ids in a card batch", async () => {
@@ -224,10 +314,20 @@ describe("cards endpoints", () => {
     const hash = await sha256Hex("test-key");
     await storage.putCard(env, "test-tenant", hash, {
       id: "solar-home",
-      template: "summary",
+      template: "action",
       title: "Solar",
       status: "good",
+      actions: [{
+        id: "disconnect",
+        label: "Disconnect",
+        role: "normal",
+        confirm: false,
+        payload: { relay: "main" },
+      }],
     });
+    await expect(
+      storage.getActionPayload(env, "test-tenant", "solar-home", "disconnect"),
+    ).resolves.toEqual({ relay: "main" });
     await storage.putWidgetToken(
       env,
       "test-tenant",
@@ -251,6 +351,9 @@ describe("cards endpoints", () => {
     expect(pending).toHaveLength(1);
     await Promise.all(pending);
     await expect(storage.getCard(env, "test-tenant", "solar-home")).resolves.toBeNull();
+    await expect(
+      storage.getActionPayload(env, "test-tenant", "solar-home", "disconnect"),
+    ).resolves.toBeNull();
   });
 
   it("isolates cards with the same id across tenants", async () => {

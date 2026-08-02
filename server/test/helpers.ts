@@ -33,6 +33,7 @@ export class FakeD1 {
   private tenants = new Map<string, FakeRow>();
   private apiKeys = new Map<string, FakeRow>();
   private cards = new Map<string, FakeRow>();
+  private actionPayloads = new Map<string, FakeRow>();
   private devices = new Map<string, FakeRow>();
   private widgetTokens = new Map<string, FakeRow>();
   private activities = new Map<string, FakeRow>();
@@ -164,6 +165,29 @@ export class FakeD1 {
       const [tenant_id, api_key_hash, id, json, updated_at] = values.map(String);
       this.cards.set(`${tenant_id}:${id}`, { tenant_id, api_key_hash, id, json, updated_at });
       return 1;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO action_payloads")) {
+      const [tenant_id, api_key_hash, card_id, action_id, json, updated_at] = values.map(String);
+      this.actionPayloads.set(`${tenant_id}:${card_id}:${action_id}`, {
+        tenant_id,
+        api_key_hash,
+        card_id,
+        action_id,
+        json,
+        updated_at,
+      });
+      return 1;
+    }
+    if (normalized === "DELETE FROM action_payloads WHERE tenant_id = ? AND card_id = ?") {
+      const [tenant_id, card_id] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.actionPayloads.entries()) {
+        if (row.tenant_id === tenant_id && row.card_id === card_id) {
+          this.actionPayloads.delete(key);
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO webhook_integrations")) {
       const [tenant_id, api_key_hash, json, updated_at] = values.map(String);
@@ -548,6 +572,10 @@ export class FakeD1 {
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? AND id = ?") {
       const [tenant_id, id] = values.map(String);
       return pick(this.cards.get(`${tenant_id}:${id}`), ["json"]);
+    }
+    if (normalized === "SELECT json FROM action_payloads WHERE tenant_id = ? AND card_id = ? AND action_id = ?") {
+      const [tenant_id, card_id, action_id] = values.map(String);
+      return pick(this.actionPayloads.get(`${tenant_id}:${card_id}:${action_id}`), ["json"]);
     }
     if (normalized === "SELECT json FROM webhook_integrations WHERE tenant_id = ?") {
       const [tenant_id] = values.map(String);

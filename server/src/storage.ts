@@ -1,4 +1,11 @@
-import type { Env, DashboardCard, StartLiveActivity } from "./types";
+import type {
+  ActionPayload,
+  DashboardCard,
+  DashboardCardInput,
+  Env,
+  StartLiveActivity,
+} from "./types";
+import { DashboardCardSchema } from "./types";
 
 export const keys = {
   card: (hash: string, id: string) => `card:${hash}:${id}`,
@@ -91,70 +98,115 @@ function parseJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
 }
 
-async function upsertCardD1(
+function parsePublicCard(raw: string): DashboardCard {
+  return DashboardCardSchema.parse(JSON.parse(raw));
+}
+
+function publicCard(card: DashboardCardInput): DashboardCard {
+  return {
+    ...card,
+    actions: card.actions?.map(({ payload: _payload, ...action }) => action),
+  };
+}
+
+function cardWriteStatements(
   env: Env,
   tenantId: string,
   apiKeyHash: string,
-  card: DashboardCard,
-): Promise<void> {
-  await env.ZW_DB.prepare(
-    `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
-  )
-    .bind(tenantId, apiKeyHash, card.id, json(card), card.updatedAt ?? nowIso())
-    .run();
+  card: DashboardCardInput,
+): { card: DashboardCard; statements: D1PreparedStatement[] } {
+  const sanitized = publicCard(card);
+  const updatedAt = sanitized.updatedAt ?? nowIso();
+  const statements: D1PreparedStatement[] = [
+    env.ZW_DB.prepare(
+      `DELETE FROM action_payloads WHERE tenant_id = ? AND card_id = ?`,
+    ).bind(tenantId, sanitized.id),
+  ];
+  for (const action of card.actions ?? []) {
+    if (action.payload === undefined) continue;
+    statements.push(
+      env.ZW_DB.prepare(
+        `INSERT OR REPLACE INTO action_payloads
+           (tenant_id, api_key_hash, card_id, action_id, json, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        tenantId,
+        apiKeyHash,
+        sanitized.id,
+        action.id,
+        json(action.payload),
+        updatedAt,
+      ),
+    );
+  }
+  statements.push(
+    env.ZW_DB.prepare(
+      `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).bind(tenantId, apiKeyHash, sanitized.id, json(sanitized), updatedAt),
+  );
+  return { card: sanitized, statements };
 }
 
 export async function putCard(
   env: Env,
   tenantId: string,
   apiKeyHash: string,
-  card: DashboardCard,
-): Promise<void> {
-  await upsertCardD1(env, tenantId, apiKeyHash, card);
+  card: DashboardCardInput,
+): Promise<DashboardCard> {
+  const prepared = cardWriteStatements(env, tenantId, apiKeyHash, card);
+  await env.ZW_DB.batch(prepared.statements);
+  return prepared.card;
 }
 
 export async function putCards(
   env: Env,
   tenantId: string,
   apiKeyHash: string,
-  cards: DashboardCard[],
-): Promise<void> {
-  if (cards.length === 0) return;
-  await env.ZW_DB.batch(
-    cards.map((card) =>
-      env.ZW_DB.prepare(
-        `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      ).bind(
-        tenantId,
-        apiKeyHash,
-        card.id,
-        json(card),
-        card.updatedAt ?? nowIso(),
-      ),
-    ),
-  );
+  cards: DashboardCardInput[],
+): Promise<DashboardCard[]> {
+  if (cards.length === 0) return [];
+  const prepared = cards.map((card) => cardWriteStatements(env, tenantId, apiKeyHash, card));
+  await env.ZW_DB.batch(prepared.flatMap((item) => item.statements));
+  return prepared.map((item) => item.card);
 }
 
 export async function getCard(env: Env, tenantId: string, id: string): Promise<DashboardCard | null> {
   const row = await env.ZW_DB.prepare(`SELECT json FROM cards WHERE tenant_id = ? AND id = ?`)
     .bind(tenantId, id)
     .first<JsonRow>();
-  return row ? parseJson<DashboardCard>(row.json) : null;
+  return row ? parsePublicCard(row.json) : null;
 }
 
 export async function listCards(env: Env, tenantId: string): Promise<DashboardCard[]> {
   const rows = await env.ZW_DB.prepare(`SELECT json FROM cards WHERE tenant_id = ? ORDER BY id`)
     .bind(tenantId)
     .all<JsonRow>();
-  return rows.results.map((row) => parseJson<DashboardCard>(row.json));
+  return rows.results.map((row) => parsePublicCard(row.json));
+}
+
+export async function getActionPayload(
+  env: Env,
+  tenantId: string,
+  cardId: string,
+  actionId: string,
+): Promise<ActionPayload | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT json FROM action_payloads
+     WHERE tenant_id = ? AND card_id = ? AND action_id = ?`,
+  )
+    .bind(tenantId, cardId, actionId)
+    .first<JsonRow>();
+  return row ? parseJson<ActionPayload>(row.json) : null;
 }
 
 export async function deleteCard(env: Env, tenantId: string, id: string): Promise<void> {
-  await env.ZW_DB.prepare(`DELETE FROM cards WHERE tenant_id = ? AND id = ?`)
-    .bind(tenantId, id)
-    .run();
+  await env.ZW_DB.batch([
+    env.ZW_DB.prepare(
+      `DELETE FROM action_payloads WHERE tenant_id = ? AND card_id = ?`,
+    ).bind(tenantId, id),
+    env.ZW_DB.prepare(`DELETE FROM cards WHERE tenant_id = ? AND id = ?`).bind(tenantId, id),
+  ]);
 }
 
 export async function getWebhookIntegration(
@@ -582,7 +634,7 @@ export async function listTenantCards(
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
     key: keys.card(row.api_key_hash, row.id),
-    value: parseJson<DashboardCard>(row.json),
+    value: parsePublicCard(row.json),
   }));
 }
 
@@ -701,7 +753,7 @@ export async function listAllCards(env: Env): Promise<ScopedEntry<DashboardCard>
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
     key: keys.card(row.api_key_hash, row.id),
-    value: parseJson<DashboardCard>(row.json),
+    value: parsePublicCard(row.json),
   }));
 }
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
 import { authedRequest, makeEnv, seedApiKey } from "./helpers";
+import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
 type ActionInput = {
@@ -307,7 +308,20 @@ describe("webhook integrations and actions", () => {
       env,
       executionCtx,
     );
-    expect(((await card.json()) as { value: string }).value).toBe("Boosting");
+    const cardBody = (await card.json()) as {
+      value: string;
+      actions: Array<Record<string, unknown>>;
+    };
+    expect(cardBody.value).toBe("Boosting");
+    expect(cardBody.actions[0]).not.toHaveProperty("payload");
+    await expect(
+      storage.getActionPayload(
+        env,
+        "test-tenant",
+        "boiler",
+        "boiler-boost-1h",
+      ),
+    ).resolves.toEqual({ duration: "3600" });
   });
 
   it("ignores oversized webhook response bodies", async () => {
