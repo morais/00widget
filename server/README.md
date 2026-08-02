@@ -206,7 +206,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/admin/api-keys/:id/revoke`                 | Revoke a tenant API token.             |
 | POST   | `/admin/auth/apple/callback`                 | Apple form-post callback.              |
 | GET    | `/admin/logout`                              | Clears the admin session cookie.       |
-| GET    | `/admin`                                     | Read-only ops dashboard (HTML).        |
+| GET    | `/admin`                                     | Privileged administrative dashboard (HTML). |
 
 All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authenticated route also requires one explicit capability; a valid token without it receives `403`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
 
