@@ -6,6 +6,7 @@ A Cloudflare Worker that accepts webhook-style updates from any agent and fans o
 
 - Node 22+
 - A Cloudflare account (free tier is fine)
+- A domain in that Cloudflare account for the production API
 - The Wrangler CLI — installed as a devDependency; invoke as `npx wrangler`.
 
 ## First-time setup
@@ -16,7 +17,9 @@ npm install
 cp wrangler.toml.sample wrangler.toml   # gitignored — your local config
 ```
 
-`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (D1 database id and anything else you customize per-deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
+`wrangler.toml.sample` is the committed source-of-truth template. `wrangler.toml` is gitignored and holds your per-developer values (D1 database id, custom domain, and anything else you customize per deployment). Re-copy + re-edit if upstream `wrangler.toml.sample` changes.
+
+Replace the sample `api.example.com` route with your API hostname. Production disables both the generated `workers.dev` hostname and preview URLs so they cannot bypass access controls attached to the custom domain. Local `wrangler dev` remains available on localhost.
 
 ### 1. Create storage
 
@@ -70,6 +73,8 @@ curl -H "Authorization: Bearer <generated-api-token>" http://localhost:8787/v1/c
 
 ### 4. Deploy
 
+Confirm that `wrangler.toml` contains your custom API hostname and keeps `workers_dev = false` and `preview_urls = false`, then deploy:
+
 ```
 npx wrangler deploy
 ```
@@ -119,7 +124,7 @@ Existing API-token sessions stop being honored as soon as the flag is removed or
    Identifiers → "+" → **Services IDs** → e.g. `com.example.zerozerowidget.signin` (must differ from your iOS bundle id).
    Enable **Sign in with Apple** → **Configure**:
    - Primary App ID: your iOS app's App ID (the one Apple Sign-In is enabled on).
-   - Domains: your Worker hostname, e.g. `zerozerowidget-server.morais-pedro.workers.dev`.
+   - Domains: your custom Worker hostname, e.g. `api.example.com`.
    - Return URLs: `https://<your-worker-host>/admin/auth/apple/callback`.
 2. **Sign-In key** (the `.p8` Apple uses to sign authorization JWTs *to* your server — note: this Worker doesn't currently use the key, only the public-key JWKS, but Apple requires it on the Services ID anyway).
    Keys → "+" → enable **Sign in with Apple**, link to the same Primary App ID, download the `.p8`.

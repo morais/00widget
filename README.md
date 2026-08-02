@@ -21,7 +21,7 @@ Read the integration contract: https://github.com/morais/00widget/blob/main/docs
 That single document is everything you need — don't pull in the rest of the 00Widget repo.
 
 Operator-supplied env vars:
-  00WIDGET_BASE_URL=https://<their-worker>.workers.dev
+  00WIDGET_BASE_URL=https://api.example.com
   00WIDGET_API_KEY=<bearer token>
 
 Verify both work with `curl $00WIDGET_BASE_URL/health` and an authenticated `GET /v1/cards` before writing any code.
