@@ -46,7 +46,9 @@ project should be aware:
 - **`ADMIN_API_TOKEN_LOGIN=true`** turns *any* value in `API_KEYS` into a full
   admin credential (create/revoke API keys for any tenant, delete any tenant's
   data). It is **off by default** and gated behind a per-IP rate limit (10
-  attempts / hour). Enable only as a fallback and use a strong random token.
+  attempts / hour). Enable only as a fallback. Every bootstrap token and the
+  session secret must be an independently generated value of at least 32 bytes;
+  weak values and known placeholders are rejected by the Worker.
 - **`APPLE_APP_LOGIN_ENABLED=true`** opens self-service tenant signup to
   anyone with a verified Apple ID. It is **off by default**. When enabled the
   endpoint requires a nonce (validated against the id_token's `nonce` claim)
@@ -65,7 +67,7 @@ project should be aware:
 ## Things that look bad but aren't
 
 - The `git` history shows files named `.dev.vars.example`, `wrangler.toml.sample`,
-  and `project.yml.sample` containing placeholders like `dev-key-1` and
+  and `project.yml.sample` containing placeholders such as
   `REPLACE_WITH_D1_DATABASE_ID`. These are intentional templates; the real
   `.dev.vars`, `wrangler.toml`, and `project.yml` are gitignored.
 - The webhook integration accepts only `https://` URLs and rejects literal

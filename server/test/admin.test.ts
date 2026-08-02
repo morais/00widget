@@ -10,13 +10,18 @@ import {
 import { authedRequest, makeEnv, seedApiKey } from "./helpers";
 
 const ctx = {} as ExecutionContext;
+const TEST_ADMIN_TOKEN = "test-admin-token-0123456789abcdef";
+const OTHER_ADMIN_TOKEN = "other-admin-token-0123456789abcdef";
+const NEW_ADMIN_TOKEN = "new-admin-token-0123456789abcdefgh";
+const TEST_SESSION_SECRET = "test-session-secret-0123456789abcdef";
 
 function adminEnv(overrides = {}) {
   return makeEnv({
     APPLE_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget.signin",
     APPLE_SIGN_IN_REDIRECT_URI: "https://example.com/admin/auth/apple/callback",
     ADMIN_EMAILS: "admin@example.com,Other@Example.com",
-    SESSION_SECRET: "test-session-secret-123456",
+    SESSION_SECRET: TEST_SESSION_SECRET,
+    API_KEYS: TEST_ADMIN_TOKEN,
     ADMIN_API_TOKEN_LOGIN: "true",
     ...overrides,
   });
@@ -37,6 +42,12 @@ describe("appleSignInConfigured", () => {
   });
   it("is true when all four are set", () => {
     expect(appleSignInConfigured(adminEnv())).toBe(true);
+  });
+
+  it("rejects short and placeholder session secrets", () => {
+    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "too-short" }))).toBe(false);
+    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "change-me" }))).toBe(false);
+    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "a".repeat(64) }))).toBe(false);
   });
 });
 
@@ -200,7 +211,7 @@ describe("admin routes (no Apple call required)", () => {
 
   it("/admin/login/api-token mints a session for a valid key", async () => {
     const env = adminEnv();
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const req = new Request("https://x/admin/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -225,9 +236,21 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(401);
   });
 
+  it("/admin/login/api-token refuses weak bootstrap configuration", async () => {
+    const env = adminEnv({ API_KEYS: "dev-key-1" });
+    const req = new Request("https://x/admin/login/api-token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ apiKey: "dev-key-1" }).toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain("every token must be a strong random value of 32+ bytes");
+  });
+
   it("/admin/login/api-token returns 403 when not explicitly enabled", async () => {
     const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const req = new Request("https://x/admin/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -262,7 +285,7 @@ describe("admin routes (no Apple call required)", () => {
           "content-type": "application/x-www-form-urlencoded",
           "cf-connecting-ip": "203.0.113.10",
         },
-        body: new URLSearchParams({ apiKey: "test-key" }).toString(),
+        body: new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN }).toString(),
       }),
       env,
       ctx,
@@ -274,7 +297,7 @@ describe("admin routes (no Apple call required)", () => {
   it("api-token cookie is honored on /admin", async () => {
     const env = adminEnv();
     // Mint a cookie via the api-token login...
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
       new Request("https://x/admin/login/api-token", {
         method: "POST",
@@ -301,7 +324,7 @@ describe("admin routes (no Apple call required)", () => {
 
   it("api-token cookie stops working after ADMIN_API_TOKEN_LOGIN is disabled", async () => {
     const enabled = adminEnv();
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
       new Request("https://x/admin/login/api-token", {
         method: "POST",
@@ -324,8 +347,8 @@ describe("admin routes (no Apple call required)", () => {
   });
 
   it("api-token cookie stops working after API_KEYS rotation removes its bootstrap token", async () => {
-    const env = adminEnv({ API_KEYS: "test-key, other-key" });
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const env = adminEnv({ API_KEYS: `${TEST_ADMIN_TOKEN},${OTHER_ADMIN_TOKEN}` });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
       new Request("https://x/admin/login/api-token", {
         method: "POST",
@@ -337,7 +360,7 @@ describe("admin routes (no Apple call required)", () => {
     );
     const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
 
-    const rotated = adminEnv({ API_KEYS: "other-key" });
+    const rotated = adminEnv({ API_KEYS: OTHER_ADMIN_TOKEN });
     const dashRes = await (handler.fetch as any)(
       new Request("https://x/admin", { headers: { cookie: cookieValue } }),
       rotated,
@@ -348,8 +371,8 @@ describe("admin routes (no Apple call required)", () => {
   });
 
   it("api-token cookie remains valid when API_KEYS rotation keeps its bootstrap token", async () => {
-    const env = adminEnv({ API_KEYS: "old-key, test-key" });
-    const form = new URLSearchParams({ apiKey: "test-key" });
+    const env = adminEnv({ API_KEYS: `${OTHER_ADMIN_TOKEN},${TEST_ADMIN_TOKEN}` });
+    const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
       new Request("https://x/admin/login/api-token", {
         method: "POST",
@@ -361,7 +384,7 @@ describe("admin routes (no Apple call required)", () => {
     );
     const cookieValue = (loginRes.headers.get("set-cookie") ?? "").split(";")[0];
 
-    const rotated = adminEnv({ API_KEYS: "new-key, test-key" });
+    const rotated = adminEnv({ API_KEYS: `${NEW_ADMIN_TOKEN},${TEST_ADMIN_TOKEN}` });
     const dashRes = await (handler.fetch as any)(
       new Request("https://x/admin", { headers: { cookie: cookieValue } }),
       rotated,

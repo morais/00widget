@@ -3,7 +3,7 @@
 
 # Comma-separated bootstrap tokens for the admin API-token fallback login.
 # These are not accepted by /v1/*; create tenant API tokens from /admin.
-API_KEYS="dev-key-1"
+API_KEYS=""
 
 # APNs token-based auth — leave blank if you're not sending push notifications locally.
 APNS_TEAM_ID=""
@@ -22,7 +22,7 @@ APNS_ENV="sandbox"
 APPLE_SIGN_IN_CLIENT_ID=""              # Services ID, e.g. com.example.zerozerowidget.signin
 APPLE_SIGN_IN_REDIRECT_URI=""           # full URL of /admin/auth/apple/callback
 ADMIN_EMAILS=""                         # comma-separated emails allowed to sign in
-SESSION_SECRET=""                       # any random 32+ char string; rotates the admin cookie
+SESSION_SECRET=""                       # 32+ random bytes; rotates the admin cookie
 #
 # API-token fallback — needs SESSION_SECRET (above) and API_KEYS bootstrap tokens.
 # Useful while waiting for an Apple Developer account. Disabled by default;

@@ -1,4 +1,5 @@
 import type { Env } from "./types";
+import { adminApiTokensAreSecure, configuredAdminApiTokens } from "./adminSecurity";
 
 export interface AuthContext {
   apiKey: string;
@@ -151,11 +152,8 @@ export class AuthError extends Error {
 export function isValidApiKey(env: Env, provided: string): boolean {
   const trimmed = provided.trim();
   if (!trimmed) return false;
-  const allowed = (env.API_KEYS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (allowed.length === 0) return false;
+  if (!adminApiTokensAreSecure(env)) return false;
+  const allowed = configuredAdminApiTokens(env);
   return allowed.some((k) => constantTimeEqual(k, trimmed));
 }
 

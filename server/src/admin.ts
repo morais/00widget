@@ -1,6 +1,7 @@
 import type { Env } from "./types";
 import {
   apiTokenLoginEnabled,
+  apiTokenLoginConfigured,
   appleSignInConfigured,
   buildAuthorizeURL,
   clearSessionCookie,
@@ -13,6 +14,7 @@ import {
   type AdminAuthMethod,
   type AdminSession,
 } from "./appleAuth";
+import { adminApiTokensAreSecure, isSecureAdminSecret } from "./adminSecurity";
 import {
   ApiScopePresets,
   createApiKey,
@@ -54,7 +56,7 @@ const ADMIN_HTML_SECURITY_HEADERS = {
 
 export async function handleAdminLogin(_req: Request, env: Env): Promise<Response> {
   const apple = appleSignInConfigured(env);
-  const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS);
+  const apiToken = apiTokenLoginConfigured(env);
   if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
   return htmlResponse(renderLoginPage(env, { apple, apiToken }));
 }
@@ -76,8 +78,8 @@ export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<
   if (!apiTokenLoginEnabled(env)) {
     return htmlResponse(renderError("API-token login is disabled (set ADMIN_API_TOKEN_LOGIN=true to enable)."), 403);
   }
-  if (!env.SESSION_SECRET) {
-    return htmlResponse(renderError("SESSION_SECRET is not set."), 500);
+  if (!isSecureAdminSecret(env.SESSION_SECRET) || !adminApiTokensAreSecure(env)) {
+    return htmlResponse(renderConfigError(env), 500);
   }
   const limited = await enforceAdminApiTokenLoginRateLimit(req, env);
   if (limited) return limited;
@@ -306,7 +308,7 @@ export async function handleAdminDeleteStartToken(
 
 export async function handleAdminDashboard(req: Request, env: Env): Promise<Response> {
   const apple = appleSignInConfigured(env);
-  const apiToken = apiTokenLoginEnabled(env) && Boolean(env.API_KEYS) && Boolean(env.SESSION_SECRET);
+  const apiToken = apiTokenLoginConfigured(env);
   if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
   const session = await requireAdminSession(req, env);
   if (!session) {
@@ -732,11 +734,11 @@ function renderConfigError(env: Env): string {
   if (!env.APPLE_SIGN_IN_CLIENT_ID) apple.push("APPLE_SIGN_IN_CLIENT_ID");
   if (!env.APPLE_SIGN_IN_REDIRECT_URI) apple.push("APPLE_SIGN_IN_REDIRECT_URI");
   if (!env.ADMIN_EMAILS) apple.push("ADMIN_EMAILS");
-  if (!env.SESSION_SECRET) apple.push("SESSION_SECRET");
+  if (!isSecureAdminSecret(env.SESSION_SECRET)) apple.push("SESSION_SECRET (strong random value, 32+ bytes)");
 
   const apiToken: string[] = [];
-  if (!env.API_KEYS) apiToken.push("API_KEYS");
-  if (!env.SESSION_SECRET) apiToken.push("SESSION_SECRET");
+  if (!adminApiTokensAreSecure(env)) apiToken.push("API_KEYS (every token must be a strong random value of 32+ bytes)");
+  if (!isSecureAdminSecret(env.SESSION_SECRET)) apiToken.push("SESSION_SECRET (strong random value, 32+ bytes)");
   const apiTokenDisabled = !apiTokenLoginEnabled(env);
 
   return baseHTML(

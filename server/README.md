@@ -51,7 +51,7 @@ deploy; no scheduled trigger is required.
 install -m 600 .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` (gitignored and created with owner-only permissions) and set at least `SESSION_SECRET`. Set `API_KEYS` plus `ADMIN_API_TOKEN_LOGIN=true` only if you need the local admin bootstrap fallback. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
+Edit `.dev.vars` (gitignored and created with owner-only permissions) and set at least `SESSION_SECRET`. Generate each admin secret independently with `openssl rand -base64 32`; values shorter than 32 bytes, low-diversity values, and known placeholders are rejected. Set `API_KEYS` plus `ADMIN_API_TOKEN_LOGIN=true` only if you need the local admin bootstrap fallback. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
 
 ### 3. Run locally
 
@@ -103,7 +103,7 @@ Two sign-in methods, either is sufficient:
 
 ### API-token fallback
 
-Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/admin/login`, and paste any value from `API_KEYS` into the API-token form. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set). Login attempts are rate-limited per client IP.
+Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/admin/login`, and paste any value from `API_KEYS` into the API-token form. Every comma-separated token and `SESSION_SECRET` must be an independently generated value of at least 32 bytes; insecure configuration is rejected. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set). Login attempts are rate-limited per client IP.
 
 Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a scoped tenant API token, copy the raw token once, and give it only to the intended app or integration. The form offers producer, read-only, device, and webhook-manager presets.
 
@@ -136,7 +136,7 @@ Existing API-token sessions stop being honored as soon as the flag is removed or
 npx wrangler secret put APPLE_SIGN_IN_CLIENT_ID     # the Services ID, e.g. com.example.zerozerowidget.signin
 npx wrangler secret put APPLE_SIGN_IN_REDIRECT_URI  # https://<host>/admin/auth/apple/callback
 npx wrangler secret put ADMIN_EMAILS                # comma-separated list, e.g. you@example.com
-npx wrangler secret put SESSION_SECRET              # any random 32+ char string (used to sign the session cookie)
+npx wrangler secret put SESSION_SECRET              # independently generated random 32+ byte value
 ```
 
 If any of those are missing the `/admin` page renders a "not configured" view listing what's missing — it does not crash and the public API stays unaffected.

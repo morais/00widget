@@ -1,4 +1,9 @@
 import type { Env } from "./types";
+import {
+  adminApiTokensAreSecure,
+  configuredAdminApiTokens,
+  isSecureAdminSecret,
+} from "./adminSecurity";
 
 // Sign in with Apple — web flow.
 //
@@ -34,6 +39,12 @@ export function apiTokenLoginEnabled(env: Env): boolean {
   return env.ADMIN_API_TOKEN_LOGIN === "true";
 }
 
+export function apiTokenLoginConfigured(env: Env): boolean {
+  return apiTokenLoginEnabled(env) &&
+    isSecureAdminSecret(env.SESSION_SECRET) &&
+    adminApiTokensAreSecure(env);
+}
+
 const COOKIE_NAME = "zw_admin";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
@@ -55,7 +66,7 @@ export function appleSignInConfigured(env: Env): boolean {
     env.APPLE_SIGN_IN_CLIENT_ID &&
       env.APPLE_SIGN_IN_REDIRECT_URI &&
       env.ADMIN_EMAILS &&
-      env.SESSION_SECRET,
+      isSecureAdminSecret(env.SESSION_SECRET),
   );
 }
 
@@ -183,6 +194,9 @@ export async function makeSessionCookie(
   method: AdminAuthMethod = "apple",
   options: { apiTokenHash?: string } = {},
 ): Promise<string> {
+  if (!isSecureAdminSecret(env.SESSION_SECRET)) {
+    throw new Error("SESSION_SECRET must be a strong random value of at least 32 bytes");
+  }
   if (method === "api-token" && !options.apiTokenHash) {
     throw new Error("api-token sessions require apiTokenHash");
   }
@@ -206,6 +220,7 @@ export function clearSessionCookie(): string {
 }
 
 export async function readSessionCookie(env: Env, req: Request): Promise<AdminSession | null> {
+  if (!isSecureAdminSecret(env.SESSION_SECRET)) return null;
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
   const cookies = Object.fromEntries(
@@ -257,11 +272,8 @@ export async function hashAdminApiToken(token: string): Promise<string> {
 }
 
 async function isCurrentAdminApiTokenHash(env: Env, tokenHash: string): Promise<boolean> {
-  const allowed = (env.API_KEYS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (allowed.length === 0) return false;
+  if (!adminApiTokensAreSecure(env)) return false;
+  const allowed = configuredAdminApiTokens(env);
   let valid = false;
   for (const token of allowed) {
     const currentHash = await hashAdminApiToken(token);
