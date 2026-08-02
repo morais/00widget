@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
 import { __resetAppleJwksCache } from "../src/appleAuth";
+import { RateLimitPolicies } from "../src/rateLimit";
 import { makeEnv } from "./helpers";
 
 const ctx = {} as ExecutionContext;
@@ -270,6 +271,31 @@ describe("app Apple login", () => {
     );
     expect(res.status).toBe(401);
     expect(await res.text()).toContain("nonce mismatch");
+  });
+
+  it("rate-limits invalid tokens by IP before Apple verification", async () => {
+    const env = makeEnv({
+      APPLE_APP_LOGIN_ENABLED: "true",
+      APPLE_APP_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget",
+    });
+    const request = () => new Request("https://x/v1/auth/apple/token", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.10",
+      },
+      body: JSON.stringify({ identityToken: "invalid.token.value", nonce: TEST_RAW_NONCE }),
+    });
+
+    for (let attempt = 0; attempt < RateLimitPolicies.appleLoginIpHour.limit; attempt += 1) {
+      const response = await (handler.fetch as any)(request(), env, ctx);
+      expect(response.status).toBe(401);
+    }
+
+    const limited = await (handler.fetch as any)(request(), env, ctx);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).not.toBeNull();
+    expect(await limited.text()).toContain("Apple login attempts per IP");
   });
 });
 

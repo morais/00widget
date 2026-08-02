@@ -422,7 +422,8 @@ Only `role: "normal"` + `confirm: false` actions run directly from widgets. `con
 | Device/widget/Live Activity token registration | tenant | 240 / day |
 | Webhook integration changes | tenant | 20 / day |
 | Share mutations | tenant | 120 / day |
-| Apple app login token exchange | Apple user | 30 / hour |
+| Apple app login attempt | client IP, before token verification | 60 / hour |
+| Apple app login token exchange | verified Apple user | 30 / hour |
 
 Agents should coalesce state changes and avoid hot loops. Publish one batch per producer snapshot, skip a publish when none of the displayed values changed, and respect `429 Retry-After` instead of retrying immediately.
 

@@ -18,6 +18,7 @@ export const RateLimitPolicies = {
   registrationTenantDay: { label: "Registrations", limit: 240, windowSeconds: DAY },
   webhookTenantDay: { label: "Webhook changes", limit: 20, windowSeconds: DAY },
   shareTenantDay: { label: "Share mutations", limit: 120, windowSeconds: DAY },
+  appleLoginIpHour: { label: "Apple login attempts per IP", limit: 60, windowSeconds: HOUR },
   appleLoginSubHour: { label: "Apple login token exchange", limit: 30, windowSeconds: HOUR },
   adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
 } as const;

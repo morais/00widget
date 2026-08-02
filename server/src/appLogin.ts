@@ -49,6 +49,12 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   if (rawNonce.length < NONCE_MIN_LENGTH || rawNonce.length > NONCE_MAX_LENGTH) {
     return json({ error: "nonce is malformed" }, 400);
   }
+
+  const ipLimited = await enforceRateLimits(env, [
+    { policy: "appleLoginIpHour", key: appleLoginIpKey(req) },
+  ]);
+  if (ipLimited) return ipLimited;
+
   // The iOS client hashes `rawNonce` with SHA-256 before handing it to
   // ASAuthorizationAppleIDRequest, so Apple's id_token contains the hex hash
   // in its `nonce` claim. We recompute the same hash and let
@@ -96,6 +102,11 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     email: email ?? existingAccount!.email,
   });
   return json(created, 201);
+}
+
+function appleLoginIpKey(req: Request): string {
+  const ip = req.headers.get("cf-connecting-ip")?.trim();
+  return `apple-login:${ip || "unknown"}`;
 }
 
 function isEmailVerified(value: boolean | string | undefined): boolean {
