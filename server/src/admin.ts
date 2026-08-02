@@ -39,6 +39,7 @@ import {
 const STATE_COOKIE = "zw_admin_state";
 const NONCE_COOKIE = "zw_admin_nonce";
 const API_TOKEN_LABEL = "api-token";
+const ADMIN_AUTH_FORM_MAX_BYTES = 16 * 1024;
 const ADMIN_HTML_SECURITY_HEADERS = {
   "content-security-policy": [
     "default-src 'none'",
@@ -85,9 +86,9 @@ export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<
   if (limited) return limited;
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return htmlResponse(renderError("missing form body"), 400);
+    form = await parseAdminAuthForm(req);
+  } catch (error) {
+    return adminFormErrorResponse(error);
   }
   const apiKey = String(form.get("apiKey") ?? "");
   if (!apiKey) return htmlResponse(renderError("API token is required"), 400);
@@ -104,6 +105,8 @@ export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<
 
 export async function handleAdminCallback(req: Request, env: Env): Promise<Response> {
   if (!appleSignInConfigured(env)) return htmlResponse(renderConfigError(env), 500);
+  const limited = await enforceAdminAppleCallbackRateLimit(req, env);
+  if (limited) return limited;
 
   const cookies = parseCookies(req.headers.get("cookie"));
   const expectedState = cookies[STATE_COOKIE];
@@ -111,9 +114,9 @@ export async function handleAdminCallback(req: Request, env: Env): Promise<Respo
 
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return htmlResponse(renderError("missing form body"), 400);
+    form = await parseAdminAuthForm(req);
+  } catch (error) {
+    return adminFormErrorResponse(error);
   }
 
   const state = String(form.get("state") ?? "");
@@ -882,6 +885,68 @@ async function enforceAdminApiTokenLoginRateLimit(req: Request, env: Env): Promi
     renderError(`Too many API-token login attempts. Try again after ${formatWindow(exceeded.retryAfter)}.`),
     429,
   );
+}
+
+async function enforceAdminAppleCallbackRateLimit(req: Request, env: Env): Promise<Response | null> {
+  const exceeded = await incrementRateLimitBuckets(env, [
+    { policy: "adminAppleCallbackIpHour", key: adminLoginIpKey(req) },
+  ]);
+  if (!exceeded) return null;
+  return htmlResponse(
+    renderError(`Too many Apple callback attempts. Try again after ${formatWindow(exceeded.retryAfter)}.`),
+    429,
+  );
+}
+
+class AdminFormError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "AdminFormError";
+  }
+}
+
+async function parseAdminAuthForm(req: Request): Promise<FormData> {
+  const contentLength = req.headers.get("content-length")?.trim();
+  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > ADMIN_AUTH_FORM_MAX_BYTES) {
+    throw new AdminFormError("form body is too large", 413);
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = req.body?.getReader();
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > ADMIN_AUTH_FORM_MAX_BYTES) {
+        await reader.cancel();
+        throw new AdminFormError("form body is too large", 413);
+      }
+      chunks.push(value);
+    }
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const contentType = req.headers.get("content-type");
+  if (!contentType) throw new AdminFormError("missing form body", 400);
+  try {
+    return await new Response(bytes, { headers: { "content-type": contentType } }).formData();
+  } catch {
+    throw new AdminFormError("missing or malformed form body", 400);
+  }
+}
+
+function adminFormErrorResponse(error: unknown): Response {
+  if (error instanceof AdminFormError) {
+    return htmlResponse(renderError(error.message), error.status);
+  }
+  return htmlResponse(renderError("missing or malformed form body"), 400);
 }
 
 function adminLoginIpKey(req: Request): string {

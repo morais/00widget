@@ -236,6 +236,36 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(401);
   });
 
+  it("/admin/login/api-token rejects oversized form bodies", async () => {
+    const env = adminEnv();
+    const req = new Request("https://x/admin/login/api-token", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": "203.0.113.11",
+      },
+      body: new URLSearchParams({ apiKey: "x".repeat(17 * 1024) }).toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(413);
+    expect(await res.text()).toContain("form body is too large");
+  });
+
+  it("/admin/auth/apple/callback rejects oversized form bodies", async () => {
+    const env = adminEnv();
+    const req = new Request("https://x/admin/auth/apple/callback", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": "203.0.113.13",
+      },
+      body: new URLSearchParams({ state: "x".repeat(17 * 1024) }).toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(413);
+    expect(await res.text()).toContain("form body is too large");
+  });
+
   it("/admin/login/api-token refuses weak bootstrap configuration", async () => {
     const env = adminEnv({ API_KEYS: "dev-key-1" });
     const req = new Request("https://x/admin/login/api-token", {
@@ -292,6 +322,42 @@ describe("admin routes (no Apple call required)", () => {
     );
     expect(limited.status).toBe(429);
     expect(await limited.text()).toContain("Too many API-token login attempts");
+  });
+
+  it("/admin/auth/apple/callback rate-limits repeated attempts by client IP", async () => {
+    const env = adminEnv();
+    for (let i = 0; i < 60; i++) {
+      const res = await (handler.fetch as any)(
+        new Request("https://x/admin/auth/apple/callback", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "cf-connecting-ip": "203.0.113.12",
+            cookie: "zw_admin_state=expected; zw_admin_nonce=nonce",
+          },
+          body: new URLSearchParams({ state: "wrong", id_token: "invalid" }).toString(),
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(400);
+    }
+
+    const limited = await (handler.fetch as any)(
+      new Request("https://x/admin/auth/apple/callback", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "cf-connecting-ip": "203.0.113.12",
+          cookie: "zw_admin_state=expected; zw_admin_nonce=nonce",
+        },
+        body: new URLSearchParams({ state: "wrong", id_token: "invalid" }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(limited.status).toBe(429);
+    expect(await limited.text()).toContain("Too many Apple callback attempts");
   });
 
   it("api-token cookie is honored on /admin", async () => {
