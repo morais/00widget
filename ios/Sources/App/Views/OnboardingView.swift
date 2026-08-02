@@ -2,6 +2,7 @@ import AuthenticationServices
 import CryptoKit
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
@@ -72,8 +73,8 @@ struct OnboardingView: View {
                         .font(.caption)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(copiedAgentConfig ? "Copied" : "Copy agent config") {
-                        UIPasteboard.general.string = agentConfig
+                    Button(copiedAgentConfig ? "Copied temporarily" : "Copy agent config") {
+                        copySensitiveText(agentConfig)
                         copiedAgentConfig = true
                     }
                 }
@@ -118,8 +119,8 @@ struct OnboardingView: View {
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
                     .lineLimit(4)
-                Button(copiedToken ? "Copied" : "Copy token") {
-                    UIPasteboard.general.string = env.apiKey
+                Button(copiedToken ? "Copied temporarily" : "Copy token") {
+                    copySensitiveText(env.apiKey)
                     copiedToken = true
                 }
             }
@@ -224,6 +225,13 @@ struct OnboardingView: View {
             guard !Task.isCancelled else { return }
             await env.refreshConnectionHealth()
         }
+    }
+
+    private func copySensitiveText(_ text: String) {
+        UIPasteboard.general.setItems(
+            [[UTType.utf8PlainText.identifier: text]],
+            options: [.expirationDate: Date().addingTimeInterval(2 * 60)]
+        )
     }
 
     private var appVersionString: String {
