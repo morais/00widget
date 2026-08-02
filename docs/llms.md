@@ -317,8 +317,12 @@ Add an `alert: { title, body }` for state changes worth notifying the user about
 
 To inspect the tenant's currently ongoing activities, call `GET /v1/live-activities`.
 The response is `{ "activities": [...] }` using the same session fields as the
-start/update payloads. Pending starts and registered device instances are
-deduplicated by `externalActivityId`; ended activities are omitted.
+start/update payloads plus a server-issued `activityInstanceId`. Producers
+continue addressing their own activity by `externalActivityId`; the opaque
+instance ID binds device registrations and shared deliveries to one exact
+owner activity. This allows a recipient to receive same-named activities from
+multiple owners without update or cleanup collisions. Ended activities are
+omitted.
 
 ### End
 

@@ -19,7 +19,7 @@ import {
   sendLiveActivityEnd,
   type ApnsResult,
 } from "./apns";
-import { json, badRequest } from "./http";
+import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { isSharingEnabled, listAcceptedShares } from "./shares";
@@ -64,12 +64,6 @@ function initialContentState(
   return state;
 }
 
-function storedContentState(value: unknown): ContentStateRecord {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? { ...(value as ContentStateRecord) }
-    : {};
-}
-
 function activityKitContentState(state: ContentStateRecord): ContentStateRecord {
   const encoded = { ...state };
   for (const key of ["updatedAt", "endsAt", "staleAt"] as const) {
@@ -92,31 +86,72 @@ export async function registerLiveActivity(
   ]);
   if (limited) return limited;
   const d = parsed.data;
-  const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
-  const existing = await storage.getActivityForDevice(
+  let instance = d.activityInstanceId
+    ? await storage.getActivityInstance(env, d.activityInstanceId)
+    : null;
+  if (!d.activityInstanceId) {
+    const candidates = await storage.resolveActivityRegistrationTargets(
+      env,
+      auth.tenantId,
+      d.externalActivityId,
+      d.kind,
+    );
+    if (candidates.length > 1) {
+      return json({ error: "activityInstanceId is required for ambiguous registration" }, 409);
+    }
+    instance = candidates[0] ?? null;
+    if (!instance) {
+      // Compatibility for activities created locally by older app builds.
+      const now = new Date().toISOString();
+      instance = LiveActivitySessionSchema.parse({
+        activityInstanceId: crypto.randomUUID(),
+        externalActivityId: d.externalActivityId,
+        kind: d.kind,
+        title: d.externalActivityId,
+        state: "unknown",
+        updatedAt: now,
+      });
+      await storage.putActivityInstance(env, auth.tenantId, auth.apiKeyHash, instance);
+      await storage.putActivityTarget(
+        env,
+        instance.activityInstanceId,
+        auth.tenantId,
+        auth.tenantId,
+      );
+    }
+  }
+  if (!instance) return notFound();
+  const target = await storage.getActivityTarget(
     env,
+    instance.activityInstanceId,
     auth.tenantId,
-    d.externalActivityId,
-    d.deviceId,
   );
-  const anyExisting = existing ?? await storage.getActivity(env, auth.tenantId, d.externalActivityId);
-  await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
-    pushToken: d.pushToken,
-    deviceId: d.deviceId,
-    localActivityId: d.localActivityId,
-    kind: d.kind,
-    title: pending?.title ?? anyExisting?.title,
-    icon: pending?.icon ?? anyExisting?.icon,
-    deepLink: pending?.deepLink ?? anyExisting?.deepLink,
-    startedAt: pending?.startedAt ?? anyExisting?.startedAt,
-    relevanceScore: pending?.relevanceScore ?? anyExisting?.relevanceScore,
-    updatedAt: new Date().toISOString(),
-    lastState: pending
-      ? initialContentState(pending, pending.updatedAt)
-      : anyExisting?.lastState,
+  if (!target) return notFound();
+  if (instance.externalActivityId !== d.externalActivityId || instance.kind !== d.kind) {
+    return badRequest("activity registration does not match its instance");
+  }
+  const now = new Date().toISOString();
+  await storage.putActivityDelivery(env, {
+    activityInstanceId: instance.activityInstanceId,
+    ownerTenantId: target.ownerTenantId,
+    targetTenantId: auth.tenantId,
+    shareId: target.shareId,
+    apiKeyHash: auth.apiKeyHash,
+    record: {
+      pushToken: d.pushToken,
+      deviceId: d.deviceId,
+      localActivityId: d.localActivityId,
+      kind: d.kind,
+      title: instance.title,
+      icon: instance.icon,
+      deepLink: instance.deepLink,
+      startedAt: instance.startedAt,
+      relevanceScore: instance.relevanceScore,
+      updatedAt: now,
+      lastState: initialContentState(instance, instance.updatedAt),
+    },
   });
-  await storage.deletePendingActivity(env, auth.tenantId, d.externalActivityId);
-  return json({ ok: true });
+  return json({ ok: true, activityInstanceId: instance.activityInstanceId });
 }
 
 export async function registerLiveActivityStartToken(
@@ -154,23 +189,66 @@ export async function startLiveActivity(
     ? undefined
     : d.countdownGranularity ?? "second";
 
-  // Try push-to-start first. If any device has registered a start token for
-  // ZeroZeroWidgetActivityAttributes, send the start event over APNs. Shared
-  // recipients (kind-level) get the start event on their own start tokens too.
-  // Each entry carries the tenant the token belongs to so dead-token pruning
-  // (BadDeviceToken / Unregistered) deletes from the right tenant scope.
-  const ownerStartTokens = (
-    await storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE)
-  ).map((token) => ({ token, tenantId: auth.tenantId }));
-  const recipientStartTokens = await collectRecipientStartTokens(
+  const existing = await storage.getActivityInstanceByOwnerExternal(
     env,
     auth.tenantId,
-    d.kind,
+    d.externalActivityId,
   );
-  const startTokens = [...ownerStartTokens, ...recipientStartTokens];
+  if (existing && existing.kind !== d.kind) {
+    return json({ error: "an active instance already uses this externalActivityId with another kind" }, 409);
+  }
+  const activityInstanceId = existing?.activityInstanceId ?? crypto.randomUUID();
+  const session = LiveActivitySessionSchema.parse({
+    activityInstanceId,
+    externalActivityId: d.externalActivityId,
+    kind: d.kind,
+    title: d.title,
+    subtitle: d.subtitle,
+    state: d.state,
+    icon: d.icon,
+    value: d.value,
+    unit: d.unit,
+    progress: d.progress,
+    endsAt: d.endsAt,
+    countdownGranularity,
+    startedAt: existing?.startedAt ?? now,
+    updatedAt: now,
+    staleAt: d.staleAt,
+    relevanceScore: d.relevanceScore,
+    deepLink: d.deepLink,
+  });
+  await storage.putActivityInstance(env, auth.tenantId, auth.apiKeyHash, session);
+
+  const targets: Array<{ tenantId: string; shareId?: string }> = [
+    { tenantId: auth.tenantId },
+  ];
+  if (isSharingEnabled(env)) {
+    const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", d.kind);
+    for (const share of accepted) {
+      if (share.recipientTenantId) {
+        targets.push({ tenantId: share.recipientTenantId, shareId: share.id });
+      }
+    }
+  }
+  for (const target of targets) {
+    await storage.putActivityTarget(
+      env,
+      activityInstanceId,
+      auth.tenantId,
+      target.tenantId,
+      target.shareId,
+    );
+  }
+
+  const startTokens: StartTokenEntry[] = [];
+  for (const target of targets) {
+    const tokens = await storage.listStartTokens(env, target.tenantId, DEFAULT_ATTRIBUTES_TYPE);
+    for (const token of tokens) startTokens.push({ token, tenantId: target.tenantId });
+  }
   const apnsResults: unknown[] = [];
   if (startTokens.length > 0) {
     const attributes: Record<string, unknown> = {
+      activityInstanceId,
       externalActivityId: d.externalActivityId,
       kind: d.kind,
       title: d.title,
@@ -213,36 +291,9 @@ export async function startLiveActivity(
     }
   }
 
-  // Always also queue as pending so the app can discover and start it locally
-  // (push-to-start delivery isn't guaranteed; pending is the durable fallback).
-  // The pending row is written on the owner's tenant; recipients pick up the
-  // activity through their own /v1/live-activities/pending which we extend to
-  // include shared kinds, and through the start push above.
-  await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
-    ...d,
-    countdownGranularity,
-    startedAt: now,
-    updatedAt: now,
-  });
-  if (isSharingEnabled(env)) {
-    const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", d.kind);
-    for (const share of accepted) {
-      if (!share.recipientTenantId) continue;
-      // Mirror the pending row into the recipient's tenant so their app picks
-      // it up the next time it polls. apiKeyHash is irrelevant for read paths
-      // and we don't have a recipient key, so we synthesize a stable marker.
-      await storage.putPendingActivity(
-        env,
-        share.recipientTenantId,
-        `share:${share.id}`,
-        d.externalActivityId,
-        { ...d, countdownGranularity, startedAt: now, updatedAt: now },
-      );
-    }
-  }
-
   return json({
     ok: true,
+    activityInstanceId,
     pending: true,
     pushToStartAttempted: startTokens.length,
     apnsResults,
@@ -270,87 +321,12 @@ export async function listActiveActivitySessions(
   env: Env,
   tenantId: string,
 ): Promise<LiveActivitySession[]> {
-  const [pending, registered] = await Promise.all([
-    storage.listPendingActivities(env, tenantId),
-    storage.listActiveActivities(env, tenantId),
-  ]);
-  const sessions = new Map<string, LiveActivitySession>();
-  for (const activity of pending) {
-    sessions.set(activity.externalActivityId, LiveActivitySessionSchema.parse(activity));
-  }
-  for (const activity of registered) {
-    const session = sessionFromRegistered(activity.externalActivityId, activity.record);
-    const existing = sessions.get(session.externalActivityId);
-    if (!existing || Date.parse(session.updatedAt) >= Date.parse(existing.updatedAt)) {
-      sessions.set(session.externalActivityId, session);
-    }
-  }
-  return [...sessions.values()].sort((a, b) =>
-    Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-}
-
-function sessionFromRegistered(
-  externalActivityId: string,
-  record: storage.ActivityRecord,
-): LiveActivitySession {
-  const state = storedContentState(record.lastState);
-  return LiveActivitySessionSchema.parse({
-    externalActivityId,
-    kind: record.kind,
-    title: record.title?.length ? record.title : externalActivityId,
-    subtitle: optionalString(state.subtitle),
-    state: optionalNonemptyString(state.state) ?? "unknown",
-    icon: optionalString(state.icon) ?? record.icon,
-    value: optionalString(state.value),
-    unit: optionalString(state.unit),
-    progress: optionalNumber(state.progress),
-    endsAt: optionalString(state.endsAt),
-    countdownGranularity: optionalString(state.countdownGranularity),
-    startedAt: record.startedAt,
-    updatedAt: optionalString(state.updatedAt) ?? record.updatedAt,
-    staleAt: optionalString(state.staleAt),
-    relevanceScore: record.relevanceScore,
-    deepLink: record.deepLink,
-  });
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function optionalNonemptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function optionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" ? value : undefined;
+  return storage.listActivityInstancesForTarget(env, tenantId);
 }
 
 interface StartTokenEntry {
   token: string;
   tenantId: string;
-}
-
-async function collectRecipientStartTokens(
-  env: Env,
-  ownerTenantId: string,
-  kind: string,
-): Promise<StartTokenEntry[]> {
-  if (!isSharingEnabled(env)) return [];
-  const accepted = await listAcceptedShares(env, ownerTenantId, "activity_kind", kind);
-  const entries: StartTokenEntry[] = [];
-  for (const share of accepted) {
-    if (!share.recipientTenantId) continue;
-    const recipientTokens = await storage.listStartTokens(
-      env,
-      share.recipientTenantId,
-      DEFAULT_ATTRIBUTES_TYPE,
-    );
-    for (const token of recipientTokens) {
-      entries.push({ token, tenantId: share.recipientTenantId });
-    }
-  }
-  return entries;
 }
 
 // APNs reasons that mean "this token is permanently dead, drop it." See:
@@ -376,107 +352,71 @@ export async function updateLiveActivity(
     },
   ]);
   if (limited) return limited;
-  const records = await storage.listActivities(env, auth.tenantId, d.externalActivityId);
-  const record = records[0];
+  const instance = await storage.getActivityInstanceByOwnerExternal(
+    env,
+    auth.tenantId,
+    d.externalActivityId,
+  );
+  if (!instance) return notFound();
   const now = new Date().toISOString();
-
-  const contentState = storedContentState(record?.lastState);
-  if (typeof contentState.state !== "string") contentState.state = d.state ?? "unknown";
-  if (d.state !== undefined) contentState.state = d.state;
-  if (d.subtitle !== undefined) contentState.subtitle = d.subtitle;
-  if (d.icon !== undefined) contentState.icon = d.icon;
-  if (d.value !== undefined) contentState.value = d.value;
-  if (d.unit !== undefined) contentState.unit = d.unit;
-  if (d.progress !== undefined) contentState.progress = d.progress;
-  if (d.endsAt !== undefined) contentState.endsAt = d.endsAt;
-  if (typeof contentState.endsAt === "string") {
-    const granularity = d.countdownGranularity ?? contentState.countdownGranularity;
-    contentState.countdownGranularity = granularity === "minute" ? "minute" : "second";
-  } else {
-    delete contentState.countdownGranularity;
-  }
-  contentState.updatedAt = now;
-  if (d.staleAt) contentState.staleAt = d.staleAt;
+  const endsAt = d.endsAt ?? instance.endsAt;
+  const countdownGranularity = endsAt === undefined
+    ? undefined
+    : d.countdownGranularity ?? instance.countdownGranularity ?? "second";
+  const updated = LiveActivitySessionSchema.parse({
+    ...instance,
+    title: d.title ?? instance.title,
+    subtitle: d.subtitle ?? instance.subtitle,
+    state: d.state ?? instance.state,
+    icon: d.icon ?? instance.icon,
+    value: d.value ?? instance.value,
+    unit: d.unit ?? instance.unit,
+    progress: d.progress ?? instance.progress,
+    endsAt,
+    countdownGranularity,
+    staleAt: d.staleAt ?? instance.staleAt,
+    relevanceScore: d.relevanceScore ?? instance.relevanceScore,
+    updatedAt: now,
+  });
+  const contentState = initialContentState(updated, now);
+  await storage.putActivityInstance(env, auth.tenantId, auth.apiKeyHash, updated);
+  const deliveries = (await storage.listActivityDeliveries(env, instance.activityInstanceId))
+    .filter((delivery) => !delivery.shareId || isSharingEnabled(env));
 
   let apnsResult: unknown = null;
   const recipientResults: unknown[] = [];
-  let pendingUpdated = false;
-  if (records.length > 0) {
-    const ownerResults: unknown[] = [];
-    for (const ownerRecord of records) {
-      const result = await sendLiveActivityUpdate(env, ownerRecord.pushToken, {
-        contentState: activityKitContentState(contentState),
-        staleAt: d.staleAt,
-        relevanceScore: d.relevanceScore,
-        alert: d.alert,
-      });
-      ownerResults.push(result);
-      await storage.putActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
-        ...ownerRecord,
-        title: d.title ?? ownerRecord.title,
-        relevanceScore: d.relevanceScore ?? ownerRecord.relevanceScore,
+  for (const delivery of deliveries) {
+    const result = await sendLiveActivityUpdate(env, delivery.record.pushToken, {
+      contentState: activityKitContentState(contentState),
+      staleAt: d.staleAt,
+      relevanceScore: d.relevanceScore,
+      alert: d.alert,
+    });
+    if (delivery.targetTenantId === auth.tenantId) {
+      apnsResult ??= result;
+    } else {
+      recipientResults.push(result);
+    }
+    await storage.putActivityDelivery(env, {
+      ...delivery,
+      record: {
+        ...delivery.record,
+        title: updated.title,
+        icon: updated.icon,
+        deepLink: updated.deepLink,
+        relevanceScore: updated.relevanceScore,
         updatedAt: now,
         lastState: contentState,
-      });
-    }
-    apnsResult = ownerResults[0] ?? null;
-    // Fan out the same update to recipients that have a registered push token
-    // for this externalActivityId. Their tenantId scopes the activity row.
-    if (isSharingEnabled(env)) {
-      const accepted = await listAcceptedShares(env, auth.tenantId, "activity_kind", record.kind);
-      for (const share of accepted) {
-        if (!share.recipientTenantId) continue;
-        const recRecords = await storage.listActivities(env, share.recipientTenantId, d.externalActivityId);
-        for (const recRecord of recRecords) {
-          const r = await sendLiveActivityUpdate(env, recRecord.pushToken, {
-            contentState: activityKitContentState(contentState),
-            staleAt: d.staleAt,
-            relevanceScore: d.relevanceScore,
-            alert: d.alert,
-          });
-          recipientResults.push(r);
-          await storage.putActivity(
-            env,
-            share.recipientTenantId,
-            `share:${share.id}`,
-            d.externalActivityId,
-            {
-              ...recRecord,
-              title: d.title ?? recRecord.title,
-              relevanceScore: d.relevanceScore ?? recRecord.relevanceScore,
-              updatedAt: now,
-              lastState: contentState,
-            },
-          );
-        }
-      }
-    }
-  } else {
-    const pending = await storage.getPendingActivity(env, auth.tenantId, d.externalActivityId);
-    if (pending) {
-      const endsAt = d.endsAt ?? pending.endsAt;
-      const countdownGranularity = endsAt === undefined
-        ? undefined
-        : d.countdownGranularity ?? pending.countdownGranularity ?? "second";
-      await storage.putPendingActivity(env, auth.tenantId, auth.apiKeyHash, d.externalActivityId, {
-        ...pending,
-        title: d.title ?? pending.title,
-        subtitle: d.subtitle ?? pending.subtitle,
-        state: d.state ?? pending.state,
-        icon: d.icon ?? pending.icon,
-        value: d.value ?? pending.value,
-        unit: d.unit ?? pending.unit,
-        progress: d.progress ?? pending.progress,
-        endsAt,
-        countdownGranularity,
-        staleAt: d.staleAt ?? pending.staleAt,
-        relevanceScore: d.relevanceScore ?? pending.relevanceScore,
-        updatedAt: now,
-      });
-      pendingUpdated = true;
-    }
+      },
+    });
   }
-  return json({ ok: true, apnsResult, recipientResults, pendingUpdated });
+  return json({
+    ok: true,
+    activityInstanceId: instance.activityInstanceId,
+    apnsResult,
+    recipientResults,
+    pendingUpdated: deliveries.length === 0,
+  });
 }
 
 export async function endLiveActivity(
@@ -495,13 +435,19 @@ export async function endLiveActivity(
   const finalContentState: Record<string, unknown> = {};
   if (d.finalState) finalContentState.state = d.finalState;
   if (d.finalSubtitle) finalContentState.subtitle = d.finalSubtitle;
-  const record = await storage.getActivity(env, auth.tenantId, d.externalActivityId);
-  const completeFinalState = storedContentState(record?.lastState);
+  const instance = await storage.getActivityInstanceByOwnerExternal(
+    env,
+    auth.tenantId,
+    d.externalActivityId,
+  );
+  const completeFinalState = instance
+    ? initialContentState(instance, instance.updatedAt)
+    : {};
   Object.assign(completeFinalState, finalContentState);
   if (typeof completeFinalState.state !== "string") completeFinalState.state = "finished";
   completeFinalState.updatedAt = new Date().toISOString();
   const result = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
-    finalContentState: record
+    finalContentState: instance
       ? activityKitContentState(completeFinalState)
       : undefined,
     dismissalDate: d.dismissalDate,
@@ -531,11 +477,9 @@ function endDeliverySucceeded(result: ApnsResult): boolean {
   return result.status === 200 || isDeadTokenReason(result.reason);
 }
 
-// Send the APNs end push (if we still have a push token), then delete both the
-// activity row and any pending row only after every delivery has reached a
-// terminal result. A transient APNs/configuration failure retains all rows so
-// the producer can safely retry the same end request. Also fans out the end
-// push to accepted-share recipients so their copies terminate at the same time.
+// Send the APNs end push to the exact deliveries bound to the owner-scoped
+// instance. Delete the instance only after every delivery reaches a terminal
+// result so the producer can safely retry transient failures.
 export async function endAndDeleteActivity(
   env: Env,
   tenantId: string,
@@ -543,39 +487,30 @@ export async function endAndDeleteActivity(
   endPayload: { finalContentState?: Record<string, unknown>; dismissalDate?: string } = {},
   options: { deleteOnDeliveryFailure?: boolean } = {},
 ): Promise<EndAndDeleteActivityResult> {
-  const records = await storage.listActivities(env, tenantId, externalActivityId);
-  const record = records[0];
+  const instance = await storage.getActivityInstanceByOwnerExternal(
+    env,
+    tenantId,
+    externalActivityId,
+  );
+  if (!instance) {
+    return { apnsResult: null, recipientResults: [], deliveryFailures: [] };
+  }
+  const deliveries = (await storage.listActivityDeliveries(env, instance.activityInstanceId))
+    .filter((delivery) => !delivery.shareId || isSharingEnabled(env));
   let apnsResult: ApnsResult | null = null;
   const recipientResults: ApnsResult[] = [];
   const deliveryFailures: ApnsResult[] = [];
-  for (const [index, ownerRecord] of records.entries()) {
-    const result = await sendLiveActivityEnd(env, ownerRecord.pushToken, endPayload);
-    if (index === 0) apnsResult = result;
+  for (const delivery of deliveries) {
+    const result = await sendLiveActivityEnd(env, delivery.record.pushToken, endPayload);
+    if (delivery.targetTenantId === tenantId) {
+      apnsResult ??= result;
+    } else {
+      recipientResults.push(result);
+    }
     if (!endDeliverySucceeded(result)) deliveryFailures.push(result);
   }
-  if (record && isSharingEnabled(env)) {
-    const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
-    for (const share of accepted) {
-      if (!share.recipientTenantId) continue;
-      const recRecords = await storage.listActivities(env, share.recipientTenantId, externalActivityId);
-      for (const recRecord of recRecords) {
-        const result = await sendLiveActivityEnd(env, recRecord.pushToken, endPayload);
-        recipientResults.push(result);
-        if (!endDeliverySucceeded(result)) deliveryFailures.push(result);
-      }
-    }
-  }
   if (deliveryFailures.length === 0 || options.deleteOnDeliveryFailure === true) {
-    if (record && isSharingEnabled(env)) {
-      const accepted = await listAcceptedShares(env, tenantId, "activity_kind", record.kind);
-      for (const share of accepted) {
-        if (!share.recipientTenantId) continue;
-        await storage.deleteActivity(env, share.recipientTenantId, externalActivityId);
-        await storage.deletePendingActivity(env, share.recipientTenantId, externalActivityId);
-      }
-    }
-    await storage.deleteActivity(env, tenantId, externalActivityId);
-    await storage.deletePendingActivity(env, tenantId, externalActivityId);
+    await storage.deleteActivityInstance(env, instance.activityInstanceId);
   }
   return { apnsResult, recipientResults, deliveryFailures };
 }

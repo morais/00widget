@@ -25,6 +25,7 @@ public enum CountdownGranularity: String, Codable, Hashable, Sendable {
 }
 
 public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
+    public var activityInstanceId: String?
     public var externalActivityId: String
     public var kind: LiveActivityKind
     public var title: String
@@ -45,9 +46,10 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public private(set) var deepLink: URL?
     public var actions: [ActionDefinition]?
 
-    public var id: String { externalActivityId }
+    public var id: String { activityInstanceId ?? externalActivityId }
 
     public init(
+        activityInstanceId: String? = nil,
         externalActivityId: String,
         kind: LiveActivityKind = .generic,
         title: String,
@@ -66,6 +68,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         deepLink: URL? = nil,
         actions: [ActionDefinition]? = nil
     ) {
+        self.activityInstanceId = activityInstanceId
         self.externalActivityId = externalActivityId
         self.kind = kind
         self.title = title
@@ -87,6 +90,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        activityInstanceId = try container.decodeIfPresent(String.self, forKey: .activityInstanceId)
         externalActivityId = try container.decode(String.self, forKey: .externalActivityId)
         kind = try container.decode(LiveActivityKind.self, forKey: .kind)
         title = try container.decode(String.self, forKey: .title)
@@ -112,7 +116,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case externalActivityId, kind, title, subtitle, state, icon, value, unit
+        case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, value, unit
         case progress, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
         case relevanceScore, deepLink, actions
     }

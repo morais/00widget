@@ -103,6 +103,10 @@ If you find a way to break any of these, please report it:
    into server-only storage. Card APIs, shares, and on-device caches contain
    only the public action definition; the private context is added only to the
    signed webhook delivery when that action runs.
+9. **Live Activity provenance.** A server-issued `activityInstanceId` binds
+   every target, device delivery, update, end, and share revocation to one
+   owner-scoped activity. Publisher `externalActivityId` values are aliases,
+   never cross-tenant routing keys.
 
 ## Acknowledgements
 

@@ -38,6 +38,9 @@ export class FakeD1 {
   private widgetTokens = new Map<string, FakeRow>();
   private activities = new Map<string, FakeRow>();
   private pendingActivities = new Map<string, FakeRow>();
+  private activityInstances = new Map<string, FakeRow>();
+  private activityTargets = new Map<string, FakeRow>();
+  private activityDeliveries = new Map<string, FakeRow>();
   private startTokens = new Map<string, FakeRow>();
   private appleAccounts = new Map<string, FakeRow>();
   private webhookIntegrations = new Map<string, FakeRow>();
@@ -244,6 +247,48 @@ export class FakeD1 {
       });
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO activity_instances")) {
+      const [id, owner_tenant_id, api_key_hash, external_id, kind, json, updated_at] =
+        values.map(String);
+      this.activityInstances.set(id, {
+        id,
+        owner_tenant_id,
+        api_key_hash,
+        external_id,
+        kind,
+        json,
+        updated_at,
+      });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO activity_targets")) {
+      const [activity_instance_id, owner_tenant_id, target_tenant_id, shareValue, created_at] = values;
+      const share_id = shareValue == null ? "" : String(shareValue);
+      this.activityTargets.set(`${activity_instance_id}:${target_tenant_id}`, {
+        activity_instance_id: String(activity_instance_id),
+        owner_tenant_id: String(owner_tenant_id),
+        target_tenant_id: String(target_tenant_id),
+        share_id,
+        created_at: String(created_at),
+      });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT OR REPLACE INTO activity_deliveries")) {
+      const [activity_instance_id, owner_tenant_id, target_tenant_id, shareValue,
+        api_key_hash, device_id, json, updated_at] = values;
+      const share_id = shareValue == null ? "" : String(shareValue);
+      this.activityDeliveries.set(`${activity_instance_id}:${target_tenant_id}:${device_id}`, {
+        activity_instance_id: String(activity_instance_id),
+        owner_tenant_id: String(owner_tenant_id),
+        target_tenant_id: String(target_tenant_id),
+        share_id,
+        api_key_hash: String(api_key_hash),
+        device_id: String(device_id),
+        json: String(json),
+        updated_at: String(updated_at),
+      });
+      return 1;
+    }
     if (normalized.startsWith("INSERT OR REPLACE INTO pending_activities")) {
       const [tenant_id, api_key_hash, external_id, json, updated_at] = values.map(String);
       this.pendingActivities.set(`${tenant_id}:${external_id}`, {
@@ -292,6 +337,53 @@ export class FakeD1 {
         }
       }
       return count;
+    }
+    if (normalized === "DELETE FROM activity_deliveries WHERE target_tenant_id = ? AND api_key_hash = ?" ||
+        normalized === "DELETE FROM activity_deliveries WHERE target_tenant_id = ? AND device_id = ?") {
+      const [target_tenant_id, value] = values.map(String);
+      const field = normalized.includes("api_key_hash") ? "api_key_hash" : "device_id";
+      let count = 0;
+      for (const [key, row] of this.activityDeliveries.entries()) {
+        if (row.target_tenant_id === target_tenant_id && row[field] === value) {
+          this.activityDeliveries.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized === "DELETE FROM activity_deliveries WHERE share_id = ?" ||
+        normalized === "DELETE FROM activity_targets WHERE share_id = ?") {
+      const [share_id] = values.map(String);
+      const rows = normalized.includes("deliveries")
+        ? this.activityDeliveries
+        : this.activityTargets;
+      let count = 0;
+      for (const [key, row] of rows.entries()) {
+        if (row.share_id === share_id) {
+          rows.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized === "DELETE FROM activity_deliveries WHERE activity_instance_id = ?" ||
+        normalized === "DELETE FROM activity_targets WHERE activity_instance_id = ?") {
+      const [activity_instance_id] = values.map(String);
+      const rows = normalized.includes("deliveries")
+        ? this.activityDeliveries
+        : this.activityTargets;
+      let count = 0;
+      for (const [key, row] of rows.entries()) {
+        if (row.activity_instance_id === activity_instance_id) {
+          rows.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized === "DELETE FROM activity_instances WHERE id = ?") {
+      const [id] = values.map(String);
+      return this.activityInstances.delete(id) ? 1 : 0;
     }
     if (normalized.startsWith("DELETE FROM webhook_integrations")) {
       const [tenant_id] = values.map(String);
@@ -612,6 +704,78 @@ export class FakeD1 {
       const [tenant_id] = values.map(String);
       return pick(this.widgetPushCadence.get(tenant_id), ["last_sent_at"]);
     }
+    if (normalized === "SELECT json FROM activity_instances WHERE id = ?") {
+      const [id] = values.map(String);
+      return pick(this.activityInstances.get(id), ["json"]);
+    }
+    if (normalized === "SELECT json FROM activity_instances WHERE owner_tenant_id = ? AND external_id = ?") {
+      const [owner_tenant_id, external_id] = values.map(String);
+      const row = [...this.activityInstances.values()].find(
+        (candidate) => candidate.owner_tenant_id === owner_tenant_id &&
+          candidate.external_id === external_id,
+      );
+      return pick(row, ["json"]);
+    }
+    if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? ORDER BY instances.updated_at DESC, instances.id") {
+      const [target_tenant_id] = values.map(String);
+      return [...this.activityTargets.values()]
+        .filter((target) => target.target_tenant_id === target_tenant_id)
+        .map((target) => this.activityInstances.get(target.activity_instance_id))
+        .filter((row): row is FakeRow => Boolean(row))
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
+        .map(select("json"));
+    }
+    if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? AND NOT EXISTS ( SELECT 1 FROM activity_deliveries AS deliveries WHERE deliveries.activity_instance_id = instances.id AND deliveries.target_tenant_id = targets.target_tenant_id ) ORDER BY instances.updated_at DESC, instances.id") {
+      const [target_tenant_id] = values.map(String);
+      return [...this.activityTargets.values()]
+        .filter((target) => target.target_tenant_id === target_tenant_id)
+        .filter((target) => ![...this.activityDeliveries.values()].some(
+          (delivery) => delivery.activity_instance_id === target.activity_instance_id &&
+            delivery.target_tenant_id === target.target_tenant_id,
+        ))
+        .map((target) => this.activityInstances.get(target.activity_instance_id))
+        .filter((row): row is FakeRow => Boolean(row))
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
+        .map(select("json"));
+    }
+    if (normalized === "SELECT json FROM activity_instances WHERE owner_tenant_id = ? AND kind = ? ORDER BY updated_at DESC, id") {
+      const [owner_tenant_id, kind] = values.map(String);
+      return [...this.activityInstances.values()]
+        .filter((row) => row.owner_tenant_id === owner_tenant_id && row.kind === kind)
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
+        .map(select("json"));
+    }
+    if (normalized === "SELECT activity_instance_id, owner_tenant_id, target_tenant_id, share_id FROM activity_targets WHERE activity_instance_id = ? AND target_tenant_id = ?") {
+      const [activity_instance_id, target_tenant_id] = values.map(String);
+      return pick(
+        this.activityTargets.get(`${activity_instance_id}:${target_tenant_id}`),
+        ["activity_instance_id", "owner_tenant_id", "target_tenant_id", "share_id"],
+      );
+    }
+    if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? AND instances.external_id = ? AND instances.kind = ? ORDER BY instances.id") {
+      const [target_tenant_id, external_id, kind] = values.map(String);
+      return [...this.activityTargets.values()]
+        .filter((target) => target.target_tenant_id === target_tenant_id)
+        .map((target) => this.activityInstances.get(target.activity_instance_id))
+        .filter((row): row is FakeRow =>
+          row !== undefined && row.external_id === external_id && row.kind === kind)
+        .sort(by("id"))
+        .map(select("json"));
+    }
+    if (normalized === "SELECT activity_instance_id, owner_tenant_id, target_tenant_id, share_id, api_key_hash, json FROM activity_deliveries WHERE activity_instance_id = ? ORDER BY target_tenant_id, device_id") {
+      const [activity_instance_id] = values.map(String);
+      return [...this.activityDeliveries.values()]
+        .filter((row) => row.activity_instance_id === activity_instance_id)
+        .sort(by("target_tenant_id", "device_id"))
+        .map(select("activity_instance_id", "owner_tenant_id", "target_tenant_id", "share_id", "api_key_hash", "json"));
+    }
+    if (normalized === "SELECT activity_instance_id, owner_tenant_id, target_tenant_id, share_id, api_key_hash, json FROM activity_deliveries WHERE share_id = ? ORDER BY activity_instance_id, device_id") {
+      const [share_id] = values.map(String);
+      return [...this.activityDeliveries.values()]
+        .filter((row) => row.share_id === share_id)
+        .sort(by("activity_instance_id", "device_id"))
+        .map(select("activity_instance_id", "owner_tenant_id", "target_tenant_id", "share_id", "api_key_hash", "json"));
+    }
     if (normalized === "SELECT json FROM activities WHERE tenant_id = ? AND external_id = ? ORDER BY device_id") {
       const [tenant_id, external_id] = values.map(String);
       return byTenant(this.activities, tenant_id)
@@ -697,6 +861,54 @@ export class FakeD1 {
           "app_version",
           "platform",
         ));
+    }
+    if (normalized === "SELECT deliveries.api_key_hash AS api_key_hash, deliveries.activity_instance_id AS activity_instance_id, instances.external_id AS external_id, deliveries.json AS json FROM activity_deliveries AS deliveries JOIN activity_instances AS instances ON instances.id = deliveries.activity_instance_id WHERE deliveries.target_tenant_id = ? ORDER BY deliveries.api_key_hash, instances.external_id, deliveries.device_id") {
+      const [target_tenant_id] = values.map(String);
+      return [...this.activityDeliveries.values()]
+        .filter((delivery) => delivery.target_tenant_id === target_tenant_id)
+        .map((delivery) => ({ delivery, instance: this.activityInstances.get(delivery.activity_instance_id) }))
+        .filter((entry) => Boolean(entry.instance))
+        .sort((a, b) =>
+          a.delivery.api_key_hash.localeCompare(b.delivery.api_key_hash) ||
+          (a.instance?.external_id ?? "").localeCompare(b.instance?.external_id ?? "") ||
+          a.delivery.device_id.localeCompare(b.delivery.device_id))
+        .map(({ delivery, instance }) => ({
+          api_key_hash: delivery.api_key_hash,
+          activity_instance_id: delivery.activity_instance_id,
+          external_id: instance?.external_id ?? "",
+          json: delivery.json,
+        }));
+    }
+    if (normalized === "SELECT instances.api_key_hash AS api_key_hash, instances.id AS activity_instance_id, instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? AND NOT EXISTS ( SELECT 1 FROM activity_deliveries AS deliveries WHERE deliveries.activity_instance_id = instances.id AND deliveries.target_tenant_id = targets.target_tenant_id ) ORDER BY instances.api_key_hash, instances.external_id") {
+      const [target_tenant_id] = values.map(String);
+      return [...this.activityTargets.values()]
+        .filter((target) => target.target_tenant_id === target_tenant_id)
+        .filter((target) => ![...this.activityDeliveries.values()].some(
+          (delivery) => delivery.activity_instance_id === target.activity_instance_id &&
+            delivery.target_tenant_id === target.target_tenant_id,
+        ))
+        .map((target) => this.activityInstances.get(target.activity_instance_id))
+        .filter((row): row is FakeRow => Boolean(row))
+        .sort(by("api_key_hash", "external_id"))
+        .map((row) => ({
+          api_key_hash: row.api_key_hash,
+          activity_instance_id: row.id,
+          json: row.json,
+        }));
+    }
+    if (normalized === "SELECT deliveries.api_key_hash AS api_key_hash, deliveries.activity_instance_id AS activity_instance_id, deliveries.json AS json FROM activity_deliveries AS deliveries ORDER BY deliveries.api_key_hash, deliveries.activity_instance_id, deliveries.device_id") {
+      return [...this.activityDeliveries.values()]
+        .sort(by("api_key_hash", "activity_instance_id", "device_id"))
+        .map(select("api_key_hash", "activity_instance_id", "json"));
+    }
+    if (normalized === "SELECT instances.api_key_hash AS api_key_hash, instances.id AS activity_instance_id, instances.json AS json FROM activity_instances AS instances ORDER BY instances.api_key_hash, instances.external_id") {
+      return [...this.activityInstances.values()]
+        .sort(by("api_key_hash", "external_id"))
+        .map((row) => ({
+          api_key_hash: row.api_key_hash,
+          activity_instance_id: row.id,
+          json: row.json,
+        }));
     }
     if (normalized === "SELECT api_key_hash, external_id, json FROM activities ORDER BY api_key_hash, external_id") {
       return [...this.activities.values()]

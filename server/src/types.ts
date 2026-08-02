@@ -31,6 +31,7 @@ export const FieldLimits = {
   actionPayloadValue: 512,
   actionPayloadBytes: 4 * KiB,
   externalActivityId: 128,
+  activityInstanceId: 64,
   activityState: 120,
   alertTitle: 120,
   alertBody: 240,
@@ -269,6 +270,9 @@ export const RegisterWidgetPushTokenSchema = z.union([
 export const RegisterLiveActivitySchema = z.object({
   deviceId: z.string().min(1).max(FieldLimits.deviceId),
   localActivityId: z.string().min(1).max(FieldLimits.localActivityId),
+  // Optional only for registrations from pre-instance-ID app builds. The
+  // server accepts that fallback solely when one target matches unambiguously.
+  activityInstanceId: z.string().min(1).max(FieldLimits.activityInstanceId).optional(),
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   kind: LiveActivityKindSchema,
   pushToken: PushTokenString,
@@ -328,6 +332,7 @@ export const UpdateLiveActivitySchema = z.object({
 });
 
 export const LiveActivitySessionSchema = z.object({
+  activityInstanceId: z.string().min(1).max(FieldLimits.activityInstanceId),
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   kind: LiveActivityKindSchema,
   title: TitleString,

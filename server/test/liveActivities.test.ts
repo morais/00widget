@@ -587,6 +587,9 @@ describe("live activities", () => {
     const startAps = captured[0].aps;
     expect(startAps.event).toBe("start");
     expect(startAps["input-push-token"]).toBe(1);
+    expect(startAps.attributes.activityInstanceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(startAps.alert).toEqual({ title: "Washer started", body: "Washing" });
     expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing" });
     expect(startAps["content-state"].countdownGranularity).toBe("second");
@@ -704,6 +707,185 @@ describe("live activities", () => {
     ]);
   });
 
+  it("isolates identical external ids across owners, shares, and recipient-owned activities", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+      SHARING_ENABLED: "true",
+    });
+    await seedApiKey(env, "owner-a-key", "owner-a");
+    await seedApiKey(env, "owner-b-key", "owner-b");
+    await seedApiKey(env, "recipient-key", "recipient");
+
+    const shareA = await createAcceptedActivityShare(env, "owner-a-key", "recipient-key");
+    const shareB = await createAcceptedActivityShare(env, "owner-b-key", "recipient-key");
+
+    const instanceA = await startAndReadInstance(env, "owner-a-key", "Shared A");
+    const instanceB = await startAndReadInstance(env, "owner-b-key", "Shared B");
+    const recipientInstance = await startAndReadInstance(env, "recipient-key", "Recipient owned");
+    expect(new Set([instanceA, instanceB, recipientInstance]).size).toBe(3);
+
+    const ambiguousLegacyRegistration = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "legacy-device",
+          localActivityId: "legacy-local",
+          externalActivityId: "same-id",
+          kind: "appliance",
+          pushToken: "aaaabbbb9999",
+        }),
+      }, "recipient-key"),
+      env,
+      executionCtx,
+    );
+    expect(ambiguousLegacyRegistration.status).toBe(409);
+
+    const foreignInstanceRegistration = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "foreign-device",
+          localActivityId: "foreign-local",
+          activityInstanceId: instanceB,
+          externalActivityId: "same-id",
+          kind: "appliance",
+          pushToken: "aaaabbbb9998",
+        }),
+      }, "owner-a-key"),
+      env,
+      executionCtx,
+    );
+    expect(foreignInstanceRegistration.status).toBe(404);
+
+    for (const [instanceId, pushToken] of [
+      [instanceA, "aaaabbbb0001"],
+      [instanceB, "aaaabbbb0002"],
+      [recipientInstance, "aaaabbbb0003"],
+    ]) {
+      const registration = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId: `device-${pushToken}`,
+            localActivityId: `local-${pushToken}`,
+            activityInstanceId: instanceId,
+            externalActivityId: "same-id",
+            kind: "appliance",
+            pushToken,
+          }),
+        }, "recipient-key"),
+        env,
+        executionCtx,
+      );
+      expect(registration.status).toBe(200);
+    }
+
+    const before = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", {}, "recipient-key"),
+      env,
+      executionCtx,
+    );
+    const beforeActivities = ((await before.json()) as {
+      activities: Array<{ activityInstanceId: string; externalActivityId: string }>;
+    }).activities;
+    expect(beforeActivities).toHaveLength(3);
+    expect(beforeActivities.every((activity) => activity.externalActivityId === "same-id")).toBe(true);
+
+    const pushedTokens: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      const url = typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+      pushedTokens.push(new URL(url).pathname.split("/").pop() ?? "");
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      env.SHARING_ENABLED = "false";
+      const disabledShareUpdate = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/update", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "same-id", state: "suppressed" }),
+        }, "owner-b-key"),
+        env,
+        executionCtx,
+      );
+      expect(disabledShareUpdate.status).toBe(200);
+      expect(pushedTokens).toEqual([]);
+      env.SHARING_ENABLED = "true";
+
+      const updateA = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/update", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "same-id", state: "owner-a-update" }),
+        }, "owner-a-key"),
+        env,
+        executionCtx,
+      );
+      expect(updateA.status).toBe(200);
+
+      const updateRecipient = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/update", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "same-id", state: "recipient-update" }),
+        }, "recipient-key"),
+        env,
+        executionCtx,
+      );
+      expect(updateRecipient.status).toBe(200);
+
+      const endA = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "same-id" }),
+        }, "owner-a-key"),
+        env,
+        executionCtx,
+      );
+      expect(endA.status).toBe(200);
+
+      const revokeB = await (handler.fetch as any)(
+        authedRequest(`https://x/v1/shares/${shareB}`, { method: "DELETE" }, "owner-b-key"),
+        env,
+        executionCtx,
+      );
+      expect(revokeB.status).toBe(200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(pushedTokens).toEqual([
+      "aaaabbbb0001",
+      "aaaabbbb0003",
+      "aaaabbbb0001",
+      "aaaabbbb0002",
+    ]);
+    const after = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", {}, "recipient-key"),
+      env,
+      executionCtx,
+    );
+    expect(((await after.json()) as {
+      activities: Array<{ activityInstanceId: string }>;
+    }).activities.map((activity) => activity.activityInstanceId)).toEqual([recipientInstance]);
+
+    // Revoking one share cannot disturb the other owner record or the
+    // recipient-owned instance, even though every external id is identical.
+    expect(shareA).not.toBe(shareB);
+    const ownerB = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", {}, "owner-b-key"),
+      env,
+      executionCtx,
+    );
+    expect(((await ownerB.json()) as { activities: unknown[] }).activities).toHaveLength(1);
+  });
+
   it("prunes start tokens that APNs rejects with BadDeviceToken", async () => {
     __resetApnsJwtCache();
     const env = makeEnv({
@@ -796,3 +978,53 @@ describe("live activities", () => {
     expect(body.pushToStartAttempted).toBe(0);
   });
 });
+
+async function createAcceptedActivityShare(
+  env: ReturnType<typeof makeEnv>,
+  ownerKey: string,
+  recipientKey: string,
+): Promise<string> {
+  const create = await (handler.fetch as any)(
+    authedRequest("https://x/v1/shares", {
+      method: "POST",
+      body: JSON.stringify({
+        recipientEmail: "recipient@example.com",
+        resourceKind: "activity_kind",
+        resourceId: "appliance",
+      }),
+    }, ownerKey),
+    env,
+    executionCtx,
+  );
+  expect(create.status).toBe(201);
+  const shareId = ((await create.json()) as { share: { id: string } }).share.id;
+  const accept = await (handler.fetch as any)(
+    authedRequest(`https://x/v1/shares/${shareId}/accept`, { method: "POST" }, recipientKey),
+    env,
+    executionCtx,
+  );
+  expect(accept.status).toBe(200);
+  return shareId;
+}
+
+async function startAndReadInstance(
+  env: ReturnType<typeof makeEnv>,
+  apiKey: string,
+  title: string,
+): Promise<string> {
+  const response = await (handler.fetch as any)(
+    authedRequest("https://x/v1/live-activities/start", {
+      method: "POST",
+      body: JSON.stringify({
+        externalActivityId: "same-id",
+        kind: "appliance",
+        title,
+        state: "running",
+      }),
+    }, apiKey),
+    env,
+    executionCtx,
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { activityInstanceId: string }).activityInstanceId;
+}

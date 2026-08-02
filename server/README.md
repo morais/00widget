@@ -244,8 +244,9 @@ Tables:
 | `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens, card-level subscriptions, app build, and platform. |
 | `widget_push_cadence` | `tenant_id` | Last accepted reload window per receiving tenant, used to protect WidgetKit's daily budget. |
 | `widget_push_pending` | `tenant_id` | One generation-counted row coalescing cadence-suppressed or transiently failed reloads until its delayed queue message can deliver them. |
-| `activities` | `(tenant_id, external_id)` | Active Live Activity push tokens and last state. |
-| `pending_activities` | `(tenant_id, external_id)` | Live Activities waiting for app registration. |
+| `activity_instances` | `id` | Canonical owner-scoped Live Activities; `(owner_tenant_id, external_id)` is unique. |
+| `activity_targets` | `(activity_instance_id, target_tenant_id)` | Exact owner or accepted-share audiences authorized to receive an instance. |
+| `activity_deliveries` | `(activity_instance_id, target_tenant_id, device_id)` | Per-device ActivityKit push tokens bound to an exact instance and optional share. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
 | `webhook_integrations` | `tenant_id` | Per-tenant action webhook URL and signing secret. |
 
