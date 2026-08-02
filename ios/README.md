@@ -49,7 +49,7 @@ If `project.yml.sample` ever gets updated upstream, re-merge into your local `pr
 
 The brand sheet and usage rules live in `docs/brand/`. Tagline is "Widgets for all your agents." — keep this exact wording.
 
-The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. To regenerate it, re-export from `docs/brand/mark.svg` (opaque background — iOS rejects transparent app icons).
+The 1024 app icon is wired in at `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. It is generated from the approved raster masters in `docs/brand/`; follow `docs/brand/README.md` and run `python3 scripts/generate-brand-assets.py` from the repository root. The generated app icon must remain opaque because iOS rejects transparent app icons.
 
 ## Targets
 

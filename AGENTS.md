@@ -197,7 +197,7 @@ Success looks like `Uploaded package is processing` followed by `Upload succeede
 
 ## Branding
 
-Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The committed assets include opaque + transparent 1024 PNGs, the wordmark lockup, and the SVG vector sources — re-export raster sizes from the SVGs. iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Color palette is documented in `docs/brand/README.md` and is sourced from the SVG `<linearGradient>` definitions, not eyeballed.
+Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The identity is raster-first: `u2-approved-reference.png` is the authoritative sheet, and the committed transparent-mark and app-icon masters drive the generated platform assets. Install the generator dependency from `scripts/requirements.txt`, then run `python3 scripts/generate-brand-assets.py` from the repository root. The iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Keep the palette constants in the generator and the values documented in `docs/brand/README.md` in lockstep.
 
 ## Things to watch
 
