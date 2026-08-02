@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
 import {
   isAdminEmail,
@@ -6,6 +6,7 @@ import {
   readSessionCookie,
   randomToken,
   appleSignInConfigured,
+  __resetAppleJwksCache,
 } from "../src/appleAuth";
 import { authedRequest, makeEnv, seedApiKey } from "./helpers";
 
@@ -14,6 +15,11 @@ const TEST_ADMIN_TOKEN = "test-admin-token-0123456789abcdef";
 const OTHER_ADMIN_TOKEN = "other-admin-token-0123456789abcdef";
 const NEW_ADMIN_TOKEN = "new-admin-token-0123456789abcdefgh";
 const TEST_SESSION_SECRET = "test-session-secret-0123456789abcdef";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  __resetAppleJwksCache();
+});
 
 function adminEnv(overrides = {}) {
   return makeEnv({
@@ -894,4 +900,85 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("state mismatch");
   });
+
+  it("/admin/auth/apple/callback rejects an unverified Apple email", async () => {
+    const env = adminEnv();
+    const nonce = "expected-nonce";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: env.APPLE_SIGN_IN_CLIENT_ID!,
+      email: "admin@example.com",
+      emailVerified: false,
+      nonce,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const req = new Request("https://x/admin/auth/apple/callback", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": "203.0.113.14",
+        cookie: `zw_admin_state=expected; zw_admin_nonce=${nonce}`,
+      },
+      body: new URLSearchParams({ state: "expected", id_token: token }).toString(),
+    });
+    const res = await (handler.fetch as any)(req, env, ctx);
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Apple email is not verified");
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
 });
+
+async function makeAppleIdToken(input: {
+  aud: string;
+  email: string;
+  emailVerified: boolean | string;
+  nonce: string;
+}): Promise<{ token: string; jwk: JsonWebKey }> {
+  const pair = (await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"],
+  )) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey & {
+    kid?: string;
+    alg?: string;
+    use?: string;
+  };
+  jwk.kid = "admin-test-kid";
+  jwk.alg = "RS256";
+  jwk.use = "sig";
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64urlJson({ alg: "RS256", kid: jwk.kid });
+  const payload = b64urlJson({
+    iss: "https://appleid.apple.com",
+    aud: input.aud,
+    exp: now + 300,
+    iat: now,
+    sub: "admin-apple-user",
+    nonce: input.nonce,
+    email: input.email,
+    email_verified: input.emailVerified,
+  });
+  const data = new TextEncoder().encode(`${header}.${payload}`);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, data);
+  return { token: `${header}.${payload}.${b64urlBytes(new Uint8Array(signature))}`, jwk };
+}
+
+function b64urlJson(value: unknown): string {
+  return b64urlBytes(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+function b64urlBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}

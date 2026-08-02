@@ -1,5 +1,6 @@
 import {
   appAppleLoginConfigured,
+  isAppleEmailVerified,
   validateAppleIdTokenForAudience,
 } from "./appleAuth";
 import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
@@ -86,7 +87,7 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   if (!email && !existingAccount) {
     return json({ error: "Apple did not return an email for this sign-in" }, 403);
   }
-  if (email && !isEmailVerified(claims.email_verified)) {
+  if (email && !isAppleEmailVerified(claims.email_verified)) {
     return json({ error: "Apple email is not verified" }, 403);
   }
   const existingTenant = existingAccount
@@ -140,10 +141,6 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
 function appleLoginIpKey(req: Request): string {
   const ip = req.headers.get("cf-connecting-ip")?.trim();
   return `apple-login:${ip || "unknown"}`;
-}
-
-function isEmailVerified(value: boolean | string | undefined): boolean {
-  return value === true || value === "true";
 }
 
 interface AppleAccountRecord {

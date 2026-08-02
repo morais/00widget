@@ -98,6 +98,10 @@ export function isAdminEmail(env: Env, email: string): boolean {
   return adminEmails(env).includes(email.trim().toLowerCase());
 }
 
+export function isAppleEmailVerified(value: boolean | string | undefined): boolean {
+  return value === true || value === "true";
+}
+
 // ---------- ID token validation ----------
 
 interface AppleJwk {

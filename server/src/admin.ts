@@ -7,6 +7,7 @@ import {
   clearSessionCookie,
   hashAdminApiToken,
   isAdminEmail,
+  isAppleEmailVerified,
   makeSessionCookie,
   randomToken,
   readSessionCookie,
@@ -143,6 +144,9 @@ export async function handleAdminCallback(req: Request, env: Env): Promise<Respo
       ),
       403,
     );
+  }
+  if (!isAppleEmailVerified(claims.email_verified)) {
+    return htmlResponse(renderError("Apple email is not verified."), 403);
   }
   if (!isAdminEmail(env, claims.email)) {
     return htmlResponse(renderError(`${claims.email} is not in ADMIN_EMAILS`), 403);
