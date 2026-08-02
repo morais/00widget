@@ -81,6 +81,7 @@ public struct AppleTokenResponse: Codable {
     public let tenant: Tenant
     public let apiKey: APIKey
     public let token: String
+    public let appCredential: String
 }
 
 public struct EmptyBody: Codable {}
@@ -105,7 +106,8 @@ public final class APIClient {
         baseURL: URL,
         identityToken: String,
         rawNonce: String,
-        label: String
+        label: String,
+        deviceId: String
     ) async throws -> AppleTokenResponse {
         guard APIClientConfig.validatedBaseURL(from: baseURL.absoluteString) != nil else {
             throw APIClientError(status: 0, message: "Server URL must use HTTPS")
@@ -114,13 +116,14 @@ public final class APIClient {
             let identityToken: String
             let nonce: String
             let label: String
+            let deviceId: String
         }
         var req = URLRequest(url: baseURL.appendingPathComponent("/v1/auth/apple/token"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.httpBody = try CardCache.jsonEncoder().encode(
-            Body(identityToken: identityToken, nonce: rawNonce, label: label),
+            Body(identityToken: identityToken, nonce: rawNonce, label: label, deviceId: deviceId),
         )
 
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -293,14 +296,20 @@ public final class APIClient {
         let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register-start-token", body: body)
     }
 
-    public func runAction(id: String, cardId: String?, source: String) async throws {
+    public func runAction(id: String, cardId: String?) async throws {
         struct Context: Codable { let cardId: String? }
         struct Body: Codable {
-            let source: String
             let context: Context
         }
-        let body = Body(source: source, context: Context(cardId: cardId))
+        let body = Body(context: Context(cardId: cardId))
         let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run", body: body)
+    }
+
+    public func runConfirmedAction(id: String, cardId: String?) async throws {
+        struct Context: Codable { let cardId: String? }
+        struct Body: Codable { let context: Context }
+        let body = Body(context: Context(cardId: cardId))
+        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run-confirmed", body: body)
     }
 
     // MARK: - Internal

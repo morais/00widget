@@ -83,6 +83,27 @@ export async function runAction(
   actionId: string,
   ctx: ExecutionContext,
 ): Promise<Response> {
+  return runActionWithTrust(req, env, auth, actionId, ctx, false);
+}
+
+export async function runConfirmedAction(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+  actionId: string,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  return runActionWithTrust(req, env, auth, actionId, ctx, true);
+}
+
+async function runActionWithTrust(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+  actionId: string,
+  ctx: ExecutionContext,
+  confirmedByApp: boolean,
+): Promise<Response> {
   const body = await parseJson(req, RequestBodyLimits.actionRun);
   const parsed = RunActionSchema.safeParse(body ?? {});
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
@@ -99,7 +120,7 @@ export async function runAction(
 
   const resolved = await resolveAction(env, auth.tenantId, actionId, parsed.data.context?.cardId);
   if (!resolved) return notFound();
-  if (isWidgetSource(parsed.data.source)) {
+  if (!confirmedByApp) {
     if (!parsed.data.context?.cardId) {
       return json({ error: "widget actions require card context" }, 403);
     }
@@ -113,7 +134,7 @@ export async function runAction(
   const payload = {
     deliveryId,
     timestamp,
-    source: parsed.data.source,
+    source: confirmedByApp ? "app" : "widget",
     accountId: auth.tenantId,
     action: {
       id: actionId,
@@ -156,7 +177,7 @@ export async function runAction(
   return json({
     ok: true,
     actionId,
-    source: parsed.data.source,
+    source: confirmedByApp ? "app" : "widget",
     deliveryId,
     webhookStatus: result.status,
     updatedCard,
@@ -226,10 +247,6 @@ async function deliverWebhook(
     await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 0);
   }
   return { ok: false, status: lastStatus, attempts: WEBHOOK_ATTEMPTS };
-}
-
-function isWidgetSource(source: string): boolean {
-  return source.trim().toLowerCase() === "widget";
 }
 
 function isSafeFromWidget(action: ActionDefinition): boolean {

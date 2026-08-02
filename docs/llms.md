@@ -402,7 +402,7 @@ Reject deliveries whose timestamp is more than 5 minutes from your clock, and de
 
 Any `2xx` from your webhook is an ack. An empty body is fine. If you return JSON shaped as either a `DashboardCard` or `{ "card": DashboardCard }`, 00Widget immediately upserts that card and reloads widgets that can display cards; otherwise the response body is ignored. You can also return `2xx` and publish a separate `/v1/cards/upsert` later.
 
-Only `role: "normal"` + `confirm: false` actions run directly from widgets. `confirm: true` and `role: "destructive"` actions are shown in the 00Widget app, where the user can confirm before the app calls the same `/v1/actions/:id/run` path with `source: "app"`.
+Only `role: "normal"` + `confirm: false` actions run through the publisher-authenticated `/v1/actions/:id/run` endpoint. The server derives `source: "widget"`; callers cannot override it. `confirm: true` and `role: "destructive"` actions require the app-only credential and the `/v1/actions/:id/run-confirmed` endpoint after user confirmation. The app-only credential is never shared with widgets or displayed as an agent token.
 
 ## Rate limits
 

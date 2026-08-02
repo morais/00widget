@@ -82,6 +82,9 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m, ctx) =>
     actions.runAction(req, env, auth, m[1], ctx),
   ),
+  authed("POST", /^\/v1\/actions\/([^/]+)\/run-confirmed\/?$/, (req, env, auth, m, ctx) =>
+    actions.runConfirmedAction(req, env, auth, m[1], ctx), "app",
+  ),
   authed("POST", /^\/v1\/shares\/?$/, (req, env, auth) => shares.createShare(req, env, auth)),
   authed("GET", /^\/v1\/shares\/outgoing\/?$/, (req, env, auth) => shares.listOutgoing(req, env, auth)),
   authed("GET", /^\/v1\/shares\/incoming\/?$/, (req, env, auth) => shares.listIncoming(req, env, auth)),
@@ -133,13 +136,21 @@ type AuthedHandler = (
   ctx: ExecutionContext,
 ) => Promise<Response>;
 
-function authed(method: string, pattern: RegExp, handler: AuthedHandler): Route {
+function authed(
+  method: string,
+  pattern: RegExp,
+  handler: AuthedHandler,
+  credentialKind: import("./auth").CredentialKind = "publisher",
+): Route {
   return {
     method,
     pattern,
     handler: async (req, env, match, ctx) => {
       try {
         const auth = await requireAuth(req, env);
+        if (auth.credentialKind !== credentialKind) {
+          return json({ error: `${credentialKind} credential required` }, 403);
+        }
         return await handler(req, env, auth, match, ctx);
       } catch (err) {
         if (err instanceof AuthError) return unauthorized(err.message);

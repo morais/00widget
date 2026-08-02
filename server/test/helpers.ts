@@ -57,7 +57,14 @@ export class FakeD1 {
     return results;
   }
 
-  seedApiKeyHash(rawTokenHash: string, tenantId = "test-tenant", label = "test key"): void {
+  seedApiKeyHash(
+    rawTokenHash: string,
+    tenantId = "test-tenant",
+    label = "test key",
+    kind: "publisher" | "app" = "publisher",
+    sessionId = "",
+    deviceId = "",
+  ): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
       this.tenants.set(tenantId, {
@@ -76,6 +83,9 @@ export class FakeD1 {
       created_at: now,
       last_used_at: "",
       revoked_at: "",
+      kind,
+      session_id: sessionId,
+      device_id: deviceId,
     });
   }
 
@@ -95,7 +105,7 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT INTO api_keys")) {
-      const [id, tenant_id, token_hash, label, created_at] = values.map(String);
+      const [id, tenant_id, token_hash, label, created_at, kind, session_id, device_id] = values.map((value) => value == null ? "" : String(value));
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -104,6 +114,9 @@ export class FakeD1 {
         created_at,
         last_used_at: "",
         revoked_at: "",
+        kind,
+        session_id,
+        device_id,
       });
       return 1;
     }
@@ -430,14 +443,21 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
         const tenant = this.tenants.get(candidate.tenant_id);
         return candidate.token_hash === token_hash && !candidate.revoked_at && tenant && !tenant.disabled_at;
       });
       return row
-        ? [{ id: row.id, tenant_id: row.tenant_id, last_used_at: row.last_used_at }]
+        ? [{
+            id: row.id,
+            tenant_id: row.tenant_id,
+            last_used_at: row.last_used_at,
+            kind: row.kind,
+            session_id: row.session_id,
+            device_id: row.device_id,
+          }]
         : [];
     }
     if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
@@ -454,7 +474,7 @@ export class FakeD1 {
         .sort(by("created_at"))[0];
       return pick(row, ["id", "owner_email"]);
     }
-    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at FROM api_keys ORDER BY created_at DESC") {
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
     }
     if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
@@ -806,8 +826,22 @@ export function makeEnv(overrides: Partial<Env> = {}): Env {
   };
 }
 
-export async function seedApiKey(env: Env, rawToken: string, tenantId: string): Promise<void> {
-  (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(await sha256Hex(rawToken), tenantId);
+export async function seedApiKey(
+  env: Env,
+  rawToken: string,
+  tenantId: string,
+  kind: "publisher" | "app" = "publisher",
+  sessionId = "",
+  deviceId = "",
+): Promise<void> {
+  (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(
+    await sha256Hex(rawToken),
+    tenantId,
+    "test key",
+    kind,
+    sessionId,
+    deviceId,
+  );
 }
 
 export function authedRequest(url: string, init: RequestInit = {}, apiKey = "test-key"): Request {

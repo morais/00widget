@@ -35,6 +35,28 @@ public enum KeychainStore {
         SecItemDelete(baseQuery(for: key, useAccessGroup: false) as CFDictionary)
     }
 
+    public static func setAppOnly(_ value: String, for key: String) throws {
+        let data = Data(value.utf8)
+        let query = baseQuery(for: key, useAccessGroup: false)
+        SecItemDelete(query as CFDictionary)
+
+        var attributes = query
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let status = SecItemAdd(attributes as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+    }
+
+    public static func getAppOnly(_ key: String) -> String? {
+        get(key, useAccessGroup: false)
+    }
+
+    public static func deleteAppOnly(_ key: String) {
+        SecItemDelete(baseQuery(for: key, useAccessGroup: false) as CFDictionary)
+    }
+
     private static func get(_ key: String, useAccessGroup: Bool) -> String? {
         let query = baseQuery(for: key, useAccessGroup: useAccessGroup).merging([
             kSecReturnData as String: true,

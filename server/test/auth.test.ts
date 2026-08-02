@@ -19,6 +19,7 @@ describe("requireAuth", () => {
     expect(ctx.apiKey).toBe("test-key");
     expect(ctx.apiKeyHash).toMatch(/^[0-9a-f]{64}$/);
     expect(ctx.tenantId).toBe("test-tenant");
+    expect(ctx.credentialKind).toBe("publisher");
     expect((await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)?.lastUsedAt).toBeDefined();
   });
 

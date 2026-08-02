@@ -5,12 +5,20 @@ export interface AuthContext {
   apiKeyHash: string;
   apiKeyId: string;
   tenantId: string;
+  credentialKind: CredentialKind;
+  sessionId?: string;
+  deviceId?: string;
 }
+
+export type CredentialKind = "publisher" | "app";
 
 interface AuthRow {
   id: string;
   tenant_id: string;
   last_used_at: string | null;
+  kind: CredentialKind;
+  session_id: string | null;
+  device_id: string | null;
 }
 
 export interface TenantRecord {
@@ -28,12 +36,18 @@ export interface ApiKeyRecord {
   createdAt: string;
   lastUsedAt?: string;
   revokedAt?: string;
+  kind: CredentialKind;
+  sessionId?: string;
+  deviceId?: string;
 }
 
 export interface CreateApiKeyInput {
   tenantId?: string;
   ownerEmail?: string;
   label?: string;
+  kind?: CredentialKind;
+  sessionId?: string;
+  deviceId?: string;
 }
 
 export interface CreatedApiKey {
@@ -51,7 +65,8 @@ export async function requireAuth(req: Request, env: Env): Promise<AuthContext> 
   const apiKey = match[1].trim();
   const apiKeyHash = await sha256Hex(apiKey);
   const row = await env.ZW_DB.prepare(
-    `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at
+    `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
+            api_keys.kind, api_keys.session_id, api_keys.device_id
      FROM api_keys
      JOIN tenants ON tenants.id = api_keys.tenant_id
      WHERE api_keys.token_hash = ?
@@ -64,7 +79,15 @@ export async function requireAuth(req: Request, env: Env): Promise<AuthContext> 
     throw new AuthError("invalid API key");
   }
   await touchApiKeyLastUsed(env, row.id, row.last_used_at);
-  return { apiKey, apiKeyHash, apiKeyId: row.id, tenantId: row.tenant_id };
+  return {
+    apiKey,
+    apiKeyHash,
+    apiKeyId: row.id,
+    tenantId: row.tenant_id,
+    credentialKind: row.kind,
+    sessionId: row.session_id ?? undefined,
+    deviceId: row.device_id ?? undefined,
+  };
 }
 
 export class AuthError extends Error {
@@ -110,7 +133,10 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     throw new Error("ownerEmail is required");
   }
   const label = input.label?.trim() || "default";
-  const token = `zw_${randomUrlToken(32)}`;
+  const kind = input.kind ?? "publisher";
+  const sessionId = input.sessionId?.trim() || undefined;
+  const deviceId = input.deviceId?.trim() || undefined;
+  const token = `${kind === "app" ? "zwa" : "zw"}_${randomUrlToken(32)}`;
   const tokenHash = await sha256Hex(token);
   const apiKeyId = crypto.randomUUID();
 
@@ -128,10 +154,11 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     .bind(ownerEmail, tenantId)
     .run();
   await env.ZW_DB.prepare(
-    `INSERT INTO api_keys (id, tenant_id, token_hash, label, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO api_keys
+       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(apiKeyId, tenantId, tokenHash, label, now)
+    .bind(apiKeyId, tenantId, tokenHash, label, now, kind, sessionId ?? null, deviceId ?? null)
     .run();
 
   return {
@@ -147,6 +174,9 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       tokenHash,
       label,
       createdAt: now,
+      kind,
+      sessionId,
+      deviceId,
     },
     token,
   };
@@ -185,7 +215,8 @@ export async function listTenants(env: Env): Promise<TenantRecord[]> {
 
 export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at
+    `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
+            kind, session_id, device_id
      FROM api_keys
      ORDER BY created_at DESC`,
   ).all<{
@@ -196,6 +227,9 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     created_at: string;
     last_used_at: string | null;
     revoked_at: string | null;
+    kind: CredentialKind;
+    session_id: string | null;
+    device_id: string | null;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
@@ -205,6 +239,9 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at ?? undefined,
     revokedAt: row.revoked_at ?? undefined,
+    kind: row.kind,
+    sessionId: row.session_id ?? undefined,
+    deviceId: row.device_id ?? undefined,
   }));
 }
 

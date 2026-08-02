@@ -55,6 +55,7 @@ public enum ZeroZeroWidgetConstants {
 
     public enum KeychainKeys {
         public static let apiKey = "zw.apiKey"
+        public static let appCredential = "zw.appCredential"
     }
 }
 

@@ -55,11 +55,17 @@ final class TVEnvironment: ObservableObject {
                 baseURL: url,
                 identityToken: identityToken,
                 rawNonce: rawNonce,
-                label: appVersion()
+                label: appVersion(),
+                deviceId: SharedSettings.deviceId()
             )
             apiKey = response.token
+            KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
+            try KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
+            try KeychainStore.setAppOnly(
+                response.appCredential,
+                for: ZeroZeroWidgetConstants.KeychainKeys.appCredential
+            )
             appleLoginEmail = response.tenant.ownerEmail
-            try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
             UserDefaults.standard.set(appleLoginEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
             await fetchCards()
             startAutoRefresh()
@@ -70,6 +76,15 @@ final class TVEnvironment: ObservableObject {
 
     func clearAppleLoginError() {
         appleLoginError = nil
+    }
+
+    func confirmedActionClient() -> APIClient? {
+        guard
+            let url = APIClientConfig.validatedBaseURL(from: serverBaseURL),
+            let credential = KeychainStore.getAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential),
+            !credential.isEmpty
+        else { return nil }
+        return APIClient(config: APIClientConfig(baseURL: url, apiKey: credential))
     }
 
     func reportAppleLoginError(_ message: String) {

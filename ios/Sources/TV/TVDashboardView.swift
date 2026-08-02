@@ -218,12 +218,17 @@ struct TVDashboardView: View {
 
         Task {
             defer { runningActionID = nil }
-            guard let client = env.apiClient() else {
+            let requiresConfirmation = action.confirm || action.role == .destructive
+            guard let client = requiresConfirmation ? env.confirmedActionClient() : env.apiClient() else {
                 actionError = "The server connection is unavailable."
                 return
             }
             do {
-                try await client.runAction(id: action.id, cardId: card.id, source: "app")
+                if requiresConfirmation {
+                    try await client.runConfirmedAction(id: action.id, cardId: card.id)
+                } else {
+                    try await client.runAction(id: action.id, cardId: card.id)
+                }
                 await env.fetchCards()
             } catch {
                 actionError = error.localizedDescription

@@ -112,8 +112,13 @@ struct CardDetailView: View {
 
     private func run(_ action: ActionDefinition) {
         Task {
-            guard let client = env.apiClient() else { return }
-            try? await client.runAction(id: action.id, cardId: resolvedCard.id, source: "app")
+            if action.confirm || action.role == .destructive {
+                guard let client = env.confirmedActionClient() else { return }
+                try? await client.runConfirmedAction(id: action.id, cardId: resolvedCard.id)
+            } else {
+                guard let client = env.apiClient() else { return }
+                try? await client.runAction(id: action.id, cardId: resolvedCard.id)
+            }
         }
     }
 

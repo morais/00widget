@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
-import { authedRequest, makeEnv } from "./helpers";
+import { authedRequest, makeEnv, seedApiKey } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 type ActionInput = {
@@ -214,8 +214,9 @@ describe("webhook integrations and actions", () => {
     }
   });
 
-  it("allows destructive actions from the app confirmation path", async () => {
+  it("allows destructive actions only through an app-scoped confirmation path", async () => {
     const env = makeEnv();
+    await seedApiKey(env, "app-key", "test-tenant", "app");
     await registerWebhook(env);
     await upsertActionCard(env, [
       {
@@ -227,6 +228,23 @@ describe("webhook integrations and actions", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
 
     const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-reset/run-confirmed", {
+        method: "POST",
+        body: JSON.stringify({ context: { cardId: "boiler" } }),
+      }, "app-key"),
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it("does not trust a caller-supplied source on the publisher endpoint", async () => {
+    const env = makeEnv();
+    await registerWebhook(env);
+    await upsertActionCard(env, [{ id: "boiler-reset", label: "Reset", role: "destructive" }]);
+
+    const res = await (handler.fetch as any)(
       authedRequest("https://x/v1/actions/boiler-reset/run", {
         method: "POST",
         body: JSON.stringify({ source: "app", context: { cardId: "boiler" } }),
@@ -235,7 +253,22 @@ describe("webhook integrations and actions", () => {
       executionCtx,
     );
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "action is not safe to run from widgets" });
+  });
+
+  it("rejects publisher credentials on the confirmed action endpoint", async () => {
+    const env = makeEnv();
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/anything/run-confirmed", {
+        method: "POST",
+        body: JSON.stringify({ context: { cardId: "boiler" } }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "app credential required" });
   });
 
   it("upserts a response card returned by the webhook", async () => {
