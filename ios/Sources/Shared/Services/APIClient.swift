@@ -82,6 +82,7 @@ public struct AppleTokenResponse: Codable {
     public let apiKey: APIKey
     public let token: String
     public let appCredential: String
+    public let publisherCredential: String?
 }
 
 public struct EmptyBody: Codable {}

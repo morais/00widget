@@ -1,5 +1,11 @@
 import type { Env, WidgetReloadQueueMessage } from "./types";
-import { requireAuth, AuthError } from "./auth";
+import {
+  requireAuth,
+  AuthError,
+  hasScope,
+  type ApiScope,
+  type CredentialKind,
+} from "./auth";
 import { json, notFound, unauthorized } from "./http";
 import * as cards from "./cards";
 import * as devices from "./devices";
@@ -35,74 +41,74 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
-  authed("POST", /^\/v1\/cards\/upsert\/?$/, (req, env, auth, _match, ctx) =>
+  authed("POST", /^\/v1\/cards\/upsert\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),
-  authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, (req, env, auth, _match, ctx) =>
+  authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCardsBatch(req, env, auth, ctx)),
-  authed("GET", /^\/v1\/cards\/?$/, (req, env, auth) => cards.listCards(req, env, auth)),
-  authed("GET", /^\/v1\/dashboard\/?$/, (req, env, auth) =>
+  authed("GET", /^\/v1\/cards\/?$/, "tenant:read", (req, env, auth) => cards.listCards(req, env, auth)),
+  authed("GET", /^\/v1\/dashboard\/?$/, "tenant:read", (req, env, auth) =>
     dashboard.getDashboard(req, env, auth),
   ),
-  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
-  authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, (req, env, auth, m, ctx) =>
+  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "tenant:read", (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
+  authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, "publish", (req, env, auth, m, ctx) =>
     cards.deleteCard(req, env, auth, m[1], ctx)),
-  authed("POST", /^\/v1\/devices\/register\/?$/, (req, env, auth) => devices.registerDevice(req, env, auth)),
-  authed("POST", /^\/v1\/widgets\/register-push-token\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/devices\/register\/?$/, "device:register", (req, env, auth) => devices.registerDevice(req, env, auth)),
+  authed("POST", /^\/v1\/widgets\/register-push-token\/?$/, "device:register", (req, env, auth) =>
     widgets.registerWidgetPushToken(req, env, auth),
   ),
-  authed("POST", /^\/v1\/live-activities\/register\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/live-activities\/register\/?$/, "device:register", (req, env, auth) =>
     liveActivities.registerLiveActivity(req, env, auth),
   ),
-  authed("POST", /^\/v1\/live-activities\/register-start-token\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/live-activities\/register-start-token\/?$/, "device:register", (req, env, auth) =>
     liveActivities.registerLiveActivityStartToken(req, env, auth),
   ),
-  authed("POST", /^\/v1\/live-activities\/start\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/live-activities\/start\/?$/, "publish", (req, env, auth) =>
     liveActivities.startLiveActivity(req, env, auth),
   ),
-  authed("GET", /^\/v1\/live-activities\/pending\/?$/, (req, env, auth) =>
+  authed("GET", /^\/v1\/live-activities\/pending\/?$/, "tenant:read", (req, env, auth) =>
     liveActivities.pendingActivities(req, env, auth),
   ),
-  authed("GET", /^\/v1\/live-activities\/?$/, (req, env, auth) =>
+  authed("GET", /^\/v1\/live-activities\/?$/, "tenant:read", (req, env, auth) =>
     liveActivities.activeActivities(req, env, auth),
   ),
-  authed("POST", /^\/v1\/live-activities\/update\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/live-activities\/update\/?$/, "publish", (req, env, auth) =>
     liveActivities.updateLiveActivity(req, env, auth),
   ),
-  authed("POST", /^\/v1\/live-activities\/end\/?$/, (req, env, auth) =>
+  authed("POST", /^\/v1\/live-activities\/end\/?$/, "publish", (req, env, auth) =>
     liveActivities.endLiveActivity(req, env, auth),
   ),
-  authed("GET", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+  authed("GET", /^\/v1\/integrations\/webhook\/?$/, "webhook:manage", (req, env, auth) =>
     actions.getWebhookIntegration(req, env, auth),
   ),
-  authed("PUT", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+  authed("PUT", /^\/v1\/integrations\/webhook\/?$/, "webhook:manage", (req, env, auth) =>
     actions.putWebhookIntegration(req, env, auth),
   ),
-  authed("DELETE", /^\/v1\/integrations\/webhook\/?$/, (req, env, auth) =>
+  authed("DELETE", /^\/v1\/integrations\/webhook\/?$/, "webhook:manage", (req, env, auth) =>
     actions.deleteWebhookIntegration(req, env, auth),
   ),
-  authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, (req, env, auth, m, ctx) =>
+  authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, "actions:run", (req, env, auth, m, ctx) =>
     actions.runAction(req, env, auth, m[1], ctx),
   ),
-  authed("POST", /^\/v1\/actions\/([^/]+)\/run-confirmed\/?$/, (req, env, auth, m, ctx) =>
-    actions.runConfirmedAction(req, env, auth, m[1], ctx), "app",
+  authed("POST", /^\/v1\/actions\/([^/]+)\/run-confirmed\/?$/, "actions:confirm", (req, env, auth, m, ctx) =>
+    actions.runConfirmedAction(req, env, auth, m[1], ctx), { credentialKind: "app" },
   ),
-  authed("POST", /^\/v1\/shares\/?$/, (req, env, auth) => shares.createShare(req, env, auth)),
-  authed("GET", /^\/v1\/shares\/outgoing\/?$/, (req, env, auth) => shares.listOutgoing(req, env, auth)),
-  authed("GET", /^\/v1\/shares\/incoming\/?$/, (req, env, auth) => shares.listIncoming(req, env, auth)),
-  authed("POST", /^\/v1\/shares\/([^/]+)\/accept\/?$/, (req, env, auth, m) =>
+  authed("POST", /^\/v1\/shares\/?$/, "shares:manage", (req, env, auth) => shares.createShare(req, env, auth)),
+  authed("GET", /^\/v1\/shares\/outgoing\/?$/, "shares:manage", (req, env, auth) => shares.listOutgoing(req, env, auth)),
+  authed("GET", /^\/v1\/shares\/incoming\/?$/, "shares:manage", (req, env, auth) => shares.listIncoming(req, env, auth)),
+  authed("POST", /^\/v1\/shares\/([^/]+)\/accept\/?$/, "shares:manage", (req, env, auth, m) =>
     shares.acceptShare(req, env, auth, m[1]),
   ),
-  authed("POST", /^\/v1\/shares\/([^/]+)\/decline\/?$/, (req, env, auth, m) =>
+  authed("POST", /^\/v1\/shares\/([^/]+)\/decline\/?$/, "shares:manage", (req, env, auth, m) =>
     shares.declineShare(req, env, auth, m[1]),
   ),
-  authed("DELETE", /^\/v1\/shares\/([^/]+)\/?$/, (req, env, auth, m) =>
+  authed("DELETE", /^\/v1\/shares\/([^/]+)\/?$/, "shares:manage", (req, env, auth, m) =>
     shares.revokeShare(req, env, auth, m[1]),
   ),
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env) =>
     appLogin.createTokenFromApple(req, env),
   },
-  authed("DELETE", /^\/v1\/auth\/token\/?$/, (req, env, auth) =>
-    sessions.revokeCurrentCredential(req, env, auth), "any", true,
+  authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
+    sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },
   ),
   // Admin dashboard — gated by Apple Sign-In or API-token cookie.
   { method: "GET", pattern: /^\/admin\/login\/?$/, handler: (req, env) => admin.handleAdminLogin(req, env) },
@@ -143,18 +149,21 @@ type AuthedHandler = (
 function authed(
   method: string,
   pattern: RegExp,
+  requiredScope: ApiScope | null,
   handler: AuthedHandler,
-  credentialKind: import("./auth").CredentialKind | "any" = "publisher",
-  allowExpired = false,
+  options: { credentialKind?: CredentialKind; allowExpired?: boolean } = {},
 ): Route {
   return {
     method,
     pattern,
     handler: async (req, env, match, ctx) => {
       try {
-        const auth = await requireAuth(req, env, { allowExpired });
-        if (credentialKind !== "any" && auth.credentialKind !== credentialKind) {
-          return json({ error: `${credentialKind} credential required` }, 403);
+        const auth = await requireAuth(req, env, { allowExpired: options.allowExpired });
+        if (options.credentialKind && auth.credentialKind !== options.credentialKind) {
+          return json({ error: `${options.credentialKind} credential required` }, 403);
+        }
+        if (requiredScope && !hasScope(auth, requiredScope)) {
+          return json({ error: `API scope '${requiredScope}' required` }, 403);
         }
         return await handler(req, env, auth, match, ctx);
       } catch (err) {

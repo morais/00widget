@@ -105,7 +105,7 @@ Two sign-in methods, either is sufficient:
 
 Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/admin/login`, and paste any value from `API_KEYS` into the API-token form. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set). Login attempts are rate-limited per client IP.
 
-Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a tenant API token, copy the raw token once, and give that generated token to the iOS app or publishing agent.
+Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a scoped tenant API token, copy the raw token once, and give it only to the intended app or integration. The form offers producer, read-only, device, and webhook-manager presets.
 
 To enable temporarily:
 
@@ -151,7 +151,7 @@ If the admin chose "Hide My Email" on first sign-in, Apple returns a relay addre
 
 ## iOS app login
 
-The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates a paired 90-day credential session. The publisher token is shared with widgets and shown once for agents. A separately scoped app credential is stored only in the app's device-only Keychain and can run confirmed actions. Signing out calls `DELETE /v1/auth/token`, revokes the pair, and removes that device's APNs, widget, and Live Activity registrations.
+The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates three 90-day credentials in one revocable session: a widget-visible device credential (`tenant:read`, `device:register`, `actions:run`), an app-only credential (`actions:confirm`, `shares:manage`), and an app-only stored publisher credential (`tenant:read`, `publish`) that the user can copy for agents. Signing out calls `DELETE /v1/auth/token`, revokes all three, and removes that device's APNs, widget, and Live Activity registrations.
 
 All newly created API tokens expire after 90 days. The migration also gives existing tokens a 90-day transition window. A standalone publisher token can revoke itself with `DELETE /v1/auth/token`; the endpoint also accepts an expired token solely so it can clean up its own registrations.
 
@@ -194,7 +194,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
 | GET    | `/v1/integrations/webhook`                   | Read the configured action webhook URL. |
-| PUT    | `/v1/integrations/webhook`                   | Create/update the action webhook and return its signing secret. |
+| PUT    | `/v1/integrations/webhook`                   | Create/update the action webhook; return a secret only on create/rotation. |
 | DELETE | `/v1/integrations/webhook`                   | Disable action webhook delivery.       |
 | POST   | `/v1/actions/:id/run`                        | Deliver an action to the configured webhook. |
 | POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
@@ -208,7 +208,22 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | GET    | `/admin/logout`                              | Clears the admin session cookie.       |
 | GET    | `/admin`                                     | Read-only ops dashboard (HTML).        |
 
-All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
+All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authenticated route also requires one explicit capability; a valid token without it receives `403`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
+
+| Scope | Capabilities |
+| ----- | ------------ |
+| `tenant:read` | Read cards, dashboard state, and Live Activities. |
+| `publish` | Upsert/delete cards and start/update/end Live Activities. |
+| `device:register` | Register device, WidgetKit, and ActivityKit push tokens. |
+| `actions:run` | Run safe, non-confirmed card actions. |
+| `actions:confirm` | Run confirmed/destructive actions; additionally requires an app credential. |
+| `shares:manage` | Create, list, accept, decline, and revoke shares. |
+| `webhook:manage` | Read, create, update, rotate, or delete the action webhook. |
+
+Route declarations in `src/index.ts` must name a scope; there is no implicit
+publisher access. Existing publisher tokens receive an explicit compatibility
+scope set during migration and retain it only until their normal expiry. Newly
+created credentials always use a least-privilege preset.
 
 The iOS app treats WidgetKit's callback as a canonical subscription snapshot:
 
@@ -230,7 +245,7 @@ Sending `subscriptions: []` without a token removes that device's WidgetKit subs
 
 ## Storage layout
 
-Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id`, and only `sha256(rawToken)` is stored. Tenants store an `owner_email` for ops/account ownership. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
+Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id` and an explicit `scopes_json` capability list, and only `sha256(rawToken)` is stored. Tenants store an `owner_email` for ops/account ownership. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.
 
 Tables:
 

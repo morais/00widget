@@ -41,6 +41,24 @@ describe("webhook integrations and actions", () => {
     expect(read.status).toBe(200);
     expect(await read.json()).not.toHaveProperty("signingSecret");
 
+    const metadataUpdate = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhook", {
+        method: "PUT",
+        body: JSON.stringify({ url: "https://example.com/actions-v2" }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(metadataUpdate.status).toBe(200);
+    const metadataUpdateBody = await metadataUpdate.json();
+    expect(metadataUpdateBody).toMatchObject({
+      url: "https://example.com/actions-v2",
+      secretCreated: false,
+    });
+    expect(metadataUpdateBody).not.toHaveProperty("signingSecret");
+    expect((await storage.getWebhookIntegration(env, "test-tenant"))?.signingSecret)
+      .toBe(createdBody.signingSecret);
+
     const rotated = await (handler.fetch as any)(
       authedRequest("https://x/v1/integrations/webhook", {
         method: "PUT",

@@ -3,6 +3,7 @@ import handler from "../src/index";
 import { __resetAppleJwksCache } from "../src/appleAuth";
 import { RateLimitPolicies } from "../src/rateLimit";
 import { makeEnv } from "./helpers";
+import { listApiKeys } from "../src/auth";
 
 const ctx = {} as ExecutionContext;
 
@@ -60,12 +61,14 @@ describe("app Apple login", () => {
       tenant: { ownerEmail: string };
       apiKey: { label: string; tokenHash: string };
       appCredential: string;
+      publisherCredential: string;
     };
     expect(body.token).toMatch(/^zw_/);
     expect(body.tenant.ownerEmail).toBe("customer@example.com");
     expect(body.apiKey.label).toBe("Alice iPhone");
     expect(body.apiKey.tokenHash).not.toBe(body.token);
     expect(body.appCredential).toMatch(/^zwa_/);
+    expect(body.publisherCredential).toMatch(/^zw_/);
 
     const cards = await (handler.fetch as any)(
       new Request("https://x/v1/cards", {
@@ -84,6 +87,53 @@ describe("app Apple login", () => {
       ctx,
     );
     expect(appCredentialCards.status).toBe(403);
+
+    const publisherCards = await (handler.fetch as any)(
+      new Request("https://x/v1/cards", {
+        headers: { authorization: `Bearer ${body.publisherCredential}` },
+      }),
+      env,
+      ctx,
+    );
+    expect(publisherCards.status).toBe(200);
+
+    const publisherDeviceRegistration = await (handler.fetch as any)(
+      new Request("https://x/v1/devices/register", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${body.publisherCredential}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ deviceId: "publisher-device", appVersion: "1.0" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(publisherDeviceRegistration.status).toBe(403);
+
+    const devicePublish = await (handler.fetch as any)(
+      new Request("https://x/v1/cards/upsert", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${body.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ id: "forbidden", template: "summary", title: "No" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(devicePublish.status).toBe(403);
+
+    expect(
+      (await listApiKeys(env))
+        .filter((key) => key.sessionId)
+        .map((key) => key.scopes),
+    ).toEqual(expect.arrayContaining([
+      ["tenant:read", "publish"],
+      ["tenant:read", "device:register", "actions:run"],
+      ["actions:confirm", "shares:manage"],
+    ]));
   });
 
   it("uses the stored Apple account mapping when a later token omits email", async () => {

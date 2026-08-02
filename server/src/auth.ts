@@ -9,9 +9,38 @@ export interface AuthContext {
   sessionId?: string;
   deviceId?: string;
   expiresAt: string;
+  scopes: ApiScope[];
 }
 
 export type CredentialKind = "publisher" | "app";
+
+export const API_SCOPES = [
+  "tenant:read",
+  "publish",
+  "device:register",
+  "actions:run",
+  "actions:confirm",
+  "shares:manage",
+  "webhook:manage",
+] as const;
+
+export type ApiScope = typeof API_SCOPES[number];
+
+export const ApiScopePresets = {
+  producer: ["tenant:read", "publish"] as ApiScope[],
+  readOnly: ["tenant:read"] as ApiScope[],
+  device: ["tenant:read", "device:register", "actions:run"] as ApiScope[],
+  appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],
+  webhookManager: ["tenant:read", "webhook:manage"] as ApiScope[],
+  legacyPublisher: [
+    "tenant:read",
+    "publish",
+    "device:register",
+    "actions:run",
+    "shares:manage",
+    "webhook:manage",
+  ] as ApiScope[],
+} as const;
 
 interface AuthRow {
   id: string;
@@ -21,6 +50,7 @@ interface AuthRow {
   session_id: string | null;
   device_id: string | null;
   expires_at: string;
+  scopes_json: string;
 }
 
 export interface TenantRecord {
@@ -42,6 +72,7 @@ export interface ApiKeyRecord {
   sessionId?: string;
   deviceId?: string;
   expiresAt: string;
+  scopes: ApiScope[];
 }
 
 export interface CreateApiKeyInput {
@@ -52,6 +83,7 @@ export interface CreateApiKeyInput {
   sessionId?: string;
   deviceId?: string;
   expiresAt?: string;
+  scopes?: readonly ApiScope[];
 }
 
 export interface CreatedApiKey {
@@ -74,7 +106,8 @@ export async function requireAuth(
   const apiKeyHash = await sha256Hex(apiKey);
   const row = await env.ZW_DB.prepare(
     `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
-            api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at
+            api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at,
+            api_keys.scopes_json
      FROM api_keys
      JOIN tenants ON tenants.id = api_keys.tenant_id
      WHERE api_keys.token_hash = ?
@@ -90,6 +123,7 @@ export async function requireAuth(
   if (!options.allowExpired && (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now())) {
     throw new AuthError("API key expired");
   }
+  const scopes = parseScopes(row.scopes_json);
   await touchApiKeyLastUsed(env, row.id, row.last_used_at);
   return {
     apiKey,
@@ -100,6 +134,7 @@ export async function requireAuth(
     sessionId: row.session_id ?? undefined,
     deviceId: row.device_id ?? undefined,
     expiresAt: row.expires_at,
+    scopes,
   };
 }
 
@@ -147,6 +182,9 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   }
   const label = input.label?.trim() || "default";
   const kind = input.kind ?? "publisher";
+  const scopes = normalizeScopes(
+    input.scopes ?? (kind === "app" ? ApiScopePresets.appOnly : ApiScopePresets.producer),
+  );
   const sessionId = input.sessionId?.trim() || undefined;
   const deviceId = input.deviceId?.trim() || undefined;
   const expiresAt = input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
@@ -172,8 +210,9 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     .run();
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
-       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id,
+        expires_at, scopes_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       apiKeyId,
@@ -185,6 +224,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       sessionId ?? null,
       deviceId ?? null,
       expiresAt,
+      JSON.stringify(scopes),
     )
     .run();
 
@@ -205,6 +245,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       sessionId,
       deviceId,
       expiresAt,
+      scopes,
     },
     token,
   };
@@ -244,7 +285,7 @@ export async function listTenants(env: Env): Promise<TenantRecord[]> {
 export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
-            kind, session_id, device_id, expires_at
+            kind, session_id, device_id, expires_at, scopes_json
      FROM api_keys
      ORDER BY created_at DESC`,
   ).all<{
@@ -259,6 +300,7 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     session_id: string | null;
     device_id: string | null;
     expires_at: string;
+    scopes_json: string;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
@@ -272,7 +314,33 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     sessionId: row.session_id ?? undefined,
     deviceId: row.device_id ?? undefined,
     expiresAt: row.expires_at,
+    scopes: parseScopes(row.scopes_json),
   }));
+}
+
+export function hasScope(auth: Pick<AuthContext, "scopes">, scope: ApiScope): boolean {
+  return auth.scopes.includes(scope);
+}
+
+function normalizeScopes(scopes: readonly ApiScope[]): ApiScope[] {
+  const allowed = new Set<ApiScope>(API_SCOPES);
+  const normalized = [...new Set(scopes)];
+  if (normalized.some((scope) => !allowed.has(scope))) {
+    throw new Error("invalid API scope");
+  }
+  return API_SCOPES.filter((scope) => normalized.includes(scope));
+}
+
+function parseScopes(raw: string): ApiScope[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed) || parsed.some((scope) => typeof scope !== "string")) {
+      throw new Error("malformed scope list");
+    }
+    return normalizeScopes(parsed as ApiScope[]);
+  } catch {
+    throw new AuthError("invalid API key scopes");
+  }
 }
 
 function constantTimeEqual(a: string, b: string): boolean {

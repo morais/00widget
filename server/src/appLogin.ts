@@ -2,7 +2,7 @@ import {
   appAppleLoginConfigured,
   validateAppleIdTokenForAudience,
 } from "./appleAuth";
-import { createApiKey, sha256Hex } from "./auth";
+import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
 import { parseJson } from "./cards";
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
@@ -105,6 +105,7 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     kind: "publisher",
     sessionId,
     deviceId,
+    scopes: ApiScopePresets.device,
   });
   const appCredential = await createApiKey(env, {
     tenantId: created.tenant.id,
@@ -113,13 +114,27 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     kind: "app",
     sessionId,
     deviceId,
+    scopes: ApiScopePresets.appOnly,
+  });
+  const publisherCredential = await createApiKey(env, {
+    tenantId: created.tenant.id,
+    ownerEmail: created.tenant.ownerEmail,
+    label: `${label} (agent publisher)`,
+    kind: "publisher",
+    sessionId,
+    deviceId,
+    scopes: ApiScopePresets.producer,
   });
   await putAppleAccount(env, {
     appleSub: claims.sub,
     tenantId: created.tenant.id,
     email: email ?? existingAccount!.email,
   });
-  return json({ ...created, appCredential: appCredential.token }, 201);
+  return json({
+    ...created,
+    appCredential: appCredential.token,
+    publisherCredential: publisherCredential.token,
+  }, 201);
 }
 
 function appleLoginIpKey(req: Request): string {

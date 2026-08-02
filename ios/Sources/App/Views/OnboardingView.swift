@@ -112,15 +112,15 @@ struct OnboardingView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("API token")
+                Text("Agent publisher token")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(env.apiKey)
+                Text(env.agentApiKey)
                     .font(.caption.monospaced())
                     .textSelection(.enabled)
                     .lineLimit(4)
                 Button(copiedToken ? "Copied temporarily" : "Copy token") {
-                    copySensitiveText(env.apiKey)
+                    copySensitiveText(env.agentApiKey)
                     copiedToken = true
                 }
             }
@@ -254,7 +254,7 @@ struct OnboardingView: View {
             return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and enter an API key above to use as the authorization token."
         }
 
-        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.apiKey) as the authorization token."
+        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.agentApiKey) as the authorization token."
     }
 }
 

@@ -14,11 +14,13 @@ import {
   type AdminSession,
 } from "./appleAuth";
 import {
+  ApiScopePresets,
   createApiKey,
   isValidApiKey,
   listApiKeys,
   listTenants,
   type ApiKeyRecord,
+  type ApiScope,
   type TenantRecord,
 } from "./auth";
 import { revokeCredentialById } from "./sessions";
@@ -159,7 +161,7 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
 
-  let input: { tenantId?: string; ownerEmail?: string; label?: string };
+  let input: { tenantId?: string; ownerEmail?: string; label?: string; scopes: ApiScope[] };
   try {
     input = await parseCreateApiKeyInput(req);
   } catch (err) {
@@ -199,6 +201,7 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
            <tr><th>Owner email</th><td>${esc(created.tenant.ownerEmail)}</td></tr>
            <tr><th>Tenant id</th><td><code>${esc(created.tenant.id)}</code></td></tr>
            <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
+           <tr><th>Scopes</th><td><code>${esc(created.apiKey.scopes.join(", "))}</code></td></tr>
            <tr><th>API key id</th><td><code>${esc(created.apiKey.id)}</code></td></tr>
            <tr><th>Expires</th><td>${esc(created.apiKey.expiresAt)}</td></tr>
          </tbody></table>
@@ -469,7 +472,7 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
     return `<tr>
       <td><code>${esc(shortHash(key.id))}</code></td>
       <td>${esc(key.label)}</td>
-      <td>${esc(key.kind)}</td>
+      <td><code>${esc(key.scopes.join(", "))}</code></td>
       <td><code>${esc(shortHash(key.tokenHash))}</code></td>
       <td>${esc(active)}</td>
       <td class="ts">${esc(key.createdAt)}</td>
@@ -485,6 +488,14 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
        <input type="hidden" name="tenantId" value="${esc(tenant.id)}">
        <label>Token label
          <input type="text" name="label" placeholder="Production iPhone">
+       </label>
+       <label>Permission preset
+         <select name="scopePreset">
+           <option value="producer">Producer — read and publish</option>
+           <option value="read-only">Read only</option>
+           <option value="device">Device — read, register, and run safe actions</option>
+           <option value="webhook-manager">Webhook manager</option>
+         </select>
        </label>
        <button class="button" type="submit">Create API token</button>
      </form>
@@ -908,7 +919,7 @@ async function csrfTokenFromRequest(req: Request): Promise<string | null> {
 
 async function parseCreateApiKeyInput(
   req: Request,
-): Promise<{ tenantId?: string; ownerEmail?: string; label?: string }> {
+): Promise<{ tenantId?: string; ownerEmail?: string; label?: string; scopes: ApiScope[] }> {
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const data = (await req.json()) as Record<string, unknown>;
@@ -916,6 +927,7 @@ async function parseCreateApiKeyInput(
       tenantId: stringField(data.tenantId),
       ownerEmail: stringField(data.ownerEmail),
       label: stringField(data.label),
+      scopes: scopesForAdminPreset(stringField(data.scopePreset)),
     };
   }
   const form = await req.formData();
@@ -923,7 +935,18 @@ async function parseCreateApiKeyInput(
     tenantId: stringField(form.get("tenantId")),
     ownerEmail: stringField(form.get("ownerEmail")),
     label: stringField(form.get("label")),
+    scopes: scopesForAdminPreset(stringField(form.get("scopePreset"))),
   };
+}
+
+function scopesForAdminPreset(preset = "producer"): ApiScope[] {
+  switch (preset) {
+    case "producer": return [...ApiScopePresets.producer];
+    case "read-only": return [...ApiScopePresets.readOnly];
+    case "device": return [...ApiScopePresets.device];
+    case "webhook-manager": return [...ApiScopePresets.webhookManager];
+    default: throw new Error("invalid API token permission preset");
+  }
 }
 
 function stringField(value: unknown): string | undefined {
