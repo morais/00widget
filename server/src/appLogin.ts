@@ -20,6 +20,7 @@ interface AppleTokenRequest {
   // re-hash and compare to the id_token's `nonce` claim to block replay of a
   // leaked identity token from a different login attempt.
   nonce?: string;
+  deviceId?: string;
 }
 
 export async function createTokenFromApple(req: Request, env: Env): Promise<Response> {
@@ -42,6 +43,9 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   }
   if (input.label && input.label.length > FieldLimits.apiKeyLabel) {
     return json({ error: "label is too large" }, 400);
+  }
+  if (input.deviceId && input.deviceId.length > FieldLimits.deviceId) {
+    return json({ error: "deviceId is too large" }, 400);
   }
 
   const rawNonce = input.nonce?.trim();
@@ -91,17 +95,31 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   const tenantId = existingAccount?.tenantId ?? existingTenant?.id;
   const ownerEmail = existingAccount?.email ?? existingTenant?.email ?? email;
 
+  const sessionId = crypto.randomUUID();
+  const label = input.label?.trim() || "iOS app";
+  const deviceId = input.deviceId?.trim() || undefined;
   const created = await createApiKey(env, {
     tenantId,
     ownerEmail,
-    label: input.label?.trim() || "iOS app",
+    label,
+    kind: "publisher",
+    sessionId,
+    deviceId,
+  });
+  const appCredential = await createApiKey(env, {
+    tenantId: created.tenant.id,
+    ownerEmail: created.tenant.ownerEmail,
+    label: `${label} (app only)`,
+    kind: "app",
+    sessionId,
+    deviceId,
   });
   await putAppleAccount(env, {
     appleSub: claims.sub,
     tenantId: created.tenant.id,
     email: email ?? existingAccount!.email,
   });
-  return json(created, 201);
+  return json({ ...created, appCredential: appCredential.token }, 201);
 }
 
 function appleLoginIpKey(req: Request): string {

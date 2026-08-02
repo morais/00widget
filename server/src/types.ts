@@ -337,7 +337,6 @@ export const EndLiveActivitySchema = z.object({
 });
 
 export const RunActionSchema = z.object({
-  source: z.string().max(FieldLimits.source).default("widget"),
   context: z
     .object({
       cardId: z.string().max(FieldLimits.cardId).optional(),

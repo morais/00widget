@@ -59,11 +59,13 @@ describe("app Apple login", () => {
       token: string;
       tenant: { ownerEmail: string };
       apiKey: { label: string; tokenHash: string };
+      appCredential: string;
     };
     expect(body.token).toMatch(/^zw_/);
     expect(body.tenant.ownerEmail).toBe("customer@example.com");
     expect(body.apiKey.label).toBe("Alice iPhone");
     expect(body.apiKey.tokenHash).not.toBe(body.token);
+    expect(body.appCredential).toMatch(/^zwa_/);
 
     const cards = await (handler.fetch as any)(
       new Request("https://x/v1/cards", {
@@ -73,6 +75,15 @@ describe("app Apple login", () => {
       ctx,
     );
     expect(cards.status).toBe(200);
+
+    const appCredentialCards = await (handler.fetch as any)(
+      new Request("https://x/v1/cards", {
+        headers: { authorization: `Bearer ${body.appCredential}` },
+      }),
+      env,
+      ctx,
+    );
+    expect(appCredentialCards.status).toBe(403);
   });
 
   it("uses the stored Apple account mapping when a later token omits email", async () => {

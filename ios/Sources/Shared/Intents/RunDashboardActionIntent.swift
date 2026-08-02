@@ -13,19 +13,14 @@ public struct RunDashboardActionIntent: AppIntent {
     @Parameter(title: "Card ID")
     public var cardId: String?
 
-    @Parameter(title: "Source")
-    public var source: String
-
     public init() {
         self.actionId = ""
         self.cardId = nil
-        self.source = "widget"
     }
 
-    public init(actionId: String, cardId: String? = nil, source: String = "widget") {
+    public init(actionId: String, cardId: String? = nil) {
         self.actionId = actionId
         self.cardId = cardId
-        self.source = source
     }
 
     public func perform() async throws -> some IntentResult {
@@ -44,7 +39,7 @@ public struct RunDashboardActionIntent: AppIntent {
 
         let client = APIClient(config: config)
         do {
-            try await client.runAction(id: actionId, cardId: cardId, source: source)
+            try await client.runAction(id: actionId, cardId: cardId)
         } catch {
             // Swallow — intents must not throw fatal errors or the system will stop running them.
         }

@@ -86,6 +86,7 @@ public final class AppEnvironment: ObservableObject {
         let previous = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
         if apiKey != previous {
+            KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
             clearTenantScopedState()
             WidgetPushTokenStore.invalidateRegistration()
         }
@@ -106,12 +107,17 @@ public final class AppEnvironment: ObservableObject {
                 baseURL: url,
                 identityToken: identityToken,
                 rawNonce: rawNonce,
-                label: DeviceRegistration.appVersion()
+                label: DeviceRegistration.appVersion(),
+                deviceId: DeviceRegistration.deviceId()
             )
             apiKey = response.token
+            saveApiKey()
+            try KeychainStore.setAppOnly(
+                response.appCredential,
+                for: ZeroZeroWidgetConstants.KeychainKeys.appCredential
+            )
             appleLoginEmail = response.tenant.ownerEmail
             UserDefaults.standard.set(response.tenant.ownerEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
-            saveApiKey()
             await refreshConnectionHealth()
         } catch {
             appleLoginError = error.localizedDescription
@@ -143,6 +149,15 @@ public final class AppEnvironment: ObservableObject {
         else { return nil }
         let config = APIClientConfig(baseURL: url, apiKey: apiKey)
         return APIClient(config: config)
+    }
+
+    public func confirmedActionClient() -> APIClient? {
+        guard
+            let url = APIClientConfig.validatedBaseURL(from: serverBaseURL),
+            let credential = KeychainStore.getAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential),
+            !credential.isEmpty
+        else { return nil }
+        return APIClient(config: APIClientConfig(baseURL: url, apiKey: credential))
     }
 
     public func fetchCards() async {
