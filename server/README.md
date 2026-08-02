@@ -48,10 +48,10 @@ deploy; no scheduled trigger is required.
 ### 2. Configure local secrets
 
 ```
-cp .dev.vars.example .dev.vars
+install -m 600 .dev.vars.example .dev.vars
 ```
 
-Edit `.dev.vars` (gitignored) and set at least `SESSION_SECRET`. Set `API_KEYS` plus `ADMIN_API_TOKEN_LOGIN=true` only if you need the local admin bootstrap fallback. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
+Edit `.dev.vars` (gitignored and created with owner-only permissions) and set at least `SESSION_SECRET`. Set `API_KEYS` plus `ADMIN_API_TOKEN_LOGIN=true` only if you need the local admin bootstrap fallback. `API_KEYS` is only for the admin fallback login; app/agent bearer tokens are created from `/admin` and stored hashed in D1.
 
 ### 3. Run locally
 
