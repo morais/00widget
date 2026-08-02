@@ -1,9 +1,24 @@
 # Secrets — never commit
 examples/env.sh
-server/.dev.vars
-server/.env
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!.dev.vars.*.example
+.envrc
 *.p8
 *.pem
+*.key
+*.p12
+*.pfx
+*.der
+*.mobileprovision
+*.provisionprofile
+*.jks
+*.keystore
 
 # Per-developer config (resource ids, real bundle ids, etc.)
 # Committed source-of-truth lives in *.sample siblings.
