@@ -107,6 +107,11 @@ If you find a way to break any of these, please report it:
    every target, device delivery, update, end, and share revocation to one
    owner-scoped activity. Publisher `externalActivityId` values are aliases,
    never cross-tenant routing keys.
+10. **Least-privilege credentials.** Every authenticated route declares a
+    required capability scope and fails closed when it is absent. Device,
+    app-only, publisher, and webhook-manager credentials are separate. Webhook
+    signing secrets are returned only when created or explicitly rotated and
+    can never be recovered through an ordinary read or metadata update.
 
 ## Acknowledgements
 

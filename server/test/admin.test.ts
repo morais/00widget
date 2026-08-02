@@ -383,7 +383,11 @@ describe("admin routes (no Apple call required)", () => {
           "x-csrf-token": csrf,
           cookie,
         },
-        body: JSON.stringify({ ownerEmail: "customer-a@example.com", label: "iPhone" }),
+        body: JSON.stringify({
+          ownerEmail: "customer-a@example.com",
+          label: "Webhook manager",
+          scopePreset: "webhook-manager",
+        }),
       }),
       env,
       ctx,
@@ -393,11 +397,12 @@ describe("admin routes (no Apple call required)", () => {
     const body = (await res.json()) as {
       token: string;
       tenant: { id: string; ownerEmail: string };
-      apiKey: { id: string; tokenHash: string; label: string };
+      apiKey: { id: string; tokenHash: string; label: string; scopes: string[] };
     };
     expect(body.token).toMatch(/^zw_/);
     expect(body.tenant.ownerEmail).toBe("customer-a@example.com");
-    expect(body.apiKey.label).toBe("iPhone");
+    expect(body.apiKey.label).toBe("Webhook manager");
+    expect(body.apiKey.scopes).toEqual(["tenant:read", "webhook:manage"]);
     expect(body.apiKey.tokenHash).not.toBe(body.token);
 
     const dash = await (handler.fetch as any)(

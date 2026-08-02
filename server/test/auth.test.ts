@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  ApiScopePresets,
   createApiKey,
   listApiKeys,
   requireAuth,
@@ -20,6 +21,7 @@ describe("requireAuth", () => {
     expect(ctx.apiKeyHash).toMatch(/^[0-9a-f]{64}$/);
     expect(ctx.tenantId).toBe("test-tenant");
     expect(ctx.credentialKind).toBe("publisher");
+    expect(ctx.scopes).toEqual(ApiScopePresets.legacyPublisher);
     expect((await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)?.lastUsedAt).toBeDefined();
   });
 
@@ -38,6 +40,7 @@ describe("requireAuth", () => {
       ownerEmail: "revoked@example.com",
       label: "test",
     });
+    expect(created.apiKey.scopes).toEqual(ApiScopePresets.producer);
     const req = new Request("https://x/", {
       headers: { authorization: `Bearer ${created.token}` },
     });
@@ -48,6 +51,17 @@ describe("requireAuth", () => {
 
     await revokeApiKey(env, created.apiKey.id);
     await expect(requireAuth(req, env)).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("defaults app credentials to app-only scopes", async () => {
+    const env = makeEnv();
+    const created = await createApiKey(env, {
+      ownerEmail: "app@example.com",
+      label: "app",
+      kind: "app",
+    });
+
+    expect(created.apiKey.scopes).toEqual(ApiScopePresets.appOnly);
   });
 
   it("rejects malformed header", async () => {

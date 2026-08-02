@@ -46,8 +46,8 @@ export async function putWebhookIntegration(
 
   const now = new Date().toISOString();
   const existing = await storage.getWebhookIntegration(env, auth.tenantId);
-  const signingSecret =
-    !existing || parsed.data.rotateSecret ? randomSecret() : existing.signingSecret;
+  const secretCreated = !existing || parsed.data.rotateSecret;
+  const signingSecret = secretCreated ? randomSecret() : existing.signingSecret;
   const record: storage.WebhookIntegrationRecord = {
     url: parsed.data.url,
     signingSecret,
@@ -55,12 +55,17 @@ export async function putWebhookIntegration(
     updatedAt: now,
   };
   await storage.putWebhookIntegration(env, auth.tenantId, auth.apiKeyHash, record);
-  return json({
+  const response: Record<string, unknown> = {
     url: record.url,
-    signingSecret,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
-  });
+    secretCreated,
+  };
+  // Signing secrets are write-only after issuance. A caller may receive a new
+  // value once, but an ordinary metadata update can never recover the stored
+  // secret from the API.
+  if (secretCreated) response.signingSecret = signingSecret;
+  return json(response);
 }
 
 export async function deleteWebhookIntegration(

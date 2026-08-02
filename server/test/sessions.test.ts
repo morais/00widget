@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import handler from "../src/index";
-import { createApiKey, listApiKeys } from "../src/auth";
+import { ApiScopePresets, createApiKey, listApiKeys } from "../src/auth";
 import * as storage from "../src/storage";
 import { revokeCredentialById } from "../src/sessions";
 import { authedRequest, makeEnv, seedApiKey } from "./helpers";
@@ -18,6 +18,7 @@ describe("credential revocation", () => {
       kind: "publisher",
       sessionId,
       deviceId,
+      scopes: ApiScopePresets.device,
     });
     const app = await createApiKey(env, {
       tenantId: "test-tenant",
@@ -25,6 +26,7 @@ describe("credential revocation", () => {
       kind: "app",
       sessionId,
       deviceId,
+      scopes: ApiScopePresets.appOnly,
     });
 
     await registerAllDeviceTokens(env, publisher.token, deviceId);
@@ -117,12 +119,14 @@ describe("credential revocation", () => {
       kind: "publisher",
       sessionId: "admin-revoked-session",
       deviceId: "iphone-admin",
+      scopes: ApiScopePresets.device,
     });
     await createApiKey(env, {
       tenantId: "test-tenant",
       kind: "app",
       sessionId: "admin-revoked-session",
       deviceId: "iphone-admin",
+      scopes: ApiScopePresets.appOnly,
     });
     await registerAllDeviceTokens(env, publisher.token, "iphone-admin");
 

@@ -38,6 +38,7 @@ public final class AppEnvironment: ObservableObject {
     }
 
     @Published public var apiKey: String
+    @Published public private(set) var publisherCredential: String
     @Published public private(set) var appleLoginEmail: String?
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
@@ -73,6 +74,9 @@ public final class AppEnvironment: ObservableObject {
             ? configuredServerBaseURL
             : defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL) ?? configuredServerBaseURL
         self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
+        self.publisherCredential = KeychainStore.getAppOnly(
+            ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
+        ) ?? ""
         self.appleLoginEmail = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
@@ -88,6 +92,8 @@ public final class AppEnvironment: ObservableObject {
         try? KeychainStore.set(apiKey, for: ZeroZeroWidgetConstants.KeychainKeys.apiKey)
         if apiKey != previous {
             KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
+            KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.publisherCredential)
+            publisherCredential = ""
             clearTenantScopedState()
             WidgetPushTokenStore.invalidateRegistration()
         }
@@ -117,6 +123,12 @@ public final class AppEnvironment: ObservableObject {
                 response.appCredential,
                 for: ZeroZeroWidgetConstants.KeychainKeys.appCredential
             )
+            let agentCredential = response.publisherCredential ?? response.token
+            try KeychainStore.setAppOnly(
+                agentCredential,
+                for: ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
+            )
+            publisherCredential = agentCredential
             appleLoginEmail = response.tenant.ownerEmail
             UserDefaults.standard.set(response.tenant.ownerEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
             await refreshConnectionHealth()
@@ -161,6 +173,8 @@ public final class AppEnvironment: ObservableObject {
         appleLoginEmail = nil
         appleLoginError = nil
         KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
+        KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.publisherCredential)
+        publisherCredential = ""
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         saveApiKey()
     }
@@ -181,6 +195,10 @@ public final class AppEnvironment: ObservableObject {
             !credential.isEmpty
         else { return nil }
         return APIClient(config: APIClientConfig(baseURL: url, apiKey: credential))
+    }
+
+    public var agentApiKey: String {
+        publisherCredential.isEmpty ? apiKey : publisherCredential
     }
 
     public func fetchCards() async {
@@ -211,7 +229,7 @@ public final class AppEnvironment: ObservableObject {
 
     #if ZW_SHARING_ENABLED
     public func refreshShares() async {
-        guard let client = apiClient() else { return }
+        guard let client = confirmedActionClient() else { return }
         do {
             async let outgoing = client.listOutgoingShares()
             async let incoming = client.listIncomingShares()
@@ -234,7 +252,7 @@ public final class AppEnvironment: ObservableObject {
         resourceKind: ShareResourceKind,
         resourceId: String
     ) async throws {
-        guard let client = apiClient() else {
+        guard let client = confirmedActionClient() else {
             throw APIClientError(status: 0, message: "not configured")
         }
         _ = try await client.createShare(
@@ -246,20 +264,20 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func acceptShare(id: String) async {
-        guard let client = apiClient() else { return }
+        guard let client = confirmedActionClient() else { return }
         try? await client.acceptShare(id: id)
         await refreshShares()
         await fetchCards()
     }
 
     public func declineShare(id: String) async {
-        guard let client = apiClient() else { return }
+        guard let client = confirmedActionClient() else { return }
         try? await client.declineShare(id: id)
         await refreshShares()
     }
 
     public func revokeShare(id: String) async {
-        guard let client = apiClient() else { return }
+        guard let client = confirmedActionClient() else { return }
         try? await client.revokeShare(id: id)
         await refreshShares()
         await fetchCards()

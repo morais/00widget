@@ -1,4 +1,4 @@
-import { sha256Hex } from "../src/auth";
+import { ApiScopePresets, sha256Hex, type ApiScope } from "../src/auth";
 import type { Env } from "../src/types";
 
 type FakeRow = Record<string, string>;
@@ -69,6 +69,9 @@ export class FakeD1 {
     sessionId = "",
     deviceId = "",
     expiresAt = "2099-01-01T00:00:00.000Z",
+    scopes: readonly ApiScope[] = kind === "app"
+      ? ApiScopePresets.appOnly
+      : ApiScopePresets.legacyPublisher,
   ): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
@@ -92,6 +95,7 @@ export class FakeD1 {
       session_id: sessionId,
       device_id: deviceId,
       expires_at: expiresAt,
+      scopes_json: JSON.stringify(scopes),
     });
   }
 
@@ -111,7 +115,18 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT INTO api_keys")) {
-      const [id, tenant_id, token_hash, label, created_at, kind, session_id, device_id, expires_at] = values.map((value) => value == null ? "" : String(value));
+      const [
+        id,
+        tenant_id,
+        token_hash,
+        label,
+        created_at,
+        kind,
+        session_id,
+        device_id,
+        expires_at,
+        scopes_json,
+      ] = values.map((value) => value == null ? "" : String(value));
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -124,6 +139,7 @@ export class FakeD1 {
         session_id,
         device_id,
         expires_at,
+        scopes_json,
       });
       return 1;
     }
@@ -593,7 +609,7 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
         const tenant = this.tenants.get(candidate.tenant_id);
@@ -608,6 +624,7 @@ export class FakeD1 {
             session_id: row.session_id,
             device_id: row.device_id,
             expires_at: row.expires_at,
+            scopes_json: row.scopes_json,
           }]
         : [];
     }
@@ -625,7 +642,7 @@ export class FakeD1 {
         .sort(by("created_at"))[0];
       return pick(row, ["id", "owner_email"]);
     }
-    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at FROM api_keys ORDER BY created_at DESC") {
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
     }
     if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
@@ -1120,6 +1137,7 @@ export async function seedApiKey(
   sessionId = "",
   deviceId = "",
   expiresAt = "2099-01-01T00:00:00.000Z",
+  scopes?: readonly ApiScope[],
 ): Promise<void> {
   (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(
     await sha256Hex(rawToken),
@@ -1129,6 +1147,7 @@ export async function seedApiKey(
     sessionId,
     deviceId,
     expiresAt,
+    scopes,
   );
 }
 
