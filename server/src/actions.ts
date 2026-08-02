@@ -1,6 +1,6 @@
 import type { ActionDefinition, DashboardCard, Env } from "./types";
 import {
-  DashboardCardSchema,
+  DashboardCardInputSchema,
   RequestBodyLimits,
   RunActionSchema,
   WebhookIntegrationSchema,
@@ -128,6 +128,12 @@ async function runActionWithTrust(
       return json({ error: "action is not safe to run from widgets" }, 403);
     }
   }
+  const actionPayload = await storage.getActionPayload(
+    env,
+    auth.tenantId,
+    resolved.card.id,
+    resolved.action.id,
+  );
 
   const deliveryId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
@@ -139,7 +145,7 @@ async function runActionWithTrust(
     action: {
       id: actionId,
       label: resolved.action.label,
-      payload: resolved.action.payload ?? {},
+      payload: actionPayload ?? {},
     },
     context: {
       cardId: resolved.card.id,
@@ -263,7 +269,7 @@ async function maybeUpsertResponseCard(
     responseBody && typeof responseBody === "object" && "card" in responseBody
       ? (responseBody as { card: unknown }).card
       : responseBody;
-  const parsed = DashboardCardSchema.safeParse(candidate);
+  const parsed = DashboardCardInputSchema.safeParse(candidate);
   if (!parsed.success) return false;
   const card = {
     ...parsed.data,

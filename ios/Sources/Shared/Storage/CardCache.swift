@@ -1,12 +1,27 @@
 import Foundation
 
 public struct CardCachePayload: Codable, Sendable {
+    public static let currentSchemaVersion = 2
+
     public var cards: [DashboardCard]
     public var updatedAt: Date
+    public var schemaVersion: Int
 
-    public init(cards: [DashboardCard], updatedAt: Date = Date()) {
+    public init(
+        cards: [DashboardCard],
+        updatedAt: Date = Date(),
+        schemaVersion: Int = CardCachePayload.currentSchemaVersion
+    ) {
         self.cards = cards
         self.updatedAt = updatedAt
+        self.schemaVersion = schemaVersion
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cards = try container.decode([DashboardCard].self, forKey: .cards)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
     }
 }
 
@@ -39,9 +54,17 @@ public enum CardCache {
             return CardCachePayload(cards: [])
         }
         if let payload = try? jsonDecoder().decode(CardCachePayload.self, from: data) {
+            if payload.schemaVersion < CardCachePayload.currentSchemaVersion {
+                // Decoding through the current public model drops legacy
+                // write-only fields such as action payloads. Rewrite once so
+                // their raw bytes no longer remain in the App Group cache.
+                try? save(payload.cards)
+                return CardCachePayload(cards: payload.cards, updatedAt: payload.updatedAt)
+            }
             return payload
         }
         if let cards = try? jsonDecoder().decode([DashboardCard].self, from: data) {
+            try? save(cards)
             return CardCachePayload(cards: cards)
         }
         return CardCachePayload(cards: [])

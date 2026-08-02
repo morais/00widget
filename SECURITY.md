@@ -99,6 +99,10 @@ If you find a way to break any of these, please report it:
 7. **Bounded inputs.** Every endpoint enforces a request-body byte cap, zod
    validates field lengths, and rate limits cap write throughput per tenant
    and per resource.
+8. **Private action context.** Publisher-supplied action payloads are extracted
+   into server-only storage. Card APIs, shares, and on-device caches contain
+   only the public action definition; the private context is added only to the
+   signed webhook delivery when that action runs.
 
 ## Acknowledgements
 

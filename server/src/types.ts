@@ -110,11 +110,21 @@ const ActionPayloadSchema = z
     message: `must serialize to at most ${FieldLimits.actionPayloadBytes} bytes`,
   });
 
-export const ActionDefinitionSchema = z.object({
+const ActionDefinitionFields = {
   id: IdString,
   label: z.string().min(1).max(FieldLimits.actionLabel),
   role: ActionRoleSchema.default("normal"),
   confirm: z.boolean().default(false),
+};
+
+// Public action shape returned to apps, widgets, and share recipients. Runtime
+// payloads are deliberately absent; they live in server-only storage.
+export const ActionDefinitionSchema = z.object(ActionDefinitionFields);
+
+// Write-only action shape accepted from publishers. The storage layer extracts
+// payload before persisting the public card JSON.
+export const ActionDefinitionInputSchema = z.object({
+  ...ActionDefinitionFields,
   payload: ActionPayloadSchema.optional(),
 });
 
@@ -152,7 +162,7 @@ export const SharedByInfoSchema = z.object({
   shareId: z.string().max(FieldLimits.id),
 });
 
-export const DashboardCardSchema = z.object({
+const DashboardCardFields = {
   id: CardIdString,
   template: DashboardTemplateSchema,
   title: TitleString,
@@ -166,16 +176,24 @@ export const DashboardCardSchema = z.object({
   staleAfter: IsoDate.optional(),
   deepLink: OptionalDeepLink,
   items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional(),
+};
+
+export const DashboardCardSchema = z.object({
+  ...DashboardCardFields,
   actions: z.array(ActionDefinitionSchema).max(FieldLimits.actionCount).optional(),
-  // Set on cards returned via ?include=shared. Not persisted; not accepted on
-  // upsert (zod will strip it because we don't .strict()).
+  // Set only on cards returned via ?include=shared.
   sharedBy: SharedByInfoSchema.optional(),
+});
+
+export const DashboardCardInputSchema = z.object({
+  ...DashboardCardFields,
+  actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional(),
 });
 
 export const BatchUpsertCardsSchema = z
   .object({
     cards: z
-      .array(DashboardCardSchema)
+      .array(DashboardCardInputSchema)
       .min(1)
       .max(FieldLimits.cardBatchCount),
   })
@@ -414,9 +432,12 @@ export const CreateShareSchema = z.object({
 });
 
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;
+export type DashboardCardInput = z.infer<typeof DashboardCardInputSchema>;
 export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
+export type ActionDefinitionInput = z.infer<typeof ActionDefinitionInputSchema>;
+export type ActionPayload = z.infer<typeof ActionPayloadSchema>;
 export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>;
 export type RegisterWidgetPushToken = z.infer<typeof RegisterWidgetPushTokenSchema>;
 export type RegisterLiveActivity = z.infer<typeof RegisterLiveActivitySchema>;

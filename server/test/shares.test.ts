@@ -15,10 +15,17 @@ async function seedCard(env: ReturnType<typeof makeEnv>, tenantId: string, key: 
   const hash = await sha256Hex(key);
   await storage.putCard(env, tenantId, hash, {
     id,
-    template: "summary",
+    template: "action",
     title,
     value: "1",
     status: "good",
+    actions: [{
+      id: "private-action",
+      label: "Run",
+      role: "normal",
+      confirm: false,
+      payload: { secret: "owner-only" },
+    }],
   });
 }
 
@@ -138,12 +145,20 @@ describe("shares — happy path", () => {
     );
     const listData = (await list.json()) as {
       cards: unknown[];
-      shared: Array<{ id: string; sharedBy: { ownerEmail: string } }>;
+      shared: Array<{
+        id: string;
+        actions?: Array<Record<string, unknown>>;
+        sharedBy: { ownerEmail: string };
+      }>;
     };
     expect(listData.cards).toHaveLength(0);
     expect(listData.shared).toHaveLength(1);
     expect(listData.shared[0].id).toBe("solar");
     expect(listData.shared[0].sharedBy.ownerEmail).toBe("owner@example.com");
+    expect(listData.shared[0].actions?.[0]).not.toHaveProperty("payload");
+    await expect(
+      storage.getActionPayload(env, "owner", "solar", "private-action"),
+    ).resolves.toEqual({ secret: "owner-only" });
   });
 
   it("revoke makes the shared card disappear for the recipient", async () => {

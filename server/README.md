@@ -238,7 +238,8 @@ Tables:
 | ----- | ----------- | ------- |
 | `tenants` | `id` | Customer/workspace tenants, including `owner_email`. |
 | `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
-| `cards` | `(tenant_id, id)` | Dashboard cards. |
+| `cards` | `(tenant_id, id)` | Public dashboard-card rendering state. |
+| `action_payloads` | `(tenant_id, card_id, action_id)` | Write-only action context, omitted from card APIs and device caches. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
 | `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens, card-level subscriptions, app build, and platform. |
 | `widget_push_cadence` | `tenant_id` | Last accepted reload window per receiving tenant, used to protect WidgetKit's daily budget. |

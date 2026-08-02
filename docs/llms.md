@@ -94,11 +94,13 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "label": "string",
   "role": "normal | destructive (default: normal)",
   "confirm": "boolean (default: false)",
-  "payload": "Record<string,string>? (server-side context, not shown)"
+  "payload": "Record<string,string>? (write-only server-side context)"
 }
 ```
 
 Only `role: normal` + `confirm: false` actions can run from widgets. Anything else routes through the iOS app for confirmation. Don't make destructive actions auto-runnable.
+
+`payload` is accepted only when publishing a card. The server extracts it into private action storage and omits it from the stored card JSON, API responses, shared cards, and device caches. When the action runs, the server adds the private payload to the signed webhook delivery. Treat card reads as a public rendering model: they will never return this field.
 
 ## Size limits
 
