@@ -111,13 +111,19 @@ function addCleanupByHash(
   tenantId: string,
   apiKeyHash: string,
 ): void {
-  for (const table of ["devices", "widget_tokens", "activities", "start_tokens"]) {
+  for (const table of ["devices", "widget_tokens", "start_tokens"]) {
     statements.push(
       env.ZW_DB.prepare(
         `DELETE FROM ${table} WHERE tenant_id = ? AND api_key_hash = ?`,
       ).bind(tenantId, apiKeyHash),
     );
   }
+  statements.push(
+    env.ZW_DB.prepare(
+      `DELETE FROM activity_deliveries
+       WHERE target_tenant_id = ? AND api_key_hash = ?`,
+    ).bind(tenantId, apiKeyHash),
+  );
 }
 
 function addCleanupByDevice(
@@ -126,13 +132,19 @@ function addCleanupByDevice(
   tenantId: string,
   deviceId: string,
 ): void {
-  for (const table of ["devices", "widget_tokens", "activities", "start_tokens"]) {
+  for (const table of ["devices", "widget_tokens", "start_tokens"]) {
     statements.push(
       env.ZW_DB.prepare(
         `DELETE FROM ${table} WHERE tenant_id = ? AND device_id = ?`,
       ).bind(tenantId, deviceId),
     );
   }
+  statements.push(
+    env.ZW_DB.prepare(
+      `DELETE FROM activity_deliveries
+       WHERE target_tenant_id = ? AND device_id = ?`,
+    ).bind(tenantId, deviceId),
+  );
 }
 
 function resultChanges(result: D1Result): number {

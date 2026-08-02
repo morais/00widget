@@ -40,6 +40,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         }
     }
 
+    public var activityInstanceId: String?
     public var externalActivityId: String
     public var kind: LiveActivityKind
     public var title: String
@@ -47,12 +48,14 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     public private(set) var deepLink: URL?
 
     public init(
+        activityInstanceId: String? = nil,
         externalActivityId: String,
         kind: LiveActivityKind = .generic,
         title: String,
         icon: String? = nil,
         deepLink: URL? = nil
     ) {
+        self.activityInstanceId = activityInstanceId
         self.externalActivityId = externalActivityId
         self.kind = kind
         self.title = title
@@ -62,6 +65,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        activityInstanceId = try container.decodeIfPresent(String.self, forKey: .activityInstanceId)
         externalActivityId = try container.decode(String.self, forKey: .externalActivityId)
         kind = try container.decode(LiveActivityKind.self, forKey: .kind)
         title = try container.decode(String.self, forKey: .title)
@@ -72,13 +76,14 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case externalActivityId, kind, title, icon, deepLink
+        case activityInstanceId, externalActivityId, kind, title, icon, deepLink
     }
 }
 
 public extension ZeroZeroWidgetActivityAttributes {
     static func from(_ session: LiveActivitySession) -> (ZeroZeroWidgetActivityAttributes, ContentState) {
         let attrs = ZeroZeroWidgetActivityAttributes(
+            activityInstanceId: session.activityInstanceId,
             externalActivityId: session.externalActivityId,
             kind: session.kind,
             title: session.title,

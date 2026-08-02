@@ -278,7 +278,12 @@ export async function handleAdminDeletePendingLiveActivity(
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
   const tenantId = dec(tenantIdRaw);
-  await storage.deletePendingActivity(env, tenantId, dec(externalActivityIdRaw));
+  const instance = await storage.getActivityInstanceByOwnerExternal(
+    env,
+    tenantId,
+    dec(externalActivityIdRaw),
+  );
+  if (instance) await storage.deleteActivityInstance(env, instance.activityInstanceId);
   return redirectToTenant(tenantId);
 }
 
@@ -596,7 +601,7 @@ function renderActivitiesSection(tenantId: string, entries: storage.ScopedEntry<
   if (entries.length === 0) return section("Live Activities", `<p class="empty">None registered.</p>`);
   const rows = entries.map((entry) => {
     const v = entry.value as Record<string, unknown>;
-    const externalId = entry.key.split(":").slice(2).join(":");
+    const externalId = String(v.externalActivityId ?? "");
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
       <td><code>${esc(externalId)}</code></td>

@@ -4,6 +4,10 @@ import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { enforceTenantRateLimits, tenantKey } from "./rateLimit";
+import { sendLiveActivityEnd } from "./apns";
+import * as storage from "./storage";
+
+const APPLE_REFERENCE_DATE_UNIX_SECONDS = 978_307_200;
 
 export interface ShareRecord {
   id: string;
@@ -302,7 +306,36 @@ export async function revokeShare(
   )
     .bind(now, id)
     .run();
+  if (share.resource_kind === "activity_kind") {
+    await endAndRemoveActivityShareTarget(env, share.id, now);
+  }
   return json({ ok: true });
+}
+
+async function endAndRemoveActivityShareTarget(
+  env: Env,
+  shareId: string,
+  updatedAt: string,
+): Promise<void> {
+  const deliveries = await storage.listActivityDeliveriesForShare(env, shareId);
+  const activityKitUpdatedAt = Math.floor(new Date(updatedAt).getTime() / 1000)
+    - APPLE_REFERENCE_DATE_UNIX_SECONDS;
+  for (const delivery of deliveries) {
+    try {
+      await sendLiveActivityEnd(env, delivery.record.pushToken, {
+        finalContentState: { state: "finished", updatedAt: activityKitUpdatedAt },
+      });
+    } catch (error) {
+      console.log("shared live activity revoke push failed", {
+        shareId,
+        activityInstanceId: delivery.activityInstanceId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  // Revocation is an authorization boundary: remove exact share deliveries
+  // even when APNs is temporarily unavailable.
+  await storage.deleteActivityShareTarget(env, shareId);
 }
 
 // ---------- Internal helpers used by cards/activities/push fanout ----------

@@ -59,6 +59,7 @@ public final class LiveActivityController: ObservableObject {
     #if canImport(ActivityKit)
     private func observeActivity(_ activity: Activity<ZeroZeroWidgetActivityAttributes>) {
         let localActivityId = activity.id
+        let activityInstanceId = activity.attributes.activityInstanceId
         let externalId = activity.attributes.externalActivityId
         let kind = activity.attributes.kind
 
@@ -66,6 +67,7 @@ public final class LiveActivityController: ObservableObject {
             submitPushToken(
                 tokenData,
                 localActivityId: localActivityId,
+                activityInstanceId: activityInstanceId,
                 externalActivityId: externalId,
                 kind: kind
             )
@@ -78,6 +80,7 @@ public final class LiveActivityController: ObservableObject {
                     self?.submitPushToken(
                         tokenData,
                         localActivityId: localActivityId,
+                        activityInstanceId: activityInstanceId,
                         externalActivityId: externalId,
                         kind: kind
                     )
@@ -130,11 +133,14 @@ public final class LiveActivityController: ObservableObject {
         for activity in activities {
             observeActivity(activity)
         }
-        activeIds = activities.map { $0.attributes.externalActivityId }
+        activeIds = activities.map {
+            $0.attributes.activityInstanceId ?? $0.attributes.externalActivityId
+        }
         activeSessions = activities.map { activity in
             let attributes = activity.attributes
             let state = activity.content.state
             return LiveActivitySession(
+                activityInstanceId: attributes.activityInstanceId,
                 externalActivityId: attributes.externalActivityId,
                 kind: attributes.kind,
                 title: attributes.title,
@@ -186,6 +192,7 @@ public final class LiveActivityController: ObservableObject {
     private func submitPushToken(
         _ tokenData: Data,
         localActivityId: String,
+        activityInstanceId: String?,
         externalActivityId: String,
         kind: LiveActivityKind
     ) {
@@ -199,6 +206,7 @@ public final class LiveActivityController: ObservableObject {
             guard let self else { return }
             let registered = await self.registerPushToken(
                 localActivityId: localActivityId,
+                activityInstanceId: activityInstanceId,
                 externalActivityId: externalActivityId,
                 kind: kind,
                 pushToken: token
@@ -231,6 +239,7 @@ public final class LiveActivityController: ObservableObject {
 
     private func registerPushToken(
         localActivityId: String,
+        activityInstanceId: String?,
         externalActivityId: String,
         kind: LiveActivityKind,
         pushToken: String
@@ -242,6 +251,7 @@ public final class LiveActivityController: ObservableObject {
             try await client.registerLiveActivity(
                 deviceId: deviceId,
                 localActivityId: localActivityId,
+                activityInstanceId: activityInstanceId,
                 externalActivityId: externalActivityId,
                 kind: kind,
                 pushToken: pushToken

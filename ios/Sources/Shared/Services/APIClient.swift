@@ -261,6 +261,7 @@ public final class APIClient {
     public func registerLiveActivity(
         deviceId: String,
         localActivityId: String,
+        activityInstanceId: String?,
         externalActivityId: String,
         kind: LiveActivityKind,
         pushToken: String
@@ -268,6 +269,7 @@ public final class APIClient {
         struct Body: Codable {
             let deviceId: String
             let localActivityId: String
+            let activityInstanceId: String?
             let externalActivityId: String
             let kind: String
             let pushToken: String
@@ -275,6 +277,7 @@ public final class APIClient {
         let body = Body(
             deviceId: deviceId,
             localActivityId: localActivityId,
+            activityInstanceId: activityInstanceId,
             externalActivityId: externalActivityId,
             kind: kind.rawValue,
             pushToken: pushToken
