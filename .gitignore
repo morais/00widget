@@ -17,6 +17,8 @@ examples/env.sh
 *.der
 *.mobileprovision
 *.provisionprofile
+*.cer
+*.csr
 *.jks
 *.keystore
 
@@ -37,6 +39,11 @@ ios/*.xcworkspace/
 ios/build/
 ios/DerivedData/
 ios/Pods/
+*.ipa
+*.xcarchive/
+*.dSYM/
+*.xcresult/
+ExportOptions.plist
 *.xcuserstate
 xcuserdata/
 *.xcscmblueprint
@@ -56,6 +63,7 @@ ios/Resources/TV/ZeroZeroWidgetTV.entitlements
 .DS_Store
 
 # Editor
+.claude/
 .vscode/
 .idea/
 *.swp
