@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "00Widget backend — Cloudflare Worker",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "sync-docs": "node scripts/sync-llms-md.mjs",
     "predev": "npm run sync-docs",
@@ -16,11 +19,11 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240925.0",
+    "@cloudflare/workers-types": "^5.20260801.1",
     "@types/node": "^25.6.0",
     "typescript": "^5.6.2",
-    "vitest": "^2.1.1",
-    "wrangler": "^4.85.0"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.118.0"
   },
   "dependencies": {
     "zod": "^3.23.8"

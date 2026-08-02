@@ -4,7 +4,7 @@ A Cloudflare Worker that accepts webhook-style updates from any agent and fans o
 
 ## Prerequisites
 
-- Node 20+
+- Node 22+
 - A Cloudflare account (free tier is fine)
 - The Wrangler CLI — installed as a devDependency; invoke as `npx wrangler`.
 
