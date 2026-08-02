@@ -125,12 +125,16 @@ struct OnboardingView: View {
                 }
             }
 
-            Button("Sign out", role: .destructive) {
-                env.clearApiKey()
-                copiedToken = false
-                copiedAgentConfig = false
-                scheduleHealthCheck()
+            Button(env.signOutInProgress ? "Signing out…" : "Sign out", role: .destructive) {
+                Task {
+                    if await env.signOut() {
+                        copiedToken = false
+                        copiedAgentConfig = false
+                        scheduleHealthCheck()
+                    }
+                }
             }
+            .disabled(env.signOutInProgress)
         } else {
             SignInWithAppleButton(.signIn) { request in
                 let raw = Self.randomNonceString()

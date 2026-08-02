@@ -7,7 +7,7 @@ import {
   AuthError,
   sha256Hex,
 } from "../src/auth";
-import { makeEnv } from "./helpers";
+import { makeEnv, seedApiKey } from "./helpers";
 
 describe("requireAuth", () => {
   it("accepts a valid bearer token", async () => {
@@ -53,6 +53,23 @@ describe("requireAuth", () => {
   it("rejects malformed header", async () => {
     const req = new Request("https://x/", { headers: { authorization: "Token abc" } });
     await expect(requireAuth(req, makeEnv())).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("rejects expired API keys", async () => {
+    const env = makeEnv();
+    await seedApiKey(
+      env,
+      "expired-key",
+      "test-tenant",
+      "publisher",
+      "",
+      "",
+      "2020-01-01T00:00:00.000Z",
+    );
+    const req = new Request("https://x/", {
+      headers: { authorization: "Bearer expired-key" },
+    });
+    await expect(requireAuth(req, env)).rejects.toMatchObject({ message: "API key expired" });
   });
 
   it("does not accept API_KEYS env values that are not stored in D1", async () => {

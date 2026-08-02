@@ -312,6 +312,10 @@ public final class APIClient {
         let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run-confirmed", body: body)
     }
 
+    public func revokeCurrentCredential() async throws {
+        let _: EmptyBody = try await request("DELETE", path: "/v1/auth/token")
+    }
+
     // MARK: - Internal
 
     private func request<T: Decodable>(

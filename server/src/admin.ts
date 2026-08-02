@@ -18,10 +18,10 @@ import {
   isValidApiKey,
   listApiKeys,
   listTenants,
-  revokeApiKey,
   type ApiKeyRecord,
   type TenantRecord,
 } from "./auth";
+import { revokeCredentialById } from "./sessions";
 import * as storage from "./storage";
 import { deleteCardForTenant } from "./cards";
 import { endAndDeleteActivity } from "./liveActivities";
@@ -200,6 +200,7 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
            <tr><th>Tenant id</th><td><code>${esc(created.tenant.id)}</code></td></tr>
            <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
            <tr><th>API key id</th><td><code>${esc(created.apiKey.id)}</code></td></tr>
+           <tr><th>Expires</th><td>${esc(created.apiKey.expiresAt)}</td></tr>
          </tbody></table>
          <p><a href="/admin?tenant=${enc(created.tenant.id)}">back to tenant</a></p>
        </section>`,
@@ -215,7 +216,7 @@ export async function handleAdminRevokeApiKey(
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const revoked = await revokeApiKey(env, apiKeyId);
+  const revoked = await revokeCredentialById(env, apiKeyId);
   if (wantsJson(req)) {
     return new Response(JSON.stringify({ ok: revoked }), {
       status: revoked ? 200 : 404,
@@ -394,7 +395,9 @@ function emptyTenantRows(): TenantRows {
 function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord[], csrf: string): string {
   const rows = tenants.map((tenant) => {
     const tenantApiKeys = apiKeys.filter((key) => key.tenantId === tenant.id);
-    const active = tenantApiKeys.filter((key) => !key.revokedAt).length;
+    const active = tenantApiKeys.filter(
+      (key) => !key.revokedAt && Date.parse(key.expiresAt) > Date.now(),
+    ).length;
     return `<tr>
       <td><a href="/admin?tenant=${enc(tenant.id)}">${esc(tenant.ownerEmail || "(no owner email)")}</a></td>
       <td><code>${esc(shortHash(tenant.id))}</code></td>
@@ -417,7 +420,7 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
      </form>
      ${tenants.length === 0
         ? `<p class="empty">No tenants created yet.</p>`
-        : `<table><thead><tr><th>tenant</th><th>id</th><th>active keys</th><th>revoked keys</th><th>created</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
+        : `<table><thead><tr><th>tenant</th><th>id</th><th>active keys</th><th>inactive keys</th><th>created</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
   );
 }
 
@@ -450,7 +453,8 @@ function renderTenantDetail(d: DashboardData): string {
 
 function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[], csrf: string): string {
   const rows = apiKeys.map((key) => {
-    const active = key.revokedAt ? "revoked" : "active";
+    const expired = Date.parse(key.expiresAt) <= Date.now();
+    const active = key.revokedAt ? "revoked" : expired ? "expired" : "active";
     const action = key.revokedAt
       ? ""
       : `<form method="post" action="/admin/api-keys/${esc(key.id)}/revoke">
@@ -460,10 +464,12 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
     return `<tr>
       <td><code>${esc(shortHash(key.id))}</code></td>
       <td>${esc(key.label)}</td>
+      <td>${esc(key.kind)}</td>
       <td><code>${esc(shortHash(key.tokenHash))}</code></td>
       <td>${esc(active)}</td>
       <td class="ts">${esc(key.createdAt)}</td>
       <td class="ts">${esc(key.lastUsedAt ?? "")}</td>
+      <td class="ts">${esc(key.expiresAt)}</td>
       <td>${action}</td>
     </tr>`;
   }).join("");
@@ -479,7 +485,7 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
      </form>
      ${apiKeys.length === 0
       ? `<p class="empty">No API keys for this tenant.</p>`
-      : `<table><thead><tr><th>id</th><th>label</th><th>token hash</th><th>state</th><th>created</th><th>last used</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
+      : `<table><thead><tr><th>id</th><th>label</th><th>scope</th><th>token hash</th><th>state</th><th>created</th><th>last used</th><th>expires</th><th></th></tr></thead><tbody>${rows}</tbody></table>`}`,
   );
 }
 

@@ -41,6 +41,7 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var appleLoginEmail: String?
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
+    @Published public private(set) var signOutInProgress = false
     @Published public private(set) var lastSyncAt: Date?
     @Published public private(set) var lastSyncError: String?
     @Published public private(set) var cards: [DashboardCard] = []
@@ -124,20 +125,42 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
-    public func clearApiKey() {
-        if let client = apiClient() {
-            let deviceId = DeviceRegistration.deviceId()
-            Task {
-                try? await client.syncWidgetPushSubscriptions(
-                    deviceId: deviceId,
-                    widgetPushToken: nil,
-                    subscriptions: []
-                )
+    public func signOut() async -> Bool {
+        signOutInProgress = true
+        appleLoginError = nil
+        defer { signOutInProgress = false }
+
+        if let client = confirmedActionClient() {
+            do {
+                try await client.revokeCurrentCredential()
+                clearLocalCredentials()
+                return true
+            } catch let error as APIClientError where error.status == 401 {
+                // The app credential may have been revoked independently;
+                // fall back to the paired publisher token for cleanup.
+            } catch {
+                appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+                return false
             }
         }
+        do {
+            if let client = apiClient() {
+                try await client.revokeCurrentCredential()
+            }
+        } catch {
+            appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+            return false
+        }
+
+        clearLocalCredentials()
+        return true
+    }
+
+    private func clearLocalCredentials() {
         apiKey = ""
         appleLoginEmail = nil
         appleLoginError = nil
+        KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         saveApiKey()
     }

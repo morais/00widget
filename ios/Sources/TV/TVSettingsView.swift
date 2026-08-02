@@ -29,13 +29,17 @@ struct TVSettingsView: View {
 
                 HStack(spacing: 24) {
                     Button(role: .destructive) {
-                        env.signOut()
-                        dismiss()
+                        Task {
+                            if await env.signOut() {
+                                dismiss()
+                            }
+                        }
                     } label: {
                         Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                             .padding(.horizontal, 32)
                             .padding(.vertical, 16)
                     }
+                    .disabled(env.signOutInProgress)
 
                     Button {
                         dismiss()

@@ -64,6 +64,7 @@ export class FakeD1 {
     kind: "publisher" | "app" = "publisher",
     sessionId = "",
     deviceId = "",
+    expiresAt = "2099-01-01T00:00:00.000Z",
   ): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
@@ -86,6 +87,7 @@ export class FakeD1 {
       kind,
       session_id: sessionId,
       device_id: deviceId,
+      expires_at: expiresAt,
     });
   }
 
@@ -105,7 +107,7 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT INTO api_keys")) {
-      const [id, tenant_id, token_hash, label, created_at, kind, session_id, device_id] = values.map((value) => value == null ? "" : String(value));
+      const [id, tenant_id, token_hash, label, created_at, kind, session_id, device_id, expires_at] = values.map((value) => value == null ? "" : String(value));
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -117,6 +119,7 @@ export class FakeD1 {
         kind,
         session_id,
         device_id,
+        expires_at,
       });
       return 1;
     }
@@ -134,10 +137,21 @@ export class FakeD1 {
     }
     if (normalized.startsWith("UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")) {
       const [revoked_at, id] = values.map(String);
-      const row = this.apiKeys.get(id);
+      const row = [...this.apiKeys.values()].find((candidate) => candidate.id === id);
       if (!row || row.revoked_at) return 0;
       row.revoked_at = revoked_at;
       return 1;
+    }
+    if (normalized === "UPDATE api_keys SET revoked_at = ? WHERE tenant_id = ? AND session_id = ? AND revoked_at IS NULL") {
+      const [revoked_at, tenant_id, session_id] = values.map(String);
+      let count = 0;
+      for (const row of this.apiKeys.values()) {
+        if (row.tenant_id === tenant_id && row.session_id === session_id && !row.revoked_at) {
+          row.revoked_at = revoked_at;
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized.startsWith("UPDATE api_keys SET last_used_at = ? WHERE id = ? AND revoked_at IS NULL")) {
       const [last_used_at, id] = values.map(String);
@@ -234,6 +248,26 @@ export class FakeD1 {
       const [tenant_id, id] = values.map(String);
       this.cards.delete(`${tenant_id}:${id}`);
       return 1;
+    }
+    const registrationCleanup = /^DELETE FROM (devices|widget_tokens|activities|start_tokens) WHERE tenant_id = \? AND (api_key_hash|device_id) = \?$/.exec(normalized);
+    if (registrationCleanup) {
+      const [, table, field] = registrationCleanup;
+      const [tenant_id, value] = values.map(String);
+      const rows = table === "devices"
+        ? this.devices
+        : table === "widget_tokens"
+          ? this.widgetTokens
+          : table === "activities"
+            ? this.activities
+            : this.startTokens;
+      let count = 0;
+      for (const [key, row] of rows.entries()) {
+        if (row.tenant_id === tenant_id && row[field] === value) {
+          rows.delete(key);
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized.startsWith("DELETE FROM webhook_integrations")) {
       const [tenant_id] = values.map(String);
@@ -443,7 +477,7 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
         const tenant = this.tenants.get(candidate.tenant_id);
@@ -457,6 +491,7 @@ export class FakeD1 {
             kind: row.kind,
             session_id: row.session_id,
             device_id: row.device_id,
+            expires_at: row.expires_at,
           }]
         : [];
     }
@@ -474,8 +509,19 @@ export class FakeD1 {
         .sort(by("created_at"))[0];
       return pick(row, ["id", "owner_email"]);
     }
-    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id FROM api_keys ORDER BY created_at DESC") {
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
+    }
+    if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
+      const [tenant_id, session_id] = values.map(String);
+      return [...this.apiKeys.values()]
+        .filter((row) => row.tenant_id === tenant_id && row.session_id === session_id)
+        .map(select("token_hash"));
+    }
+    if (normalized === "SELECT id, tenant_id, token_hash, session_id, device_id FROM api_keys WHERE id = ?") {
+      const [id] = values.map(String);
+      const row = [...this.apiKeys.values()].find((candidate) => candidate.id === id);
+      return pick(row, ["id", "tenant_id", "token_hash", "session_id", "device_id"]);
     }
     if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
       const [apple_sub] = values.map(String);
@@ -833,6 +879,7 @@ export async function seedApiKey(
   kind: "publisher" | "app" = "publisher",
   sessionId = "",
   deviceId = "",
+  expiresAt = "2099-01-01T00:00:00.000Z",
 ): Promise<void> {
   (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(
     await sha256Hex(rawToken),
@@ -841,6 +888,7 @@ export async function seedApiKey(
     kind,
     sessionId,
     deviceId,
+    expiresAt,
   );
 }
 

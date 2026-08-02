@@ -8,6 +8,7 @@ export interface AuthContext {
   credentialKind: CredentialKind;
   sessionId?: string;
   deviceId?: string;
+  expiresAt: string;
 }
 
 export type CredentialKind = "publisher" | "app";
@@ -19,6 +20,7 @@ interface AuthRow {
   kind: CredentialKind;
   session_id: string | null;
   device_id: string | null;
+  expires_at: string;
 }
 
 export interface TenantRecord {
@@ -39,6 +41,7 @@ export interface ApiKeyRecord {
   kind: CredentialKind;
   sessionId?: string;
   deviceId?: string;
+  expiresAt: string;
 }
 
 export interface CreateApiKeyInput {
@@ -48,6 +51,7 @@ export interface CreateApiKeyInput {
   kind?: CredentialKind;
   sessionId?: string;
   deviceId?: string;
+  expiresAt?: string;
 }
 
 export interface CreatedApiKey {
@@ -56,7 +60,11 @@ export interface CreatedApiKey {
   token: string;
 }
 
-export async function requireAuth(req: Request, env: Env): Promise<AuthContext> {
+export async function requireAuth(
+  req: Request,
+  env: Env,
+  options: { allowExpired?: boolean } = {},
+): Promise<AuthContext> {
   const header = req.headers.get("authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   if (!match) {
@@ -66,7 +74,7 @@ export async function requireAuth(req: Request, env: Env): Promise<AuthContext> 
   const apiKeyHash = await sha256Hex(apiKey);
   const row = await env.ZW_DB.prepare(
     `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
-            api_keys.kind, api_keys.session_id, api_keys.device_id
+            api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at
      FROM api_keys
      JOIN tenants ON tenants.id = api_keys.tenant_id
      WHERE api_keys.token_hash = ?
@@ -78,6 +86,10 @@ export async function requireAuth(req: Request, env: Env): Promise<AuthContext> 
   if (!row) {
     throw new AuthError("invalid API key");
   }
+  const expiresAtMs = Date.parse(row.expires_at);
+  if (!options.allowExpired && (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now())) {
+    throw new AuthError("API key expired");
+  }
   await touchApiKeyLastUsed(env, row.id, row.last_used_at);
   return {
     apiKey,
@@ -87,6 +99,7 @@ export async function requireAuth(req: Request, env: Env): Promise<AuthContext> 
     credentialKind: row.kind,
     sessionId: row.session_id ?? undefined,
     deviceId: row.device_id ?? undefined,
+    expiresAt: row.expires_at,
   };
 }
 
@@ -136,6 +149,10 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   const kind = input.kind ?? "publisher";
   const sessionId = input.sessionId?.trim() || undefined;
   const deviceId = input.deviceId?.trim() || undefined;
+  const expiresAt = input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  if (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) {
+    throw new Error("expiresAt must be a future ISO-8601 timestamp");
+  }
   const token = `${kind === "app" ? "zwa" : "zw"}_${randomUrlToken(32)}`;
   const tokenHash = await sha256Hex(token);
   const apiKeyId = crypto.randomUUID();
@@ -155,10 +172,20 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     .run();
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
-       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(apiKeyId, tenantId, tokenHash, label, now, kind, sessionId ?? null, deviceId ?? null)
+    .bind(
+      apiKeyId,
+      tenantId,
+      tokenHash,
+      label,
+      now,
+      kind,
+      sessionId ?? null,
+      deviceId ?? null,
+      expiresAt,
+    )
     .run();
 
   return {
@@ -177,6 +204,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       kind,
       sessionId,
       deviceId,
+      expiresAt,
     },
     token,
   };
@@ -216,7 +244,7 @@ export async function listTenants(env: Env): Promise<TenantRecord[]> {
 export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
-            kind, session_id, device_id
+            kind, session_id, device_id, expires_at
      FROM api_keys
      ORDER BY created_at DESC`,
   ).all<{
@@ -230,6 +258,7 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     kind: CredentialKind;
     session_id: string | null;
     device_id: string | null;
+    expires_at: string;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
@@ -242,6 +271,7 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     kind: row.kind,
     sessionId: row.session_id ?? undefined,
     deviceId: row.device_id ?? undefined,
+    expiresAt: row.expires_at,
   }));
 }
 
