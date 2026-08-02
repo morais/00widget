@@ -26,10 +26,8 @@ struct ZeroZeroWidgetApp: App {
     }
 
     private func openExternalDeepLink(_ url: URL) {
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-            return
-        }
-        UIApplication.shared.open(url)
+        guard let safeURL = ZeroZeroWidgetDeepLinkPolicy.sanitize(url) else { return }
+        UIApplication.shared.open(safeURL)
     }
 }
 

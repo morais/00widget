@@ -16,9 +16,9 @@ This document is the entire contract you need. You do **not** need to read the r
 
 ## Tap behavior
 
-Cards can open a destination when tapped via `deepLink`. If you want a card tap to open your app or website, set `deepLink` to an `https://...` URL, for example `"deepLink": "https://example.com/dashboard"`.
+Cards can open a destination when tapped via `deepLink`. Set it to an `https://...` URL, for example `"deepLink": "https://example.com/dashboard"`; other URL schemes are rejected.
 
-On Home Screen widgets, iOS first launches the containing 00Widget app with the widget URL. 00Widget then forwards `http`/`https` deep links to the system, so a universal link can open its matching app and a normal `https://...` URL opens in Safari. You may briefly see 00Widget during that handoff; it is not an in-app web view. Inside the 00Widget app, the card is rendered as a normal link to the same URL. If `deepLink` is omitted, a widget tap just opens 00Widget with no external destination.
+On Home Screen widgets, iOS first launches the containing 00Widget app with the widget URL. 00Widget then forwards the HTTPS deep link to the system, so a universal link can open its matching app and a normal web URL opens in Safari. You may briefly see 00Widget during that handoff; it is not an in-app web view. Inside the 00Widget app, the card is rendered as a normal link to the same URL. If `deepLink` is omitted, a widget tap just opens 00Widget with no external destination.
 
 ## Operator checklist for agents
 
@@ -65,7 +65,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
   "updatedAt": "ISO-8601 string? (server fills in if omitted)",
   "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
-  "deepLink": "URL? (tapping the card opens this destination; use https://... for web apps)",
+  "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (only for template=list)",
   "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
 }
@@ -124,7 +124,7 @@ Card field limits:
 | `unit` | 24 chars |
 | `icon` | 64 chars |
 | `statusIcon` | 64 chars |
-| `deepLink` | 2048 chars |
+| `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
 | `actions` | 8 buttons |
 
@@ -152,7 +152,7 @@ Live Activity limits:
 | `icon` | 64 chars |
 | `value` | 80 chars |
 | `unit` | 24 chars |
-| `deepLink` | 2048 chars |
+| `deepLink` | HTTPS URL, 2048 chars |
 | `alert.title` | 120 chars |
 | `alert.body` | 240 chars |
 
