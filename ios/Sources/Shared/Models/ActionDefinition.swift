@@ -31,7 +31,7 @@ public struct ActionDefinition: Codable, Hashable, Identifiable, Sendable {
         id = try c.decode(String.self, forKey: .id)
         label = try c.decode(String.self, forKey: .label)
         let rawRole = try c.decodeIfPresent(String.self, forKey: .role) ?? "normal"
-        role = Role(rawValue: rawRole) ?? .normal
+        role = Role(rawValue: rawRole) ?? .destructive
         confirm = try c.decodeIfPresent(Bool.self, forKey: .confirm) ?? false
         payload = try c.decodeIfPresent([String: String].self, forKey: .payload)
     }

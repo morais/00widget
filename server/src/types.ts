@@ -83,7 +83,7 @@ export const DashboardStatusSchema = z
 
 export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "action"]);
 
-export const ActionRoleSchema = z.enum(["normal", "destructive"]).catch("normal");
+export const ActionRoleSchema = z.enum(["normal", "destructive"]);
 
 const ActionPayloadSchema = z
   .record(
