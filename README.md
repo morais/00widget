@@ -98,7 +98,7 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 
 ## Admin dashboard
 
-A read-only HTML console at `/admin` lists every card, device, push token, Live Activity, pending activity, and push-to-start token across all API keys. Two sign-in methods (either is sufficient):
+An authenticated administrative console at `/admin` lists cards, devices, push tokens, Live Activities, pending activities, and push-to-start tokens across every tenant. It can also create and revoke tenant credentials and delete tenant data, so access grants full administrative control rather than read-only visibility. Two sign-in methods (either is sufficient):
 
 - **Sign in with Apple** — restricted to emails in `ADMIN_EMAILS`.
 - **API-token fallback** — paste any bootstrap value from `API_KEYS` into the form. Disabled by default; set `ADMIN_API_TOKEN_LOGIN=true` only when you need the bootstrap fallback.
