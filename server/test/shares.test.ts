@@ -105,9 +105,9 @@ describe("shares — happy path", () => {
       executionCtx,
     );
     expect(create.status).toBe(201);
-    const { share } = (await create.json()) as { share: { id: string; status: string; recipientTenantId?: string } };
+    const { share } = (await create.json()) as { share: { id: string; status: string } };
     expect(share.status).toBe("pending");
-    expect(share.recipientTenantId).toBe("recipient");
+    expect(share).not.toHaveProperty("recipientTenantId");
 
     // Owner sees it as outgoing
     const outgoing = await (handler.fetch as any)(
@@ -115,7 +115,9 @@ describe("shares — happy path", () => {
       env,
       executionCtx,
     );
-    expect(((await outgoing.json()) as { shares: unknown[] }).shares).toHaveLength(1);
+    const outgoingShares = ((await outgoing.json()) as { shares: Array<Record<string, unknown>> }).shares;
+    expect(outgoingShares).toHaveLength(1);
+    expect(outgoingShares[0]).not.toHaveProperty("recipientTenantId");
 
     // Recipient sees it as incoming
     const incoming = await (handler.fetch as any)(
@@ -128,6 +130,7 @@ describe("shares — happy path", () => {
     };
     expect(incData.shares).toHaveLength(1);
     expect(incData.shares[0].ownerEmail).toBe("owner@example.com");
+    expect(incData.shares[0]).not.toHaveProperty("recipientTenantId");
 
     // Recipient accepts
     const accept = await (handler.fetch as any)(
@@ -136,6 +139,8 @@ describe("shares — happy path", () => {
       executionCtx,
     );
     expect(accept.status).toBe(200);
+    expect(((await accept.json()) as { share: Record<string, unknown> }).share)
+      .not.toHaveProperty("recipientTenantId");
 
     // Recipient now gets the card via include=shared
     const list = await (handler.fetch as any)(

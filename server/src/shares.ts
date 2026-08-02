@@ -12,7 +12,6 @@ const APPLE_REFERENCE_DATE_UNIX_SECONDS = 978_307_200;
 export interface ShareRecord {
   id: string;
   ownerTenantId: string;
-  recipientTenantId?: string;
   recipientEmail: string;
   resourceKind: ShareResourceKind;
   resourceId: string;
@@ -22,6 +21,10 @@ export interface ShareRecord {
   revokedAt?: string;
   // Optional decoration for outgoing/incoming list responses.
   ownerEmail?: string;
+}
+
+interface InternalShareRecord extends ShareRecord {
+  recipientTenantId?: string;
 }
 
 export function isSharingEnabled(env: Env): boolean {
@@ -49,7 +52,6 @@ function rowToRecord(row: ShareRow, decoration: { ownerEmail?: string } = {}): S
   return {
     id: row.id,
     ownerTenantId: row.owner_tenant_id,
-    recipientTenantId: row.recipient_tenant_id ?? undefined,
     recipientEmail: row.recipient_email,
     resourceKind: row.resource_kind as ShareResourceKind,
     resourceId: row.resource_id,
@@ -58,6 +60,13 @@ function rowToRecord(row: ShareRow, decoration: { ownerEmail?: string } = {}): S
     acceptedAt: row.accepted_at ?? undefined,
     revokedAt: row.revoked_at ?? undefined,
     ownerEmail: decoration.ownerEmail,
+  };
+}
+
+function rowToInternalRecord(row: ShareRow): InternalShareRecord {
+  return {
+    ...rowToRecord(row),
+    recipientTenantId: row.recipient_tenant_id ?? undefined,
   };
 }
 
@@ -72,15 +81,6 @@ export async function tenantOwnerEmail(env: Env, tenantId: string): Promise<stri
     .bind(tenantId)
     .first<{ owner_email: string | null }>();
   return row?.owner_email ? normalizeEmail(row.owner_email) : null;
-}
-
-async function findTenantByEmail(env: Env, email: string): Promise<string | null> {
-  const row = await env.ZW_DB.prepare(
-    `SELECT id, owner_email FROM tenants WHERE lower(owner_email) = ? AND disabled_at IS NULL ORDER BY created_at ASC LIMIT 1`,
-  )
-    .bind(email)
-    .first<{ id: string }>();
-  return row?.id ?? null;
 }
 
 async function getShare(env: Env, id: string): Promise<ShareRow | null> {
@@ -142,7 +142,6 @@ export async function createShare(req: Request, env: Env, auth: AuthContext): Pr
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const recipientTenantId = await findTenantByEmail(env, recipientEmail);
 
   await env.ZW_DB.prepare(
     `INSERT INTO shares
@@ -153,7 +152,7 @@ export async function createShare(req: Request, env: Env, auth: AuthContext): Pr
     .bind(
       id,
       auth.tenantId,
-      recipientTenantId,
+      null,
       recipientEmail,
       parsed.data.resourceKind,
       parsed.data.resourceId,
@@ -347,7 +346,7 @@ export async function listAcceptedShares(
   ownerTenantId: string,
   resourceKind: ShareResourceKind,
   resourceId: string,
-): Promise<ShareRecord[]> {
+): Promise<InternalShareRecord[]> {
   if (!isSharingEnabled(env)) return [];
   const rows = await env.ZW_DB.prepare(
     `SELECT id, owner_tenant_id, recipient_tenant_id, recipient_email,
@@ -361,7 +360,7 @@ export async function listAcceptedShares(
   )
     .bind(ownerTenantId, resourceKind, resourceId)
     .all<ShareRow>();
-  return rows.results.map((r) => rowToRecord(r));
+  return rows.results.map((r) => rowToInternalRecord(r));
 }
 
 /// Returns the accepted shares incoming for `recipientTenantId` of the given
