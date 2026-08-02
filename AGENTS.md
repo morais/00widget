@@ -48,7 +48,7 @@ cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 
 # End-to-end smoke
-cd examples && cp env.example.sh env.sh   # then edit env.sh
+cd examples && install -m 600 env.example.sh env.sh   # then edit env.sh
 ./upsert-solar.sh
 ./start-washer.sh
 ```

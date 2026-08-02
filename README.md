@@ -57,7 +57,7 @@ If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Wor
 ```
 cd server
 npm install
-cp .dev.vars.example .dev.vars   # fill in SESSION_SECRET; set ADMIN_API_TOKEN_LOGIN=true only for local fallback
+install -m 600 .dev.vars.example .dev.vars   # fill in SESSION_SECRET; enable the local fallback only when needed
 npx wrangler dev
 ```
 
@@ -71,7 +71,7 @@ curl -s http://localhost:8787/health
 
 ```
 cd examples
-cp env.example.sh env.sh         # edit BASE_URL and API_KEY
+install -m 600 env.example.sh env.sh   # edit BASE_URL and API_KEY
 ./upsert-solar.sh
 ```
 

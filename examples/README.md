@@ -5,12 +5,12 @@ Thin `curl` scripts demonstrating how any agent, automation, or web app can publ
 ## Setup
 
 ```
-cp env.example.sh env.sh
+install -m 600 env.example.sh env.sh
 # edit env.sh to point at your Worker and set your API key
 chmod +x *.sh
 ```
 
-`env.sh` is gitignored — it holds your real `BASE_URL` and `API_KEY` and should never be committed.
+`env.sh` is gitignored and created with owner-only permissions — it holds your real `BASE_URL` and `API_KEY` and should never be committed.
 
 ## Scripts
 
