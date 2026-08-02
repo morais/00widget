@@ -151,7 +151,9 @@ If the admin chose "Hide My Email" on first sign-in, Apple returns a relay addre
 
 ## iOS app login
 
-The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS, creates a tenant API token for the email Apple returned, and sends the raw token back once. The app stores that token in Keychain and shows it in Settings with a copy button so the same token can be pasted into agents.
+The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates a paired 90-day credential session. The publisher token is shared with widgets and shown once for agents. A separately scoped app credential is stored only in the app's device-only Keychain and can run confirmed actions. Signing out calls `DELETE /v1/auth/token`, revokes the pair, and removes that device's APNs, widget, and Live Activity registrations.
+
+All newly created API tokens expire after 90 days. The migration also gives existing tokens a 90-day transition window. A standalone publisher token can revoke itself with `DELETE /v1/auth/token`; the endpoint also accepts an expired token solely so it can clean up its own registrations.
 
 Required Worker secrets:
 
@@ -196,6 +198,7 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | DELETE | `/v1/integrations/webhook`                   | Disable action webhook delivery.       |
 | POST   | `/v1/actions/:id/run`                        | Deliver an action to the configured webhook. |
 | POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
+| DELETE | `/v1/auth/token`                             | Revoke the current credential/session and device registrations. |
 | GET    | `/admin/login`                               | Login page (Apple + API-token forms).  |
 | GET    | `/admin/login/apple`                         | Redirects to Sign in with Apple.       |
 | POST   | `/admin/login/api-token`                     | API-token fallback login.              |

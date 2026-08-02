@@ -48,6 +48,8 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/card
 
 `GET /v1/cards` returns the full stored card JSON for that API token, including `deepLink` when present. If `/health` returns 200 but `/v1/cards` returns 401, the URL is right and the key is wrong. Ask the operator for the correct key — don't try to guess.
 
+API tokens expire 90 days after creation. A `401` with `API key expired` means the operator must issue a replacement; do not keep retrying the expired credential. A token owner can revoke it and remove registrations associated with it using `DELETE /v1/auth/token` with the same Bearer header.
+
 ## Data model
 
 A **DashboardCard** is one tile on a widget. Wire format:

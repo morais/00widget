@@ -11,6 +11,7 @@ import * as appLogin from "./appLogin";
 import * as landing from "./landing";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
+import * as sessions from "./sessions";
 import { processPendingWidgetReload } from "./widgetPush";
 
 interface Route {
@@ -100,6 +101,9 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env) =>
     appLogin.createTokenFromApple(req, env),
   },
+  authed("DELETE", /^\/v1\/auth\/token\/?$/, (req, env, auth) =>
+    sessions.revokeCurrentCredential(req, env, auth), "any", true,
+  ),
   // Admin dashboard — gated by Apple Sign-In or API-token cookie.
   { method: "GET", pattern: /^\/admin\/login\/?$/, handler: (req, env) => admin.handleAdminLogin(req, env) },
   { method: "GET", pattern: /^\/admin\/login\/apple\/?$/, handler: (req, env) => admin.handleAdminLoginApple(req, env) },
@@ -140,15 +144,16 @@ function authed(
   method: string,
   pattern: RegExp,
   handler: AuthedHandler,
-  credentialKind: import("./auth").CredentialKind = "publisher",
+  credentialKind: import("./auth").CredentialKind | "any" = "publisher",
+  allowExpired = false,
 ): Route {
   return {
     method,
     pattern,
     handler: async (req, env, match, ctx) => {
       try {
-        const auth = await requireAuth(req, env);
-        if (auth.credentialKind !== credentialKind) {
+        const auth = await requireAuth(req, env, { allowExpired });
+        if (credentialKind !== "any" && auth.credentialKind !== credentialKind) {
           return json({ error: `${credentialKind} credential required` }, 403);
         }
         return await handler(req, env, auth, match, ctx);

@@ -7,6 +7,7 @@ final class TVEnvironment: ObservableObject {
     @Published private(set) var appleLoginEmail: String?
     @Published private(set) var appleLoginError: String?
     @Published private(set) var appleLoginInProgress = false
+    @Published private(set) var signOutInProgress = false
     @Published private(set) var cards: [DashboardCard] = []
     @Published private(set) var sharedCards: [DashboardCard] = []
     @Published private(set) var liveActivities: [LiveActivitySession] = []
@@ -91,13 +92,44 @@ final class TVEnvironment: ObservableObject {
         appleLoginError = message
     }
 
-    func signOut() {
+    func signOut() async -> Bool {
+        signOutInProgress = true
+        appleLoginError = nil
+        defer { signOutInProgress = false }
+        if let client = confirmedActionClient() {
+            do {
+                try await client.revokeCurrentCredential()
+                clearLocalCredentials()
+                return true
+            } catch let error as APIClientError where error.status == 401 {
+                // Fall through to the publisher token when the private half
+                // of the credential pair was already revoked.
+            } catch {
+                appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+                return false
+            }
+        }
+        do {
+            if let client = apiClient() {
+                try await client.revokeCurrentCredential()
+            }
+        } catch {
+            appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+            return false
+        }
+
+        clearLocalCredentials()
+        return true
+    }
+
+    private func clearLocalCredentials() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
         apiKey = ""
         appleLoginEmail = nil
         appleLoginError = nil
         KeychainStore.delete(ZeroZeroWidgetConstants.KeychainKeys.apiKey)
+        KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         CardCache.clear()
         cards = []
