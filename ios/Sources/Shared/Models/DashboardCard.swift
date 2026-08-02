@@ -29,7 +29,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var statusIcon: String?
     public var updatedAt: Date
     public var staleAfter: Date?
-    public var deepLink: URL?
+    public private(set) var deepLink: URL?
     public var items: [DashboardItem]?
     public var actions: [ActionDefinition]?
     public var sharedBy: SharedByInfo?
@@ -62,7 +62,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.statusIcon = statusIcon
         self.updatedAt = updatedAt
         self.staleAfter = staleAfter
-        self.deepLink = deepLink
+        self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
         self.items = items
         self.actions = actions
         self.sharedBy = sharedBy
@@ -82,7 +82,9 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
         staleAfter = try DashboardCard.decodeDate(c, forKey: .staleAfter)
-        deepLink = try c.decodeIfPresent(URL.self, forKey: .deepLink)
+        deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
+            try c.decodeIfPresent(URL.self, forKey: .deepLink)
+        )
         items = try c.decodeIfPresent([DashboardItem].self, forKey: .items)
         actions = try c.decodeIfPresent([ActionDefinition].self, forKey: .actions)
         sharedBy = try c.decodeIfPresent(SharedByInfo.self, forKey: .sharedBy)

@@ -103,6 +103,25 @@ describe("DashboardCardSchema", () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it("accepts only HTTPS deep links", () => {
+    const card = {
+      id: "a",
+      template: "summary",
+      title: "Status",
+    };
+
+    expect(
+      DashboardCardSchema.safeParse({ ...card, deepLink: "https://example.com/status" }).success,
+    ).toBe(true);
+    for (const deepLink of [
+      "http://example.com/status",
+      "widget-admin://reset",
+      "javascript:alert(1)",
+    ]) {
+      expect(DashboardCardSchema.safeParse({ ...card, deepLink }).success).toBe(false);
+    }
+  });
 });
 
 describe("cards endpoints", () => {

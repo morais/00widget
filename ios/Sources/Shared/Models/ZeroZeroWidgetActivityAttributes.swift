@@ -44,7 +44,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     public var kind: LiveActivityKind
     public var title: String
     public var icon: String?
-    public var deepLink: URL?
+    public private(set) var deepLink: URL?
 
     public init(
         externalActivityId: String,
@@ -57,7 +57,22 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         self.kind = kind
         self.title = title
         self.icon = icon
-        self.deepLink = deepLink
+        self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        externalActivityId = try container.decode(String.self, forKey: .externalActivityId)
+        kind = try container.decode(LiveActivityKind.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
+            try container.decodeIfPresent(URL.self, forKey: .deepLink)
+        )
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case externalActivityId, kind, title, icon, deepLink
     }
 }
 

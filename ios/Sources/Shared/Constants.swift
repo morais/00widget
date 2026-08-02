@@ -57,3 +57,17 @@ public enum ZeroZeroWidgetConstants {
         public static let apiKey = "zw.apiKey"
     }
 }
+
+public enum ZeroZeroWidgetDeepLinkPolicy {
+    public static func sanitize(_ url: URL?) -> URL? {
+        guard
+            let url,
+            url.scheme?.lowercased() == "https",
+            let host = url.host,
+            !host.isEmpty
+        else {
+            return nil
+        }
+        return url
+    }
+}

@@ -42,7 +42,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     // Smart Stack ranking on iPhone Lock Screen and Apple Watch. Higher wins.
     // Mirrors aps.relevance-score / ActivityContent.relevanceScore.
     public var relevanceScore: Double?
-    public var deepLink: URL?
+    public private(set) var deepLink: URL?
     public var actions: [ActionDefinition]?
 
     public var id: String { externalActivityId }
@@ -81,7 +81,39 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.updatedAt = updatedAt
         self.staleAt = staleAt
         self.relevanceScore = relevanceScore
-        self.deepLink = deepLink
+        self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
         self.actions = actions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        externalActivityId = try container.decode(String.self, forKey: .externalActivityId)
+        kind = try container.decode(LiveActivityKind.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        state = try container.decode(String.self, forKey: .state)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        value = try container.decodeIfPresent(String.self, forKey: .value)
+        unit = try container.decodeIfPresent(String.self, forKey: .unit)
+        progress = try container.decodeIfPresent(Double.self, forKey: .progress)
+        endsAt = try container.decodeIfPresent(Date.self, forKey: .endsAt)
+        countdownGranularity = try container.decodeIfPresent(
+            CountdownGranularity.self,
+            forKey: .countdownGranularity
+        )
+        startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        staleAt = try container.decodeIfPresent(Date.self, forKey: .staleAt)
+        relevanceScore = try container.decodeIfPresent(Double.self, forKey: .relevanceScore)
+        deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
+            try container.decodeIfPresent(URL.self, forKey: .deepLink)
+        )
+        actions = try container.decodeIfPresent([ActionDefinition].self, forKey: .actions)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case externalActivityId, kind, title, subtitle, state, icon, value, unit
+        case progress, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
+        case relevanceScore, deepLink, actions
     }
 }

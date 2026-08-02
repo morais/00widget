@@ -57,7 +57,20 @@ const OptionalSubtitleString = z.string().max(FieldLimits.subtitle).optional();
 const OptionalValueString = z.string().max(FieldLimits.value).optional();
 const OptionalUnitString = z.string().max(FieldLimits.unit).optional();
 const OptionalIconString = z.string().max(FieldLimits.icon).optional();
-const OptionalDeepLink = z.string().url().max(FieldLimits.deepLink).optional();
+const OptionalDeepLink = z
+  .string()
+  .url()
+  .max(FieldLimits.deepLink)
+  .refine((value) => {
+    try {
+      return new URL(value).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, {
+    message: "deepLink must use https",
+  })
+  .optional();
 // APNs device tokens and ActivityKit push tokens are hex strings (iOS hands
 // them out via Data.hexEncodedString()). Requiring hex here keeps the value
 // safe to interpolate into the APNs URL `/3/device/<token>` and rejects
