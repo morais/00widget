@@ -92,6 +92,17 @@ describe("DashboardCardSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("rejects unknown action roles instead of making them widget-safe", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "a",
+      template: "action",
+      title: "Controls",
+      actions: [{ id: "run", label: "Run", role: "unexpected" }],
+    });
+
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe("cards endpoints", () => {
