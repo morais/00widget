@@ -30,7 +30,10 @@ export const API_SCOPES = [
 export type ApiScope = typeof API_SCOPES[number];
 
 export const ApiScopePresets = {
-  producer: ["tenant:read", "publish"] as ApiScope[],
+  // The agent that publishes a card with buttons is the same system that
+  // receives the taps, so webhook administration rides on the publisher token
+  // rather than a credential the app has no way to issue.
+  producer: ["tenant:read", "publish", "webhook:manage"] as ApiScope[],
   readOnly: ["tenant:read"] as ApiScope[],
   device: ["tenant:read", "device:register", "actions:run"] as ApiScope[],
   appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],

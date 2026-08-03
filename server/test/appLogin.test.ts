@@ -130,7 +130,7 @@ describe("app Apple login", () => {
         .filter((key) => key.sessionId)
         .map((key) => key.scopes),
     ).toEqual(expect.arrayContaining([
-      ["tenant:read", "publish"],
+      ["tenant:read", "publish", "webhook:manage"],
       ["tenant:read", "device:register", "actions:run"],
       ["actions:confirm", "shares:manage"],
     ]));

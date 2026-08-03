@@ -62,7 +62,7 @@ describe("API credential scopes", () => {
     });
   });
 
-  it("keeps producer, device, app-only, and webhook capabilities separated", async () => {
+  it("keeps device and app-only capabilities out of the publisher token", async () => {
     const env = makeEnv({ SHARING_ENABLED: "true" });
     const producer = await createApiKey(env, {
       tenantId: "test-tenant",
@@ -84,7 +84,19 @@ describe("API credential scopes", () => {
 
     expect(await status(env, producer.token, "GET", "/v1/cards")).toBe(200);
     expect(await status(env, producer.token, "POST", "/v1/devices/register")).toBe(403);
-    expect(await status(env, producer.token, "GET", "/v1/integrations/webhook")).toBe(403);
+    expect(await status(env, producer.token, "GET", "/v1/shares/incoming")).toBe(403);
+
+    // The agent that publishes a card with buttons also administers the
+    // webhook those buttons call, so this rides on the publisher token.
+    const producerWebhook = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhook", {
+        method: "PUT",
+        body: JSON.stringify({ url: "https://example.com/producer-actions" }),
+      }, producer.token),
+      env,
+      ctx,
+    );
+    expect(producerWebhook.status).toBe(200);
 
     expect(await status(env, device.token, "GET", "/v1/cards")).toBe(200);
     expect(await status(env, device.token, "POST", "/v1/cards/upsert")).toBe(403);
