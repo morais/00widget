@@ -1,5 +1,8 @@
 # Copy this file to .dev.vars (gitignored) and fill in real values for local dev.
 # In production these are set with `wrangler secret put <NAME>`.
+#
+# Non-secret toggles (APNS_ENV, SHARING_ENABLED) live in wrangler.toml [vars],
+# not here — see wrangler.toml.sample.
 
 # Comma-separated bootstrap tokens for the admin API-token fallback login.
 # These are not accepted by /v1/*; create tenant API tokens from /admin.
@@ -11,7 +14,7 @@ APNS_KEY_ID=""
 # The private key in PEM form. Wrap in double quotes and preserve \n line breaks.
 # Example: APNS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIGTA...\n-----END PRIVATE KEY-----\n"
 APNS_PRIVATE_KEY=""
-APNS_BUNDLE_ID="com.example.zerowidget"
+APNS_BUNDLE_ID="com.example.zerozerowidget"
 # "sandbox" for debug builds, "production" for App Store / TestFlight.
 APNS_ENV="sandbox"
 
