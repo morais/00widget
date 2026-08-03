@@ -24,9 +24,13 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
 
+      # --ignore-scripts: this workflow runs on pull_request, so once the
+      # repository is public a fork can propose a package.json/package-lock.json
+      # whose install lifecycle hooks would otherwise execute on the runner.
+      # Nothing in the typecheck or test path needs a postinstall step.
       - name: Install dependencies
         working-directory: server
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         working-directory: server
