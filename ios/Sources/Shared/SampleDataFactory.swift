@@ -1,11 +1,18 @@
 import Foundation
 
 public enum SampleDataFactory {
+    /// Sample cards live in the reserved `sample-` id namespace so the app and
+    /// the widget extension can badge them and offer to remove them without
+    /// mistaking a published card for a demo one.
+    public static func sampleId(_ suffix: String) -> String {
+        ZeroZeroWidgetConstants.sampleCardIdPrefix + suffix
+    }
+
     public static func makeCards() -> [DashboardCard] {
         let now = Date()
         return [
             DashboardCard(
-                id: "solar-home",
+                id: sampleId("solar"),
                 template: .summary,
                 title: "Solar",
                 subtitle: "Exporting 0.8 kW",
@@ -16,7 +23,7 @@ public enum SampleDataFactory {
                 updatedAt: now
             ),
             DashboardCard(
-                id: "school-balances",
+                id: sampleId("school-balances"),
                 template: .list,
                 title: "School balances",
                 status: .good,
@@ -28,7 +35,7 @@ public enum SampleDataFactory {
                 ]
             ),
             DashboardCard(
-                id: "boiler",
+                id: sampleId("boiler"),
                 template: .action,
                 title: "Boiler",
                 subtitle: "Manual mode available",
@@ -42,7 +49,7 @@ public enum SampleDataFactory {
                 ]
             ),
             DashboardCard(
-                id: "car-charge",
+                id: sampleId("car-charge"),
                 template: .progress,
                 title: "Car",
                 subtitle: "Charging at 7.4 kW",
@@ -54,7 +61,7 @@ public enum SampleDataFactory {
                 updatedAt: now
             ),
             DashboardCard(
-                id: "washer",
+                id: sampleId("washer"),
                 template: .summary,
                 title: "Washer",
                 subtitle: "Cycle running",

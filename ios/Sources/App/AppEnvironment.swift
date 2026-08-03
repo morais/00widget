@@ -321,6 +321,25 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
+    public var hasSampleCards: Bool {
+        cards.contains { $0.isSample }
+    }
+
+    /// Samples only ever live in the App Group cache, so removing them is a
+    /// local edit. Production builds ship without the Debug tab, and a signed
+    /// out user never reaches a successful fetch, so this is the only way back
+    /// out of the sample state for them.
+    public func clearSampleCards() {
+        let remaining = cards.filter { !$0.isSample }
+        if remaining.isEmpty {
+            CardCache.clear()
+        } else {
+            try? CardCache.save(remaining)
+        }
+        cards = remaining
+        reloadWidgetTimelines()
+    }
+
     public func clearCache() {
         CardCache.clear()
         cards = []

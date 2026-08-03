@@ -254,6 +254,7 @@ The `id` field is the dedupe key. Pick a slug that's stable across runs of your 
 - `solar-home`, `washer-cycle`, `car-charge`, `school-balance-<child>`, `build-status-<repo>`
 - **Don't** put timestamps or run ids in there — every publish would create a new card.
 - **Do** namespace if you might collide with another integration: `myapp-build-status` rather than `build-status`.
+- **Don't** start an id with `sample-`. That prefix is reserved for the demo cards the iOS app can generate locally; the app badges those cards as samples and offers to delete them.
 
 ## Live Activities
 

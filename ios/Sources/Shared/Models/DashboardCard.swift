@@ -100,6 +100,10 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         return Date().timeIntervalSince(updatedAt) > 3600
     }
 
+    public var isSample: Bool {
+        id.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix)
+    }
+
     private static func decodeDate(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) throws -> Date? {
         if let s = try container.decodeIfPresent(String.self, forKey: key) {
             return ZeroZeroWidgetDateFormat.parse(s)
