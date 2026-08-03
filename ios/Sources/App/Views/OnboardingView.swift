@@ -13,7 +13,11 @@ struct OnboardingView: View {
 
     /// How long the copied agent config survives on the pasteboard. The label
     /// promises this, so the expiry below and the reset timer read it here.
-    private static let pasteboardLifetime: TimeInterval = 2 * 60
+    private static let pasteboardLifetime: TimeInterval = 5 * 60
+
+    private static var pasteboardLifetimeLabel: String {
+        "\(Int(pasteboardLifetime / 60)) min"
+    }
     // Raw nonce for the in-flight Sign in with Apple request. We hash it
     // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
     // logs only the hash, and we send the raw value to the backend so it can
@@ -28,7 +32,11 @@ struct OnboardingView: View {
                         .font(.caption)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(copiedAgentConfig ? "Copied — clipboard clears in 2 min" : "Copy agent config") {
+                    Button(
+                        copiedAgentConfig
+                            ? "Copied — clipboard clears in \(Self.pasteboardLifetimeLabel)"
+                            : "Copy agent config"
+                    ) {
                         copySensitiveText(agentConfig)
                         copiedAgentConfig = true
                         copyResetTask?.cancel()
