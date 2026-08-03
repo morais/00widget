@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import shutil
 from collections import deque
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BRAND_DIR = REPO_ROOT / "docs" / "brand"
-SOURCE = BRAND_DIR / "u2-approved-reference.png"
+SOURCE = BRAND_DIR / "branding-sheet.png"
 MARK_MASTER = BRAND_DIR / "u2-mark-transparent-master.png"
 APP_ICON_MASTER = BRAND_DIR / "u2-app-icon-master.png"
 
@@ -201,7 +200,6 @@ def generate() -> None:
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
-    shutil.copy2(SOURCE, BRAND_DIR / "branding-sheet.png")
 
     save(app_icon, REPO_ROOT / "ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
 

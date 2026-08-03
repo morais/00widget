@@ -7,15 +7,20 @@ import { llmsMarkdown } from "./generated/llmsDoc";
 //
 // The agent prompt embedded below mirrors the README's
 // "Pointing an agent at 00Widget from another project" block — keep them in
-// sync when either changes.
+// sync when either changes. The README keeps `https://api.example.com` as a
+// placeholder; the served copy substitutes the real request host.
 
-const AGENT_PROMPT = `Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
+// Built per request from the URL the Worker was actually reached on, so a fork
+// or a staging deployment hands agents its own host instead of advertising
+// whichever hostname happened to be hardcoded here.
+function agentPrompt(baseURL: string): string {
+  return `Integrate this project with 00Widget so its state shows up on iOS widgets and Live Activities.
 
-Read the integration contract: https://api.00widget.com/llms.md
+Read the integration contract: ${baseURL}/llms.md
 That single document is everything you need — don't pull in the rest of the 00Widget repo.
 
 Operator-supplied env vars:
-  00WIDGET_BASE_URL=https://api.00widget.com
+  00WIDGET_BASE_URL=${baseURL}
   00WIDGET_API_KEY=<bearer token>
 
 Verify both work with \`curl $00WIDGET_BASE_URL/health\` and an authenticated \`GET /v1/cards\` before writing any code.
@@ -33,9 +38,10 @@ Constraints:
 - Don't publish more than ~once a minute per card unless the value actually changed.
 
 If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in llms.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.`;
+}
 
-export async function handleLanding(_req: Request): Promise<Response> {
-  return new Response(renderLandingHTML(), {
+export async function handleLanding(req: Request): Promise<Response> {
+  return new Response(renderLandingHTML(new URL(req.url).origin), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
@@ -111,7 +117,8 @@ function renderHostedLlmsMarkdown(baseURL: string): string {
     );
 }
 
-export async function handleLlmsTxt(_req: Request): Promise<Response> {
+export async function handleLlmsTxt(req: Request): Promise<Response> {
+  const baseURL = new URL(req.url).origin;
   const body = `# 00Widget
 
 Widgets for all your agents.
@@ -122,7 +129,7 @@ and the Dynamic Island.
 
 ## Integration contract for AI agents
 
-The complete API contract is at https://api.00widget.com/llms.md — that one
+The complete API contract is at ${baseURL}/llms.md — that one
 document is everything an integrating agent needs.
 
 ## Endpoints worth knowing
@@ -238,7 +245,7 @@ const LANDING_SCRIPT = `
   });
 `;
 
-function renderLandingHTML(): string {
+function renderLandingHTML(baseURL: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -264,7 +271,7 @@ function renderLandingHTML(): string {
 
 <div class="copy-wrap">
   <button type="button" class="copy-btn" data-copy-target="agent-prompt" aria-label="Copy agent prompt">Copy</button>
-  <pre id="agent-prompt"><code>${escapeHtml(AGENT_PROMPT)}</code></pre>
+  <pre id="agent-prompt"><code>${escapeHtml(agentPrompt(baseURL))}</code></pre>
 </div>
 
 <p class="copy-hint">The API contract is also available at <a href="/llms.md"><code>/llms.md</code></a>.</p>

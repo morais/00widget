@@ -17,6 +17,21 @@ describe("public landing + docs endpoints", () => {
     expect(body).toContain("/llms.md");
   });
 
+  it("serves the request host, not a hardcoded one, to agents", async () => {
+    // A fork or staging deployment must advertise its own origin — never
+    // whichever hostname the upstream project happens to deploy to.
+    for (const path of ["/", "/llms.md", "/llms.txt"]) {
+      const res = await (handler.fetch as any)(
+        new Request(`https://widgets.fork.example/${path.slice(1)}`),
+        makeEnv(),
+        ctx,
+      );
+      const body = await res.text();
+      expect(body).toContain("https://widgets.fork.example");
+      expect(body).not.toContain("api.00widget.com");
+    }
+  });
+
   it("landing HTML wires a copy button to the agent prompt", async () => {
     const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
     const body = await res.text();
