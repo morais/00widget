@@ -465,14 +465,23 @@ export async function putActivityInstance(
     .run();
 }
 
-export async function getActivityInstance(
+/// Looks up an instance by its server-issued id, but only if `targetTenantId`
+/// is one of its delivery targets. The scope belongs in the query: a caller
+/// that resolved the instance first and checked the target afterwards would
+/// still be correct, but it leaves an unscoped read in this module for the
+/// next person to reuse without the follow-up check.
+export async function getActivityInstanceForTarget(
   env: Env,
   activityInstanceId: string,
+  targetTenantId: string,
 ): Promise<LiveActivitySession | null> {
   const row = await env.ZW_DB.prepare(
-    `SELECT json FROM activity_instances WHERE id = ?`,
+    `SELECT instances.json AS json
+     FROM activity_instances AS instances
+     JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id
+     WHERE instances.id = ? AND targets.target_tenant_id = ?`,
   )
-    .bind(activityInstanceId)
+    .bind(activityInstanceId, targetTenantId)
     .first<JsonRow>();
   return row ? parseJson<LiveActivitySession>(row.json) : null;
 }

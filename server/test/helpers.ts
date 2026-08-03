@@ -721,9 +721,13 @@ export class FakeD1 {
       const [tenant_id] = values.map(String);
       return pick(this.widgetPushCadence.get(tenant_id), ["last_sent_at"]);
     }
-    if (normalized === "SELECT json FROM activity_instances WHERE id = ?") {
-      const [id] = values.map(String);
-      return pick(this.activityInstances.get(id), ["json"]);
+    if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE instances.id = ? AND targets.target_tenant_id = ?") {
+      const [id, target_tenant_id] = values.map(String);
+      const targeted = [...this.activityTargets.values()].some(
+        (target) => target.activity_instance_id === id &&
+          target.target_tenant_id === target_tenant_id,
+      );
+      return targeted ? pick(this.activityInstances.get(id), ["json"]) : [];
     }
     if (normalized === "SELECT json FROM activity_instances WHERE owner_tenant_id = ? AND external_id = ?") {
       const [owner_tenant_id, external_id] = values.map(String);

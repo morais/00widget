@@ -3,6 +3,7 @@ import handler from "../src/index";
 import { FieldLimits, StartLiveActivitySchema, UpdateLiveActivitySchema } from "../src/types";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
 import { __resetApnsJwtCache } from "../src/apns";
+import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
 
@@ -1006,6 +1007,38 @@ async function createAcceptedActivityShare(
   expect(accept.status).toBe(200);
   return shareId;
 }
+
+describe("activity instance lookups are tenant-scoped in the query", () => {
+  it("getActivityInstanceForTarget refuses an instance the tenant is not a target of", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "owner-key", "tenant-owner");
+    await seedApiKey(env, "stranger-key", "tenant-stranger");
+
+    const instanceId = await startAndReadInstance(env, "owner-key", "Dishwasher");
+
+    // The owner is a delivery target of its own instance.
+    const asOwner = await storage.getActivityInstanceForTarget(env, instanceId, "tenant-owner");
+    expect(asOwner?.activityInstanceId).toBe(instanceId);
+
+    // An unrelated tenant gets nothing back, without the caller needing to
+    // remember a follow-up authorization check.
+    const asStranger = await storage.getActivityInstanceForTarget(
+      env,
+      instanceId,
+      "tenant-stranger",
+    );
+    expect(asStranger).toBeNull();
+
+    // A real id paired with the wrong tenant is indistinguishable from a
+    // fabricated id, so the lookup leaks no existence signal either.
+    const fabricated = await storage.getActivityInstanceForTarget(
+      env,
+      "00000000-0000-4000-8000-000000000000",
+      "tenant-owner",
+    );
+    expect(fabricated).toBeNull();
+  });
+});
 
 async function startAndReadInstance(
   env: ReturnType<typeof makeEnv>,

@@ -87,7 +87,7 @@ export async function registerLiveActivity(
   if (limited) return limited;
   const d = parsed.data;
   let instance = d.activityInstanceId
-    ? await storage.getActivityInstance(env, d.activityInstanceId)
+    ? await storage.getActivityInstanceForTarget(env, d.activityInstanceId, auth.tenantId)
     : null;
   if (!d.activityInstanceId) {
     const candidates = await storage.resolveActivityRegistrationTargets(
