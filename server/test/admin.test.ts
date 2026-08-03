@@ -85,7 +85,12 @@ describe("session cookie", () => {
     const cookie = await makeSessionCookie(env, "admin@example.com");
     const value = cookie.split(";")[0].split("=")[1];
     const [payload, sig] = value.split(".");
-    const tampered = `zw_admin=${payload}.${sig.slice(0, -2)}aa`;
+    // Flip the last hex digit to something it definitely isn't. Overwriting it
+    // with a fixed value instead left the signature untouched whenever it
+    // already ended that way — a real 1-in-256 flake, since the payload carries
+    // a random csrf token and the HMAC differs on every run.
+    const tampered = `zw_admin=${payload}.${sig.slice(0, -1)}${sig.endsWith("a") ? "b" : "a"}`;
+    expect(tampered).not.toBe(`zw_admin=${value}`);
     const req = new Request("https://x/admin", { headers: { cookie: tampered } });
     expect(await readSessionCookie(env, req)).toBeNull();
   });
