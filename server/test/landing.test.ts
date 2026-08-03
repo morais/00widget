@@ -70,6 +70,45 @@ describe("public landing + docs endpoints", () => {
     );
   });
 
+  // HEAD used to match no route at all and 404 everywhere, which quietly breaks
+  // uptime checks pointed at /health — the monitor reports a healthy service as
+  // down. These assert status and headers only: the body is dropped by the HTTP
+  // layer above the Worker, so at this level the Response still carries one.
+  it("HEAD is routed like GET on the public endpoints", async () => {
+    for (const path of ["/health", "/", "/llms.md", "/llms.txt"]) {
+      const res = await (handler.fetch as any)(
+        new Request(`https://x${path}`, { method: "HEAD" }),
+        makeEnv(),
+        ctx,
+      );
+      expect(res.status, `HEAD ${path}`).toBe(200);
+    }
+  });
+
+  it("HEAD carries the same headers a GET would", async () => {
+    const head = await (handler.fetch as any)(
+      new Request("https://x/", { method: "HEAD" }),
+      makeEnv(),
+      ctx,
+    );
+    const get = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    for (const header of ["content-type", "content-security-policy", "strict-transport-security"]) {
+      expect(head.headers.get(header), header).toBe(get.headers.get(header));
+    }
+  });
+
+  // Note /v1/cards/upsert is deliberately not the example here: it also matches
+  // the GET card-by-id pattern as id "upsert", so HEAD legitimately reaches it
+  // and gets 401. /v1/devices/register has no GET counterpart at all.
+  it("HEAD does not reach POST-only routes", async () => {
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/devices/register", { method: "HEAD" }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("GET /llms.md returns hosted agent markdown as text/markdown", async () => {
     const res = await (handler.fetch as any)(
       new Request("https://x/llms.md"),

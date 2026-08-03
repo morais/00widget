@@ -181,8 +181,13 @@ function authed(
 const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    // RFC 9110: HEAD is GET without a body. Dispatch it against the GET routes
+    // and let the HTTP layer drop the body — otherwise every endpoint 404s for
+    // the uptime monitors and `curl -I` habits that reach for HEAD first.
+    // Routes registered only for POST stay unreachable by HEAD, as they should.
+    const method = req.method === "HEAD" ? "GET" : req.method;
     for (const route of routes) {
-      if (route.method !== req.method) continue;
+      if (route.method !== method) continue;
       const match = route.pattern.exec(url.pathname);
       if (!match) continue;
       try {
