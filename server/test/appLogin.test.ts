@@ -278,6 +278,47 @@ describe("app Apple login", () => {
     expect(await res.text()).toContain("bad aud");
   });
 
+  // Ordering matters, not just the outcome: claim values reach error strings and
+  // logs, so nothing may be read out of the payload until the signature proves
+  // Apple wrote it. This token is bad in both ways at once — forged signature
+  // *and* wrong audience — so the reported failure tells us which check ran
+  // first. "bad aud" here means someone reordered the checks.
+  it("verifies the signature before reading any claim", async () => {
+    const forged = await makeAppleIdToken({
+      aud: "com.example.other",
+      email: "customer@example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    // A different key pair, so the served JWKS resolves `test-kid` but the
+    // signature check against it fails.
+    const apple = await makeAppleIdToken({
+      aud: "com.example.zerozerowidget",
+      email: "customer@example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [apple.jwk] }), { status: 200 })),
+    );
+
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: forged.token, nonce: TEST_RAW_NONCE }),
+      }),
+      makeEnv({
+        APPLE_APP_LOGIN_ENABLED: "true",
+        APPLE_APP_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget",
+      }),
+      ctx,
+    );
+    expect(res.status).toBe(401);
+    const body = await res.text();
+    expect(body).toContain("signature invalid");
+    expect(body).not.toContain("com.example.other");
+  });
+
   it("rejects requests with no nonce", async () => {
     const clientId = "com.example.zerozerowidget";
     const { token, jwk } = await makeAppleIdToken({

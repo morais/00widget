@@ -158,18 +158,9 @@ export async function validateAppleIdTokenForAudience(
   const header = JSON.parse(b64urlDecodeToText(headerB64)) as { kid: string; alg: string };
   if (header.alg !== "RS256") throw new Error(`unsupported alg ${header.alg}`);
 
-  const claims = JSON.parse(b64urlDecodeToText(payloadB64)) as AppleIdTokenClaims;
-  const now = Math.floor(Date.now() / 1000);
-
-  if (claims.iss !== "https://appleid.apple.com") throw new Error(`bad iss ${claims.iss}`);
-  if (claims.aud !== audience) throw new Error(`bad aud ${claims.aud}`);
-  if (claims.exp < now) throw new Error("id_token expired");
-  if (expectedNonce) {
-    if (!claims.nonce || !constantTimeEqual(claims.nonce, expectedNonce)) {
-      throw new Error("nonce mismatch");
-    }
-  }
-
+  // Verify the signature before reading a single claim. Claim values end up in
+  // error strings and logs, and until the signature checks out they are
+  // attacker-supplied text rather than anything Apple asserted.
   const jwks = await fetchAppleJwks();
   const jwk = jwks.find((k) => k.kid === header.kid);
   if (!jwk) throw new Error(`unknown kid ${header.kid}`);
@@ -186,6 +177,18 @@ export async function validateAppleIdTokenForAudience(
   const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
   const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
   if (!ok) throw new Error("id_token signature invalid");
+
+  const claims = JSON.parse(b64urlDecodeToText(payloadB64)) as AppleIdTokenClaims;
+  const now = Math.floor(Date.now() / 1000);
+
+  if (claims.iss !== "https://appleid.apple.com") throw new Error(`bad iss ${claims.iss}`);
+  if (claims.aud !== audience) throw new Error(`bad aud ${claims.aud}`);
+  if (claims.exp < now) throw new Error("id_token expired");
+  if (expectedNonce) {
+    if (!claims.nonce || !constantTimeEqual(claims.nonce, expectedNonce)) {
+      throw new Error("nonce mismatch");
+    }
+  }
 
   return claims;
 }
