@@ -59,7 +59,6 @@ const OptionalValueString = z.string().max(FieldLimits.value).optional();
 const OptionalUnitString = z.string().max(FieldLimits.unit).optional();
 const OptionalIconString = z.string().max(FieldLimits.icon).optional();
 const OptionalDeepLink = z
-  .string()
   .url()
   .max(FieldLimits.deepLink)
   .refine((value) => {
@@ -143,7 +142,6 @@ const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
 });
 
 const PublicHttpsUrl = z
-  .string()
   .url()
   .max(FieldLimits.webhookUrl)
   .refine((s) => {
@@ -486,7 +484,7 @@ export const ShareResourceKindSchema = z.enum(["card", "activity_kind"]);
 export const ShareStatusSchema = z.enum(["pending", "accepted", "revoked", "declined"]);
 
 export const CreateShareSchema = z.object({
-  recipientEmail: z.string().email().max(FieldLimits.email),
+  recipientEmail: z.email().max(FieldLimits.email),
   resourceKind: ShareResourceKindSchema,
   resourceId: z.string().min(1).max(FieldLimits.externalActivityId),
 });
