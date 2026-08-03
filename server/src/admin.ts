@@ -969,12 +969,19 @@ function sameOriginAdminRequest(req: Request): boolean {
   const origin = req.headers.get("origin");
   if (origin) return origin === expected;
   const referer = req.headers.get("referer");
-  if (!referer) return true;
-  try {
-    return new URL(referer).origin === expected;
-  } catch {
-    return false;
+  if (referer) {
+    try {
+      return new URL(referer).origin === expected;
+    } catch {
+      return false;
+    }
   }
+  // Neither header present. Browsers always send Origin on a form POST, so
+  // this is a non-browser client — accept it only when the CSRF token arrived
+  // in a custom header, which a cross-origin page cannot set without a CORS
+  // preflight this Worker never answers. Falling through to "allow" would let
+  // a header-stripping intermediary bypass the origin check entirely.
+  return req.headers.get("x-csrf-token") !== null;
 }
 
 async function csrfTokenFromRequest(req: Request): Promise<string | null> {

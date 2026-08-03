@@ -531,6 +531,7 @@ describe("admin routes (no Apple call required)", () => {
           accept: "application/json",
           "content-type": "application/json",
           cookie,
+          origin: "https://x",
         },
         body: JSON.stringify({ ownerEmail: "customer-csrf@example.com", label: "iPhone" }),
       }),
@@ -539,6 +540,42 @@ describe("admin routes (no Apple call required)", () => {
     );
     expect(res.status).toBe(403);
     expect(await res.text()).toContain("Invalid admin CSRF token");
+  });
+
+  it("/admin mutation rejects a request carrying neither Origin nor Referer", async () => {
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie },
+        body: new URLSearchParams({ csrf, ownerEmail: "no-origin@example.com" }).toString(),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("Invalid admin request origin");
+  });
+
+  it("/admin mutation accepts a header-borne CSRF token without Origin", async () => {
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          cookie,
+          "x-csrf-token": csrf,
+        },
+        body: JSON.stringify({ ownerEmail: "header-csrf@example.com", label: "script" }),
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(201);
   });
 
   it("/admin mutation rejects cross-origin requests even with a valid CSRF token", async () => {
@@ -574,6 +611,7 @@ describe("admin routes (no Apple call required)", () => {
         headers: {
           "content-type": "application/x-www-form-urlencoded",
           cookie,
+          origin: "https://x",
         },
         body: new URLSearchParams({
           csrf,
@@ -616,6 +654,7 @@ describe("admin routes (no Apple call required)", () => {
         headers: {
           "content-type": "application/x-www-form-urlencoded",
           cookie,
+          origin: "https://x",
         },
         body: new URLSearchParams({ csrf, label: "missing tenant" }).toString(),
       }),
@@ -806,6 +845,7 @@ describe("admin routes (no Apple call required)", () => {
           headers: {
             cookie,
             "content-type": "application/x-www-form-urlencoded",
+            origin: "https://x",
           },
           body: new URLSearchParams({ csrf }).toString(),
         }),
