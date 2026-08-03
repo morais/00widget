@@ -96,8 +96,22 @@ describe("webhook integrations and actions", () => {
       "https://192.168.0.1/actions",
       "https://169.254.169.254/actions",
       "https://[::1]/actions",
+      "https://[0:0:0:0:0:0:0:1]/actions",
+      "https://[::]/actions",
       "https://[fd00::1]/actions",
+      "https://[fc00::1]/actions",
+      "https://[fe80::1]/actions",
       "https://example.local/actions",
+      // Legacy IPv4 spellings the URL parser canonicalizes to 127.0.0.1.
+      "https://2130706433/actions",
+      "https://0x7f000001/actions",
+      "https://127.1/actions",
+      // IPv6 forms that embed a private IPv4 destination.
+      "https://[::ffff:127.0.0.1]/actions",
+      "https://[::ffff:169.254.169.254]/actions",
+      "https://[::ffff:10.0.0.1]/actions",
+      "https://[::127.0.0.1]/actions",
+      "https://[64:ff9b::127.0.0.1]/actions",
     ]) {
       const res = await (handler.fetch as any)(
         authedRequest("https://x/v1/integrations/webhook", {
@@ -108,6 +122,27 @@ describe("webhook integrations and actions", () => {
         executionCtx,
       );
       expect(res.status, url).toBe(400);
+    }
+  });
+
+  it("accepts webhook integrations on public hosts, including public IPv6", async () => {
+    for (const url of [
+      "https://hooks.example.com/actions",
+      "https://8.8.8.8/actions",
+      "https://[2606:4700:4700::1111]/actions",
+      "https://[::ffff:8.8.8.8]/actions",
+      "https://[fe00::1]/actions",
+    ]) {
+      const env = makeEnv();
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/integrations/webhook", {
+          method: "PUT",
+          body: JSON.stringify({ url }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(res.status, url).toBe(200);
     }
   });
 

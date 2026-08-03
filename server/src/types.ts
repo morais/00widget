@@ -373,8 +373,9 @@ export const WebhookIntegrationSchema = z.object({
 });
 
 // SSRF guard for tenant-supplied webhook URLs. The check is **hostname-based**:
-// it rejects literal private/loopback/link-local IPs and the `localhost`/`.local`
-// names, but does not resolve DNS, so a public hostname that resolves to an
+// it rejects literal private/loopback/link-local IPs (including IPv6 forms that
+// embed one, such as ::ffff:127.0.0.1) and the `localhost`/`.local` names, but
+// does not resolve DNS, so a public hostname that resolves to an
 // internal IP (or a DNS-rebind attack) will pass this filter. We rely on the
 // Cloudflare Workers runtime to gate the actual fetch — Workers have no
 // reachable private network and no cloud metadata endpoint — and on tenant
@@ -382,29 +383,33 @@ export const WebhookIntegrationSchema = z.object({
 // Re-evaluate this trade-off if this code ever runs outside Workers.
 function isBlockedWebhookHostname(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    host === "::" ||
-    host === "::1" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local")
-  ) {
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
     return true;
   }
+  // Literal addresses are judged numerically below. The WHATWG URL parser has
+  // already canonicalized the legacy IPv4 spellings for us — `2130706433`,
+  // `0x7f000001`, `0177.0.0.1`, and `127.1` all arrive here as `127.0.0.1`.
   if (isPrivateIpv4(host)) return true;
   if (isBlockedIpv6(host)) return true;
   return false;
 }
 
-function isPrivateIpv4(host: string): boolean {
+function ipv4Octets(host: string): number[] | null {
   const parts = host.split(".");
-  if (parts.length !== 4) return false;
+  if (parts.length !== 4) return null;
   const nums = parts.map((part) => Number(part));
   if (nums.some((n, i) => !Number.isInteger(n) || n < 0 || n > 255 || String(n) !== parts[i])) {
-    return false;
+    return null;
   }
-  const [a, b] = nums;
+  return nums;
+}
+
+function isPrivateIpv4(host: string): boolean {
+  const octets = ipv4Octets(host);
+  return octets ? isPrivateIpv4Octets(octets) : false;
+}
+
+function isPrivateIpv4Octets([a, b]: number[]): boolean {
   return (
     a === 0 ||
     a === 10 ||
@@ -416,14 +421,64 @@ function isPrivateIpv4(host: string): boolean {
 }
 
 function isBlockedIpv6(host: string): boolean {
-  if (!host.includes(":")) return false;
-  return (
-    host === "1" ||
-    host === "::1" ||
-    host.startsWith("fc") ||
-    host.startsWith("fd") ||
-    host.startsWith("fe80:")
-  );
+  const groups = parseIpv6(host);
+  if (!groups) return false;
+  // Unspecified (::) and loopback (::1).
+  if (groups.slice(0, 7).every((group) => group === 0) && groups[7] <= 1) return true;
+  // Unique local (fc00::/7) and link-local (fe80::/10).
+  if ((groups[0] & 0xfe00) === 0xfc00) return true;
+  if ((groups[0] & 0xffc0) === 0xfe80) return true;
+  // An address that embeds an IPv4 destination reaches whatever that IPv4
+  // reaches, so judge it by the embedded address.
+  const embedded = embeddedIpv4(groups);
+  return embedded ? isPrivateIpv4Octets(embedded) : false;
+}
+
+/// Parses an IPv6 host into its eight 16-bit groups, or null if `host` isn't
+/// one. Text matching is not enough here: the URL parser compresses IPv6 hosts,
+/// so `::ffff:127.0.0.1` reaches this code as `::ffff:7f00:1`.
+function parseIpv6(host: string): number[] | null {
+  if (!host.includes(":")) return null;
+  const halves = host.split("::");
+  if (halves.length > 2) return null;
+
+  const toGroups = (part: string): number[] | null => {
+    if (!part) return [];
+    const pieces = part.split(":");
+    const groups: number[] = [];
+    for (const [index, piece] of pieces.entries()) {
+      // A trailing dotted quad (::ffff:127.0.0.1) fills the last two groups.
+      if (index === pieces.length - 1 && piece.includes(".")) {
+        const octets = ipv4Octets(piece);
+        if (!octets) return null;
+        groups.push((octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(piece)) return null;
+      groups.push(parseInt(piece, 16));
+    }
+    return groups;
+  };
+
+  const head = toGroups(halves[0]);
+  const tail = halves.length === 2 ? toGroups(halves[1]) : [];
+  if (!head || !tail) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const elided = 8 - head.length - tail.length;
+  if (elided < 1) return null;
+  return [...head, ...new Array<number>(elided).fill(0), ...tail];
+}
+
+function embeddedIpv4(groups: number[]): number[] | null {
+  const octets = [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff];
+  const zeroPrefix = groups.slice(0, 5).every((group) => group === 0);
+  // ::ffff:a.b.c.d (v4-mapped) and the deprecated ::a.b.c.d (v4-compatible).
+  if (zeroPrefix && (groups[5] === 0xffff || groups[5] === 0)) return octets;
+  // 64:ff9b::a.b.c.d — the well-known NAT64 prefix (RFC 6052).
+  if (groups[0] === 0x64 && groups[1] === 0xff9b && groups.slice(2, 6).every((g) => g === 0)) {
+    return octets;
+  }
+  return null;
 }
 
 export const ShareResourceKindSchema = z.enum(["card", "activity_kind"]);
