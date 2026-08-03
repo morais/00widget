@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var healthCheckTask: Task<Void, Never>?
-    @State private var copiedToken = false
     @State private var copiedAgentConfig = false
     // Raw nonce for the in-flight Sign in with Apple request. We hash it
     // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
@@ -18,10 +17,22 @@ struct OnboardingView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Agent config") {
+                    Text(agentConfig)
+                        .font(.caption)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(copiedAgentConfig ? "Copied temporarily" : "Copy agent config") {
+                        copySensitiveText(agentConfig)
+                        copiedAgentConfig = true
+                    }
+                }
+
                 Section("Server") {
-                    if ZeroZeroWidgetConstants.appleLoginEnabled {
-                        KeyValue(key: "API URL", value: env.serverBaseURL)
-                    } else {
+                    // The URL is only worth a row when the user can change it.
+                    // Under Apple login it is fixed at build time, and the
+                    // agent config above already names it.
+                    if !ZeroZeroWidgetConstants.appleLoginEnabled {
                         TextField("https://example.workers.dev", text: $env.serverBaseURL)
                             .keyboardType(.URL)
                             .textContentType(.URL)
@@ -39,7 +50,7 @@ struct OnboardingView: View {
                                 scheduleHealthCheck()
                             }
                     }
-                    if env.connectionHealth != .notConfigured {
+                    if env.connectionHealth == .failed {
                         HStack {
                             Text("Health")
                             Spacer()
@@ -71,17 +82,6 @@ struct OnboardingView: View {
                 Section("Widgets") {
                     NavigationLink("How to add a widget") {
                         WidgetSetupGuideView()
-                    }
-                }
-
-                Section("Agent config") {
-                    Text(agentConfig)
-                        .font(.caption)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button(copiedAgentConfig ? "Copied temporarily" : "Copy agent config") {
-                        copySensitiveText(agentConfig)
-                        copiedAgentConfig = true
                     }
                 }
 
@@ -117,24 +117,9 @@ struct OnboardingView: View {
                 KeyValue(key: "Signed in", value: email)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Agent publisher token")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(env.agentApiKey)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                    .lineLimit(4)
-                Button(copiedToken ? "Copied temporarily" : "Copy token") {
-                    copySensitiveText(env.agentApiKey)
-                    copiedToken = true
-                }
-            }
-
             Button(env.signOutInProgress ? "Signing out…" : "Sign out", role: .destructive) {
                 Task {
                     if await env.signOut() {
-                        copiedToken = false
                         copiedAgentConfig = false
                         scheduleHealthCheck()
                     }
