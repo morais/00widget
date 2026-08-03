@@ -324,9 +324,13 @@ public final class AppEnvironment: ObservableObject {
 
     public func startupSync() async {
         liveActivityController.credentialsDidChange()
-        await requestNotificationAuthorization()
-        if notificationsAuthorized, apiClient() != nil {
-            DeviceRegistration.registerForRemoteNotifications()
+        // Only ask once there is an account to receive updates for. Prompting
+        // on first launch asks before the user knows what the app does, and a
+        // denial can only be undone in System Settings.
+        if apiKey.isEmpty {
+            await refreshNotificationAuthorization()
+        } else {
+            await requestNotificationAuthorization()
         }
         await refreshConnectionHealth()
         await registerDevice()
@@ -406,9 +410,10 @@ public final class AppEnvironment: ObservableObject {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled, let self else { return }
             await self.refreshConnectionHealth()
-            if self.notificationsAuthorized {
-                DeviceRegistration.registerForRemoteNotifications()
-            }
+            // Signing in (or pasting a key) is the moment the prompt makes
+            // sense. Already-decided authorization returns without prompting,
+            // so this stays a no-op on every later credential change.
+            await self.requestNotificationAuthorization()
             await self.registerDevice()
             await self.registerPendingWidgetTokens()
             await self.fetchCards()
