@@ -88,6 +88,12 @@ project should be aware:
   and `project.yml.sample` containing placeholders such as
   `REPLACE_WITH_D1_DATABASE_ID`. These are intentional templates; the real
   `.dev.vars`, `wrangler.toml`, and `project.yml` are gitignored.
+- `server/test/apns.test.ts` and `server/test/liveActivities.test.ts` contain a
+  literal P-256 private key in PKCS#8 PEM, and secret scanners flag it. It is a
+  throwaway generated for the test suite — it signs nothing outside vitest and
+  corresponds to no APNs key, Apple account, or deployed system. The real APNs
+  `.p8` exists only as a Wrangler secret. The key is allowlisted in
+  `.gitleaks.toml`; expect other scanners to report it anyway.
 - The webhook integration accepts only `https://` URLs and rejects literal
   private/loopback/link-local IPs (see `isBlockedWebhookHostname` in
   `server/src/types.ts`). The check is hostname-based by design; on
