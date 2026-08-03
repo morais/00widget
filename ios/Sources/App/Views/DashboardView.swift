@@ -10,6 +10,16 @@ struct DashboardView: View {
                 .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
                 .task { await env.refreshInstalledWidgetCount() }
+                .navigationDestination(for: String.self) { id in
+                    if let card = card(forDestination: id) {
+                        CardDetailView(card: card)
+                    } else {
+                        // The card went away underneath us — deleted samples, or
+                        // a sync that dropped it. Rendering nothing leaves a blank
+                        // pushed screen, so pop back to the list instead.
+                        DismissingDetailPlaceholder()
+                    }
+                }
                 .sheet(isPresented: $showingWidgetGuide) {
                     NavigationStack {
                         WidgetSetupGuideView()
@@ -23,13 +33,28 @@ struct DashboardView: View {
         }
     }
 
+    private func card(forDestination id: String) -> DashboardCard? {
+        if id.hasPrefix("shared:") {
+            let cardId = String(id.dropFirst("shared:".count))
+            return env.sharedCards.first { $0.id == cardId }
+        }
+        return env.cards.first { $0.id == id }
+    }
+
     @ViewBuilder
     private var content: some View {
-        ScrollView {
-            if env.cards.isEmpty && env.sharedCards.isEmpty {
+        // Two scroll views rather than one with a branch inside: removing the
+        // last card shrinks the content, and a shared scroll view keeps its old
+        // offset, leaving the user parked on blank space below the empty state.
+        if env.cards.isEmpty && env.sharedCards.isEmpty {
+            ScrollView {
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
-            } else {
+            }
+            .id("empty")
+            .background(Color.primary.opacity(0.025))
+        } else {
+            ScrollView {
                 LazyVStack(spacing: 16) {
                     if env.shouldShowWidgetSetupHint {
                         widgetSetupHint
@@ -71,19 +96,11 @@ struct DashboardView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
-        }
-        .background(Color.primary.opacity(0.025))
-        .navigationDestination(for: String.self) { id in
-            if id.hasPrefix("shared:") {
-                let cardId = String(id.dropFirst("shared:".count))
-                if let c = env.sharedCards.first(where: { $0.id == cardId }) {
-                    CardDetailView(card: c)
-                }
-            } else if let c = env.cards.first(where: { $0.id == id }) {
-                CardDetailView(card: c)
-            }
+            .id("cards")
+            .background(Color.primary.opacity(0.025))
         }
     }
+
 
     private var emptyState: some View {
         VStack(spacing: 16) {
@@ -161,5 +178,13 @@ struct DashboardView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
         )
+    }
+}
+
+private struct DismissingDetailPlaceholder: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Color.clear.onAppear { dismiss() }
     }
 }
