@@ -26,7 +26,7 @@ describe("public landing + docs endpoints", () => {
     expect(body).toContain("navigator.clipboard.writeText");
   });
 
-  it("landing HTML has nonce-based browser security headers", async () => {
+  it("landing HTML has hash-based browser security headers", async () => {
     const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
@@ -37,12 +37,37 @@ describe("public landing + docs endpoints", () => {
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).not.toContain("'unsafe-inline'");
-    const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1];
-    expect(nonce).toMatch(/^[A-Za-z0-9_-]+$/);
+    // A public, cacheable response must not carry a per-request nonce: a shared
+    // cache would serve one visitor's nonce to everybody.
+    expect(csp).not.toContain("nonce-");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+  });
 
+  it("landing CSP hashes match the inline blocks actually served", async () => {
+    const res = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    const csp = res.headers.get("content-security-policy") ?? "";
     const body = await res.text();
-    expect(body).toContain(`<style nonce="${nonce}">`);
-    expect(body).toContain(`<script nonce="${nonce}">`);
+
+    const sha256Base64 = async (input: string) => {
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+      return btoa(String.fromCharCode(...new Uint8Array(digest)));
+    };
+
+    const style = /<style>([\s\S]*?)<\/style>/.exec(body)?.[1];
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1];
+    expect(style).toBeTruthy();
+    expect(script).toBeTruthy();
+
+    expect(csp).toContain(`style-src 'sha256-${await sha256Base64(style!)}'`);
+    expect(csp).toContain(`script-src 'sha256-${await sha256Base64(script!)}'`);
+  });
+
+  it("landing CSP is stable across requests", async () => {
+    const first = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    const second = await (handler.fetch as any)(new Request("https://x/"), makeEnv(), ctx);
+    expect(first.headers.get("content-security-policy")).toBe(
+      second.headers.get("content-security-policy"),
+    );
   });
 
   it("GET /llms.md returns hosted agent markdown as text/markdown", async () => {

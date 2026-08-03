@@ -35,27 +35,42 @@ Constraints:
 If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in llms.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.`;
 
 export async function handleLanding(_req: Request): Promise<Response> {
-  const nonce = contentSecurityPolicyNonce();
-  return new Response(renderLandingHTML(nonce), {
+  return new Response(renderLandingHTML(), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "public, max-age=300",
-      "content-security-policy": [
-        "default-src 'none'",
-        "base-uri 'none'",
-        "form-action 'none'",
-        "frame-ancestors 'none'",
-        "object-src 'none'",
-        `script-src 'nonce-${nonce}'`,
-        `style-src 'nonce-${nonce}'`,
-      ].join("; "),
+      "content-security-policy": await landingContentSecurityPolicy(),
       "permissions-policy": "camera=(), geolocation=(), microphone=()",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
     },
   });
+}
+
+// The landing page is public and cacheable, which rules out a per-request
+// nonce: a shared cache would pin one nonce into the stored copy and hand it
+// to every visitor for the life of the entry. The inline blocks are static, so
+// hash them instead — the CSP stays correct no matter who serves the response.
+let cachedCsp: string | null = null;
+
+async function landingContentSecurityPolicy(): Promise<string> {
+  if (cachedCsp) return cachedCsp;
+  const [scriptHash, styleHash] = await Promise.all([
+    sha256Base64(LANDING_SCRIPT),
+    sha256Base64(LANDING_STYLES),
+  ]);
+  cachedCsp = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    `script-src 'sha256-${scriptHash}'`,
+    `style-src 'sha256-${styleHash}'`,
+  ].join("; ");
+  return cachedCsp;
 }
 
 export async function handleLlmsMd(req: Request): Promise<Response> {
@@ -129,15 +144,9 @@ from the operator's /admin dashboard, not from this file.
 
 // ---------- HTML rendering ----------
 
-function renderLandingHTML(nonce: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>00Widget — Widgets for all your agents</title>
-<meta name="description" content="A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS widgets, Live Activities, and the Dynamic Island.">
-<style nonce="${nonce}">
+// Kept verbatim as the exact bytes between <style> and </style>; the CSP
+// hash is computed over this string, so any edit here changes the header too.
+const LANDING_STYLES = `
   :root {
     color-scheme: light dark;
     --bg: #f8fbff;
@@ -191,7 +200,49 @@ function renderLandingHTML(nonce: string): string {
   ul.endpoints { padding-left: 20px; margin: 0; }
   ul.endpoints li { margin: 4px 0; }
   footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-</style>
+`;
+
+// Same contract as LANDING_STYLES: the exact bytes between <script> and
+// </script>, hashed into the CSP.
+const LANDING_SCRIPT = `
+  document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      var id = btn.getAttribute("data-copy-target");
+      var target = document.getElementById(id);
+      if (!target) return;
+      var text = target.innerText;
+      var original = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+      } catch (_) {
+        // Fallback for browsers without async clipboard support.
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); btn.textContent = "Copied"; }
+        catch (__) { btn.textContent = "Copy failed"; }
+        document.body.removeChild(ta);
+      }
+      btn.setAttribute("data-state", "copied");
+      setTimeout(function () {
+        btn.textContent = original;
+        btn.removeAttribute("data-state");
+      }, 1600);
+    });
+  });
+`;
+
+function renderLandingHTML(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>00Widget — Widgets for all your agents</title>
+<meta name="description" content="A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS widgets, Live Activities, and the Dynamic Island.">
+<style>${LANDING_STYLES}</style>
 </head>
 <body>
 <header>
@@ -230,45 +281,16 @@ function renderLandingHTML(nonce: string): string {
   Source: <a href="https://github.com/morais/00widget">github.com/morais/00widget</a> · MIT
 </footer>
 
-<script nonce="${nonce}">
-  document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
-    btn.addEventListener("click", async function () {
-      var id = btn.getAttribute("data-copy-target");
-      var target = document.getElementById(id);
-      if (!target) return;
-      var text = target.innerText;
-      var original = btn.textContent;
-      try {
-        await navigator.clipboard.writeText(text);
-        btn.textContent = "Copied";
-      } catch (_) {
-        // Fallback for browsers without async clipboard support.
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand("copy"); btn.textContent = "Copied"; }
-        catch (__) { btn.textContent = "Copy failed"; }
-        document.body.removeChild(ta);
-      }
-      btn.setAttribute("data-state", "copied");
-      setTimeout(function () {
-        btn.textContent = original;
-        btn.removeAttribute("data-state");
-      }, 1600);
-    });
-  });
-</script>
+<script>${LANDING_SCRIPT}</script>
 </body>
 </html>`;
 }
 
-function contentSecurityPolicyNonce(): string {
-  const bytes = new Uint8Array(18);
-  crypto.getRandomValues(bytes);
+async function sha256Base64(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 function escapeHtml(s: string): string {
