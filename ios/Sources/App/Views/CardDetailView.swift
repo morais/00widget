@@ -4,6 +4,7 @@ struct CardDetailView: View {
     @EnvironmentObject var env: AppEnvironment
     let card: DashboardCard
     @State private var pendingAction: ActionDefinition?
+    @State private var actionError: String?
     @State private var showRawJson = false
     @State private var showCurlExample = false
     #if ZW_SHARING_ENABLED
@@ -20,6 +21,13 @@ struct CardDetailView: View {
                     } else {
                         run(action)
                     }
+                }
+
+                if let actionError {
+                    Text(actionError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 if let deepLink = currentCard.deepLink {
@@ -112,12 +120,25 @@ struct CardDetailView: View {
 
     private func run(_ action: ActionDefinition) {
         Task {
-            if action.confirm || action.role == .destructive {
-                guard let client = env.confirmedActionClient() else { return }
-                try? await client.runConfirmedAction(id: action.id, cardId: resolvedCard.id)
-            } else {
-                guard let client = env.apiClient() else { return }
-                try? await client.runAction(id: action.id, cardId: resolvedCard.id)
+            actionError = nil
+            do {
+                if action.confirm || action.role == .destructive {
+                    guard let client = env.confirmedActionClient() else {
+                        // Returning quietly here made a tapped destructive
+                        // action look like it ran.
+                        actionError = AppEnvironment.reauthorizationMessage
+                        return
+                    }
+                    try await client.runConfirmedAction(id: action.id, cardId: resolvedCard.id)
+                } else {
+                    guard let client = env.apiClient() else {
+                        actionError = "Server URL or API key not configured."
+                        return
+                    }
+                    try await client.runAction(id: action.id, cardId: resolvedCard.id)
+                }
+            } catch {
+                actionError = error.localizedDescription
             }
         }
     }

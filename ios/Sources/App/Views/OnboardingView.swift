@@ -8,6 +8,7 @@ struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedAgentConfig = false
+    @State private var confirmingSignOut = false
     // Raw nonce for the in-flight Sign in with Apple request. We hash it
     // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
     // logs only the hash, and we send the raw value to the backend so it can
@@ -118,14 +119,29 @@ struct OnboardingView: View {
             }
 
             Button(env.signOutInProgress ? "Signing out…" : "Sign out", role: .destructive) {
-                Task {
-                    if await env.signOut() {
-                        copiedAgentConfig = false
-                        scheduleHealthCheck()
-                    }
-                }
+                confirmingSignOut = true
             }
             .disabled(env.signOutInProgress)
+            .confirmationDialog(
+                "Sign out?",
+                isPresented: $confirmingSignOut,
+                titleVisibility: .visible
+            ) {
+                Button("Sign out", role: .destructive) {
+                    Task {
+                        if await env.signOut() {
+                            copiedAgentConfig = false
+                            scheduleHealthCheck()
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                // Sign out revokes the whole session, agent publisher token
+                // included, so every agent stops publishing until it gets the
+                // new token from Agent config.
+                Text("This revokes your agent token. Any agent publishing cards will stop working until you sign in again and give it the new token.")
+            }
         } else {
             SignInWithAppleButton(.signIn) { request in
                 let raw = Self.randomNonceString()

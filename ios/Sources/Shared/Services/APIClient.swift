@@ -3,7 +3,11 @@ import Foundation
 public struct APIClientError: Error, LocalizedError {
     public let status: Int
     public let message: String
-    public var errorDescription: String? { "HTTP \(status): \(message)" }
+    // status 0 means the request never left the device, so an "HTTP" prefix is
+    // a lie that sends the reader looking at the server.
+    public var errorDescription: String? {
+        status == 0 ? message : "HTTP \(status): \(message)"
+    }
 }
 
 public struct APIClientConfig {

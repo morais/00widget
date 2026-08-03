@@ -207,6 +207,12 @@ public final class AppEnvironment: ObservableObject {
         return APIClient(config: APIClientConfig(baseURL: url, apiKey: credential))
     }
 
+    /// Sharing and confirmed actions run on the app credential, which only a
+    /// Sign in with Apple round trip mints — a session predating app
+    /// credentials has a working API key and no app credential.
+    public static let reauthorizationMessage =
+        "This device isn't authorized for that. Sign out and sign in again in Settings."
+
     public var agentApiKey: String {
         publisherCredential.isEmpty ? apiKey : publisherCredential
     }
@@ -263,7 +269,7 @@ public final class AppEnvironment: ObservableObject {
         resourceId: String
     ) async throws {
         guard let client = confirmedActionClient() else {
-            throw APIClientError(status: 0, message: "not configured")
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
         }
         _ = try await client.createShare(
             recipientEmail: recipientEmail,
