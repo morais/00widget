@@ -43,6 +43,10 @@ export async function handleLanding(_req: Request): Promise<Response> {
       "content-security-policy": await landingContentSecurityPolicy(),
       "permissions-policy": "camera=(), geolocation=(), microphone=()",
       "referrer-policy": "no-referrer",
+      // Sent from the HTML surfaces only. One response is enough for a browser
+      // to pin the host, and it then covers /v1 too; non-browser API clients
+      // ignore the header entirely.
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
     },

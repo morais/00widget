@@ -51,6 +51,7 @@ const ADMIN_HTML_SECURITY_HEADERS = {
     "style-src 'unsafe-inline'",
   ].join("; "),
   "referrer-policy": "no-referrer",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
 } as const;
 
