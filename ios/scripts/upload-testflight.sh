@@ -19,18 +19,19 @@
 #    com.apple.developer.applesignin on tvOS, where a dropped entitlement means
 #    Sign in with Apple fails at runtime on a build that installed fine.
 #
-# 3. Automatic signing archives against a *development* profile, and Apple will
-#    only generate one for a platform that has a registered device. A team with
-#    registered iPhones but no Apple TV can therefore archive iOS and not tvOS,
-#    which is the only reason the two platforms ever need different treatment
-#    here. Two ways to fix it, in order of preference:
-#      a. Register an Apple TV in the developer portal. Automatic signing then
-#         works for both and neither ZW_*_PROFILE below is needed.
-#      b. Create a *manually managed* App Store profile in the portal and name
-#         it in ZW_TVOS_PROFILE. Xcode-managed profiles are rejected under
-#         manual signing, so it has to be one you made yourself.
-#    ZW_IOS_PROFILE exists for the same reason, should iOS ever land in the
-#    same state.
+# 3. Automatic signing archives against a *development* profile, and Apple only
+#    mints one for a platform that has a registered device. A team with
+#    registered iPhones but no Apple TV can therefore archive iOS and not tvOS.
+#    Register the device and both platforms archive with no configuration at
+#    all. Note the UDID to register is the first value Xcode shows under
+#    Identifier (the 25-character 8hex-16hex form), not the parenthesised
+#    RFC-4122 UUID, which the Devices portal rejects.
+#
+#    ZW_TVOS_PROFILE / ZW_IOS_PROFILE remain an escape hatch for a machine that
+#    cannot register a device: name a *manually managed* App Store profile.
+#    Xcode-managed profiles are rejected under manual signing. Passing App Store
+#    Connect credentials to `xcodebuild archive` does not help — they reach
+#    Apple and Apple still declines without a registered device.
 #
 # Credentials are never read from this repository. The App Store Connect API
 # key and its Issuer ID live under ~/.appstoreconnect, outside every checkout:

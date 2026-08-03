@@ -148,22 +148,41 @@ Both platforms run through one function in the script; their differences are
 arguments, not branches. Preserve that — a platform fix belongs in the call
 site, not in a new conditional.
 
-Only one asymmetry is real, and it is **account state, not project structure**:
-automatic signing archives against a *development* profile, and Apple generates
-one only for a platform with a registered device. A team with registered iPhones
-and no Apple TV can archive iOS and not tvOS. In order of preference:
+Both platforms archive under **automatic signing with no configuration** — no
+profile overrides, no env vars. If you hit an asymmetry, it is almost certainly
+**account state, not project structure**, and the fix belongs in the developer
+portal rather than in this script.
 
-- **Register an Apple TV** in the developer portal. Automatic signing then works
-  for both and no profile override is needed. This is the fix that removes the
-  special case rather than papering over it.
-- Otherwise create a **manually managed** App Store profile in the portal and
-  name it in `ZW_TVOS_PROFILE`. Xcode-managed profiles are rejected under manual
-  signing, so it must be one you created yourself. `ZW_IOS_PROFILE` exists for
-  the same purpose should iOS ever land in the same state.
+The one that has actually happened: automatic signing archives against a
+*development* profile, and Apple mints one only for a platform that has a
+registered device. A team with registered iPhones and no Apple TV can archive
+iOS and not tvOS, failing with:
 
-Passing App Store Connect credentials to `xcodebuild archive` does **not** avoid
-this; the credentials reach Apple and Apple still declines to mint a development
-profile for a platform with no registered devices.
+```
+Your team has no devices from which to generate a provisioning profile.
+No profiles for '<bundle id>' were found: Xcode couldn't find any tvOS App
+Development provisioning profiles matching '<bundle id>'.
+```
+
+Register the device and it goes away. Get the UDID by pairing the Apple TV to
+Xcode over the network (Apple TV: Settings → Remotes and Devices → Remote App
+and Devices; then Xcode → Window → Devices and Simulators → Pair). Xcode prints
+`Identifier: <UDID> (<other id>)` — **register the first value**, the
+25-character `8hex-16hex` form. The parenthesised RFC-4122 UUID is a different
+identifier and the Devices portal rejects it.
+
+Two things that do *not* work, both confirmed the hard way:
+
+- Passing App Store Connect credentials to `xcodebuild archive`. They reach
+  Apple, and Apple still declines to mint a development profile for a platform
+  with no registered devices.
+- Signing manually with an Xcode-managed profile. Manual signing rejects them;
+  it needs one you created yourself in the portal.
+
+`ZW_TVOS_PROFILE` / `ZW_IOS_PROFILE` remain as an escape hatch for a machine
+that genuinely cannot register a device — point them at a manually managed App
+Store profile. Prefer registering the device; it removes the special case
+instead of papering over it.
 
 The tvOS target intentionally shares the iOS app's bundle identifier so both
 attach to the same multi-platform App Store Connect record. Keep the real
