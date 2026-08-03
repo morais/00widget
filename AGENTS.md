@@ -46,6 +46,9 @@ npx wrangler dev          # local dev on :8787, reads .dev.vars
 # iOS
 cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
+ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
+ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
+ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
 
 # End-to-end smoke
 cd examples && install -m 600 env.example.sh env.sh   # then edit env.sh
@@ -99,101 +102,94 @@ When working on a real device with a configured Team ID, none of this applies �
 
 ## TestFlight submissions
 
-The App Store Connect/TestFlight path is wired through the gitignored local `ios/project.yml` (`DEVELOPMENT_TEAM: <YOUR_TEAM_ID>`, bundle ids such as `com.example.zerozerowidget` and `com.example.zerozerowidget.widgets`). Use Xcode's archive/export flow rather than ad hoc IPA tooling.
-
-Before archiving either platform:
-
-- Bump `CURRENT_PROJECT_VERSION` in the **gitignored** `ios/project.yml` to a value higher than the last uploaded TestFlight build. A timestamp like `YYYYMMDDHHMM` works well for repeated agent-driven uploads.
-- Keep `MARKETING_VERSION` unchanged unless the user asks for a version bump.
-- Run `cd ios && xcodegen` after changing `project.yml`.
-- The generated Info.plists for the target being archived must contain `CFBundleVersion: $(CURRENT_PROJECT_VERSION)` and `CFBundleShortVersionString: $(MARKETING_VERSION)`. If they show a literal `1`, fix `ios/project.yml.sample` and copy the change into the real `ios/project.yml` before archiving; App Store Connect rejects duplicate build `1`.
-
-Recommended commands:
+Use `ios/scripts/upload-testflight.sh`. It bumps the build number, regenerates
+the project, archives both platforms, runs the release gates below, and uploads.
+Do not hand-roll the `xcodebuild` invocations — the gates exist because each one
+corresponds to a way a build has already reached TestFlight broken.
 
 ```
-cd ios
-xcodegen
-xcodebuild archive \
-  -project ZeroZeroWidget.xcodeproj \
-  -scheme ZeroZeroWidgetApp \
-  -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive
+ios/scripts/upload-testflight.sh                # both platforms
+ios/scripts/upload-testflight.sh --ios-only
+ios/scripts/upload-testflight.sh --verify-only  # archive + gates, no upload
 ```
 
-For Apple TV, archive the tvOS scheme separately:
+Credentials live outside every checkout and are never read from the repo:
+
+| What | Where | Override |
+| ---- | ----- | -------- |
+| API key | `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8` | `ASC_KEY_PATH`, `ASC_KEY_ID` |
+| Issuer ID | `~/.appstoreconnect/issuer_id` | `ASC_ISSUER_ID` |
+
+Both should be `chmod 600`. The Issuer ID comes from App Store Connect →
+Users and Access → Integrations → App Store Connect API. Team ID and bundle ids
+are read from your gitignored `ios/project.yml`, so nothing identifying is
+committed.
+
+### The gates, and why each exists
+
+1. **Build number reaches every plist.** `CURRENT_PROJECT_VERSION` is bumped to
+   a `YYYYMMDDHHMM` timestamp, then asserted in the generated Info.plists and
+   again in the archive, app, and widget extension. A mis-set `project.yml`
+   silently yields a literal `1`, and App Store Connect only rejects it *after*
+   a full archive. `MARKETING_VERSION` stays put unless a version bump is asked
+   for.
+2. **`aps-environment` is `production` in the signed iOS app.** The archive
+   reads `development` even for Release builds — that is expected, not a bug.
+   The export step re-signs with the distribution profile and flips it. Only the
+   exported IPA tells you what TestFlight receives, so never "verify" the
+   archive and conclude anything.
+3. **`com.apple.developer.applesignin` survives into the signed tvOS app.** A
+   profile can grant the capability while the final signature omits it, in which
+   case Sign in with Apple fails at runtime on a build that installed fine.
+
+### Keeping iOS and tvOS symmetric
+
+Both platforms run through one function in the script; their differences are
+arguments, not branches. Preserve that — a platform fix belongs in the call
+site, not in a new conditional.
+
+Only one asymmetry is real, and it is **account state, not project structure**:
+automatic signing archives against a *development* profile, and Apple generates
+one only for a platform with a registered device. A team with registered iPhones
+and no Apple TV can archive iOS and not tvOS. In order of preference:
+
+- **Register an Apple TV** in the developer portal. Automatic signing then works
+  for both and no profile override is needed. This is the fix that removes the
+  special case rather than papering over it.
+- Otherwise create a **manually managed** App Store profile in the portal and
+  name it in `ZW_TVOS_PROFILE`. Xcode-managed profiles are rejected under manual
+  signing, so it must be one you created yourself. `ZW_IOS_PROFILE` exists for
+  the same purpose should iOS ever land in the same state.
+
+Passing App Store Connect credentials to `xcodebuild archive` does **not** avoid
+this; the credentials reach Apple and Apple still declines to mint a development
+profile for a platform with no registered devices.
+
+The tvOS target intentionally shares the iOS app's bundle identifier so both
+attach to the same multi-platform App Store Connect record. Keep the real
+identifier only in the gitignored `ios/project.yml`; keep placeholders in
+`ios/project.yml.sample`.
+
+### If you must do it by hand
+
+Reach for this only when debugging the script itself. Archive with
+`xcodebuild archive -project ZeroZeroWidget.xcodeproj -scheme
+ZeroZeroWidgetApp -configuration Release -destination 'generic/platform=iOS'
+-archivePath <path>` (swap in `ZeroZeroWidgetTV` and
+`generic/platform=tvOS` for Apple TV), then export with an options plist using
+`method: app-store-connect` and `manageAppVersionAndBuildNumber: false`, written
+under `/tmp` and never in the repo. Export to a local directory first and check
+the resulting IPA:
 
 ```
-xcodebuild archive \
-  -project ZeroZeroWidget.xcodeproj \
-  -scheme ZeroZeroWidgetTV \
-  -configuration Release \
-  -destination 'generic/platform=tvOS' \
-  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive
+codesign -d --entitlements - --xml <app> | plutil -p -
 ```
 
-The tvOS target intentionally uses the app's bundle identifier so it can be attached to the same multi-platform App Store Connect app record. Keep the real identifier only in the gitignored `ios/project.yml`; keep placeholders in `ios/project.yml.sample`.
-
-Before upload, verify the archive really has the bumped build number in all three places:
-
-```
-/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Info.plist
-/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/Info.plist
-/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive/Products/Applications/ZeroZeroWidgetApp.app/PlugIns/ZeroZeroWidgetWidgets.appex/Info.plist
-```
-
-For tvOS, verify both the archive and app bundle:
-
-```
-/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive/Info.plist
-/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/00widget-testflight/ZeroZeroWidgetTV-<build>.xcarchive/Products/Applications/ZeroZeroWidgetTV.app/Info.plist
-```
-
-Also verify capabilities in the **final distribution-signed app**, not only in its provisioning profile. A profile can permit Sign in with Apple while the app's code signature omits the entitlement, in which case the system authorization flow fails at runtime. Export an IPA locally, unzip it under `/tmp`, and check:
-
-```
-/usr/bin/codesign -d --entitlements /tmp/00widget-tv-entitlements.txt /tmp/00widget-ipa/Payload/ZeroZeroWidgetTV.app
-rg -n 'com.apple.developer.applesignin|Default' /tmp/00widget-tv-entitlements.txt
-```
-
-The signed entitlement must contain `com.apple.developer.applesignin = [Default]`. If an unsigned archive is unavoidable, ad-hoc sign its app with `Resources/TV/ZeroZeroWidgetTV.entitlements` before export so Xcode carries the requested entitlement into the App Store signature. Do not upload an unsigned-archive export until the final signed app passes this check.
-
-Use this export options plist shape for TestFlight uploads (write it under `/tmp`, not the repo):
-
-```
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>destination</key>
-  <string>upload</string>
-  <key>manageAppVersionAndBuildNumber</key>
-  <false/>
-  <key>method</key>
-  <string>app-store-connect</string>
-  <key>signingStyle</key>
-  <string>automatic</string>
-  <key>stripSwiftSymbols</key>
-  <true/>
-  <key>teamID</key>
-  <string>YOUR_TEAM_ID</string>
-  <key>uploadSymbols</key>
-  <true/>
-</dict>
-</plist>
-```
-
-Then upload:
-
-```
-xcodebuild -exportArchive \
-  -archivePath /tmp/00widget-testflight/ZeroZeroWidgetApp-<build>.xcarchive \
-  -exportPath /tmp/00widget-testflight/export-<build> \
-  -exportOptionsPlist /tmp/00widget-testflight/ExportOptions.plist \
-  -allowProvisioningUpdates
-```
-
-Success looks like `Uploaded package is processing` followed by `Upload succeeded`. If the first failure says the bundle version must be higher than a previous upload, the archive still contains the wrong `CFBundleVersion`; fix the generated plist inputs and re-archive rather than retrying the same archive.
+Then re-export with `destination: upload`. Success looks like
+`Uploaded package is processing` followed by `Upload succeeded`. If the failure
+says the bundle version must be higher than a previous upload, the archive still
+holds the wrong `CFBundleVersion` — fix the generated plist inputs and
+re-archive rather than retrying the same archive.
 
 ## Branding
 

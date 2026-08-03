@@ -69,7 +69,7 @@ Pick an iOS 26 device/simulator and run the **ZeroZeroWidgetApp** scheme. On fir
 
 For Apple TV, pick a tvOS 26 device/simulator and run the **ZeroZeroWidgetTV** scheme. Sign in with Apple, then the app fetches the tenant's cards and ongoing Live Activities together every 30 seconds. Pending and device-registered activity instances are deduplicated by external activity id; countdowns and progress render locally between fetches. The combined dashboard endpoint keeps each refresh to one Worker invocation.
 
-For TestFlight, update `CURRENT_PROJECT_VERSION` only in the gitignored local `project.yml`, regenerate with `xcodegen`, and archive `ZeroZeroWidgetApp` and `ZeroZeroWidgetTV` separately. The exact archive, version-verification, and upload commands are documented in `AGENTS.md`.
+For TestFlight, run `ios/scripts/upload-testflight.sh`. It bumps `CURRENT_PROJECT_VERSION` in the gitignored local `project.yml`, regenerates the project, archives both `ZeroZeroWidgetApp` and `ZeroZeroWidgetTV`, verifies the build number and the signing entitlements each platform needs, and uploads. Add `--verify-only` to run everything except the upload. Credential locations and the reasoning behind each check are in `AGENTS.md` → "TestFlight submissions".
 
 ### Building for the simulator without an Apple Developer team
 

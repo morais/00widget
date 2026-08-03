@@ -1,28 +1,36 @@
 #!/usr/bin/env bash
 # Archive, verify, and upload the iOS and tvOS apps to TestFlight.
 #
+# Both platforms run through one code path (`ship`), parameterised by a few
+# values each. Keep it that way: if a fix is needed for one platform, express
+# it as data in the `ship` call rather than a branch inside it.
+#
 # Why this script exists (lessons that cost real time doing it by hand):
 #
 # 1. App Store Connect rejects a build whose CFBundleVersion isn't higher than
 #    the last upload, and the failure arrives *after* a full archive. Bump
-#    first, then assert the number actually reached all three plists, because
-#    a mis-set project.yml silently produces a literal "1".
+#    first, then assert the number actually reached every plist, because a
+#    mis-set project.yml silently produces a literal "1".
 #
 # 2. `aps-environment` reads `development` in the archive even for a Release
 #    build. That is normal and not a bug: the *export* step re-signs with the
 #    distribution profile and flips it to `production`. Verifying the archive
-#    tells you nothing — only the exported IPA does.
+#    tells you nothing — only the exported IPA does. The same applies to
+#    com.apple.developer.applesignin on tvOS, where a dropped entitlement means
+#    Sign in with Apple fails at runtime on a build that installed fine.
 #
-# 3. The tvOS target requires com.apple.developer.applesignin. A profile can
-#    grant it while the final signature omits it, in which case Sign in with
-#    Apple fails at runtime on a build that installed fine. Always export
-#    locally and check the signed app before uploading.
-#
-# 4. tvOS automatic signing looks for a *development* profile and cannot mint
-#    one without an Xcode account, so it fails where iOS succeeds. Point
-#    ZW_TVOS_PROFILE at a manually-managed App Store profile instead. Xcode-
-#    managed profiles are rejected under manual signing, so it must be one you
-#    created yourself in the developer portal.
+# 3. Automatic signing archives against a *development* profile, and Apple will
+#    only generate one for a platform that has a registered device. A team with
+#    registered iPhones but no Apple TV can therefore archive iOS and not tvOS,
+#    which is the only reason the two platforms ever need different treatment
+#    here. Two ways to fix it, in order of preference:
+#      a. Register an Apple TV in the developer portal. Automatic signing then
+#         works for both and neither ZW_*_PROFILE below is needed.
+#      b. Create a *manually managed* App Store profile in the portal and name
+#         it in ZW_TVOS_PROFILE. Xcode-managed profiles are rejected under
+#         manual signing, so it has to be one you made yourself.
+#    ZW_IOS_PROFILE exists for the same reason, should iOS ever land in the
+#    same state.
 #
 # Credentials are never read from this repository. The App Store Connect API
 # key and its Issuer ID live under ~/.appstoreconnect, outside every checkout:
@@ -32,7 +40,8 @@
 #
 # Override with ASC_KEY_PATH / ASC_KEY_ID / ASC_ISSUER_ID if you keep them
 # elsewhere. Everything else — team id, bundle ids — is read from your
-# gitignored ios/project.yml, so nothing identifying is hardcoded here.
+# gitignored ios/project.yml and the built app, so nothing identifying is
+# hardcoded here.
 #
 # Usage:
 #   ios/scripts/upload-testflight.sh                     # both platforms
@@ -88,14 +97,12 @@ if [[ -z "$ASC_ISSUER_ID" && -f "$HOME/.appstoreconnect/issuer_id" ]]; then
   ASC_ISSUER_ID="$(tr -d '[:space:]' < "$HOME/.appstoreconnect/issuer_id")"
 fi
 
-if [[ "$UPLOAD" == "1" ]]; then
-  if [[ ! -f "$ASC_KEY_PATH" || -z "$ASC_ISSUER_ID" ]]; then
-    echo "App Store Connect credentials not found. Expected:"
-    echo "  ~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8"
-    echo "  ~/.appstoreconnect/issuer_id      (Users and Access -> Integrations -> App Store Connect API)"
-    echo "Or set ASC_KEY_PATH / ASC_KEY_ID / ASC_ISSUER_ID. Re-run with --verify-only to skip uploading."
-    exit 1
-  fi
+if [[ "$UPLOAD" == "1" && ( ! -f "$ASC_KEY_PATH" || -z "$ASC_ISSUER_ID" ) ]]; then
+  echo "App Store Connect credentials not found. Expected:"
+  echo "  ~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8"
+  echo "  ~/.appstoreconnect/issuer_id      (Users and Access -> Integrations -> App Store Connect API)"
+  echo "Or set ASC_KEY_PATH / ASC_KEY_ID / ASC_ISSUER_ID. Re-run with --verify-only to skip uploading."
+  exit 1
 fi
 
 OUT="${ZW_TESTFLIGHT_OUT:-$(mktemp -d -t zw-testflight)}"
@@ -128,49 +135,114 @@ for plist in Resources/App/Info.plist Resources/Widgets/Info.plist Resources/TV/
   fi
 done
 
-assert_build() { # <label> <actual>
-  if [[ "$2" != "$BUILD_NUMBER" ]]; then
-    echo "✗ $1 is '$2', expected $BUILD_NUMBER"
+assert_build() { # <label> <plist>
+  local got
+  got="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$2" 2>/dev/null || true)"
+  if [[ "$got" != "$BUILD_NUMBER" ]]; then
+    echo "✗ $1 build number is '$got', expected $BUILD_NUMBER"
     exit 1
   fi
-  echo "  ✓ $1"
+  echo "  ✓ $1 build number"
 }
 
-# Reads the signed entitlements of an app inside an exported .ipa.
-signed_entitlements() { # <ipa> <app-name>
-  local work="$OUT/unzip-$2"
-  rm -rf "$work" && mkdir -p "$work"
-  unzip -q "$1" -d "$work"
-  codesign -d --entitlements - --xml "$work/Payload/$2.app" 2>/dev/null | plutil -p -
-}
-
-export_options() { # <path> <destination> [profile-key] [profile-name]
-  local path="$1" dest="$2" bundle="${3:-}" profile="${4:-}"
+export_options() { # <path> <destination> <bundle-id> <profile-name-or-empty>
   {
     echo '<?xml version="1.0" encoding="UTF-8"?>'
     echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
     echo '<plist version="1.0"><dict>'
-    echo "  <key>destination</key><string>$dest</string>"
+    echo "  <key>destination</key><string>$2</string>"
     echo '  <key>method</key><string>app-store-connect</string>'
     echo '  <key>manageAppVersionAndBuildNumber</key><false/>'
     echo '  <key>stripSwiftSymbols</key><true/>'
     echo '  <key>uploadSymbols</key><true/>'
     echo "  <key>teamID</key><string>$TEAM_ID</string>"
-    if [[ -n "$profile" ]]; then
+    if [[ -n "$4" ]]; then
       echo '  <key>signingStyle</key><string>manual</string>'
       echo '  <key>provisioningProfiles</key><dict>'
-      echo "    <key>$bundle</key><string>$profile</string>"
+      echo "    <key>$3</key><string>$4</string>"
       echo '  </dict>'
     else
       echo '  <key>signingStyle</key><string>automatic</string>'
     fi
     echo '</dict></plist>'
-  } > "$path"
+  } > "$1"
 }
 
-upload() { # <archive> <options-plist> <export-dir>
-  xcodebuild -exportArchive \
-    -archivePath "$1" -exportOptionsPlist "$2" -exportPath "$3" \
+# One path for every platform. Differences are arguments, not branches.
+#   $1 label   $2 scheme   $3 destination   $4 product name
+#   $5 entitlement the *signed* app must contain
+#   $6 manually-managed profile name, empty for automatic signing
+#   $7 optional extra bundle inside the app whose build number must also match
+ship() {
+  local label="$1" scheme="$2" destination="$3" product="$4"
+  local required_entitlement="$5" profile="$6" extra_bundle="${7:-}"
+  local archive="$OUT/$product-$BUILD_NUMBER.xcarchive"
+  local app="$archive/Products/Applications/$product.app"
+
+  echo "→ [$label] archiving"
+  rm -rf "$archive"
+  local -a signing=()
+  if [[ -n "$profile" ]]; then
+    signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution"
+             PROVISIONING_PROFILE_SPECIFIER="$profile")
+  fi
+  if ! xcodebuild archive \
+        -project ZeroZeroWidget.xcodeproj -scheme "$scheme" -configuration Release \
+        -destination "$destination" -archivePath "$archive" \
+        -allowProvisioningUpdates \
+        ${ASC_ISSUER_ID:+-authenticationKeyPath "$ASC_KEY_PATH"} \
+        ${ASC_ISSUER_ID:+-authenticationKeyID "$ASC_KEY_ID"} \
+        ${ASC_ISSUER_ID:+-authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
+        ${signing[@]+"${signing[@]}"} >"$OUT/$label-archive.log" 2>&1; then
+    echo "✗ [$label] archive failed. Last lines:"
+    grep -iE 'error' "$OUT/$label-archive.log" | head -5 | sed 's/^/    /'
+    if [[ -z "$profile" ]] && grep -q 'no devices' "$OUT/$label-archive.log"; then
+      echo "  Automatic signing needs a registered $label device to mint a development"
+      echo "  profile. Register one, or set the profile env var to a manually managed"
+      echo "  App Store profile (see the header of this script)."
+    fi
+    echo "  Full log: $OUT/$label-archive.log"
+    exit 1
+  fi
+
+  echo "→ [$label] checking build numbers"
+  local archive_build
+  archive_build="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$archive/Info.plist" 2>/dev/null || true)"
+  [[ "$archive_build" == "$BUILD_NUMBER" ]] || { echo "✗ [$label] archive build is '$archive_build', expected $BUILD_NUMBER"; exit 1; }
+  echo "  ✓ archive build number"
+  assert_build "$label app" "$app/Info.plist"
+  [[ -n "$extra_bundle" ]] && assert_build "$label $extra_bundle" "$app/$extra_bundle/Info.plist"
+
+  # Only the re-signed export shows what TestFlight will actually receive.
+  local bundle_id
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")"
+  echo "→ [$label] exporting locally to inspect the distribution signature"
+  export_options "$OUT/$label-local.plist" export "$bundle_id" "$profile"
+  rm -rf "$OUT/$label-local"
+  xcodebuild -exportArchive -archivePath "$archive" \
+    -exportOptionsPlist "$OUT/$label-local.plist" -exportPath "$OUT/$label-local" \
+    -allowProvisioningUpdates >"$OUT/$label-export.log" 2>&1
+
+  rm -rf "$OUT/$label-unzip" && mkdir -p "$OUT/$label-unzip"
+  unzip -q "$OUT/$label-local/$product.ipa" -d "$OUT/$label-unzip"
+  local entitlements
+  entitlements="$(codesign -d --entitlements - --xml "$OUT/$label-unzip/Payload/$product.app" 2>/dev/null | plutil -p -)"
+  if ! grep -qF "$required_entitlement" <<<"$entitlements"; then
+    echo "✗ [$label] signed app is missing: $required_entitlement"
+    echo "$entitlements" | sed 's/^/    /'
+    exit 1
+  fi
+  echo "  ✓ signed app has $required_entitlement"
+
+  if [[ "$UPLOAD" != "1" ]]; then
+    echo "  (skipping upload: --verify-only)"
+    return
+  fi
+  echo "→ [$label] uploading"
+  export_options "$OUT/$label-upload.plist" upload "$bundle_id" "$profile"
+  rm -rf "$OUT/$label-upload"
+  xcodebuild -exportArchive -archivePath "$archive" \
+    -exportOptionsPlist "$OUT/$label-upload.plist" -exportPath "$OUT/$label-upload" \
     -allowProvisioningUpdates \
     -authenticationKeyPath "$ASC_KEY_PATH" \
     -authenticationKeyID "$ASC_KEY_ID" \
@@ -178,100 +250,14 @@ upload() { # <archive> <options-plist> <export-dir>
 }
 
 if [[ "$DO_IOS" == "1" ]]; then
-  ARCHIVE="$OUT/ZeroZeroWidgetApp-$BUILD_NUMBER.xcarchive"
-  echo "→ archiving iOS"
-  rm -rf "$ARCHIVE"
-  xcodebuild archive \
-    -project ZeroZeroWidget.xcodeproj -scheme ZeroZeroWidgetApp -configuration Release \
-    -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-    -allowProvisioningUpdates >/dev/null
-
-  APP="$ARCHIVE/Products/Applications/ZeroZeroWidgetApp.app"
-  EXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
-  echo "→ checking build numbers"
-  assert_build "archive"          "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist")"
-  assert_build "app bundle"       "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
-  assert_build "widget extension" "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$EXT/Info.plist")"
-
-  # The archive says aps-environment=development even in Release; only the
-  # re-signed export reveals what TestFlight will actually receive.
-  echo "→ exporting locally to inspect the distribution signature"
-  export_options "$OUT/ios-export-local.plist" export
-  rm -rf "$OUT/ios-local"
-  xcodebuild -exportArchive -archivePath "$ARCHIVE" \
-    -exportOptionsPlist "$OUT/ios-export-local.plist" -exportPath "$OUT/ios-local" \
-    -allowProvisioningUpdates >/dev/null
-  ENT="$(signed_entitlements "$OUT/ios-local/ZeroZeroWidgetApp.ipa" ZeroZeroWidgetApp)"
-  if ! grep -q '"aps-environment" => "production"' <<<"$ENT"; then
-    echo "✗ signed iOS app is not production-push. Entitlements were:"
-    echo "$ENT"
-    echo "  Push would silently fail on TestFlight. Check the distribution profile."
-    exit 1
-  fi
-  echo "  ✓ aps-environment = production"
-
-  if [[ "$UPLOAD" == "1" ]]; then
-    echo "→ uploading iOS"
-    export_options "$OUT/ios-export.plist" upload
-    rm -rf "$OUT/ios-upload"
-    upload "$ARCHIVE" "$OUT/ios-export.plist" "$OUT/ios-upload"
-  else
-    echo "  (skipping upload: --verify-only)"
-  fi
+  ship iOS ZeroZeroWidgetApp 'generic/platform=iOS' ZeroZeroWidgetApp \
+    '"aps-environment" => "production"' "${ZW_IOS_PROFILE:-}" \
+    "PlugIns/ZeroZeroWidgetWidgets.appex"
 fi
 
 if [[ "$DO_TVOS" == "1" ]]; then
-  ARCHIVE="$OUT/ZeroZeroWidgetTV-$BUILD_NUMBER.xcarchive"
-  TV_BUNDLE_ID="$(sed -n '/ZeroZeroWidgetTV:/,$p' project.yml \
-    | sed -n 's/^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:[[:space:]]*\(.*\)/\1/p' | head -1)"
-  TV_PROFILE="${ZW_TVOS_PROFILE:-}"
-
-  echo "→ archiving tvOS"
-  rm -rf "$ARCHIVE"
-  if [[ -n "$TV_PROFILE" ]]; then
-    xcodebuild archive \
-      -project ZeroZeroWidget.xcodeproj -scheme ZeroZeroWidgetTV -configuration Release \
-      -destination 'generic/platform=tvOS' -archivePath "$ARCHIVE" \
-      CODE_SIGN_STYLE=Manual \
-      CODE_SIGN_IDENTITY="Apple Distribution" \
-      PROVISIONING_PROFILE_SPECIFIER="$TV_PROFILE" >/dev/null
-  else
-    # Works only if a tvOS development profile already exists locally or an
-    # Xcode account can create one; otherwise set ZW_TVOS_PROFILE.
-    xcodebuild archive \
-      -project ZeroZeroWidget.xcodeproj -scheme ZeroZeroWidgetTV -configuration Release \
-      -destination 'generic/platform=tvOS' -archivePath "$ARCHIVE" \
-      -allowProvisioningUpdates >/dev/null
-  fi
-
-  TVAPP="$ARCHIVE/Products/Applications/ZeroZeroWidgetTV.app"
-  echo "→ checking build numbers"
-  assert_build "archive"    "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist")"
-  assert_build "app bundle" "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$TVAPP/Info.plist")"
-
-  echo "→ exporting locally to inspect the distribution signature"
-  export_options "$OUT/tv-export-local.plist" export "$TV_BUNDLE_ID" "$TV_PROFILE"
-  rm -rf "$OUT/tv-local"
-  xcodebuild -exportArchive -archivePath "$ARCHIVE" \
-    -exportOptionsPlist "$OUT/tv-export-local.plist" -exportPath "$OUT/tv-local" >/dev/null
-  ENT="$(signed_entitlements "$OUT/tv-local/ZeroZeroWidgetTV.ipa" ZeroZeroWidgetTV)"
-  if ! grep -q 'com.apple.developer.applesignin' <<<"$ENT"; then
-    echo "✗ signed tvOS app is missing com.apple.developer.applesignin. Entitlements were:"
-    echo "$ENT"
-    echo "  Sign in with Apple would fail at runtime. Enable the capability on the"
-    echo "  App ID and regenerate the profile before uploading."
-    exit 1
-  fi
-  echo "  ✓ com.apple.developer.applesignin present"
-
-  if [[ "$UPLOAD" == "1" ]]; then
-    echo "→ uploading tvOS"
-    export_options "$OUT/tv-export.plist" upload "$TV_BUNDLE_ID" "$TV_PROFILE"
-    rm -rf "$OUT/tv-upload"
-    upload "$ARCHIVE" "$OUT/tv-export.plist" "$OUT/tv-upload"
-  else
-    echo "  (skipping upload: --verify-only)"
-  fi
+  ship tvOS ZeroZeroWidgetTV 'generic/platform=tvOS' ZeroZeroWidgetTV \
+    'com.apple.developer.applesignin' "${ZW_TVOS_PROFILE:-}"
 fi
 
 echo "✓ done — build $BUILD_NUMBER"
