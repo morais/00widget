@@ -4,7 +4,13 @@
 
 Please report security issues **privately**, not through public GitHub issues.
 
-Email *****REMOVED***** with:
+Use GitHub's [private vulnerability
+reporting](https://github.com/morais/00widget/security/advisories/new) — the
+"Report a vulnerability" button under this repository's **Security** tab. It
+opens a private advisory only you and the maintainers can see, and it keeps
+the report, the fix, and the CVE in one place.
+
+Please include:
 
 - A description of the issue and its impact
 - Steps to reproduce (or a proof-of-concept)
@@ -53,6 +59,18 @@ project should be aware:
   anyone with a verified Apple ID. It is **off by default**. When enabled the
   endpoint requires a nonce (validated against the id_token's `nonce` claim)
   and is rate-limited per Apple `sub` at 30 / hour.
+- **Apple sign-in claims an existing tenant by matching email.** On the first
+  sign-in for a given Apple `sub`, if Apple returns a verified email that
+  equals some tenant's `owner_email`, that Apple account is bound to that
+  existing tenant and inherits all of its data (`appLogin.ts`
+  `getTenantByOwnerEmail`). This is deliberate — it is how a person who signs
+  in on a second device reaches the tenant an operator provisioned for them,
+  and Apple's `email_verified` claim is checked first. The consequence is that
+  **whoever controls the Apple ID for an address controls any tenant carrying
+  that address as `owner_email`**, so a typo in the admin dashboard's "Owner
+  email" field hands the tenant to a stranger. Treat that field as a security
+  decision and correct mistakes by revoking the tenant's keys, not by editing
+  the address after the fact.
 - **`SHARING_ENABLED`** controls cross-tenant share fanout. Sharing by
   `activity_kind` is coarse-grained: accepting a share for kind `progress`
   exposes *all* of the owner's current and future `progress` Live Activities
