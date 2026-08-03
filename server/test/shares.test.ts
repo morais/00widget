@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import handler from "../src/index";
-import { makeEnv, authedRequest, seedApiKey } from "./helpers";
+import { makeEnv, authedRequest, seedApiKey, testApiKey } from "./helpers";
 import * as storage from "../src/storage";
 import { sha256Hex } from "../src/auth";
 
@@ -12,7 +12,7 @@ function withSharing(env: ReturnType<typeof makeEnv>): ReturnType<typeof makeEnv
 }
 
 async function seedCard(env: ReturnType<typeof makeEnv>, tenantId: string, key: string, id: string, title: string) {
-  const hash = await sha256Hex(key);
+  const hash = await sha256Hex(testApiKey(key));
   await storage.putCard(env, tenantId, hash, {
     id,
     template: "action",

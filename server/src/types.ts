@@ -464,6 +464,8 @@ export interface WidgetReloadQueueMessage {
 
 export interface Env {
   ZW_DB: D1Database;
+  AUTH_SOURCE_LIMITER: RateLimit;
+  AUTH_TOKEN_LIMITER: RateLimit;
   WIDGET_RELOAD_QUEUE?: Queue<WidgetReloadQueueMessage>;
   API_KEYS?: string;
   APNS_TEAM_ID?: string;

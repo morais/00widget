@@ -1073,6 +1073,26 @@ export class FakeD1 {
   }
 }
 
+export class FakeRateLimit {
+  readonly calls: string[] = [];
+  success = true;
+  error?: Error;
+
+  async limit({ key }: RateLimitOptions): Promise<RateLimitOutcome> {
+    this.calls.push(key);
+    if (this.error) throw this.error;
+    return { success: this.success };
+  }
+}
+
+export function testApiKey(label = "test-key"): string {
+  if (/^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43})$/.test(label)) return label;
+  const safeLabel = label.replace(/[^A-Za-z0-9_-]/g, "_");
+  return `zw_${`${safeLabel}_${"x".repeat(43)}`.slice(0, 43)}`;
+}
+
+export const TEST_API_KEY = testApiKey();
+
 function shareSelect(row: FakeRow): FakeRow {
   return {
     id: row.id,
@@ -1116,9 +1136,11 @@ function pick(row: FakeRow | undefined, fields: string[]): FakeRow[] {
 
 export function makeEnv(overrides: Partial<Env> = {}): Env {
   const db = new FakeD1();
-  db.seedApiKeyHash("62af8704764faf8ea82fc61ce9c4c3908b6cb97d463a634e9e587d7c885db0ef");
+  db.seedApiKeyHash("f9fc6804ffda6c9ce8014450b5951b83a54158dbf19e6dd654fb8188fdc9bfe8");
   return {
     ZW_DB: db as unknown as D1Database,
+    AUTH_SOURCE_LIMITER: new FakeRateLimit() as unknown as RateLimit,
+    AUTH_TOKEN_LIMITER: new FakeRateLimit() as unknown as RateLimit,
     API_KEYS: "test-key",
     APNS_TEAM_ID: undefined,
     APNS_KEY_ID: undefined,
@@ -1140,7 +1162,7 @@ export async function seedApiKey(
   scopes?: readonly ApiScope[],
 ): Promise<void> {
   (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(
-    await sha256Hex(rawToken),
+    await sha256Hex(testApiKey(rawToken)),
     tenantId,
     "test key",
     kind,
@@ -1151,9 +1173,9 @@ export async function seedApiKey(
   );
 }
 
-export function authedRequest(url: string, init: RequestInit = {}, apiKey = "test-key"): Request {
+export function authedRequest(url: string, init: RequestInit = {}, apiKey = TEST_API_KEY): Request {
   const headers = new Headers(init.headers);
-  headers.set("authorization", `Bearer ${apiKey}`);
+  headers.set("authorization", `Bearer ${testApiKey(apiKey)}`);
   if (init.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }

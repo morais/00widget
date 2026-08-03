@@ -7,7 +7,7 @@ import {
   RequestBodyLimits,
 } from "../src/types";
 import { sha256Hex } from "../src/auth";
-import { makeEnv, authedRequest, seedApiKey } from "./helpers";
+import { makeEnv, authedRequest, seedApiKey, TEST_API_KEY } from "./helpers";
 import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
@@ -311,7 +311,7 @@ describe("cards endpoints", () => {
 
   it("schedules a widget reload when a card is deleted", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.putCard(env, "test-tenant", hash, {
       id: "solar-home",
       template: "action",
@@ -475,7 +475,7 @@ describe("cards endpoints", () => {
 
   it("filters widget push tokens by widget kind", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
 
     await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetCardWidget", "card-token");
     await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetCardGridWidget", "grid-token");

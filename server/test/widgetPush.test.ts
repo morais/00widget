@@ -11,14 +11,14 @@ import {
   processPendingWidgetReload,
   scheduleWidgetReloadForCard,
 } from "../src/widgetPush";
-import { authedRequest, makeEnv } from "./helpers";
+import { authedRequest, makeEnv, TEST_API_KEY } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 
 describe("widget push subscriptions", () => {
   it("replaces a device snapshot and targets only subscribed cards", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.replaceWidgetTokensForDevice(
       env,
       "test-tenant",
@@ -117,7 +117,7 @@ describe("widget push subscriptions", () => {
 
   it("coalesces suppressed reloads and delivers them after the cadence window", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.putWidgetToken(
       env,
       "test-tenant",
@@ -153,7 +153,7 @@ describe("widget push subscriptions", () => {
 
   it("keeps a deferred reload durable after transient APNs failure", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.putWidgetToken(
       env,
       "test-tenant",
@@ -206,7 +206,7 @@ describe("widget push subscriptions", () => {
 
   it("queues a second card change when the immediate push window is closed", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.putWidgetToken(
       env,
       "test-tenant",
@@ -254,7 +254,7 @@ describe("widget push subscriptions", () => {
 
   it("deduplicates one WidgetKit token across multiple widget kinds", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.replaceWidgetTokensForDevice(
       env,
       "test-tenant",
@@ -272,7 +272,7 @@ describe("widget push subscriptions", () => {
 
   it("moves a reused WidgetKit token to the current device snapshot", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.replaceWidgetTokensForDevice(
       env,
       "test-tenant",
@@ -301,7 +301,7 @@ describe("widget push subscriptions", () => {
 
   it("retries transient failures and prunes permanently dead tokens", async () => {
     const env = makeEnv();
-    const hash = await sha256Hex("test-key");
+    const hash = await sha256Hex(TEST_API_KEY);
     await storage.putWidgetToken(
       env,
       "test-tenant",

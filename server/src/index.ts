@@ -2,6 +2,7 @@ import type { Env, WidgetReloadQueueMessage } from "./types";
 import {
   requireAuth,
   AuthError,
+  AuthRateLimitError,
   hasScope,
   type ApiScope,
   type CredentialKind,
@@ -167,6 +168,9 @@ function authed(
         }
         return await handler(req, env, auth, match, ctx);
       } catch (err) {
+        if (err instanceof AuthRateLimitError) {
+          return json({ error: err.message }, 429, { "retry-after": "60" });
+        }
         if (err instanceof AuthError) return unauthorized(err.message);
         throw err;
       }

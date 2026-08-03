@@ -15,6 +15,8 @@ export interface AuthContext {
 
 export type CredentialKind = "publisher" | "app";
 
+const API_TOKEN_PATTERN = /^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43})$/;
+
 export const API_SCOPES = [
   "tenant:read",
   "publish",
@@ -104,7 +106,18 @@ export async function requireAuth(
     throw new AuthError("missing or malformed Authorization header");
   }
   const apiKey = match[1].trim();
+  if (!API_TOKEN_PATTERN.test(apiKey)) {
+    throw new AuthError("invalid API key");
+  }
   const apiKeyHash = await sha256Hex(apiKey);
+  const sourceIp = req.headers.get("cf-connecting-ip")?.trim() || "unknown";
+  const [sourceAllowed, tokenAllowed] = await Promise.all([
+    checkAuthRateLimit(env.AUTH_SOURCE_LIMITER, `source:${sourceIp}`),
+    checkAuthRateLimit(env.AUTH_TOKEN_LIMITER, `token:${apiKeyHash}`),
+  ]);
+  if (!sourceAllowed || !tokenAllowed) {
+    throw new AuthRateLimitError();
+  }
   const row = await env.ZW_DB.prepare(
     `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
             api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at,
@@ -143,6 +156,23 @@ export class AuthError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AuthError";
+  }
+}
+
+export class AuthRateLimitError extends Error {
+  constructor() {
+    super("too many authentication attempts");
+    this.name = "AuthRateLimitError";
+  }
+}
+
+async function checkAuthRateLimit(limiter: RateLimit, key: string): Promise<boolean> {
+  try {
+    return (await limiter.limit({ key })).success;
+  } catch (error) {
+    // A transient limiter outage must not take the authenticated API offline.
+    console.warn("authentication rate limiter unavailable", error);
+    return true;
   }
 }
 

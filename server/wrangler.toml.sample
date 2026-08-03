@@ -30,6 +30,22 @@ database_name = "zerozerowidget"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
+# Authentication circuit breakers run before any D1 lookup. Namespace ids are
+# deployment-local identifiers; keep each binding's id unique in your account.
+[[ratelimits]]
+name = "AUTH_SOURCE_LIMITER"
+namespace_id = "10001"
+  [ratelimits.simple]
+  limit = 600
+  period = 60
+
+[[ratelimits]]
+name = "AUTH_TOKEN_LIMITER"
+namespace_id = "10002"
+  [ratelimits.simple]
+  limit = 300
+  period = 60
+
 [observability]
 enabled = true
 

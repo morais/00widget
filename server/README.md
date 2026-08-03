@@ -92,6 +92,23 @@ npx wrangler secret put APNS_BUNDLE_ID
 
 `APNS_ENV` lives in `wrangler.toml` as a plain var (`sandbox` or `production`).
 
+### API abuse controls
+
+Generated app and publisher bearer tokens have a fixed `zw_` or `zwa_` format.
+Malformed values are rejected before hashing, rate limiting, or D1 access. Validly
+shaped tokens then pass through two Workers Rate Limiting bindings before D1: a
+600-request/minute source-IP circuit breaker and a 300-request/minute token
+fingerprint circuit breaker. These counters are intentionally generous and
+fail open if Cloudflare's limiter is temporarily unavailable; they are abuse
+protection, not tenant quotas.
+
+For a production custom domain, add a zone-level WAF rate-limiting rule as an
+outer circuit breaker too. The Free-plan-compatible baseline is URI path
+`/v1/*`, counting by source IP, 100 requests per 10 seconds, with a 10-second
+block. Higher plans can additionally count authentication failures by response
+status. Keep `workers_dev` and preview URLs disabled so requests cannot bypass
+the custom-domain rule.
+
 ## Admin dashboard
 
 An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant owner email, and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants.
