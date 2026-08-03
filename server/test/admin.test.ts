@@ -132,7 +132,14 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(500);
     const body = await res.text();
     expect(body).toContain("Admin not configured");
-    expect(body).toContain("APPLE_SIGN_IN_CLIENT_ID");
+    // The page is unauthenticated: it must not enumerate which secrets are
+    // unset, or it becomes a map of what to probe.
+    expect(body).not.toContain("APPLE_SIGN_IN_CLIENT_ID");
+    expect(body).not.toContain("APPLE_SIGN_IN_REDIRECT_URI");
+    expect(body).not.toContain("ADMIN_EMAILS");
+    expect(body).not.toContain("SESSION_SECRET");
+    expect(body).not.toContain("API_KEYS");
+    expect(body).not.toContain("ADMIN_API_TOKEN_LOGIN");
   });
 
   it("/admin/login renders the login page with both methods when configured", async () => {
@@ -281,7 +288,9 @@ describe("admin routes (no Apple call required)", () => {
     });
     const res = await (handler.fetch as any)(req, env, ctx);
     expect(res.status).toBe(500);
-    expect(await res.text()).toContain("every token must be a strong random value of 32+ bytes");
+    const body = await res.text();
+    expect(body).toContain("Admin not configured");
+    expect(body).not.toContain("API_KEYS");
   });
 
   it("/admin/login/api-token returns 403 when not explicitly enabled", async () => {

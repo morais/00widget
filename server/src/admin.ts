@@ -736,6 +736,10 @@ function renderError(message: string): string {
   );
 }
 
+// Reached by unauthenticated visitors, so the page itself stays generic — an
+// itemised list of unset secrets tells an attacker exactly which sign-in
+// method is half-configured and worth probing. The detail an operator needs
+// goes to the Worker log instead, which only they can read.
 function renderConfigError(env: Env): string {
   const apple: string[] = [];
   if (!env.APPLE_SIGN_IN_CLIENT_ID) apple.push("APPLE_SIGN_IN_CLIENT_ID");
@@ -746,20 +750,21 @@ function renderConfigError(env: Env): string {
   const apiToken: string[] = [];
   if (!adminApiTokensAreSecure(env)) apiToken.push("API_KEYS (every token must be a strong random value of 32+ bytes)");
   if (!isSecureAdminSecret(env.SESSION_SECRET)) apiToken.push("SESSION_SECRET (strong random value, 32+ bytes)");
-  const apiTokenDisabled = !apiTokenLoginEnabled(env);
+
+  console.warn("admin.not_configured", {
+    appleMissing: apple,
+    apiTokenLoginEnabled: apiTokenLoginEnabled(env),
+    apiTokenMissing: apiTokenLoginEnabled(env) ? apiToken : undefined,
+  });
 
   return baseHTML(
     "00Widget · Admin not configured",
     `<header><h1>00Widget · Admin</h1></header>
      <section><h2>Admin not configured</h2>
-     <p>Enable at least one sign-in method by setting its required Wrangler secrets and redeploying.</p>
-     <h3>Sign in with Apple</h3>
-     <ul>${apple.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>
-     <h3>API-token fallback</h3>
-     ${apiTokenDisabled
-        ? `<p class="muted">Disabled by default. Set <code>ADMIN_API_TOKEN_LOGIN=true</code> to enable temporarily.</p>`
-        : `<ul>${apiToken.map((k) => `<li><code>${esc(k)}</code></li>`).join("") || "<li><em>all set</em></li>"}</ul>`}
-     <p>Setup walkthrough: <code>server/README.md</code> → "Admin dashboard".</p></section>`,
+     <p>No sign-in method is available.</p>
+     <p class="muted">If you are the operator, the missing configuration is
+     named in this Worker's logs. Setup walkthrough:
+     <code>server/README.md</code> → "Admin dashboard".</p></section>`,
   );
 }
 
