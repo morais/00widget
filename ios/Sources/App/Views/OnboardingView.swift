@@ -8,7 +8,12 @@ struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedAgentConfig = false
+    @State private var copyResetTask: Task<Void, Never>?
     @State private var confirmingSignOut = false
+
+    /// How long the copied agent config survives on the pasteboard. The label
+    /// promises this, so the expiry below and the reset timer read it here.
+    private static let pasteboardLifetime: TimeInterval = 2 * 60
     // Raw nonce for the in-flight Sign in with Apple request. We hash it
     // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
     // logs only the hash, and we send the raw value to the backend so it can
@@ -23,9 +28,15 @@ struct OnboardingView: View {
                         .font(.caption)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(copiedAgentConfig ? "Copied temporarily" : "Copy agent config") {
+                    Button(copiedAgentConfig ? "Copied — clipboard clears in 2 min" : "Copy agent config") {
                         copySensitiveText(agentConfig)
                         copiedAgentConfig = true
+                        copyResetTask?.cancel()
+                        copyResetTask = Task {
+                            try? await Task.sleep(for: .seconds(Self.pasteboardLifetime))
+                            guard !Task.isCancelled else { return }
+                            copiedAgentConfig = false
+                        }
                     }
                 }
 
@@ -241,7 +252,7 @@ struct OnboardingView: View {
     private func copySensitiveText(_ text: String) {
         UIPasteboard.general.setItems(
             [[UTType.utf8PlainText.identifier: text]],
-            options: [.expirationDate: Date().addingTimeInterval(2 * 60)]
+            options: [.expirationDate: Date().addingTimeInterval(Self.pasteboardLifetime)]
         )
     }
 
