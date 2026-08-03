@@ -487,7 +487,9 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
       <td>${esc(active)}</td>
       <td class="ts">${esc(key.createdAt)}</td>
       <td class="ts">${esc(key.lastUsedAt ?? "")}</td>
-      <td class="ts">${esc(key.expiresAt)}</td>
+      <td class="ts">${esc(key.expiresAt)}${key.renewSeconds
+        ? ` <span class="muted" title="Slides forward on use; expires only after ${formatWindow(key.renewSeconds)} idle">↻ ${esc(formatWindow(key.renewSeconds))} idle</span>`
+        : ` <span class="muted" title="Fixed deadline; use does not extend it">fixed</span>`}</td>
       <td>${action}</td>
     </tr>`;
   }).join("");
@@ -1091,6 +1093,8 @@ function shortBucketKey(bucketKey: string): string {
 function formatWindow(seconds: number): string {
   if (seconds === 60 * 60) return "1h";
   if (seconds === 24 * 60 * 60) return "24h";
+  // Credential renewal windows are measured in days, not rate-limit hours.
+  if (seconds % (24 * 60 * 60) === 0) return `${seconds / (24 * 60 * 60)}d`;
   return `${seconds}s`;
 }
 

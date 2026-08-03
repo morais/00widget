@@ -17,6 +17,12 @@ export type CredentialKind = "publisher" | "app";
 
 const API_TOKEN_PATTERN = /^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43})$/;
 
+export const DEFAULT_TOKEN_LIFETIME_SECONDS = 90 * 24 * 60 * 60;
+
+// `last_used_at` (and, for a renewing credential, `expires_at`) is written at
+// most this often. A 90-day window does not need minute-accurate bookkeeping.
+const TOUCH_THROTTLE_MS = 60 * 60 * 1000;
+
 export const API_SCOPES = [
   "tenant:read",
   "publish",
@@ -57,6 +63,7 @@ interface AuthRow {
   device_id: string | null;
   expires_at: string;
   scopes_json: string;
+  renew_seconds: number | null;
 }
 
 export interface TenantRecord {
@@ -79,6 +86,9 @@ export interface ApiKeyRecord {
   deviceId?: string;
   expiresAt: string;
   scopes: ApiScope[];
+  /// Seconds of inactivity the credential tolerates before expiring. Undefined
+  /// means a fixed deadline that use does not extend.
+  renewSeconds?: number;
 }
 
 export interface CreateApiKeyInput {
@@ -90,6 +100,8 @@ export interface CreateApiKeyInput {
   deviceId?: string;
   expiresAt?: string;
   scopes?: readonly ApiScope[];
+  /// Pass `null` for a credential whose deadline use should never extend.
+  renewSeconds?: number | null;
 }
 
 export interface CreatedApiKey {
@@ -124,7 +136,7 @@ export async function requireAuth(
   const row = await env.ZW_DB.prepare(
     `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
             api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at,
-            api_keys.scopes_json
+            api_keys.scopes_json, api_keys.renew_seconds
      FROM api_keys
      JOIN tenants ON tenants.id = api_keys.tenant_id
      WHERE api_keys.token_hash = ?
@@ -137,11 +149,12 @@ export async function requireAuth(
     throw new AuthError("invalid API key");
   }
   const expiresAtMs = Date.parse(row.expires_at);
-  if (!options.allowExpired && (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now())) {
+  const expired = !Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now();
+  if (!options.allowExpired && expired) {
     throw new AuthError("API key expired");
   }
   const scopes = parseScopes(row.scopes_json);
-  await touchApiKeyLastUsed(env, row.id, row.last_used_at);
+  await touchApiKeyLastUsed(env, row, expired);
   return {
     apiKey,
     apiKeyHash,
@@ -218,9 +231,16 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   );
   const sessionId = input.sessionId?.trim() || undefined;
   const deviceId = input.deviceId?.trim() || undefined;
-  const expiresAt = input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = input.expiresAt
+    ?? new Date(Date.now() + DEFAULT_TOKEN_LIFETIME_SECONDS * 1000).toISOString();
   if (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) {
     throw new Error("expiresAt must be a future ISO-8601 timestamp");
+  }
+  const renewSeconds = input.renewSeconds === undefined
+    ? DEFAULT_TOKEN_LIFETIME_SECONDS
+    : input.renewSeconds;
+  if (renewSeconds !== null && (!Number.isInteger(renewSeconds) || renewSeconds <= 0)) {
+    throw new Error("renewSeconds must be a positive integer or null");
   }
   const token = `${kind === "app" ? "zwa" : "zw"}_${randomUrlToken(32)}`;
   const tokenHash = await sha256Hex(token);
@@ -242,8 +262,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
        (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id,
-        expires_at, scopes_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        expires_at, scopes_json, renew_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       apiKeyId,
@@ -256,6 +276,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       deviceId ?? null,
       expiresAt,
       JSON.stringify(scopes),
+      renewSeconds,
     )
     .run();
 
@@ -277,6 +298,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       deviceId,
       expiresAt,
       scopes,
+      renewSeconds: renewSeconds ?? undefined,
     },
     token,
   };
@@ -316,7 +338,7 @@ export async function listTenants(env: Env): Promise<TenantRecord[]> {
 export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
-            kind, session_id, device_id, expires_at, scopes_json
+            kind, session_id, device_id, expires_at, scopes_json, renew_seconds
      FROM api_keys
      ORDER BY created_at DESC`,
   ).all<{
@@ -332,6 +354,7 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     device_id: string | null;
     expires_at: string;
     scopes_json: string;
+    renew_seconds: number | null;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
@@ -346,6 +369,7 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     deviceId: row.device_id ?? undefined,
     expiresAt: row.expires_at,
     scopes: parseScopes(row.scopes_json),
+    renewSeconds: row.renew_seconds ?? undefined,
   }));
 }
 
@@ -389,25 +413,45 @@ function normalizeEmail(email: string | null | undefined): string {
 
 async function touchApiKeyLastUsed(
   env: Env,
-  apiKeyId: string,
-  previous: string | null,
+  row: Pick<AuthRow, "id" | "last_used_at" | "renew_seconds">,
+  expired: boolean,
 ): Promise<void> {
   const now = new Date();
-  if (previous) {
-    const previousMs = Date.parse(previous);
-    if (Number.isFinite(previousMs) && now.getTime() - previousMs < 60 * 60 * 1000) return;
+  if (row.last_used_at) {
+    const previousMs = Date.parse(row.last_used_at);
+    if (Number.isFinite(previousMs) && now.getTime() - previousMs < TOUCH_THROTTLE_MS) return;
   }
+  // Sliding expiry. Two cases never renew:
+  //   renew_seconds NULL — the operator asked for a fixed deadline.
+  //   expired            — a credential admitted only via `allowExpired` (the
+  //                        sign-out route) must not be brought back to life.
+  const renewSeconds = row.renew_seconds;
+  const renews = !expired && typeof renewSeconds === "number" && renewSeconds > 0;
   try {
-    await env.ZW_DB.prepare(
-      `UPDATE api_keys
-       SET last_used_at = ?
-       WHERE id = ? AND revoked_at IS NULL`,
-    )
-      .bind(now.toISOString(), apiKeyId)
-      .run();
+    if (renews) {
+      const renewedTo = new Date(now.getTime() + renewSeconds * 1000).toISOString();
+      // MAX() so renewal only ever pushes the deadline out — a longer expiry an
+      // operator set by hand is never silently shortened to the sliding window.
+      // Both sides are `YYYY-MM-DDTHH:mm:ss.sssZ`, which sorts lexicographically.
+      await env.ZW_DB.prepare(
+        `UPDATE api_keys
+         SET last_used_at = ?, expires_at = MAX(expires_at, ?)
+         WHERE id = ? AND revoked_at IS NULL`,
+      )
+        .bind(now.toISOString(), renewedTo, row.id)
+        .run();
+    } else {
+      await env.ZW_DB.prepare(
+        `UPDATE api_keys
+         SET last_used_at = ?
+         WHERE id = ? AND revoked_at IS NULL`,
+      )
+        .bind(now.toISOString(), row.id)
+        .run();
+    }
   } catch (err) {
     console.warn("api_key.last_used_update_failed", {
-      apiKeyId,
+      apiKeyId: row.id,
       error: err instanceof Error ? err.message : String(err),
     });
   }

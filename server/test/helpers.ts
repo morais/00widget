@@ -1,7 +1,16 @@
-import { ApiScopePresets, sha256Hex, type ApiScope } from "../src/auth";
+import {
+  ApiScopePresets,
+  DEFAULT_TOKEN_LIFETIME_SECONDS,
+  sha256Hex,
+  type ApiScope,
+} from "../src/auth";
 import type { Env } from "../src/types";
 
 type FakeRow = Record<string, string>;
+// `api_keys.renew_seconds` is a nullable INTEGER, and the number/null
+// distinction drives whether a credential renews — so it cannot be flattened
+// to a string the way every other column here can.
+type FakeApiKeyRow = Record<string, string | number | null>;
 
 class FakeD1Statement {
   constructor(
@@ -31,7 +40,7 @@ class FakeD1Statement {
 
 export class FakeD1 {
   private tenants = new Map<string, FakeRow>();
-  private apiKeys = new Map<string, FakeRow>();
+  private apiKeys = new Map<string, FakeApiKeyRow>();
   private cards = new Map<string, FakeRow>();
   private actionPayloads = new Map<string, FakeRow>();
   private devices = new Map<string, FakeRow>();
@@ -72,6 +81,8 @@ export class FakeD1 {
     scopes: readonly ApiScope[] = kind === "app"
       ? ApiScopePresets.appOnly
       : ApiScopePresets.legacyPublisher,
+    // Mirrors what `createApiKey` writes. Pass null for a fixed-deadline key.
+    renewSeconds: number | null = DEFAULT_TOKEN_LIFETIME_SECONDS,
   ): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
@@ -96,7 +107,15 @@ export class FakeD1 {
       device_id: deviceId,
       expires_at: expiresAt,
       scopes_json: JSON.stringify(scopes),
+      renew_seconds: renewSeconds,
     });
+  }
+
+  // `WHERE id = ?` matches the column, not this Map's key. Rows inserted by
+  // `createApiKey` are keyed by id, but `seedApiKeyHash` keys by token hash —
+  // a `.get(id)` silently misses those and the statement becomes a no-op.
+  private findApiKeyById(id: string): FakeApiKeyRow | undefined {
+    return [...this.apiKeys.values()].find((candidate) => candidate.id === id);
   }
 
   run(sql: string, values: unknown[]): number {
@@ -127,6 +146,9 @@ export class FakeD1 {
         expires_at,
         scopes_json,
       ] = values.map((value) => value == null ? "" : String(value));
+      // Read straight from `values` so the number/null distinction survives the
+      // String() mapping above — NULL here means "fixed deadline, never renew".
+      const renew_seconds = typeof values[10] === "number" ? values[10] : null;
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -140,6 +162,7 @@ export class FakeD1 {
         device_id,
         expires_at,
         scopes_json,
+        renew_seconds,
       });
       return 1;
     }
@@ -173,9 +196,20 @@ export class FakeD1 {
       }
       return count;
     }
+    if (normalized.startsWith("UPDATE api_keys SET last_used_at = ?, expires_at = MAX(expires_at, ?) WHERE id = ? AND revoked_at IS NULL")) {
+      const [last_used_at, renewed_to, id] = values.map(String);
+      const row = this.findApiKeyById(id);
+      if (!row || row.revoked_at) return 0;
+      row.last_used_at = last_used_at;
+      // SQLite's scalar MAX() over two ISO-8601 UTC strings is a lexicographic
+      // comparison, which for this fixed format is also chronological.
+      const current = String(row.expires_at ?? "");
+      row.expires_at = renewed_to > current ? renewed_to : current;
+      return 1;
+    }
     if (normalized.startsWith("UPDATE api_keys SET last_used_at = ? WHERE id = ? AND revoked_at IS NULL")) {
       const [last_used_at, id] = values.map(String);
-      const row = this.apiKeys.get(id);
+      const row = this.findApiKeyById(id);
       if (!row || row.revoked_at) return 0;
       row.last_used_at = last_used_at;
       return 1;
@@ -607,12 +641,12 @@ export class FakeD1 {
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
 
-  all(sql: string, values: unknown[]): FakeRow[] {
+  all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
-        const tenant = this.tenants.get(candidate.tenant_id);
+        const tenant = this.tenants.get(String(candidate.tenant_id ?? ""));
         return candidate.token_hash === token_hash && !candidate.revoked_at && tenant && !tenant.disabled_at;
       });
       return row
@@ -625,6 +659,7 @@ export class FakeD1 {
             device_id: row.device_id,
             expires_at: row.expires_at,
             scopes_json: row.scopes_json,
+            renew_seconds: row.renew_seconds ?? null,
           }]
         : [];
     }
@@ -642,7 +677,7 @@ export class FakeD1 {
         .sort(by("created_at"))[0];
       return pick(row, ["id", "owner_email"]);
     }
-    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json FROM api_keys ORDER BY created_at DESC") {
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
     }
     if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
@@ -1116,25 +1151,25 @@ function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, " ").trim();
 }
 
-function byTenant(rows: Map<string, FakeRow>, tenantId: string): FakeRow[] {
+function byTenant(rows: Map<string, FakeRow>, tenantId: string): FakeApiKeyRow[] {
   return [...rows.values()].filter((row) => row.tenant_id === tenantId);
 }
 
-function by(...fields: string[]): (a: FakeRow, b: FakeRow) => number {
+function by(...fields: string[]): (a: FakeApiKeyRow, b: FakeApiKeyRow) => number {
   return (a, b) => {
     for (const field of fields) {
-      const result = a[field].localeCompare(b[field]);
+      const result = String(a[field] ?? "").localeCompare(String(b[field] ?? ""));
       if (result !== 0) return result;
     }
     return 0;
   };
 }
 
-function select(...fields: string[]): (row: FakeRow) => FakeRow {
+function select(...fields: string[]): (row: FakeApiKeyRow) => FakeApiKeyRow {
   return (row) => Object.fromEntries(fields.map((field) => [field, row[field]]));
 }
 
-function pick(row: FakeRow | undefined, fields: string[]): FakeRow[] {
+function pick(row: FakeApiKeyRow | undefined, fields: string[]): FakeApiKeyRow[] {
   return row ? [select(...fields)(row)] : [];
 }
 
@@ -1164,6 +1199,7 @@ export async function seedApiKey(
   deviceId = "",
   expiresAt = "2099-01-01T00:00:00.000Z",
   scopes?: readonly ApiScope[],
+  renewSeconds: number | null = DEFAULT_TOKEN_LIFETIME_SECONDS,
 ): Promise<void> {
   (env.ZW_DB as unknown as FakeD1).seedApiKeyHash(
     await sha256Hex(testApiKey(rawToken)),
@@ -1174,6 +1210,7 @@ export async function seedApiKey(
     deviceId,
     expiresAt,
     scopes,
+    renewSeconds,
   );
 }
 

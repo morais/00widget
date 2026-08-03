@@ -3,6 +3,7 @@ import handler from "../src/index";
 import {
   ApiScopePresets,
   createApiKey,
+  DEFAULT_TOKEN_LIFETIME_SECONDS,
   listApiKeys,
   requireAuth,
   revokeApiKey,
@@ -154,6 +155,92 @@ describe("requireAuth", () => {
       headers: { authorization: `Bearer ${testApiKey("expired-key")}` },
     });
     await expect(requireAuth(req, env)).rejects.toMatchObject({ message: "API key expired" });
+  });
+
+  it("renews a credential on use so an integration is never re-keyed", async () => {
+    const env = makeEnv();
+    // 30 days out and sliding on a 90-day window: use should push it forward.
+    const before = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await seedApiKey(env, "sliding", "test-tenant", "publisher", "", "", before);
+    const req = new Request("https://x/", {
+      headers: { authorization: `Bearer ${testApiKey("sliding")}` },
+    });
+
+    const ctx = await requireAuth(req, env);
+    const renewed = (await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)!;
+
+    expect(Date.parse(renewed.expiresAt)).toBeGreaterThan(Date.parse(before));
+    // Renewal extends the existing row; the token itself is untouched, which is
+    // the whole point — nothing downstream has to be handed a new value.
+    expect(ctx.apiKey).toBe(testApiKey("sliding"));
+    expect(renewed.expiresAt).toBe(
+      new Date(Date.parse(renewed.lastUsedAt!) + DEFAULT_TOKEN_LIFETIME_SECONDS * 1000).toISOString(),
+    );
+  });
+
+  it("expires a credential that goes idle past its window", async () => {
+    const env = makeEnv();
+    // Last used long ago and already past its deadline: nothing renews it,
+    // because renewal only ever happens on a *successful* authentication.
+    await seedApiKey(
+      env,
+      "idle",
+      "test-tenant",
+      "publisher",
+      "",
+      "",
+      "2020-01-01T00:00:00.000Z",
+    );
+    const req = new Request("https://x/", {
+      headers: { authorization: `Bearer ${testApiKey("idle")}` },
+    });
+    await expect(requireAuth(req, env)).rejects.toMatchObject({ message: "API key expired" });
+  });
+
+  it("never renews a credential the operator gave a fixed deadline", async () => {
+    const env = makeEnv();
+    const fixed = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await seedApiKey(env, "fixed", "test-tenant", "publisher", "", "", fixed, undefined, null);
+    const req = new Request("https://x/", {
+      headers: { authorization: `Bearer ${testApiKey("fixed")}` },
+    });
+
+    const ctx = await requireAuth(req, env);
+    const after = (await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)!;
+
+    expect(after.expiresAt).toBe(fixed);
+    expect(after.lastUsedAt).toBeDefined();
+  });
+
+  it("never shortens an expiry that is already further out", async () => {
+    const env = makeEnv();
+    // The default seed expiry (2099) is far beyond the 90-day sliding window,
+    // so MAX() must keep it rather than pulling it back.
+    await seedApiKey(env, "faraway", "test-tenant");
+    const req = new Request("https://x/", {
+      headers: { authorization: `Bearer ${testApiKey("faraway")}` },
+    });
+
+    const ctx = await requireAuth(req, env);
+    const after = (await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)!;
+
+    expect(after.expiresAt).toBe("2099-01-01T00:00:00.000Z");
+  });
+
+  it("does not revive an expired credential admitted for sign-out", async () => {
+    const env = makeEnv();
+    const expired = "2020-01-01T00:00:00.000Z";
+    await seedApiKey(env, "signout", "test-tenant", "publisher", "", "", expired);
+    const req = new Request("https://x/", {
+      headers: { authorization: `Bearer ${testApiKey("signout")}` },
+    });
+
+    // The sign-out route admits expired credentials so a lapsed token can still
+    // clean up after itself — but that must not extend its life.
+    const ctx = await requireAuth(req, env, { allowExpired: true });
+    const after = (await listApiKeys(env)).find((key) => key.id === ctx.apiKeyId)!;
+
+    expect(after.expiresAt).toBe(expired);
   });
 
   it("does not accept API_KEYS env values that are not stored in D1", async () => {
