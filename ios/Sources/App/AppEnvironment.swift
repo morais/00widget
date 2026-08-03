@@ -62,6 +62,15 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// nil until WidgetKit has answered once, so the setup hint never flashes
+    /// on a device that does have widgets installed.
+    @Published public private(set) var installedWidgetCount: Int?
+    @Published public var didDismissWidgetSetupHint: Bool {
+        didSet {
+            UserDefaults.standard.set(didDismissWidgetSetupHint, forKey: "zw.didDismissWidgetSetupHint")
+        }
+    }
+
     public let liveActivityController = LiveActivityController.shared
     private var apiKeyRegistrationTask: Task<Void, Never>?
     private var widgetTokenRetryTask: Task<Void, Never>?
@@ -82,6 +91,7 @@ public final class AppEnvironment: ObservableObject {
             self.lastSyncAt = t
         }
         self.showActivitiesTab = defaults.object(forKey: "zw.showActivitiesTab") as? Bool ?? true
+        self.didDismissWidgetSetupHint = defaults.bool(forKey: "zw.didDismissWidgetSetupHint")
         self.cards = CardCache.load().cards
         SharedSettings.setServerBaseURL(serverBaseURL)
         _ = SharedSettings.deviceId()
@@ -290,6 +300,10 @@ public final class AppEnvironment: ObservableObject {
 
     public func syncAfterForeground() async {
         loadCachedCards()
+        // Runs ahead of the throttle: coming back from the Home Screen is
+        // exactly when a widget has just been added, and the hint should go
+        // away on its own rather than waiting out the fetch interval.
+        await refreshInstalledWidgetCount()
         let now = Date()
         if let lastForegroundFetchAt, now.timeIntervalSince(lastForegroundFetchAt) < 30 {
             return
@@ -311,7 +325,19 @@ public final class AppEnvironment: ObservableObject {
         await refreshConnectionHealth()
         await registerDevice()
         await registerPendingWidgetTokens()
+        await refreshInstalledWidgetCount()
         await fetchCards()
+    }
+
+    public func refreshInstalledWidgetCount() async {
+        guard let configurations = try? await WidgetCenter.shared.currentConfigurations() else { return }
+        installedWidgetCount = configurations
+            .filter { ZeroZeroWidgetConstants.WidgetKinds.all.contains($0.kind) }
+            .count
+    }
+
+    public var shouldShowWidgetSetupHint: Bool {
+        installedWidgetCount == 0 && !didDismissWidgetSetupHint
     }
 
     public func generateSampleCards() {

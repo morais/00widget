@@ -2,12 +2,24 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject var env: AppEnvironment
+    @State private var showingWidgetGuide = false
 
     var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
+                .task { await env.refreshInstalledWidgetCount() }
+                .sheet(isPresented: $showingWidgetGuide) {
+                    NavigationStack {
+                        WidgetSetupGuideView()
+                            .toolbar {
+                                ToolbarItem(placement: .confirmationAction) {
+                                    Button("Done") { showingWidgetGuide = false }
+                                }
+                            }
+                    }
+                }
         }
     }
 
@@ -19,6 +31,10 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, minHeight: 420)
             } else {
                 LazyVStack(spacing: 16) {
+                    if env.shouldShowWidgetSetupHint {
+                        widgetSetupHint
+                    }
+
                     if env.hasSampleCards {
                         sampleNotice
                     }
@@ -76,16 +92,52 @@ struct DashboardView: View {
                 .foregroundStyle(.secondary)
             Text("No widgets yet")
                 .font(.headline)
-            Text("Publish one from your agent, or tap below to fill this screen with samples you can remove at any time.")
+            Text("Cards appear here once an agent publishes them. Put one on your Home Screen or Lock Screen to see it without opening the app.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
+
+            Button("Show me how to add a widget") {
+                showingWidgetGuide = true
+            }
+            .buttonStyle(.borderedProminent)
+
             Button("Generate sample widgets") {
                 env.generateSampleCards()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
+            Text("Samples are generated on this device and can be removed at any time.")
+                .font(.caption2)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 32)
         }
         .padding()
+    }
+
+    private var widgetSetupHint: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Add 00Widget to your Home Screen", systemImage: "square.grid.2x2")
+                .font(.subheadline.weight(.semibold))
+
+            Text("You don't have a widget installed yet, so these cards only show up inside the app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Button("Show me how") { showingWidgetGuide = true }
+                    .buttonStyle(.borderedProminent)
+                Button("Not now") { env.didDismissWidgetSetupHint = true }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.12))
+        )
     }
 
     private var sampleNotice: some View {

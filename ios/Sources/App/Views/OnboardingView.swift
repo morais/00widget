@@ -68,6 +68,12 @@ struct OnboardingView: View {
                     }
                 }
 
+                Section("Widgets") {
+                    NavigationLink("How to add a widget") {
+                        WidgetSetupGuideView()
+                    }
+                }
+
                 Section("Agent config") {
                     Text(agentConfig)
                         .font(.caption)
