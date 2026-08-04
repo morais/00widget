@@ -38,10 +38,10 @@ public enum ZeroZeroWidgetConstants {
     public static let cardsCacheFilename = "cards.json"
     public static let syncLogFilename = "sync-log.json"
 
-    /// Reserved id prefix for locally generated demo cards. The prefix is the
-    /// only signal the app and the widget extension share for telling samples
-    /// apart from published cards, so `SampleDataFactory` must keep using it
-    /// and producers should avoid it.
+    /// Reserved id prefix for locally generated demo cards and Live Activities.
+    /// The prefix is the only signal the app and the widget extension share for
+    /// telling samples apart from published state, so `SampleDataFactory` must
+    /// keep using it and producers should avoid it.
     public static let sampleCardIdPrefix = "sample-"
 
     public enum WidgetKinds {

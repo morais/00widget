@@ -48,6 +48,14 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
 
     public var id: String { activityInstanceId ?? externalActivityId }
 
+    /// Mirrors `DashboardCard.isSample`. A server-started activity always
+    /// carries an `activityInstanceId`; a local sample never does, but the id
+    /// prefix is what the UI keys off so both signals have to agree.
+    public var isSample: Bool {
+        activityInstanceId == nil
+            && externalActivityId.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix)
+    }
+
     public init(
         activityInstanceId: String? = nil,
         externalActivityId: String,

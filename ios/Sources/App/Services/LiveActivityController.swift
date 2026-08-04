@@ -57,11 +57,52 @@ public final class LiveActivityController: ObservableObject {
     }
 
     #if canImport(ActivityKit)
+    /// Starts a demo Live Activity on this device.
+    ///
+    /// Requested with `pushType: nil` on purpose. A local sample has no
+    /// server-issued `activityInstanceId`, so it must never enter the remote
+    /// lifecycle: no push token is minted, nothing is registered against the
+    /// tenant, and the backend never learns it exists. That separation is why
+    /// this is safe to offer again after `Fix remote Live Activity lifecycle`
+    /// removed the previous local-start path.
+    public func startSample() async throws {
+        let session = SampleDataFactory.makeLiveActivitySession()
+        guard !activeSessions.contains(where: { $0.isSample }) else { return }
+        let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
+        _ = try Activity.request(
+            attributes: attributes,
+            content: ActivityContent(state: state, staleDate: session.staleAt),
+            pushType: nil
+        )
+        refreshActiveActivities()
+    }
+
+    /// Ends every locally generated sample activity. Server-started activities
+    /// are left alone.
+    public func endSamples() async {
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
+        where activity.attributes.activityInstanceId == nil
+            && activity.attributes.externalActivityId
+                .hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix) {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        refreshActiveActivities()
+    }
+
     private func observeActivity(_ activity: Activity<ZeroZeroWidgetActivityAttributes>) {
         let localActivityId = activity.id
         let activityInstanceId = activity.attributes.activityInstanceId
         let externalId = activity.attributes.externalActivityId
         let kind = activity.attributes.kind
+
+        // A local sample is never registered with the backend. `pushType: nil`
+        // already means no token is ever minted, but state this explicitly so
+        // the invariant does not depend on that detail.
+        guard !(activityInstanceId == nil
+            && externalId.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix)) else {
+            observeContentAndState(activity)
+            return
+        }
 
         if let tokenData = activity.pushToken {
             submitPushToken(
@@ -87,6 +128,15 @@ public final class LiveActivityController: ObservableObject {
                 }
             }
         }
+
+        observeContentAndState(activity)
+    }
+
+    /// Keeps `activeSessions` in step with an activity's content and lifecycle.
+    /// Shared by remote and sample activities — a sample still has to disappear
+    /// from the list when it ends, it just never registers a push token.
+    private func observeContentAndState(_ activity: Activity<ZeroZeroWidgetActivityAttributes>) {
+        let localActivityId = activity.id
 
         if contentUpdateTasks[localActivityId] == nil {
             contentUpdateTasks[localActivityId] = Task { [weak self] in

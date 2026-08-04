@@ -3,6 +3,8 @@ import SwiftUI
 struct LiveActivitiesView: View {
     @EnvironmentObject var env: AppEnvironment
     @ObservedObject private var liveActivityController = LiveActivityController.shared
+    @State private var isGeneratingSample = false
+    @State private var sampleError: String?
     #if ZW_SHARING_ENABLED
     @State private var shareKind: LiveActivityKind?
     #endif
@@ -30,6 +32,7 @@ struct LiveActivitiesView: View {
                     .frame(maxWidth: .infinity, minHeight: 420)
             } else {
                 LazyVStack(spacing: 12) {
+                    if hasSampleActivities { sampleNotice }
                     ForEach(liveActivityController.activeSessions) { session in
                         ActivityCard(session: session)
                         #if ZW_SHARING_ENABLED
@@ -59,8 +62,70 @@ struct LiveActivitiesView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
+
+            if liveActivityController.supported {
+                Button("Generate sample activity") {
+                    Task { await generateSample() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isGeneratingSample)
+
+                Text("The sample runs only on this device and can be removed at any time.")
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 32)
+
+                if let sampleError {
+                    Text(sampleError)
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 32)
+                }
+            }
         }
         .padding()
+    }
+
+    private var hasSampleActivities: Bool {
+        liveActivityController.activeSessions.contains { $0.isSample }
+    }
+
+    /// Mirrors the Dashboard's sample notice: demo state is always labelled as
+    /// such, and is always removable from the screen that shows it.
+    private var sampleNotice: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("This is a sample", systemImage: "info.circle")
+                .font(.subheadline.weight(.semibold))
+
+            Text("This Live Activity was generated on this device to show what 00Widget looks like. No agent started it.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Remove sample activity", role: .destructive) {
+                Task { await liveActivityController.endSamples() }
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+        )
+    }
+
+    private func generateSample() async {
+        isGeneratingSample = true
+        sampleError = nil
+        defer { isGeneratingSample = false }
+        do {
+            try await liveActivityController.startSample()
+        } catch {
+            sampleError = "Could not start the sample: \(error.localizedDescription)"
+        }
     }
 
     private var emptyMessage: String {

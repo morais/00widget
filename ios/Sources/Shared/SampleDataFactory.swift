@@ -73,9 +73,12 @@ public enum SampleDataFactory {
         ]
     }
 
+    /// Uses the reserved `sample-` prefix like the demo cards, so the app can
+    /// badge it and offer to remove it without mistaking it for an activity an
+    /// agent started.
     public static func makeLiveActivitySession() -> LiveActivitySession {
         LiveActivitySession(
-            externalActivityId: "washer-sample",
+            externalActivityId: sampleId("washer"),
             kind: .appliance,
             title: "Washing machine",
             subtitle: "Cycle running",
