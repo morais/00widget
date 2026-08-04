@@ -3,6 +3,7 @@ import SwiftUI
 struct DeveloperView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var logLines: [String] = []
+    @State private var hideSampleIndicators = SharedSettings.hideSampleIndicators
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,14 @@ struct DeveloperView: View {
 
                 Section("Actions") {
                     Toggle("Show Activities tab", isOn: $env.showActivitiesTab)
+                    // Off by default. Only the screenshot run turns this on, so
+                    // demo data stays labelled everywhere a user can see it.
+                    Toggle("Hide sample indicators", isOn: $hideSampleIndicators)
+                        .onChange(of: hideSampleIndicators) { _, value in
+                            SharedSettings.setHideSampleIndicators(value)
+                            env.reloadWidgetTimelines()
+                            append("hideSampleIndicators \(value)")
+                        }
                     Button("Test backend connection") {
                         Task {
                             let ok = await env.testConnection()

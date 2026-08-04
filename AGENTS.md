@@ -120,13 +120,21 @@ Two constraints worth knowing before extending it:
   live in memory only. Seeding the cache from the shell to stage other states
   therefore does not work under `xcodebuild test` — it would need the re-signing
   dance from `build-sim.sh`.
-- **Sample cards render with a "These are samples" banner and `SAMPLE` badges.**
-  That is deliberate product behaviour, but it means the captured Widgets shot
-  looks different from a screenshot of genuinely published cards.
+- **Sample data is labelled** with a "these are samples" notice and `SAMPLE`
+  badges. The screenshot run suppresses that labelling through
+  Settings → Developer → "Hide sample indicators", which the UI test toggles on.
+  The flag is off by default and lives in the App Group so the widget extension
+  agrees with the app.
 
-Not capturable this way today: the Live Activity screen (nothing can start an
-activity locally — the Debug tab has no affordance for it) and the Home Screen
-widget shot (needs widgets placed on Springboard).
+The Developer section itself is gated on the `ZW_DEBUG_TOOLS` build setting,
+which is `NO` everywhere. `capture-screenshots.sh` passes
+`ZW_DEBUG_TOOLS=YES`, so no shipping build contains the screen or any way to
+reach the flag. `Constants.debugToolsEnabled` accepts a Bool or a `YES`/`NO`
+string, because a value substituted from a build setting arrives as a string,
+and fails closed on anything else.
+
+Still not capturable this way: the Home Screen widget shot, which needs widgets
+placed on Springboard.
 
 ### Schemes are declared explicitly
 

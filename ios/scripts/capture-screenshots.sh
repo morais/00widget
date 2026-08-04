@@ -58,6 +58,7 @@ xcodebuild test \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -resultBundlePath "$RESULT" \
   CODE_SIGNING_ALLOWED=NO \
+  ZW_DEBUG_TOOLS=YES \
   > "$WORK/xcodebuild.log" 2>&1 || {
     echo "✗ UI test failed — tail of log:" >&2
     tail -40 "$WORK/xcodebuild.log" >&2

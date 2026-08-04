@@ -19,6 +19,9 @@ settings:
     # Compile-time gate for the cross-tenant sharing feature. Remove the flag
     # to strip every Sharing UI and API call out of the build.
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: ZW_SHARING_ENABLED
+    # Settings -> Developer. NO for anything shippable; the screenshot
+    # run overrides it with `xcodebuild test ZW_DEBUG_TOOLS=YES`.
+    ZW_DEBUG_TOOLS: NO
 
 targets:
   ZeroZeroWidgetApp:
@@ -57,7 +60,7 @@ targets:
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugToolsEnabled: true                                  # set false for production-style app builds
+        ZWDebugToolsEnabled: $(ZW_DEBUG_TOOLS)
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
@@ -141,7 +144,7 @@ targets:
         UIUserInterfaceStyle: Dark
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugToolsEnabled: true                                  # set false for production-style app builds
+        ZWDebugToolsEnabled: $(ZW_DEBUG_TOOLS)
         TVTopShelfImage:
           TVTopShelfPrimaryImage: Top Shelf Image
           TVTopShelfPrimaryImageWide: Top Shelf Image Wide

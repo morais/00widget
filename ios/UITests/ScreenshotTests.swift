@@ -26,6 +26,9 @@ final class ScreenshotTests: XCTestCase {
             widgetsTab.waitForExistence(timeout: 30),
             "Tab bar never appeared — the app may have failed to launch."
         )
+
+        hideSampleIndicators(in: app)
+
         widgetsTab.tap()
 
         // Populate the dashboard through the app's own empty-state button rather
@@ -61,6 +64,64 @@ final class ScreenshotTests: XCTestCase {
             )
             capture(named: "screenshot-activities")
         }
+    }
+
+    /// Turns off the "SAMPLE" badges and the "these are samples" notices via
+    /// Settings → Developer, so the shots show the product rather than the
+    /// labelling. The Developer section only exists because
+    /// `capture-screenshots.sh` builds with `ZW_DEBUG_TOOLS=YES`; a shipping
+    /// build has no such screen and no way to reach this flag.
+    private func hideSampleIndicators(in app: XCUIApplication) {
+        app.tabBars.buttons["Settings"].tap()
+
+        let debugTools = app.buttons["Debug tools"]
+        XCTAssertTrue(
+            scrollTo(debugTools, in: app),
+            "Settings → Developer → Debug tools not found. Was the build made with ZW_DEBUG_TOOLS=YES?"
+        )
+        debugTools.tap()
+
+        let toggle = app.switches["Hide sample indicators"]
+        XCTAssertTrue(scrollTo(toggle, in: app), "'Hide sample indicators' toggle not found.")
+        XCTAssertTrue(switchOn(toggle), "'Hide sample indicators' did not switch on.")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
+    /// Switches a toggle on and waits for the change to land.
+    ///
+    /// A plain `.tap()` on a SwiftUI `Toggle` inside a `Form` lands on the row
+    /// rather than the control, which leaves the value unchanged, so fall back
+    /// to tapping the trailing edge where the switch actually is. The value is
+    /// polled because the accessibility value updates a beat after the tap.
+    private func switchOn(_ toggle: XCUIElement, timeout: TimeInterval = 3) -> Bool {
+        func isOn() -> Bool { (toggle.value as? String) == "1" }
+        if isOn() { return true }
+
+        for attempt in 0..<2 {
+            if attempt == 0 {
+                toggle.tap()
+            } else {
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                if isOn() { return true }
+                usleep(100_000)
+            }
+        }
+        return isOn()
+    }
+
+    /// Swipes until `element` is hittable. Form rows below the fold are present
+    /// in the tree but not tappable until scrolled into view.
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 6) -> Bool {
+        if element.waitForExistence(timeout: 5) && element.isHittable { return true }
+        for _ in 0..<swipes {
+            app.swipeUp()
+            if element.exists && element.isHittable { return true }
+        }
+        return element.exists && element.isHittable
     }
 
     /// Captures the whole screen, not `app.screenshot()`, so the status bar is

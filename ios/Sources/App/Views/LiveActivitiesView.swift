@@ -89,7 +89,8 @@ struct LiveActivitiesView: View {
     }
 
     private var hasSampleActivities: Bool {
-        liveActivityController.activeSessions.contains { $0.isSample }
+        !SharedSettings.hideSampleIndicators
+            && liveActivityController.activeSessions.contains { $0.isSample }
     }
 
     /// Mirrors the Dashboard's sample notice: demo state is always labelled as

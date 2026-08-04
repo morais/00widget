@@ -60,7 +60,7 @@ struct DashboardView: View {
                         widgetSetupHint
                     }
 
-                    if env.hasSampleCards {
+                    if env.hasSampleCards && !SharedSettings.hideSampleIndicators {
                         sampleNotice
                     }
 

@@ -4,6 +4,17 @@ import AppIntents
 import WidgetKit
 #endif
 
+extension DashboardCard {
+    /// Whether to draw the "SAMPLE" badge. Demo data stays labelled in normal
+    /// use; Settings → Developer can suppress the labelling so the marketing
+    /// screenshots show the product rather than the disclaimer. Lives here
+    /// rather than on the model so the app and the widget extension, which both
+    /// render through this file, cannot disagree.
+    var showsSampleBadge: Bool {
+        isSample && !SharedSettings.hideSampleIndicators
+    }
+}
+
 public enum CardRenderContext {
     case app
     case widgetSmall
@@ -71,7 +82,7 @@ public struct CardView: View {
                 .font(.caption)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            if card.isSample { sampleBadge }
+            if card.showsSampleBadge { sampleBadge }
             Spacer(minLength: 0)
             if let statusIcon = card.statusIcon {
                 Image(systemName: statusIcon)
@@ -220,7 +231,7 @@ public struct CardView: View {
             HStack(spacing: 4) {
                 if let icon = card.icon { Image(systemName: icon) }
                 Text(card.title).font(.caption2).fontWeight(.medium)
-                if card.isSample { sampleBadge }
+                if card.showsSampleBadge { sampleBadge }
                 Spacer(minLength: 0)
                 if let statusIcon = card.statusIcon {
                     Image(systemName: statusIcon).font(.caption2)
@@ -297,7 +308,7 @@ public struct CardView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
 
-            if card.isSample { sampleBadge }
+            if card.showsSampleBadge { sampleBadge }
 
             Spacer(minLength: 8)
 

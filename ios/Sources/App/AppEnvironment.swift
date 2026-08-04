@@ -397,7 +397,7 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
-    private func reloadWidgetTimelines() {
+    func reloadWidgetTimelines() {
         for kind in ZeroZeroWidgetConstants.WidgetKinds.all {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }
