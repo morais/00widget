@@ -50,20 +50,28 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             } compactLeading: {
                 Image(systemName: iconName(attributes: context.attributes, state: context.state))
             } compactTrailing: {
-                if let endsAt = context.state.endsAt {
-                    LiveActivityCountdownText(
-                        endsAt: endsAt,
-                        granularity: context.state.countdownGranularity
-                    )
+                // The compact trailing region is a few points wide. Without a
+                // scale factor the text is clipped rather than shrunk, and it
+                // clips from the leading edge — "20%" renders as "0%", which
+                // reads as a real value and not as truncation.
+                Group {
+                    if let endsAt = context.state.endsAt {
+                        LiveActivityCountdownText(
+                            endsAt: endsAt,
+                            granularity: context.state.countdownGranularity
+                        )
                         .monospacedDigit()
-                        .lineLimit(1)
-                } else if let value = context.state.value {
-                    Text(value)
-                } else if let p = context.state.progress {
-                    Text("\(Int(p * 100))%")
-                } else {
-                    Text(context.state.state)
+                    } else if let value = context.state.value {
+                        Text(value)
+                    } else if let p = context.state.progress {
+                        Text("\(Int((max(0, min(p, 1)) * 100).rounded()))%")
+                            .monospacedDigit()
+                    } else {
+                        Text(context.state.state)
+                    }
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             } minimal: {
                 if let p = context.state.progress {
                     Gauge(value: max(0, min(p, 1))) {

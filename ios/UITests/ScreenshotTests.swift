@@ -63,6 +63,13 @@ final class ScreenshotTests: XCTestCase {
                 "Sample Live Activity did not start."
             )
             capture(named: "screenshot-activities")
+
+            // Backgrounding surfaces the activity in the Dynamic Island, which
+            // is the only way to see the compact presentation — it does not
+            // render while the app is foremost.
+            XCUIDevice.shared.press(.home)
+            Thread.sleep(forTimeInterval: 3)
+            capture(named: "screenshot-home-dynamic-island")
         }
     }
 
