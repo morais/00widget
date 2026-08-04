@@ -27,11 +27,22 @@ public struct CardEntityQuery: EntityQuery {
 
     public init() {}
 
+    /// Rehydrates the card a widget's stored configuration points at.
+    ///
+    /// Never drops an identifier. Returning nothing for an id the cache does not
+    /// currently hold leaves the parameter unresolved, and an unresolved
+    /// parameter is indistinguishable from an unconfigured widget — so a widget
+    /// whose card was deleted, or that woke while the cache was unavailable,
+    /// would stop reporting which card it was actually set to. Keeping the id
+    /// alive lets `CardTimelineProvider` say `.noCachedData` about the right
+    /// card instead.
     public func entities(for identifiers: [CardEntity.ID]) async throws -> [CardEntity] {
         let cards = CardCache.load().cards
-        return identifiers.compactMap { id in
+        return identifiers.map { id in
             if id == Self.noneId { return CardEntity(id: id, title: "None") }
-            guard let card = cards.first(where: { $0.id == id }) else { return nil }
+            guard let card = cards.first(where: { $0.id == id }) else {
+                return CardEntity(id: id, title: id)
+            }
             return CardEntity(id: card.id, title: card.title)
         }
     }
@@ -41,9 +52,15 @@ public struct CardEntityQuery: EntityQuery {
         return [CardEntity(id: Self.noneId, title: "None")] + cards
     }
 
-    public func defaultResult() async -> CardEntity? {
-        try? await suggestedEntities().first(where: { $0.id != Self.noneId })
-    }
+    // Deliberately no `defaultResult()`.
+    //
+    // It used to return the first cached card, which meant any parameter
+    // AppIntents could not resolve silently became "whatever card happens to be
+    // first" — rendering another card's live data in a widget the user had set
+    // to something else. That is indistinguishable from a correctly configured
+    // widget, so the failure is invisible: a widget set to Car shows Solar and
+    // looks right. An unconfigured or unresolvable widget must say so, which is
+    // what `.noCardSelected` ("Pick a card") is for.
 }
 
 public struct SelectCardIntent: WidgetConfigurationIntent {

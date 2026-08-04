@@ -101,6 +101,29 @@ During iterative simulator work, prefer `ios/scripts/build-sim.sh --launch` so e
 
 When working on a real device with a configured Team ID, none of this applies — Xcode handles signing/entitlements via the project settings.
 
+## Widget configuration cannot be verified on the Simulator
+
+Picking a card for a `CardWidget` works on device and **does not work on the
+iOS Simulator**. The extension's `entry(for:)` always receives the first cached
+card, and `CardEntityQuery.entities(for:)` is never called at all — AppIntents
+does not invoke the query to rehydrate the widget's stored entity there. The
+configuration itself is fine: the picker shows the chosen card ticked, and the
+same build installed from TestFlight behaves correctly.
+
+Ruled out, each by direct test, before concluding it is the runtime: the commit
+history (reproduces on a commit that shipped working to TestFlight), simulator
+state (reproduces on `simctl erase`), the intent living in `Sources/Widgets`
+rather than `Sources/Shared`, the stripped ad-hoc entitlements from
+`build-sim.sh` (re-signed with team identifier, `application-identifier` and
+`keychain-access-groups`), and Debug vs Release.
+
+Verify widget configuration on a device. Do not spend time on it in the
+Simulator.
+
+Note also that `build-sim.sh --fresh` only runs `simctl uninstall`, which leaves
+the **shared App Group container** intact — cached cards and widget placements
+survive it. Use `xcrun simctl erase` for a genuinely clean device.
+
 ## Marketing screenshots
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
