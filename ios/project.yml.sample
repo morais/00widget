@@ -109,6 +109,21 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.widgets
         INFOPLIST_KEY_CFBundleDisplayName: 00Widget
 
+  # Marketing-screenshot capture only — not part of any shipping build. The
+  # dedicated ZeroZeroWidgetScreenshots scheme below keeps it out of the
+  # app/tvOS schemes the release scripts archive with.
+  ZeroZeroWidgetUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ZeroZeroWidgetApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.uitests
+        TEST_TARGET_NAME: ZeroZeroWidgetApp
+
   ZeroZeroWidgetTV:
     type: application
     platform: tvOS
@@ -142,3 +157,50 @@ targets:
         TVOS_DEPLOYMENT_TARGET: "26.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: LaunchImage
+
+# Schemes are declared explicitly: adding any `schemes:` entry turns off Xcode's
+# autocreation for every target, which silently removed the ZeroZeroWidgetApp
+# scheme that build-sim.sh and upload-testflight.sh archive with. Keep the app
+# and tvOS schemes here so that stays deterministic.
+schemes:
+  ZeroZeroWidgetApp:
+    build:
+      targets:
+        ZeroZeroWidgetApp: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  ZeroZeroWidgetTV:
+    build:
+      targets:
+        ZeroZeroWidgetTV: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  # Marketing screenshots only. Separate scheme so the UI test target never
+  # enters an archive.
+  ZeroZeroWidgetScreenshots:
+    build:
+      targets:
+        ZeroZeroWidgetApp: all
+        ZeroZeroWidgetUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetUITests

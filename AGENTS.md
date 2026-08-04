@@ -47,6 +47,7 @@ npx wrangler dev          # local dev on :8787, reads .dev.vars
 cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
+ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
 ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
 ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
 
@@ -99,6 +100,42 @@ The script's recipe: build with ad-hoc signing → re-sign the app and the widge
 During iterative simulator work, prefer `ios/scripts/build-sim.sh --launch` so existing app data, Keychain values, notification permissions, and local settings survive. Use `--fresh` only when intentionally testing first-install behavior or reset/migration paths, because it uninstalls the app and makes iOS ask for permissions again.
 
 When working on a real device with a configured Team ID, none of this applies — Xcode handles signing/entitlements via the project settings.
+
+## Marketing screenshots
+
+`ios/scripts/capture-screenshots.sh` drives the app with XCUITest
+(`ios/UITests/ScreenshotTests.swift`) and writes PNGs to
+`ios/build/screenshots/`. They feed the homepage in `../00Widget-www`.
+
+A UI test is the only way in. The simulator cannot be driven from outside: the
+app opens on Settings until an API key is in the **Keychain**, which cannot be
+seeded externally; `onOpenURL` forwards external links rather than routing tabs;
+and there is no tap tooling — `simctl` has no tap verb and the Simulator exposes
+no accessibility windows to AppleScript. XCUITest runs on-device and can tap.
+
+Two constraints worth knowing before extending it:
+
+- **`CODE_SIGNING_ALLOWED=NO` means no App Group container**, so `CardCache.save`
+  silently no-ops (it is a `try?`). Cards rendered by "Generate sample widgets"
+  live in memory only. Seeding the cache from the shell to stage other states
+  therefore does not work under `xcodebuild test` — it would need the re-signing
+  dance from `build-sim.sh`.
+- **Sample cards render with a "These are samples" banner and `SAMPLE` badges.**
+  That is deliberate product behaviour, but it means the captured Widgets shot
+  looks different from a screenshot of genuinely published cards.
+
+Not capturable this way today: the Live Activity screen (nothing can start an
+activity locally — the Debug tab has no affordance for it) and the Home Screen
+widget shot (needs widgets placed on Springboard).
+
+### Schemes are declared explicitly
+
+`project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`, and
+`ZeroZeroWidgetScreenshots`. This is load-bearing: adding *any* `schemes:` entry
+turns off Xcode's scheme autocreation for every target, which silently removed
+the `ZeroZeroWidgetApp` scheme that `build-sim.sh` and `upload-testflight.sh`
+archive with. If you add a target, add its scheme too. The UI test target is
+reachable only from the screenshots scheme, so it never enters an archive.
 
 ## TestFlight submissions
 
