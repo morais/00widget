@@ -57,7 +57,7 @@ targets:
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugTabEnabled: true                                   # set false for production-style app builds
+        ZWDebugToolsEnabled: true                                  # set false for production-style app builds
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
@@ -141,7 +141,7 @@ targets:
         UIUserInterfaceStyle: Dark
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugTabEnabled: true                                   # set false for production-style app builds
+        ZWDebugToolsEnabled: true                                  # set false for production-style app builds
         TVTopShelfImage:
           TVTopShelfPrimaryImage: Top Shelf Image
           TVTopShelfPrimaryImageWide: Top Shelf Image Wide

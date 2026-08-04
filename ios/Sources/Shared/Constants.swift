@@ -24,8 +24,9 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.object(forInfoDictionaryKey: "ZWAppleLoginEnabled") as? Bool ?? false
     }
 
-    public static var debugTabEnabled: Bool {
-        Bundle.main.object(forInfoDictionaryKey: "ZWDebugTabEnabled") as? Bool ?? true
+    /// Gates Settings → Developer.
+    public static var debugToolsEnabled: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "ZWDebugToolsEnabled") as? Bool ?? true
     }
 
     public static var appVersion: String {

@@ -116,6 +116,17 @@ struct OnboardingView: View {
                 Section("About") {
                     KeyValue(key: "Version", value: appVersionString)
                 }
+
+                // Reached from Settings rather than the tab bar: a fourth tab
+                // changes the tab bar in every screenshot and costs a slot on
+                // the surface users actually navigate.
+                if ZeroZeroWidgetConstants.debugToolsEnabled {
+                    Section("Developer") {
+                        NavigationLink("Debug tools") {
+                            DeveloperView()
+                        }
+                    }
+                }
             }
             .navigationTitle("Settings")
             .task {

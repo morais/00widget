@@ -83,15 +83,12 @@ struct RootView: View {
                     .tag("activities")
             }
 
+            // Debug tools live under Settings → Developer, not as a tab. The
+            // tab bar is in every screenshot and on every screen, so it stays
+            // the same three entries whether or not debug builds are enabled.
             OnboardingView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag("settings")
-
-            if ZeroZeroWidgetConstants.debugTabEnabled {
-                DeveloperView()
-                    .tabItem { Label("Debug", systemImage: "ladybug") }
-                    .tag("debug")
-            }
         }
     }
 }
