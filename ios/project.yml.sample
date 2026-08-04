@@ -126,6 +126,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.uitests
         TEST_TARGET_NAME: ZeroZeroWidgetApp
+        # Required once the target is code signed, which the re-signed
+        # screenshot run does; without signing Xcode never asks for it.
+        GENERATE_INFOPLIST_FILE: YES
 
   ZeroZeroWidgetTV:
     type: application

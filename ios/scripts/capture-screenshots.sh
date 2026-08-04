@@ -47,18 +47,57 @@ xcrun simctl status_bar "$DEVICE" override \
   --time "9:41" --cellularBars 4 --wifiBars 3 \
   --batteryState charged --batteryLevel 100 2>/dev/null || true
 
-echo "→ running ScreenshotTests"
-# CODE_SIGNING_ALLOWED=NO keeps this runnable without a Developer team. It also
-# means no entitlements are embedded, so the App Group container is unavailable
-# and CardCache.save is a no-op — the sample cards render from memory only,
-# which is all the screenshots need.
-xcodebuild test \
+# Build, re-sign, then run — rather than a plain `xcodebuild test`.
+#
+# `CODE_SIGNING_ALLOWED=NO` embeds no entitlements, which leaves the App Group
+# container unavailable. The app survives that (cards fall back to memory) but
+# the *widget extension* is a separate process and cannot, so every widget
+# renders empty. Re-signing between build and run, the way build-sim.sh does,
+# gives both processes the container: widgets read real cards, and the
+# "hide sample indicators" flag reaches the extension.
+DERIVED="$WORK/DerivedData"
+
+echo "→ building for testing"
+xcodebuild build-for-testing \
   -project ZeroZeroWidget.xcodeproj \
   -scheme ZeroZeroWidgetScreenshots \
   -destination "platform=iOS Simulator,name=$DEVICE" \
-  -resultBundlePath "$RESULT" \
-  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath "$DERIVED" \
+  CODE_SIGN_IDENTITY="-" \
+  CODE_SIGNING_REQUIRED=NO \
   ZW_DEBUG_TOOLS=YES \
+  > "$WORK/build.log" 2>&1 || {
+    echo "✗ build failed — tail of log:" >&2
+    tail -40 "$WORK/build.log" >&2
+    exit 1
+  }
+
+APP="$DERIVED/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetApp.app"
+EXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
+APP_GROUP="$(/usr/libexec/PlistBuddy -c 'Print :ZWAppGroupIdentifier' "$APP/Info.plist")"
+
+echo "→ re-signing with App Group entitlements"
+ENTITLEMENTS="$WORK/sim.entitlements"
+cat > "$ENTITLEMENTS" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.application-groups</key>
+    <array><string>${APP_GROUP}</string></array>
+</dict>
+</plist>
+PLIST
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$EXT" >/dev/null 2>&1
+codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP" >/dev/null 2>&1
+
+XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
+
+echo "→ running ScreenshotTests"
+xcodebuild test-without-building \
+  -xctestrun "$XCTESTRUN" \
+  -destination "platform=iOS Simulator,name=$DEVICE" \
+  -resultBundlePath "$RESULT" \
   > "$WORK/xcodebuild.log" 2>&1 || {
     echo "✗ UI test failed — tail of log:" >&2
     tail -40 "$WORK/xcodebuild.log" >&2

@@ -113,18 +113,22 @@ seeded externally; `onOpenURL` forwards external links rather than routing tabs;
 and there is no tap tooling — `simctl` has no tap verb and the Simulator exposes
 no accessibility windows to AppleScript. XCUITest runs on-device and can tap.
 
-Two constraints worth knowing before extending it:
+The script does **not** run a plain `xcodebuild test`. It builds with
+`build-for-testing`, re-signs the app and the widget extension with App-Group
+entitlements the way `build-sim.sh` does, then runs `test-without-building`
+against the re-signed products. That middle step is load-bearing:
+`CODE_SIGNING_ALLOWED=NO` embeds no entitlements and leaves the App Group
+container unavailable. The app tolerates that — `CardCache.save` is a `try?`, so
+cards fall back to memory — but the widget extension is a **separate process**
+with no such fallback, so every Home Screen widget renders empty. Re-signing
+gives both processes the container. Verified: widgets show real cards, and
+`test-without-building` installs the re-signed bundle rather than rebuilding it.
 
-- **`CODE_SIGNING_ALLOWED=NO` means no App Group container**, so `CardCache.save`
-  silently no-ops (it is a `try?`). Cards rendered by "Generate sample widgets"
-  live in memory only. Seeding the cache from the shell to stage other states
-  therefore does not work under `xcodebuild test` — it would need the re-signing
-  dance from `build-sim.sh`.
-- **Sample data is labelled** with a "these are samples" notice and `SAMPLE`
-  badges. The screenshot run suppresses that labelling through
-  Settings → Developer → "Hide sample indicators", which the UI test toggles on.
-  The flag is off by default and lives in the App Group so the widget extension
-  agrees with the app.
+**Sample data is labelled** with a "these are samples" notice and `SAMPLE`
+badges. The run suppresses that through Settings → Developer → "Hide sample
+indicators", which the UI test toggles on. The flag is off by default and lives
+in the App Group, which is the other reason the re-signing matters — without the
+container the extension cannot read the flag and widgets keep their badges.
 
 The Developer section itself is gated on the `ZW_DEBUG_TOOLS` build setting,
 which is `NO` everywhere. `capture-screenshots.sh` passes
@@ -133,8 +137,12 @@ reach the flag. `Constants.debugToolsEnabled` accepts a Bool or a `YES`/`NO`
 string, because a value substituted from a build setting arrives as a string,
 and fails closed on anything else.
 
-Still not capturable this way: the Home Screen widget shot, which needs widgets
-placed on Springboard.
+XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
+"com.apple.springboard")`), which is how the expanded Dynamic Island is
+captured — a long-press on the island after backgrounding the app. Placing
+widgets on the Home Screen is reachable the same way but is not automated yet;
+the widgets currently in the shots were placed by hand and persist in the
+simulator.
 
 ### Schemes are declared explicitly
 
