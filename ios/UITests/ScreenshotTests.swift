@@ -65,11 +65,21 @@ final class ScreenshotTests: XCTestCase {
             capture(named: "screenshot-activities")
 
             // Backgrounding surfaces the activity in the Dynamic Island, which
-            // is the only way to see the compact presentation — it does not
-            // render while the app is foremost.
+            // is the only way to see it — it does not render while the app is
+            // foremost.
             XCUIDevice.shared.press(.home)
             Thread.sleep(forTimeInterval: 3)
             capture(named: "screenshot-home-dynamic-island")
+
+            // Long-press the island to reach the expanded presentation, which
+            // is what the published screenshot shows: title, subtitle, state,
+            // and the progress bar rather than a bare percentage.
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            springboard
+                .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022))
+                .press(forDuration: 1.2)
+            Thread.sleep(forTimeInterval: 2)
+            capture(named: "screenshot-home-expanded")
         }
     }
 
