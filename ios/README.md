@@ -97,4 +97,5 @@ The APNs `.p8` key lives only on the backend. See `server/README.md`.
 
 - **Widget is empty** — confirm the app has generated/fetched cards and the App Group is set correctly on *both* targets with matching entitlements.
 - **Live Activity won't start** — confirm `NSSupportsLiveActivities` is `YES` in `Info.plist` and that the user hasn't disabled them in Settings → Face ID & Passcode → Live Activities (or device-level Settings → Live Activities).
+- **Ended Live Activity remains visible** — the app treats `GET /v1/live-activities` as authoritative at launch and on every foreground. It immediately ends any remote 00Widget ActivityKit activity whose server instance is no longer ongoing, covering end pushes that APNs accepted but the device did not apply. Local sample activities are excluded. Pull to refresh on the Activities screen retries the same reconciliation manually.
 - **Push token never arrives** — on simulator APNs is sandboxed; prefer a real device for end-to-end testing.

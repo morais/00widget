@@ -23,6 +23,7 @@ public final class LiveActivityController: ObservableObject {
     private var activityTokensInFlight: [String: String] = [:]
     private var registeredStartToken: String?
     private var startTokenInFlight: String?
+    private var reconciliationInProgress = false
     #endif
 
     public init() {
@@ -45,6 +46,53 @@ public final class LiveActivityController: ObservableObject {
     public func refresh() {
         #if canImport(ActivityKit)
         refreshActiveActivities()
+        #endif
+    }
+
+    /// Treats the server's ongoing activity list as authoritative and ends any
+    /// remote 00Widget activity that survived locally after its server record
+    /// disappeared. This repairs the case where APNs accepted an end event but
+    /// the device never applied it. Local sample activities are intentionally
+    /// excluded because the server never knows about them.
+    public func reconcileWithServer() async {
+        #if canImport(ActivityKit)
+        refreshActiveActivities()
+        guard !reconciliationInProgress else { return }
+        guard let config = APIClientConfig.fromSettings() else { return }
+
+        reconciliationInProgress = true
+        defer { reconciliationInProgress = false }
+
+        do {
+            let serverActivities = try await APIClient(config: config).fetchLiveActivities()
+            let ongoingInstanceIds = Set(serverActivities.compactMap(\.activityInstanceId))
+            let ongoingExternalIds = Set(serverActivities.map(\.externalActivityId))
+            let orphanedActivities = Activity<ZeroZeroWidgetActivityAttributes>.activities.filter { activity in
+                let attributes = activity.attributes
+                if attributes.activityInstanceId == nil,
+                   attributes.externalActivityId.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix) {
+                    return false
+                }
+                if let activityInstanceId = attributes.activityInstanceId {
+                    return !ongoingInstanceIds.contains(activityInstanceId)
+                }
+                return !ongoingExternalIds.contains(attributes.externalActivityId)
+            }
+
+            for activity in orphanedActivities {
+                log.info(
+                    "Ending orphaned local activity \(activity.attributes.externalActivityId, privacy: .public)"
+                )
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            refreshActiveActivities()
+        } catch {
+            // Reconciliation is fail-safe: an unavailable or unauthorized
+            // server must never cause local activities to be ended.
+            log.error(
+                "Failed to reconcile Live Activities: \(error.localizedDescription, privacy: .public)"
+            )
+        }
         #endif
     }
 

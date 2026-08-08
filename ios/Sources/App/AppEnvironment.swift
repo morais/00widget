@@ -310,6 +310,10 @@ public final class AppEnvironment: ObservableObject {
         // exactly when a widget has just been added, and the hint should go
         // away on its own rather than waiting out the fetch interval.
         await refreshInstalledWidgetCount()
+        // APNs can accept an end event that the device never applies. Compare
+        // ActivityKit's local state with the server on every foreground so an
+        // orphan does not remain on the Lock Screen indefinitely.
+        await liveActivityController.reconcileWithServer()
         let now = Date()
         if let lastForegroundFetchAt, now.timeIntervalSince(lastForegroundFetchAt) < 30 {
             return
@@ -324,6 +328,7 @@ public final class AppEnvironment: ObservableObject {
 
     public func startupSync() async {
         liveActivityController.credentialsDidChange()
+        await liveActivityController.reconcileWithServer()
         // Only ask once there is an account to receive updates for. Prompting
         // on first launch asks before the user knows what the app does, and a
         // denial can only be undone in System Settings.

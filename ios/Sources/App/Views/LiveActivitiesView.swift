@@ -13,7 +13,7 @@ struct LiveActivitiesView: View {
         NavigationStack {
             content
                 .navigationTitle("Activities")
-                .refreshable { liveActivityController.refresh() }
+                .refreshable { await liveActivityController.reconcileWithServer() }
                 .task { liveActivityController.refresh() }
                 #if ZW_SHARING_ENABLED
                 .sheet(item: $shareKind) { kind in
