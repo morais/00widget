@@ -153,7 +153,11 @@ private struct ActivityCard: View {
                     HStack(spacing: 8) {
                         Text(session.title)
                             .font(.headline)
-                        stateBadge
+                        if activeItems.isEmpty {
+                            stateBadge
+                        } else {
+                            activeItemBadge
+                        }
                     }
 
                     if let subtitle = session.subtitle {
@@ -169,10 +173,18 @@ private struct ActivityCard: View {
 
                 Spacer()
 
-                trailingValue
+                if activeItems.isEmpty {
+                    trailingValue
+                }
             }
 
-            if let progress = session.progress, session.endsAt == nil {
+            if !activeItems.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(activeItems) { item in
+                        ActivityItemRow(item: item)
+                    }
+                }
+            } else if let progress = session.progress, session.endsAt == nil {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
             }
@@ -196,6 +208,15 @@ private struct ActivityCard: View {
             .padding(.vertical, 4)
             .background(Capsule().fill(Color.secondary.opacity(0.16)))
             .foregroundStyle(.secondary)
+    }
+
+    private var activeItemBadge: some View {
+        Text("\(activeItems.count) active")
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.blue.opacity(0.14)))
+            .foregroundStyle(.blue)
     }
 
     @ViewBuilder
@@ -237,5 +258,67 @@ private struct ActivityCard: View {
         case .job: return "hammer"
         case .timer: return "timer"
         }
+    }
+
+    private var activeItems: [LiveActivityItem] {
+        (session.items ?? []).filter(\.isActive)
+    }
+}
+
+private struct ActivityItemRow: View {
+    let item: LiveActivityItem
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: item.icon ?? "circle.fill")
+                    .font(.body)
+                    .foregroundStyle(item.status?.tint ?? .secondary)
+                    .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    if let subtitle = item.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                if let value = item.value {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(value)
+                            .font(.title3.weight(.semibold))
+                            .lineLimit(1)
+                        if let unit = item.unit {
+                            Text(unit)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                } else if let status = item.status {
+                    Text(status.label)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(status.tint)
+                }
+            }
+
+            if let progress = item.progress {
+                ProgressView(value: max(0, min(progress, 1)))
+                    .progressViewStyle(.linear)
+                    .tint(item.status?.tint)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 }
