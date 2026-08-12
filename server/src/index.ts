@@ -63,6 +63,9 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/live-activities\/register-start-token\/?$/, "device:register", (req, env, auth) =>
     liveActivities.registerLiveActivityStartToken(req, env, auth),
   ),
+  authed("POST", /^\/v1\/live-activities\/recover\/?$/, "device:register", (req, env, auth) =>
+    liveActivities.recoverLiveActivities(req, env, auth),
+  ),
   authed("POST", /^\/v1\/live-activities\/start\/?$/, "publish", (req, env, auth) =>
     liveActivities.startLiveActivity(req, env, auth),
   ),

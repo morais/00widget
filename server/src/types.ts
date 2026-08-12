@@ -34,6 +34,7 @@ export const FieldLimits = {
   activityInstanceId: 64,
   activityState: 120,
   liveActivityItemCount: 6,
+  liveActivityRecoveryCount: 8,
   alertTitle: 120,
   alertBody: 240,
   deviceId: 128,
@@ -311,6 +312,17 @@ export const RegisterLiveActivityStartTokenSchema = z.object({
   pushToken: PushTokenString,
 });
 
+export const RecoverLiveActivitiesSchema = z.object({
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  activityInstanceIds: z
+    .array(z.string().min(1).max(FieldLimits.activityInstanceId))
+    .min(1)
+    .max(FieldLimits.liveActivityRecoveryCount)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "activityInstanceIds must be unique",
+    }),
+});
+
 export const StartLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   kind: LiveActivityKindSchema,
@@ -532,6 +544,7 @@ export type RegisterDevice = z.infer<typeof RegisterDeviceSchema>;
 export type RegisterWidgetPushToken = z.infer<typeof RegisterWidgetPushTokenSchema>;
 export type RegisterLiveActivity = z.infer<typeof RegisterLiveActivitySchema>;
 export type RegisterLiveActivityStartToken = z.infer<typeof RegisterLiveActivityStartTokenSchema>;
+export type RecoverLiveActivities = z.infer<typeof RecoverLiveActivitiesSchema>;
 export type CountdownGranularity = z.infer<typeof CountdownGranularitySchema>;
 export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;

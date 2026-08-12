@@ -6,6 +6,7 @@ import type {
 import {
   RegisterLiveActivitySchema,
   RegisterLiveActivityStartTokenSchema,
+  RecoverLiveActivitiesSchema,
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
   EndLiveActivitySchema,
@@ -186,6 +187,93 @@ export async function registerLiveActivityStartToken(
   const d = parsed.data;
   await storage.putStartToken(env, auth.tenantId, auth.apiKeyHash, d.deviceId, d.attributesType, d.pushToken);
   return json({ ok: true });
+}
+
+export async function recoverLiveActivities(
+  req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  const body = await parseJson(req, RequestBodyLimits.registration);
+  const parsed = RecoverLiveActivitiesSchema.safeParse(body);
+  if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  const d = parsed.data;
+  if (auth.deviceId && auth.deviceId !== d.deviceId) {
+    return json({ error: "credential is bound to another device" }, 403);
+  }
+
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "liveActivityRecoveryTenantHour", key: tenantKey(auth.tenantId) },
+    ...d.activityInstanceIds.map((activityInstanceId) => ({
+      policy: "liveActivityRecoveryDeviceActivityHour" as const,
+      key: tenantResourceKey(auth.tenantId, `recovery:${d.deviceId}`, activityInstanceId),
+    })),
+  ]);
+  if (limited) return limited;
+
+  const pushToken = await storage.getStartTokenForDevice(
+    env,
+    auth.tenantId,
+    d.deviceId,
+    DEFAULT_ATTRIBUTES_TYPE,
+  );
+  if (!pushToken) {
+    return json({ error: "Live Activity start token is not registered for this device" }, 409);
+  }
+
+  const sessions: LiveActivitySession[] = [];
+  for (const activityInstanceId of d.activityInstanceIds) {
+    const session = await storage.getActivityInstanceForTarget(
+      env,
+      activityInstanceId,
+      auth.tenantId,
+    );
+    if (!session) return notFound();
+    sessions.push(session);
+  }
+
+  const results: Array<{ activityInstanceId: string; status: number; reason?: string }> = [];
+  for (const session of sessions) {
+    const attributes: Record<string, unknown> = {
+      activityInstanceId: session.activityInstanceId,
+      externalActivityId: session.externalActivityId,
+      kind: session.kind,
+      title: session.title,
+    };
+    if (session.icon !== undefined) attributes.icon = session.icon;
+    if (session.deepLink) attributes.deepLink = session.deepLink;
+
+    const result = await sendLiveActivityStart(env, pushToken, {
+      attributesType: DEFAULT_ATTRIBUTES_TYPE,
+      attributes,
+      contentState: activityKitContentState(initialContentState(session, session.updatedAt)),
+      staleAt: session.staleAt,
+      relevanceScore: session.relevanceScore,
+      alert: {
+        title: session.title,
+        ...(session.subtitle ? { body: session.subtitle } : {}),
+      },
+    });
+    results.push({
+      activityInstanceId: session.activityInstanceId,
+      status: result.status,
+      ...(result.reason ? { reason: result.reason } : {}),
+    });
+    if (isDeadTokenReason(result.reason)) {
+      await storage.deleteStartTokenByValue(
+        env,
+        auth.tenantId,
+        DEFAULT_ATTRIBUTES_TYPE,
+        pushToken,
+      );
+    }
+  }
+
+  const failed = results.filter((result) => result.status !== 200);
+  if (failed.length > 0) {
+    return json({ error: "Live Activity recovery delivery failed", results }, 502);
+  }
+  return json({ ok: true, recovered: results.map((result) => result.activityInstanceId) });
 }
 
 export async function startLiveActivity(

@@ -26,6 +26,7 @@ public final class LiveActivityController: ObservableObject {
     private var reconciliationInProgress = false
     private var serverSessions: [LiveActivitySession] = []
     private var hasLoadedServerSessions = false
+    private var recoveryAttemptedAt: [String: Date] = [:]
     #endif
 
     public init() {
@@ -66,7 +67,8 @@ public final class LiveActivityController: ObservableObject {
         defer { reconciliationInProgress = false }
 
         do {
-            let serverActivities = try await APIClient(config: config).fetchLiveActivities()
+            let client = APIClient(config: config)
+            let serverActivities = try await client.fetchLiveActivities()
             serverSessions = serverActivities
             hasLoadedServerSessions = true
             let ongoingInstanceIds = Set(serverActivities.compactMap(\.activityInstanceId))
@@ -89,6 +91,7 @@ public final class LiveActivityController: ObservableObject {
                 )
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
+            await recoverMissingActivities(serverActivities, using: client)
             refreshActiveActivities()
         } catch {
             // Reconciliation is fail-safe: an unavailable or unauthorized
@@ -106,6 +109,7 @@ public final class LiveActivityController: ObservableObject {
         registeredStartToken = nil
         serverSessions = []
         hasLoadedServerSessions = false
+        recoveryAttemptedAt = [:]
         refreshActiveActivities()
         retryCurrentTokens()
         #endif
@@ -289,6 +293,62 @@ public final class LiveActivityController: ObservableObject {
             return localSession
         }
         activeSessions = mergedRemoteSessions + localSessions.filter(\.isSample)
+    }
+
+    private func recoverMissingActivities(
+        _ serverActivities: [LiveActivitySession],
+        using client: APIClient
+    ) async {
+        guard supported else { return }
+        let localActivities = Activity<ZeroZeroWidgetActivityAttributes>.activities
+        let localInstanceIds = Set(localActivities.compactMap(\.attributes.activityInstanceId))
+        let localExternalIds = Set(localActivities.map(\.attributes.externalActivityId))
+
+        for activityInstanceId in localInstanceIds {
+            recoveryAttemptedAt.removeValue(forKey: activityInstanceId)
+        }
+
+        let now = Date()
+        let cooldown: TimeInterval = 5 * 60
+        let missingInstanceIds = serverActivities.compactMap { session -> String? in
+            guard let activityInstanceId = session.activityInstanceId else { return nil }
+            let existsLocally = localInstanceIds.contains(activityInstanceId)
+                || localExternalIds.contains(session.externalActivityId)
+            guard !existsLocally else { return nil }
+            if let attemptedAt = recoveryAttemptedAt[activityInstanceId],
+               now.timeIntervalSince(attemptedAt) < cooldown {
+                return nil
+            }
+            return activityInstanceId
+        }
+        guard !missingInstanceIds.isEmpty else { return }
+
+        let currentStartToken = Activity<ZeroZeroWidgetActivityAttributes>.pushToStartToken
+            ?? latestPushToStartToken
+        guard let currentStartToken else {
+            log.info("Deferring Live Activity recovery until a start token is available")
+            return
+        }
+        latestPushToStartToken = currentStartToken
+        let token = currentStartToken.hexString
+        if registeredStartToken != token {
+            let registered = await registerStartToken(pushToken: token)
+            guard registered else { return }
+            registeredStartToken = token
+        }
+
+        for activityInstanceId in missingInstanceIds {
+            recoveryAttemptedAt[activityInstanceId] = now
+        }
+        do {
+            try await client.recoverLiveActivities(
+                deviceId: DeviceRegistration.deviceId(),
+                activityInstanceIds: missingInstanceIds
+            )
+            log.info("Requested recovery for \(missingInstanceIds.count, privacy: .public) Live Activities")
+        } catch {
+            log.error("Failed to recover Live Activities: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes. The

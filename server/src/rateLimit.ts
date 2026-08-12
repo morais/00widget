@@ -13,6 +13,8 @@ export const RateLimitPolicies = {
   liveActivityUpdateTenantHour: { label: "Live Activity updates", limit: 600, windowSeconds: HOUR },
   liveActivityUpdateActivityHour: { label: "Live Activity updates per activity", limit: 120, windowSeconds: HOUR },
   liveActivityEndTenantHour: { label: "Live Activity ends", limit: 240, windowSeconds: HOUR },
+  liveActivityRecoveryTenantHour: { label: "Live Activity recoveries", limit: 60, windowSeconds: HOUR },
+  liveActivityRecoveryDeviceActivityHour: { label: "Live Activity recoveries per device and activity", limit: 6, windowSeconds: HOUR },
   actionRunTenantHour: { label: "Action runs", limit: 240, windowSeconds: HOUR },
   actionRunActionHour: { label: "Action runs per action", limit: 60, windowSeconds: HOUR },
   registrationTenantDay: { label: "Registrations", limit: 240, windowSeconds: DAY },

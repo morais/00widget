@@ -761,6 +761,21 @@ export async function listStartTokens(
   return rows.results.map((row) => row.token);
 }
 
+export async function getStartTokenForDevice(
+  env: Env,
+  tenantId: string,
+  deviceId: string,
+  attributesType: string,
+): Promise<string | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT token FROM start_tokens
+     WHERE tenant_id = ? AND device_id = ? AND attributes_type = ?`,
+  )
+    .bind(tenantId, deviceId, attributesType)
+    .first<TokenRow>();
+  return row?.token ?? null;
+}
+
 // ---------- Cross-API-key listing (admin dashboard) ----------
 
 export interface ScopedEntry<T> {

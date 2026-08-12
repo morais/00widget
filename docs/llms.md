@@ -452,6 +452,8 @@ Only `role: "normal"` + `confirm: false` actions run through `/v1/actions/:id/ru
 | Live Activity update | tenant | 600 / hour |
 | Live Activity update | activity id | 120 / hour |
 | Live Activity end | tenant | 240 / hour |
+| Live Activity recovery | tenant | 60 / hour |
+| Live Activity recovery | device + activity | 6 / hour |
 | Action run | tenant | 240 / hour |
 | Action run | action id | 60 / hour |
 | Device/widget/Live Activity token registration | tenant | 240 / day |

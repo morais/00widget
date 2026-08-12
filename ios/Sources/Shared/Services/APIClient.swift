@@ -304,6 +304,22 @@ public final class APIClient {
         let _: EmptyBody = try await request("POST", path: "/v1/live-activities/register-start-token", body: body)
     }
 
+    public func recoverLiveActivities(
+        deviceId: String,
+        activityInstanceIds: [String]
+    ) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let activityInstanceIds: [String]
+        }
+        let body = Body(deviceId: deviceId, activityInstanceIds: activityInstanceIds)
+        let _: EmptyBody = try await request(
+            "POST",
+            path: "/v1/live-activities/recover",
+            body: body
+        )
+    }
+
     public func runAction(id: String, cardId: String?) async throws {
         struct Context: Codable { let cardId: String? }
         struct Body: Codable {

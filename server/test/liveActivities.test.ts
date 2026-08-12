@@ -857,6 +857,121 @@ describe("live activities", () => {
     ]);
   });
 
+  it("recovers a missing activity only on the requesting device", async () => {
+    __resetApnsJwtCache();
+    const env = makeEnv();
+    await seedApiKey(
+      env,
+      "device-recovery-key",
+      "test-tenant",
+      "publisher",
+      "device-session",
+      "device-a",
+      "2099-01-01T00:00:00.000Z",
+      ["tenant:read", "device:register", "actions:run"],
+    );
+
+    for (const [deviceId, pushToken] of [
+      ["device-a", "aaaabbbbccccdddd"],
+      ["device-b", "1111222233334444"],
+    ]) {
+      const registered = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register-start-token", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId,
+            attributesType: "ZeroZeroWidgetActivityAttributes",
+            pushToken,
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(registered.status).toBe(200);
+    }
+
+    const started = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "solar-recovery",
+          kind: "appliance",
+          title: "Solar surplus",
+          state: "running",
+          icon: "sun.max.fill",
+          items: [{
+            id: "boiler",
+            title: "Water",
+            value: "67",
+            unit: "°C",
+            progress: 0.86,
+            status: "running",
+          }],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    const activityInstanceId = ((await started.json()) as { activityInstanceId: string })
+      .activityInstanceId;
+
+    Object.assign(env, {
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+    const captured: Array<{ url: string; body: Record<string, any> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      captured.push({
+        url: typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+        body: JSON.parse(String(init?.body)),
+      });
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const wrongDevice = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/recover", {
+          method: "POST",
+          body: JSON.stringify({ deviceId: "device-b", activityInstanceIds: [activityInstanceId] }),
+        }, "device-recovery-key"),
+        env,
+        executionCtx,
+      );
+      expect(wrongDevice.status).toBe(403);
+
+      const recovered = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/recover", {
+          method: "POST",
+          body: JSON.stringify({ deviceId: "device-a", activityInstanceIds: [activityInstanceId] }),
+        }, "device-recovery-key"),
+        env,
+        executionCtx,
+      );
+      expect(recovered.status).toBe(200);
+      expect(await recovered.json()).toEqual({ ok: true, recovered: [activityInstanceId] });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0].url).toContain("/3/device/aaaabbbbccccdddd");
+    expect(captured[0].body.aps).toMatchObject({
+      event: "start",
+      attributes: {
+        activityInstanceId,
+        externalActivityId: "solar-recovery",
+        title: "Solar surplus",
+      },
+      "content-state": {
+        state: "running",
+        items: [{ id: "boiler", title: "Water", value: "67", unit: "°C" }],
+      },
+    });
+  });
+
   it("isolates identical external ids across owners, shares, and recipient-owned activities", async () => {
     __resetApnsJwtCache();
     const env = makeEnv({

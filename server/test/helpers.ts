@@ -860,6 +860,13 @@ export class FakeD1 {
         .sort(by("device_id"))
         .map((row) => ({ token: row.token }));
     }
+    if (normalized === "SELECT token FROM start_tokens WHERE tenant_id = ? AND device_id = ? AND attributes_type = ?") {
+      const [tenant_id, device_id, attributes_type] = values.map(String);
+      return pick(
+        this.startTokens.get(`${tenant_id}:${device_id}:${attributes_type}`),
+        ["token"],
+      );
+    }
     if (normalized === "SELECT api_key_hash, id, json FROM cards ORDER BY api_key_hash, id") {
       return [...this.cards.values()].sort(by("api_key_hash", "id")).map(select("api_key_hash", "id", "json"));
     }
