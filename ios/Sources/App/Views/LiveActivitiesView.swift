@@ -14,7 +14,7 @@ struct LiveActivitiesView: View {
             content
                 .navigationTitle("Activities")
                 .refreshable { await liveActivityController.reconcileWithServer() }
-                .task { liveActivityController.refresh() }
+                .task { await liveActivityController.reconcileWithServer() }
                 #if ZW_SHARING_ENABLED
                 .sheet(item: $shareKind) { kind in
                     ShareActivityKindSheet(kind: kind)

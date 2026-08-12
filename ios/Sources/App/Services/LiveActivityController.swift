@@ -24,6 +24,8 @@ public final class LiveActivityController: ObservableObject {
     private var registeredStartToken: String?
     private var startTokenInFlight: String?
     private var reconciliationInProgress = false
+    private var serverSessions: [LiveActivitySession] = []
+    private var hasLoadedServerSessions = false
     #endif
 
     public init() {
@@ -65,6 +67,8 @@ public final class LiveActivityController: ObservableObject {
 
         do {
             let serverActivities = try await APIClient(config: config).fetchLiveActivities()
+            serverSessions = serverActivities
+            hasLoadedServerSessions = true
             let ongoingInstanceIds = Set(serverActivities.compactMap(\.activityInstanceId))
             let ongoingExternalIds = Set(serverActivities.map(\.externalActivityId))
             let orphanedActivities = Activity<ZeroZeroWidgetActivityAttributes>.activities.filter { activity in
@@ -100,6 +104,9 @@ public final class LiveActivityController: ObservableObject {
         #if canImport(ActivityKit)
         registeredActivityTokens.removeAll()
         registeredStartToken = nil
+        serverSessions = []
+        hasLoadedServerSessions = false
+        refreshActiveActivities()
         retryCurrentTokens()
         #endif
     }
@@ -234,7 +241,7 @@ public final class LiveActivityController: ObservableObject {
         activeIds = activities.map {
             $0.attributes.activityInstanceId ?? $0.attributes.externalActivityId
         }
-        activeSessions = activities.map { activity in
+        let localSessions = activities.map { activity in
             let attributes = activity.attributes
             let state = activity.content.state
             return LiveActivitySession(
@@ -256,6 +263,32 @@ public final class LiveActivityController: ObservableObject {
                 deepLink: attributes.deepLink
             )
         }
+        guard hasLoadedServerSessions else {
+            activeSessions = localSessions
+            return
+        }
+
+        // The server list is authoritative for which remote activities still
+        // exist and survives an app update even when ActivityKit no longer
+        // enumerates the local instance. Prefer newer local content for an
+        // instance so an APNs update received while the screen is open appears
+        // immediately without waiting for another server fetch. Local samples
+        // never exist on the server, so merge those back in separately.
+        let localRemoteSessions = localSessions.filter { !$0.isSample }
+        let mergedRemoteSessions = serverSessions.map { serverSession in
+            let localSession = localRemoteSessions.first { candidate in
+                if let serverInstanceId = serverSession.activityInstanceId,
+                   let candidateInstanceId = candidate.activityInstanceId {
+                    return serverInstanceId == candidateInstanceId
+                }
+                return serverSession.externalActivityId == candidate.externalActivityId
+            }
+            guard let localSession, localSession.updatedAt > serverSession.updatedAt else {
+                return serverSession
+            }
+            return localSession
+        }
+        activeSessions = mergedRemoteSessions + localSessions.filter(\.isSample)
     }
 
     /// Observes push-to-start tokens for ZeroZeroWidgetActivityAttributes. The
