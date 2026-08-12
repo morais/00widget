@@ -85,7 +85,26 @@ public enum SampleDataFactory {
             state: "running",
             value: nil,
             unit: nil,
-            progress: 0.2,
+            progress: nil,
+            items: [
+                LiveActivityItem(
+                    id: "washer",
+                    title: "Washer",
+                    subtitle: "Rinsing",
+                    icon: "washer",
+                    value: "18",
+                    unit: "min",
+                    progress: 0.62,
+                    status: .running
+                ),
+                LiveActivityItem(
+                    id: "dryer",
+                    title: "Dryer",
+                    subtitle: "Ready next",
+                    icon: "wind",
+                    status: .paused
+                ),
+            ],
             startedAt: Date(),
             updatedAt: Date(),
             staleAt: Date().addingTimeInterval(3600)

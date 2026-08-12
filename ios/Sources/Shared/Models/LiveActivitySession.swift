@@ -35,6 +35,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var value: String?
     public var unit: String?
     public var progress: Double?
+    public var items: [LiveActivityItem]?
     public var endsAt: Date?
     public var countdownGranularity: CountdownGranularity?
     public var startedAt: Date?
@@ -67,6 +68,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         value: String? = nil,
         unit: String? = nil,
         progress: Double? = nil,
+        items: [LiveActivityItem]? = nil,
         endsAt: Date? = nil,
         countdownGranularity: CountdownGranularity? = nil,
         startedAt: Date? = nil,
@@ -86,6 +88,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.value = value
         self.unit = unit
         self.progress = progress
+        self.items = items
         self.endsAt = endsAt
         self.countdownGranularity = countdownGranularity
         self.startedAt = startedAt
@@ -108,6 +111,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         value = try container.decodeIfPresent(String.self, forKey: .value)
         unit = try container.decodeIfPresent(String.self, forKey: .unit)
         progress = try container.decodeIfPresent(Double.self, forKey: .progress)
+        items = try container.decodeIfPresent([LiveActivityItem].self, forKey: .items)
         endsAt = try container.decodeIfPresent(Date.self, forKey: .endsAt)
         countdownGranularity = try container.decodeIfPresent(
             CountdownGranularity.self,
@@ -125,7 +129,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, value, unit
-        case progress, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
+        case progress, items, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
         case relevanceScore, deepLink, actions
     }
 }

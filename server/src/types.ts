@@ -33,6 +33,7 @@ export const FieldLimits = {
   externalActivityId: 128,
   activityInstanceId: 64,
   activityState: 120,
+  liveActivityItemCount: 6,
   alertTitle: 120,
   alertBody: 240,
   deviceId: 128,
@@ -216,6 +217,34 @@ export const LiveActivityKindSchema = z
 
 export const CountdownGranularitySchema = z.enum(["second", "minute"]);
 
+export const LiveActivityItemSchema = z.object({
+  id: IdString,
+  title: TitleString,
+  subtitle: OptionalSubtitleString,
+  icon: OptionalIconString,
+  value: OptionalValueString,
+  unit: OptionalUnitString,
+  progress: z.number().min(0).max(1).optional(),
+  status: DashboardStatusSchema.optional(),
+});
+
+const LiveActivityItemsSchema = z
+  .array(LiveActivityItemSchema)
+  .max(FieldLimits.liveActivityItemCount)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, item] of items.entries()) {
+      if (seen.has(item.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, "id"],
+          message: "item ids must be unique",
+        });
+      }
+      seen.add(item.id);
+    }
+  });
+
 export const RegisterDeviceSchema = z.object({
   deviceId: z.string().min(1).max(FieldLimits.deviceId),
   apnsDeviceToken: PushTokenString.optional(),
@@ -292,6 +321,7 @@ export const StartLiveActivitySchema = z.object({
   value: OptionalValueString,
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
+  items: LiveActivityItemsSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
@@ -317,6 +347,7 @@ export const UpdateLiveActivitySchema = z.object({
   value: OptionalValueString,
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
+  items: LiveActivityItemsSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
@@ -340,6 +371,7 @@ export const LiveActivitySessionSchema = z.object({
   value: OptionalValueString,
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
+  items: LiveActivityItemsSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   startedAt: IsoDate.optional(),
@@ -503,6 +535,7 @@ export type RegisterLiveActivityStartToken = z.infer<typeof RegisterLiveActivity
 export type CountdownGranularity = z.infer<typeof CountdownGranularitySchema>;
 export type StartLiveActivity = z.infer<typeof StartLiveActivitySchema>;
 export type UpdateLiveActivity = z.infer<typeof UpdateLiveActivitySchema>;
+export type LiveActivityItem = z.infer<typeof LiveActivityItemSchema>;
 export type LiveActivitySession = z.infer<typeof LiveActivitySessionSchema>;
 export type EndLiveActivity = z.infer<typeof EndLiveActivitySchema>;
 export type RunAction = z.infer<typeof RunActionSchema>;

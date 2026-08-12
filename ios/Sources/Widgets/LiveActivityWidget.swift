@@ -16,7 +16,11 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         .foregroundStyle(.secondary)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let endsAt = context.state.endsAt {
+                    if !context.state.activeItems.isEmpty {
+                        Text("\(context.state.activeItems.count) active")
+                            .font(.headline)
+                            .lineLimit(1)
+                    } else if let endsAt = context.state.endsAt {
                         LiveActivityCountdownText(
                             endsAt: endsAt,
                             granularity: context.state.countdownGranularity
@@ -37,12 +41,18 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    if let subtitle = context.state.subtitle {
+                    if context.state.activeItems.isEmpty, let subtitle = context.state.subtitle {
                         Text(subtitle).font(.caption)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if let p = context.state.progress, context.state.endsAt == nil {
+                    if !context.state.activeItems.isEmpty {
+                        VStack(spacing: 5) {
+                            ForEach(Array(context.state.activeItems.prefix(3))) { item in
+                                LiveActivityItemRow(item: item, condensed: true)
+                            }
+                        }
+                    } else if let p = context.state.progress, context.state.endsAt == nil {
                         ProgressView(value: max(0, min(p, 1)))
                             .progressViewStyle(.linear)
                     }
@@ -55,7 +65,10 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 // clips from the leading edge — "20%" renders as "0%", which
                 // reads as a real value and not as truncation.
                 Group {
-                    if let endsAt = context.state.endsAt {
+                    if !context.state.activeItems.isEmpty {
+                        Text("\(context.state.activeItems.count)")
+                            .monospacedDigit()
+                    } else if let endsAt = context.state.endsAt {
                         LiveActivityCountdownText(
                             endsAt: endsAt,
                             granularity: context.state.countdownGranularity
@@ -73,7 +86,9 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             } minimal: {
-                if let p = context.state.progress {
+                if !context.state.activeItems.isEmpty {
+                    Image(systemName: iconName(attributes: context.attributes, state: context.state))
+                } else if let p = context.state.progress {
                     Gauge(value: max(0, min(p, 1))) {
                         Image(systemName: iconName(attributes: context.attributes, state: context.state))
                     }
@@ -127,6 +142,42 @@ private struct LockScreenView: View {
     }
 
     private var lockScreenBody: some View {
+        Group {
+            if state.activeItems.isEmpty {
+                legacyLockScreenBody
+            } else {
+                compositeLockScreenBody
+            }
+        }
+        .padding()
+    }
+
+    private var compositeLockScreenBody: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text(attributes.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(state.activeItems.count) active")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(Array(state.activeItems.prefix(3))) { item in
+                LiveActivityItemRow(item: item)
+            }
+            if state.activeItems.count > 3 {
+                Text("+\(state.activeItems.count - 3) more")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var legacyLockScreenBody: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: iconName)
                 .font(.title2)
@@ -174,7 +225,6 @@ private struct LockScreenView: View {
                     .background(Capsule().fill(Color.secondary.opacity(0.2)))
             }
         }
-        .padding()
     }
 
     private var watchBody: some View {
@@ -187,10 +237,29 @@ private struct LockScreenView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                primaryWatchValue
+                if let item = state.activeItems.first {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Image(systemName: item.icon ?? "circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(item.status?.tint ?? .secondary)
+                        Text(item.value ?? item.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        if let unit = item.unit, item.value != nil {
+                            Text(unit).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    primaryWatchValue
+                }
             }
             Spacer(minLength: 0)
-            if let p = state.progress, state.endsAt == nil {
+            if state.activeItems.count > 1 {
+                Text("\(state.activeItems.count)")
+                    .font(.headline)
+                    .monospacedDigit()
+            } else if let p = state.activeItems.first?.progress ?? state.progress,
+                      state.endsAt == nil {
                 Gauge(value: max(0, min(p, 1))) { EmptyView() }
                     .gaugeStyle(.accessoryCircularCapacity)
                     .scaleEffect(0.8)
@@ -236,5 +305,62 @@ private struct LockScreenView: View {
         case .job: return "hammer"
         case .timer: return "timer"
         }
+    }
+}
+
+private struct LiveActivityItemRow: View {
+    let item: LiveActivityItem
+    var condensed = false
+
+    var body: some View {
+        VStack(spacing: condensed ? 2 : 3) {
+            HStack(spacing: 7) {
+                Image(systemName: item.icon ?? "circle.fill")
+                    .font(condensed ? .caption2 : .caption)
+                    .frame(width: 14)
+                    .foregroundStyle(item.status?.tint ?? .secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(item.title)
+                        .font(condensed ? .caption2 : .caption.weight(.semibold))
+                        .lineLimit(1)
+                    if !condensed, let subtitle = item.subtitle {
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+                if let value = item.value {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(value)
+                            .font(condensed ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        if let unit = item.unit {
+                            Text(unit)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                } else if let status = item.status {
+                    Text(status.label)
+                        .font(.caption2)
+                        .foregroundStyle(status.tint)
+                        .lineLimit(1)
+                }
+            }
+            if let progress = item.progress {
+                ProgressView(value: max(0, min(progress, 1)))
+                    .progressViewStyle(.linear)
+                    .tint(item.status?.tint)
+            }
+        }
+    }
+}
+
+private extension ZeroZeroWidgetActivityAttributes.ContentState {
+    var activeItems: [LiveActivityItem] {
+        (items ?? []).filter(\.isActive)
     }
 }

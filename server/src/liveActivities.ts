@@ -29,6 +29,7 @@ import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLim
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
 const DEFAULT_ATTRIBUTES_TYPE = "ZeroZeroWidgetActivityAttributes";
 const APPLE_REFERENCE_DATE_UNIX_SECONDS = 978_307_200;
+const MAX_ACTIVITYKIT_DATA_BYTES = 4 * 1024;
 
 type ContentStateRecord = Record<string, unknown>;
 
@@ -44,6 +45,7 @@ function initialContentState(
     value?: string;
     unit?: string;
     progress?: number;
+    items?: LiveActivitySession["items"];
     endsAt?: string;
     countdownGranularity?: CountdownGranularity;
     staleAt?: string;
@@ -56,6 +58,7 @@ function initialContentState(
   if (activity.value !== undefined) state.value = activity.value;
   if (activity.unit !== undefined) state.unit = activity.unit;
   if (activity.progress !== undefined) state.progress = activity.progress;
+  if (activity.items !== undefined) state.items = activity.items;
   if (activity.endsAt !== undefined) {
     state.endsAt = activity.endsAt;
     state.countdownGranularity = activity.countdownGranularity ?? "second";
@@ -71,6 +74,20 @@ function activityKitContentState(state: ContentStateRecord): ContentStateRecord 
     if (typeof value === "string") encoded[key] = activityKitDate(value);
   }
   return encoded;
+}
+
+function liveActivityDataSizeError(
+  attributes: Record<string, unknown>,
+  contentState: ContentStateRecord,
+): string | null {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(JSON.stringify({
+    attributes,
+    "content-state": activityKitContentState(contentState),
+  })).byteLength;
+  return bytes > MAX_ACTIVITYKIT_DATA_BYTES
+    ? `combined ActivityKit attributes and content state exceed ${MAX_ACTIVITYKIT_DATA_BYTES} bytes`
+    : null;
 }
 
 export async function registerLiveActivity(
@@ -209,6 +226,7 @@ export async function startLiveActivity(
     value: d.value,
     unit: d.unit,
     progress: d.progress,
+    items: d.items,
     endsAt: d.endsAt,
     countdownGranularity,
     startedAt: existing?.startedAt ?? now,
@@ -217,6 +235,17 @@ export async function startLiveActivity(
     relevanceScore: d.relevanceScore,
     deepLink: d.deepLink,
   });
+  const initialState = initialContentState(session, now);
+  const attributesForSizeCheck: Record<string, unknown> = {
+    activityInstanceId,
+    externalActivityId: d.externalActivityId,
+    kind: d.kind,
+    title: d.title,
+  };
+  if (d.icon !== undefined) attributesForSizeCheck.icon = d.icon;
+  if (d.deepLink) attributesForSizeCheck.deepLink = d.deepLink;
+  const sizeError = liveActivityDataSizeError(attributesForSizeCheck, initialState);
+  if (sizeError) return badRequest(sizeError);
   await storage.putActivityInstance(env, auth.tenantId, auth.apiKeyHash, session);
 
   const targets: Array<{ tenantId: string; shareId?: string }> = [
@@ -256,7 +285,7 @@ export async function startLiveActivity(
     if (d.icon !== undefined) attributes.icon = d.icon;
     if (d.deepLink) attributes.deepLink = d.deepLink;
 
-    const contentState = initialContentState({ ...d, countdownGranularity }, now);
+    const contentState = initialState;
 
     for (const entry of startTokens) {
       const result = await sendLiveActivityStart(env, entry.token, {
@@ -372,6 +401,7 @@ export async function updateLiveActivity(
     value: d.value ?? instance.value,
     unit: d.unit ?? instance.unit,
     progress: d.progress ?? instance.progress,
+    items: d.items ?? instance.items,
     endsAt,
     countdownGranularity,
     staleAt: d.staleAt ?? instance.staleAt,
@@ -379,6 +409,16 @@ export async function updateLiveActivity(
     updatedAt: now,
   });
   const contentState = initialContentState(updated, now);
+  const attributesForSizeCheck: Record<string, unknown> = {
+    activityInstanceId: instance.activityInstanceId,
+    externalActivityId: instance.externalActivityId,
+    kind: instance.kind,
+    title: instance.title,
+  };
+  if (instance.icon !== undefined) attributesForSizeCheck.icon = instance.icon;
+  if (updated.deepLink) attributesForSizeCheck.deepLink = updated.deepLink;
+  const sizeError = liveActivityDataSizeError(attributesForSizeCheck, contentState);
+  if (sizeError) return badRequest(sizeError);
   await storage.putActivityInstance(env, auth.tenantId, auth.apiKeyHash, updated);
   const deliveries = (await storage.listActivityDeliveries(env, instance.activityInstanceId))
     .filter((delivery) => !delivery.shareId || isSharingEnabled(env));

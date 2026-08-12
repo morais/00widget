@@ -166,6 +166,14 @@ Live Activity limits:
 | `deepLink` | HTTPS URL, 2048 chars |
 | `alert.title` | 120 chars |
 | `alert.body` | 240 chars |
+| `items` | 6 rows |
+
+Live Activity item limits match the corresponding top-level text limits: `id`
+96 chars, `title` 120 chars, `subtitle` 240 chars, `icon` 64 chars, `value` 80
+chars, and `unit` 24 chars. Each item may also include `progress` (`0.0`–`1.0`)
+and `status`. Item ids must be unique within the activity. ActivityKit limits
+the combined encoded static attributes and dynamic content state to 4 KiB;
+00Widget rejects a start or update that would exceed it.
 
 Registration and integration limits:
 
@@ -298,6 +306,7 @@ Live Activity rendering fields:
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `progress`: optional `0.0`–`1.0` progress bar.
+- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `value`, `unit`, `progress`, and `status`. Nonempty items replace the top-level value/progress presentation with per-item rows on the Lock Screen and expanded Dynamic Island; compact mode shows the parent icon and active-item count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
 - `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.
 - `relevanceScore`: optional non-negative number. Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins, no fixed ceiling). Send a low score early in a long-running activity and ramp it up as the activity gets more urgent or interesting; spike it on the finishing update so the wrist surfaces it. Accepted on both `start` and `update`.
@@ -322,6 +331,11 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
 ```
 
 Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly.
+
+`items` uses snapshot semantics. Omitting it from an update preserves the current
+items, sending a new array replaces the complete list, and sending `"items": []`
+returns the activity to its top-level fallback fields. Producers should send one
+coalesced snapshot rather than updating individual items independently.
 
 To inspect the tenant's currently ongoing activities, call `GET /v1/live-activities`.
 The response is `{ "activities": [...] }` using the same session fields as the

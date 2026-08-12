@@ -35,6 +35,30 @@ describe("live activities", () => {
     ).toBe(false);
     expect(
       StartLiveActivitySchema.safeParse({
+        externalActivityId: "duplicate-items",
+        kind: "appliance",
+        title: "Composite",
+        state: "running",
+        items: [
+          { id: "boiler", title: "Water" },
+          { id: "boiler", title: "Water again" },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      StartLiveActivitySchema.safeParse({
+        externalActivityId: "too-many-items",
+        kind: "appliance",
+        title: "Composite",
+        state: "running",
+        items: Array.from(
+          { length: FieldLimits.liveActivityItemCount + 1 },
+          (_, index) => ({ id: `item-${index}`, title: `Item ${index}` }),
+        ),
+      }).success,
+    ).toBe(false);
+    expect(
+      StartLiveActivitySchema.safeParse({
         externalActivityId: "countdown-minute",
         kind: "timer",
         title: "Estimate",
@@ -55,6 +79,111 @@ describe("live activities", () => {
         countdownGranularity: "hour",
       }).success,
     ).toBe(false);
+  });
+
+  it("stores composite item snapshots, preserves omitted items, and clears an empty snapshot", async () => {
+    const env = makeEnv();
+    const items = [
+      {
+        id: "boiler",
+        title: "Water",
+        icon: "flame.fill",
+        value: "67",
+        unit: "°C",
+        subtitle: "Heating to 78°C",
+        progress: 0.86,
+        status: "running",
+      },
+      {
+        id: "cooling",
+        title: "Rooms",
+        icon: "snowflake",
+        value: "3",
+        unit: "rooms",
+        status: "running",
+      },
+    ];
+
+    const start = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "solar-surplus-1",
+          kind: "appliance",
+          title: "Solar surplus",
+          state: "running",
+          icon: "sun.max.fill",
+          items,
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(start.status).toBe(200);
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "solar-surplus-1", state: "optimizing" }),
+      }),
+      env,
+      executionCtx,
+    );
+    let active = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await active.json()) as unknown).toMatchObject({
+      activities: [{ state: "optimizing", items }],
+    });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "solar-surplus-1", items: [] }),
+      }),
+      env,
+      executionCtx,
+    );
+    active = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
+  });
+
+  it("rejects composite content that exceeds ActivityKit's combined 4 KB limit", async () => {
+    const env = makeEnv();
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "oversized-composite",
+          kind: "appliance",
+          title: "x".repeat(FieldLimits.title),
+          state: "x".repeat(FieldLimits.activityState),
+          subtitle: "x".repeat(FieldLimits.subtitle),
+          items: Array.from({ length: FieldLimits.liveActivityItemCount }, (_, index) => ({
+            id: `${index}-${"x".repeat(FieldLimits.id - 2)}`,
+            title: "x".repeat(FieldLimits.title),
+            subtitle: "x".repeat(FieldLimits.subtitle),
+            icon: "x".repeat(FieldLimits.icon),
+            value: "x".repeat(FieldLimits.value),
+            unit: "x".repeat(FieldLimits.unit),
+            progress: 0.5,
+            status: "running",
+          })),
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "combined ActivityKit attributes and content state exceed 4096 bytes",
+    });
   });
 
   it("registers and lists pending", async () => {
@@ -534,6 +663,15 @@ describe("live activities", () => {
             title: "Washer",
             state: "running",
             subtitle: "Washing",
+            items: [{
+              id: "drum",
+              title: "Drum",
+              icon: "washer",
+              value: "42",
+              unit: "%",
+              progress: 0.42,
+              status: "running",
+            }],
             endsAt: "2026-08-01T10:30:00Z",
             alert: { title: "Washer started", body: "Washing" },
           }),
@@ -593,6 +731,15 @@ describe("live activities", () => {
     );
     expect(startAps.alert).toEqual({ title: "Washer started", body: "Washing" });
     expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing" });
+    expect(startAps["content-state"].items).toEqual([{
+      id: "drum",
+      title: "Drum",
+      icon: "washer",
+      value: "42",
+      unit: "%",
+      progress: 0.42,
+      status: "running",
+    }]);
     expect(startAps["content-state"].countdownGranularity).toBe("second");
     expect(typeof startAps["content-state"].updatedAt).toBe("number");
     expect(typeof startAps["content-state"].endsAt).toBe("number");
@@ -600,6 +747,7 @@ describe("live activities", () => {
     const updateState = captured[1].aps["content-state"];
     expect(captured[1].aps.event).toBe("update");
     expect(updateState).toMatchObject({ state: "running", subtitle: "Rinsing" });
+    expect(updateState.items).toEqual(startAps["content-state"].items);
     expect(updateState.countdownGranularity).toBe("second");
     expect(typeof updateState.updatedAt).toBe("number");
     expect(typeof updateState.endsAt).toBe("number");
@@ -608,6 +756,7 @@ describe("live activities", () => {
     expect(captured[2].aps.event).toBe("end");
     expect(captured[2].aps["dismissal-date"]).toBe(captured[2].aps.timestamp - 1);
     expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing" });
+    expect(endState.items).toEqual(startAps["content-state"].items);
     expect(endState.countdownGranularity).toBe("second");
     expect(typeof endState.updatedAt).toBe("number");
     expect(typeof endState.endsAt).toBe("number");
