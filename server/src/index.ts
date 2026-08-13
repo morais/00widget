@@ -108,8 +108,8 @@ const routes: Route[] = [
   authed("DELETE", /^\/v1\/shares\/([^/]+)\/?$/, "shares:manage", (req, env, auth, m) =>
     shares.revokeShare(req, env, auth, m[1]),
   ),
-  { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env) =>
-    appLogin.createTokenFromApple(req, env),
+  { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
+    appLogin.createTokenFromApple(req, env, ctx),
   },
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
     sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },

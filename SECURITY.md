@@ -58,7 +58,11 @@ project should be aware:
 - **`APPLE_APP_LOGIN_ENABLED=true`** opens self-service tenant signup to
   anyone with a verified Apple ID. It is **off by default**. When enabled the
   endpoint requires a nonce (validated against the id_token's `nonce` claim)
-  and is rate-limited per Apple `sub` at 30 / hour.
+  and is rate-limited per Apple `sub` at 30 / hour. Nothing caps the total
+  number of tenants, so an operator running it open should also configure the
+  `SIGNUP_ALERTS` send_email binding and `SIGNUP_ALERT_TO` (see
+  `wrangler.toml.sample`) to be told when a tenant is created. Both are unset
+  by default and no mail is sent unless both are present.
 - **Apple sign-in claims an existing tenant by matching email.** On the first
   sign-in for a given Apple `sub`, if Apple returns a verified email that
   equals some tenant's `owner_email`, that Apple account is bound to that

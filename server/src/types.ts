@@ -592,4 +592,12 @@ export interface Env {
   // expansion on cards/activities, and recipient fanout in widget/Live
   // Activity pushes.
   SHARING_ENABLED?: string;
+
+  // Optional operator alert when self-service signup creates a new tenant.
+  // Both must be present or nothing is sent, so the default deployment needs no
+  // Email Routing setup. Worth enabling wherever APPLE_APP_LOGIN_ENABLED is
+  // "true", since tenant creation is otherwise silent.
+  SIGNUP_ALERTS?: SendEmail;              // [[send_email]] binding in wrangler.toml
+  SIGNUP_ALERT_TO?: string;               // recipient; the binding's verified destination
+  SIGNUP_ALERT_FROM?: string;             // optional sender on an Email Routing domain
 }

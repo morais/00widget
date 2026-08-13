@@ -4,6 +4,7 @@ import { __resetAppleJwksCache } from "../src/appleAuth";
 import { RateLimitPolicies } from "../src/rateLimit";
 import { makeEnv } from "./helpers";
 import { listApiKeys } from "../src/auth";
+import { sendNewTenantAlert, signupAlertsConfigured } from "../src/signupAlert";
 
 const ctx = {} as ExecutionContext;
 
@@ -466,3 +467,85 @@ function b64urlBytes(bytes: Uint8Array): string {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
+
+describe("new tenant signup alerts", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    __resetAppleJwksCache();
+  });
+
+  // Delivery cannot be asserted here: `cloudflare:email` only resolves inside
+  // the Workers runtime, so in Node the dynamic import throws and the send is
+  // swallowed by design. These tests cover the two decisions that actually
+  // gate an alert — whether alerts are configured at all, and whether the
+  // signup created a new tenant — rather than pretending to observe an email.
+
+  it("is off unless both the binding and a recipient are configured", () => {
+    const binding = { send: async () => {} } as any;
+    expect(signupAlertsConfigured(makeEnv())).toBe(false);
+    expect(signupAlertsConfigured(makeEnv({ SIGNUP_ALERTS: binding }))).toBe(false);
+    expect(signupAlertsConfigured(makeEnv({ SIGNUP_ALERT_TO: "ops@example.com" }))).toBe(false);
+    expect(signupAlertsConfigured(makeEnv({ SIGNUP_ALERTS: binding, SIGNUP_ALERT_TO: "  " }))).toBe(false);
+    expect(
+      signupAlertsConfigured(makeEnv({ SIGNUP_ALERTS: binding, SIGNUP_ALERT_TO: "ops@example.com" })),
+    ).toBe(true);
+  });
+
+  it("sending never throws, even with a binding that fails", async () => {
+    const env = makeEnv({
+      SIGNUP_ALERTS: { send: async () => { throw new Error("mailbox full"); } } as any,
+      SIGNUP_ALERT_TO: "ops@example.com",
+    });
+    await expect(
+      sendNewTenantAlert(env, {
+        tenantId: "t-1",
+        ownerEmail: "new@example.com",
+        createdAt: new Date().toISOString(),
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("a returning Apple account reuses its tenant, so nothing new is signalled", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const sub = "apple-sub-returning";
+    const env = makeEnv({
+      APPLE_APP_LOGIN_ENABLED: "true",
+      APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+      SIGNUP_ALERTS: { send: async () => {} } as any,
+      SIGNUP_ALERT_TO: "ops@example.com",
+    });
+
+    const signIn = async () => {
+      __resetAppleJwksCache();
+      const { token, jwk } = await makeAppleIdToken({
+        aud: clientId,
+        sub,
+        email: "repeat@example.com",
+        nonce: await sha256HexTest(TEST_RAW_NONCE),
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+      );
+      return (handler.fetch as any)(
+        new Request("https://x/v1/auth/apple/token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
+        }),
+        env,
+        ctx,
+      );
+    };
+
+    const first = await signIn();
+    expect(first.status).toBe(201);
+    const firstTenant = ((await first.json()) as any).tenant.id;
+
+    const second = await signIn();
+    expect(second.status).toBe(201);
+    // Same tenant id means isNewTenant was false, which is the condition the
+    // alert is gated on.
+    expect(((await second.json()) as any).tenant.id).toBe(firstTenant);
+  });
+});

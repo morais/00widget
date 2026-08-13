@@ -7,6 +7,7 @@ import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
 import { parseJson } from "./cards";
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
+import { sendNewTenantAlert } from "./signupAlert";
 import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
 // Caller-supplied nonce — bounded length, anything else lets the client be
@@ -24,7 +25,11 @@ interface AppleTokenRequest {
   deviceId?: string;
 }
 
-export async function createTokenFromApple(req: Request, env: Env): Promise<Response> {
+export async function createTokenFromApple(
+  req: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
   if (!appAppleLoginConfigured(env)) {
     return json({ error: "Apple app login is not enabled" }, 404);
   }
@@ -93,6 +98,11 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
   const existingTenant = existingAccount
     ? null
     : await getTenantByOwnerEmail(env, email);
+  // Neither an Apple account nor a tenant owning this email means createApiKey
+  // is about to mint a fresh tenant id, rather than attaching this sign-in to
+  // one that already exists. This is the only place that distinction is known:
+  // createApiKey uses INSERT OR IGNORE and cannot report which happened.
+  const isNewTenant = !existingAccount && !existingTenant;
   const tenantId = existingAccount?.tenantId ?? existingTenant?.id;
   const ownerEmail = existingAccount?.email ?? existingTenant?.email ?? email;
 
@@ -131,6 +141,17 @@ export async function createTokenFromApple(req: Request, env: Env): Promise<Resp
     tenantId: created.tenant.id,
     email: email ?? existingAccount!.email,
   });
+  if (isNewTenant) {
+    const alert = sendNewTenantAlert(env, {
+      tenantId: created.tenant.id,
+      ownerEmail: created.tenant.ownerEmail,
+      createdAt: created.tenant.createdAt,
+    });
+    // After the response, so a slow or failing mail send cannot delay signup.
+    // Guard on the method, not the object: callers legitimately pass a partial
+    // ExecutionContext, and a missing waitUntil must fall back rather than throw.
+    if (typeof ctx?.waitUntil === "function") ctx.waitUntil(alert); else await alert;
+  }
   return json({
     ...created,
     appCredential: appCredential.token,

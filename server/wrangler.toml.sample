@@ -23,6 +23,22 @@ APNS_ENV = "sandbox"
 # future* "progress" Live Activities to the recipient. Opt in deliberately.
 SHARING_ENABLED = "false"
 
+# Optional: email the operator when self-service signup creates a new tenant.
+# Commented out because it requires Cloudflare Email Routing on a domain in
+# your account, and an uncommented binding would fail `wrangler deploy` for
+# anyone who has not set that up. Worth enabling wherever
+# APPLE_APP_LOGIN_ENABLED is "true", since tenant creation is otherwise silent.
+#
+# The destination address must be a verified Email Routing destination.
+# [[send_email]]
+# name = "SIGNUP_ALERTS"
+# destination_address = "you@example.com"
+#
+# Then set the recipient (and optionally the sender, which must be on an
+# Email Routing domain you control; it defaults to the recipient):
+# SIGNUP_ALERT_TO = "you@example.com"
+# SIGNUP_ALERT_FROM = "alerts@example.com"
+
 # Create the D1 database first:
 #   npx wrangler d1 create zerozerowidget
 # Then paste the returned database_id below and run migrations:
