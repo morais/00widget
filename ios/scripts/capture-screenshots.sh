@@ -9,6 +9,7 @@
 # runs on-device and can tap, so it drives the app into each state.
 #
 #   ios/scripts/capture-screenshots.sh
+#   ios/scripts/capture-screenshots.sh --only activities
 #   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
 #   ios/scripts/capture-screenshots.sh --device "iPad Air 11-inch (M4)"
 #
@@ -17,15 +18,22 @@ set -euo pipefail
 
 DEVICE="iPhone 17 Pro"
 OUT=""
+ONLY="all"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
+    --only) ONLY="$2"; shift 2 ;;
     -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" ]]; then
+  echo "--only must be 'all' or 'activities'" >&2
+  exit 2
+fi
 
 IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -z "$OUT" ]]; then
@@ -105,10 +113,16 @@ codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP" >/dev/null 2>&1
 XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
 
 echo "→ running ScreenshotTests"
+if [[ "$ONLY" == "activities" ]]; then
+  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot"
+else
+  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots"
+fi
 xcodebuild test-without-building \
   -xctestrun "$XCTESTRUN" \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -resultBundlePath "$RESULT" \
+  "$TEST_FILTER" \
   > "$WORK/xcodebuild.log" 2>&1 || {
     echo "✗ UI test failed — tail of log:" >&2
     tail -40 "$WORK/xcodebuild.log" >&2

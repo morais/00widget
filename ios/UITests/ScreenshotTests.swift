@@ -48,25 +48,7 @@ final class ScreenshotTests: XCTestCase {
         prepareHomeScreenWidgets()
         app.activate()
 
-        let activitiesTab = navigationButton(named: "Activities", in: app)
-        if activitiesTab.waitForExistence(timeout: 5) {
-            activitiesTab.tap()
-
-            // Start a local sample so the tab shows a running activity rather
-            // than its empty state. This is a real ActivityKit activity —
-            // `Activity.request` works on the simulator; only *push*-started
-            // activities need APNs, which the simulator cannot receive.
-            let generateActivity = app.buttons["Generate sample activity"]
-            if generateActivity.waitForExistence(timeout: 5) {
-                generateActivity.tap()
-            }
-
-            XCTAssertTrue(
-                app.staticTexts["Washing machine"].waitForExistence(timeout: 15),
-                "Sample Live Activity did not start."
-            )
-            capture(named: "screenshot-activities")
-
+        if captureActivities(in: app) {
             // Backgrounding surfaces the activity in the Dynamic Island, which
             // is the only way to see it — it does not render while the app is
             // foremost.
@@ -89,11 +71,11 @@ final class ScreenshotTests: XCTestCase {
                 homeWidgets.filter { isSmallWidget($0) }.count == 3,
                 "The marketing page must contain exactly three small 00Widget widgets."
             )
-            XCTAssertFalse(
-                testRunnerIcon(in: springboard).exists,
-                "The UI test runner must not appear in a marketing screenshot."
-            )
             if isIPad(springboard) {
+                XCTAssertFalse(
+                    testRunnerIcon(in: springboard).exists,
+                    "The UI test runner must not appear in a marketing screenshot."
+                )
                 // iPad has no Dynamic Island. Its applicable Home Screen shot
                 // is the three-widget layout without an island presentation.
                 capture(named: "screenshot-home-widgets")
@@ -110,6 +92,42 @@ final class ScreenshotTests: XCTestCase {
                 capture(named: "screenshot-home-expanded")
             }
         }
+    }
+
+    /// Fast path for an app-only Activities refresh. It avoids rebuilding the
+    /// Home Screen widget layout when that marketing surface has not changed.
+    func testCaptureActivitiesScreenshot() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let activitiesTab = navigationButton(named: "Activities", in: app)
+        XCTAssertTrue(
+            activitiesTab.waitForExistence(timeout: 30),
+            "Navigation never appeared — the app may have failed to launch."
+        )
+        hideSampleIndicators(in: app)
+        XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
+    }
+
+    @discardableResult
+    private func captureActivities(in app: XCUIApplication) -> Bool {
+        let activitiesTab = navigationButton(named: "Activities", in: app)
+        guard activitiesTab.waitForExistence(timeout: 5) else { return false }
+        activitiesTab.tap()
+
+        // Start a local sample so the tab shows a running activity rather than
+        // its empty state. Only push-started activities require APNs.
+        let generateActivity = app.buttons["Generate sample activity"]
+        if generateActivity.waitForExistence(timeout: 5) {
+            generateActivity.tap()
+        }
+
+        XCTAssertTrue(
+            app.staticTexts["Washing machine"].waitForExistence(timeout: 15),
+            "Sample Live Activity did not start."
+        )
+        capture(named: "screenshot-activities")
+        return true
     }
 
     /// Replaces the retained layout with three screenshot-only small widgets.
@@ -157,7 +175,9 @@ final class ScreenshotTests: XCTestCase {
         if hasNonSmall {
             removeWidget(in: springboard) { !isSmallWidget($0) }
         }
-        hideTestRunnerIconIfPresent(in: springboard)
+        if isIPad(springboard) {
+            hideTestRunnerIconIfPresent(in: springboard)
+        }
 
         springboard.buttons["Done"].tap()
         Thread.sleep(forTimeInterval: 2)

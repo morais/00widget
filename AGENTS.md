@@ -128,7 +128,20 @@ survive it. Use `xcrun simctl erase` for a genuinely clean device.
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
 (`ios/UITests/ScreenshotTests.swift`) and writes PNGs to
-`ios/build/screenshots/`. They feed the homepage in `../00Widget-www`.
+`ios/build/screenshots/`. To publish the three canonical homepage images, pass
+the destination asset directory explicitly; the repository location is never
+assumed:
+
+```
+ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
+ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
+ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
+```
+
+For a quick Activities-only refresh, use
+`ios/scripts/capture-screenshots.sh --only activities` (and add `--device` for
+iPad). This skips Home Screen widget placement while producing the same
+`screenshot-activities.png` filename consumed by the copy helper.
 
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
