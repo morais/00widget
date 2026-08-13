@@ -14,31 +14,38 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     Label(context.attributes.title, systemImage: iconName(attributes: context.attributes, state: context.state))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .layoutPriority(1)
+                        .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if !context.state.activeItems.isEmpty {
-                        Text("\(context.state.activeItems.count) active")
-                            .font(.headline)
-                            .lineLimit(1)
-                    } else if let endsAt = context.state.endsAt {
-                        LiveActivityCountdownText(
-                            endsAt: endsAt,
-                            granularity: context.state.countdownGranularity
-                        )
-                            .font(.headline)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    } else if let value = context.state.value {
-                        HStack(spacing: 2) {
-                            Text(value).font(.headline)
-                            if let unit = context.state.unit {
-                                Text(unit).font(.caption).foregroundStyle(.secondary)
+                    Group {
+                        if !context.state.activeItems.isEmpty {
+                            Text("\(context.state.activeItems.count) active")
+                                .font(.headline)
+                        } else if let endsAt = context.state.endsAt {
+                            LiveActivityCountdownText(
+                                endsAt: endsAt,
+                                granularity: context.state.countdownGranularity
+                            )
+                                .font(.headline)
+                                .monospacedDigit()
+                        } else if let value = context.state.value {
+                            HStack(spacing: 2) {
+                                Text(value).font(.headline)
+                                if let unit = context.state.unit {
+                                    Text(unit).font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                        } else {
+                            Text(context.state.state.capitalized)
+                                .font(.headline)
                         }
-                    } else {
-                        Text(context.state.state.capitalized)
-                            .font(.headline)
                     }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.trailing, 8)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if context.state.activeItems.isEmpty, let subtitle = context.state.subtitle {
@@ -52,6 +59,8 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                                 LiveActivityItemRow(item: item, condensed: true)
                             }
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 4)
                     } else if let p = context.state.progress, context.state.endsAt == nil {
                         ProgressView(value: max(0, min(p, 1)))
                             .progressViewStyle(.linear)
