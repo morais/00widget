@@ -10,12 +10,13 @@
 #
 #   ios/scripts/capture-screenshots.sh
 #   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
+#   ios/scripts/capture-screenshots.sh --device "iPad Air 11-inch (M4)"
 #
 # Output is PNGs named after the XCTAttachment names in UITests/ScreenshotTests.swift.
 set -euo pipefail
 
 DEVICE="iPhone 17 Pro"
-OUT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/build/screenshots"
+OUT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,7 +27,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -z "$OUT" ]]; then
+  if [[ "$DEVICE" == iPad* ]]; then
+    OUT="$IOS_ROOT/build/screenshots/ipad"
+  else
+    OUT="$IOS_ROOT/build/screenshots"
+  fi
+fi
+
+cd "$IOS_ROOT"
 
 if [[ ! -d ZeroZeroWidget.xcodeproj ]]; then
   echo "→ generating project"
@@ -65,6 +75,7 @@ xcodebuild build-for-testing \
   -derivedDataPath "$DERIVED" \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS" \
   ZW_DEBUG_TOOLS=YES \
   > "$WORK/build.log" 2>&1 || {
     echo "✗ build failed — tail of log:" >&2

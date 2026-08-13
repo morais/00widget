@@ -7,5 +7,10 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         CardWidget()
         CardGridWidget()
         ZeroZeroWidgetLiveActivityWidget()
+#if ZW_SCREENSHOTS
+        ScreenshotSolarWidget()
+        ScreenshotWasherWidget()
+        ScreenshotBoilerWidget()
+#endif
     }
 }

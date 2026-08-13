@@ -162,10 +162,26 @@ and fails closed on anything else.
 
 XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 "com.apple.springboard")`), which is how the expanded Dynamic Island is
-captured — a long-press on the island after backgrounding the app. Placing
-widgets on the Home Screen is reachable the same way but is not automated yet;
-the widgets currently in the shots were placed by hand and persist in the
-simulator.
+captured — a long-press on the island after backgrounding the app. The same test
+also rebuilds the dedicated marketing Home Screen page on every run: Solar and
+Washer small widgets on the first row, Boiler below. It removes any previous
+00Widget layout, adds the three current samples through SpringBoard's widget
+gallery, and asserts all three exist before capturing
+`screenshot-home-widgets.png`.
+
+Pass `--device "iPad Air 11-inch (M4)"` to capture the iPad set under
+`ios/build/screenshots/ipad/`. The test uses the same three-widget layout on a
+clean regular Home Screen page and captures the Widgets and Activities tabs.
+It intentionally omits the compact and expanded Dynamic Island variants,
+because iPad has no Dynamic Island.
+
+The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
+condition. It adds three static, small-only widget kinds that feed Solar,
+Washer, and Boiler through the production card renderer. This is necessary
+because the Simulator does not rehydrate stored AppIntent card selections (see
+"Widget configuration cannot be verified on the Simulator" above), so three
+normal configurable widgets cannot retain three distinct cards there. Ordinary
+simulator builds and every shipping build do not compile these widget kinds.
 
 ### Schemes are declared explicitly
 
