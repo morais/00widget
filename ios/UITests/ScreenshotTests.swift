@@ -89,7 +89,6 @@ final class ScreenshotTests: XCTestCase {
                     .press(forDuration: 1.2)
                 Thread.sleep(forTimeInterval: 2)
                 capture(named: "screenshot-home-widgets")
-                capture(named: "screenshot-home-expanded")
             }
         }
     }

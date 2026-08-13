@@ -133,6 +133,10 @@ echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null
 
 mkdir -p "$OUT"
+# `screenshot-home-expanded.png` was an identical legacy alias for the
+# canonical expanded `screenshot-home-widgets.png`. Clear it so old captures
+# cannot make the output look as though two distinct screenshots still exist.
+rm -f "$OUT/screenshot-home-expanded.png"
 python3 - "$WORK/attachments" "$OUT" <<'PY'
 import json, os, re, shutil, sys
 
