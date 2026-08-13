@@ -317,7 +317,7 @@ re-archive rather than retrying the same archive.
 
 ## Branding
 
-Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The identity is raster-first: `branding-sheet.png` is the authoritative sheet and the generator's source image, and the committed transparent-mark and app-icon masters drive the generated platform assets. Install the generator dependency from `scripts/requirements.txt`, then run `python3 scripts/generate-brand-assets.py` from the repository root. The iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Keep the palette constants in the generator and the values documented in `docs/brand/README.md` in lockstep.
+Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The identity is raster-first: `branding-sheet.png` is the authoritative sheet and the generator's source image, and the committed transparent-mark and app-icon masters drive the generated platform assets. Install the generator dependency from `scripts/requirements.txt`, then run `python3.12 scripts/generate-brand-assets.py` from the repository root — Pillow no longer ships wheels for the Python 3.9 that macOS bundles, so bare `python3` cannot install it. The iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Keep the palette constants in the generator and the values documented in `docs/brand/README.md` in lockstep.
 
 ## Things to watch
 
