@@ -345,6 +345,22 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - Don't introduce a new framework dependency on either side without a clear reason — the Worker hand-rolls its router specifically to stay framework-free.
 - Comments: only when the *why* isn't obvious. The APNs verification date and the App Group/Keychain invariants are the kinds of comments worth keeping.
 
+## Commit messages
+
+- Use a concise imperative subject that says what the change accomplishes. Do
+  not end it with a period.
+- Except for genuinely trivial changes, include a body that explains the
+  problem or motivation, the chosen approach, and any non-obvious behavior,
+  tradeoffs, or invariants. Record relevant verification. Do not merely repeat
+  the diff or list the files changed.
+- Wrap body text at roughly 72 characters and keep separate ideas in separate
+  paragraphs so the message remains useful in `git log` years later.
+- Every commit materially assisted by Codex must end with exactly this trailer:
+  `Assisted-by: Codex <codex@openai.com>`. Other agents must use an equivalent
+  `Assisted-by:` trailer with their own stable identity. Do not use
+  `Co-authored-by:` when the agent assisted rather than owned authorship, and do
+  not add an assistance trailer to work authored solely by a human.
+
 ## Verification before declaring a change done
 
 | Layer    | Check                                                     |
