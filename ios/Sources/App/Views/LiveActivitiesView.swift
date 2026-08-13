@@ -34,7 +34,12 @@ struct LiveActivitiesView: View {
                 LazyVStack(spacing: 12) {
                     if hasSampleActivities { sampleNotice }
                     ForEach(liveActivityController.activeSessions) { session in
-                        ActivityCard(session: session)
+                        NavigationLink {
+                            ActivityDetailView(session: session)
+                        } label: {
+                            ActivityCard(session: session)
+                        }
+                        .buttonStyle(.plain)
                         #if ZW_SHARING_ENABLED
                         .contextMenu {
                             Button {
@@ -189,10 +194,6 @@ private struct ActivityCard: View {
                     .progressViewStyle(.linear)
             }
 
-            Text(session.externalActivityId)
-                .font(.caption.monospaced())
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
         }
         .padding()
         .background(
@@ -262,6 +263,113 @@ private struct ActivityCard: View {
 
     private var activeItems: [LiveActivityItem] {
         (session.items ?? []).filter(\.isActive)
+    }
+}
+
+private struct ActivityDetailView: View {
+    @ObservedObject private var liveActivityController = LiveActivityController.shared
+    let session: LiveActivitySession
+    @State private var showRawJson = false
+    @State private var showCurlExample = false
+
+    var body: some View {
+        let currentSession = resolvedSession
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ActivityCard(session: currentSession)
+
+                if let deepLink = currentSession.deepLink {
+                    Link(destination: deepLink) {
+                        Label("Open link", systemImage: "arrow.up.forward.app")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+
+                    deepLinkDestination(deepLink)
+                }
+
+                DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
+                    Text(jsonString)
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .font(.headline)
+
+                DisclosureGroup("Example curl", isExpanded: $showCurlExample) {
+                    Text(curlExample)
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .font(.headline)
+            }
+            .padding()
+        }
+        .refreshable { await liveActivityController.reconcileWithServer() }
+        .navigationTitle(currentSession.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var resolvedSession: LiveActivitySession {
+        liveActivityController.activeSessions.first { $0.id == session.id } ?? session
+    }
+
+    private func deepLinkDestination(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Destination")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(deepLinkDisplay(url))
+                .font(.callout.monospaced())
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func deepLinkDisplay(_ url: URL) -> String {
+        guard
+            let scheme = url.scheme?.lowercased(),
+            (scheme == "http" || scheme == "https"),
+            let host = url.host
+        else {
+            return url.absoluteString
+        }
+        return "\(scheme)://\(host)"
+    }
+
+    private var jsonString: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard
+            let data = try? encoder.encode(resolvedSession),
+            let string = String(data: data, encoding: .utf8)
+        else {
+            return "—"
+        }
+        return string
+    }
+
+    private var curlExample: String {
+        """
+        curl -X POST "$BASE_URL/v1/live-activities/start" \\
+          -H "Authorization: Bearer $API_KEY" \\
+          -H "Content-Type: application/json" \\
+          -d '\(jsonString.replacingOccurrences(of: "'", with: "'\\''"))'
+        """
     }
 }
 
