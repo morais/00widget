@@ -1,0 +1,29 @@
+# Verified non-secrets in the git history, ignored by fingerprint.
+#
+# Why this exists alongside .gitleaks.toml: the regex allowlist there is honoured
+# by gitleaks 8.30 (what `brew install gitleaks` gives you) but not by 8.24.3,
+# which is what gitleaks-action v3.0.0 pins. So a local `gitleaks git .` reports
+# a clean history while CI reports three leaks from the same config. Fingerprints
+# are respected by both, so they are the portable way to record a verdict.
+#
+# This only matters for the weekly scheduled run. Push runs scan just the new
+# commits; the cron walks all of history, so without this it fails every week on
+# the same three findings — which is how a real leak ends up buried in noise.
+#
+# A fingerprint is commit:path:rule:line, so each line pins one occurrence in one
+# commit. A new secret in any of these files still fails the scan.
+
+# --- Throwaway P-256 test key -------------------------------------------------
+# Generated for the vitest suite. It signs nothing outside the tests and matches
+# no APNs key, Apple account, or deployed system — the real APNs .p8 exists only
+# as a Wrangler secret. Already documented in SECURITY.md under "Things that look
+# bad but aren't", and allowlisted by value in .gitleaks.toml for newer gitleaks.
+ba33ff838a213a7b9faebf63b222f4e49f4fb24b:server/test/apns.test.ts:private-key:7
+c10238545a7920a8a2841aeaa184e4991d7fcde3:server/test/liveActivities.test.ts:private-key:10
+
+# --- Swift identifiers in a documentation code sample -------------------------
+# server/README.md briefly embedded a diff of APIClient.swift. The flagged line is
+# `let body = Body(deviceId: deviceId, widgetKind: widgetKind, widgetPushToken:
+# widgetPushToken)` — the generic-api-key rule matching camelCase identifiers, not
+# a credential. The sample is no longer on main.
+a9529601007504e594f254a596aee2d2aea3fdbf:server/README.md:generic-api-key:198
