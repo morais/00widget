@@ -89,6 +89,10 @@ final class ScreenshotTests: XCTestCase {
                 homeWidgets.filter { isSmallWidget($0) }.count == 3,
                 "The marketing page must contain exactly three small 00Widget widgets."
             )
+            XCTAssertFalse(
+                testRunnerIcon(in: springboard).exists,
+                "The UI test runner must not appear in a marketing screenshot."
+            )
             if isIPad(springboard) {
                 // iPad has no Dynamic Island. Its applicable Home Screen shot
                 // is the three-widget layout without an island presentation.
@@ -153,9 +157,37 @@ final class ScreenshotTests: XCTestCase {
         if hasNonSmall {
             removeWidget(in: springboard) { !isSmallWidget($0) }
         }
+        hideTestRunnerIconIfPresent(in: springboard)
 
         springboard.buttons["Done"].tap()
         Thread.sleep(forTimeInterval: 2)
+    }
+
+    /// Xcode installs the UI test runner as a separate app. On iPadOS it can
+    /// land on the same regular Home Screen page as the marketing widgets.
+    /// Removing it from the Home Screen keeps the running test installed and
+    /// moves its launcher to App Library, so capture can continue normally.
+    private func hideTestRunnerIconIfPresent(in springboard: XCUIApplication) {
+        let runner = testRunnerIcon(in: springboard)
+        guard runner.exists else { return }
+
+        let removeControl = runner.buttons["DeleteButton"]
+        XCTAssertTrue(removeControl.waitForExistence(timeout: 5))
+        removeControl.tap()
+
+        let removeFromHomeScreen = springboard.buttons["Remove from Home Screen"]
+        XCTAssertTrue(
+            removeFromHomeScreen.waitForExistence(timeout: 5),
+            "iPadOS did not offer to remove the UI test runner from the Home Screen."
+        )
+        removeFromHomeScreen.tap()
+        XCTAssertFalse(runner.waitForExistence(timeout: 2))
+    }
+
+    private func testRunnerIcon(in springboard: XCUIApplication) -> XCUIElement {
+        springboard.descendants(matching: .icon)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'ZeroZeroWidget'"))
+            .firstMatch
     }
 
     private func removeWidget(
