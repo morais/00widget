@@ -223,9 +223,28 @@ ship() {
   echo "→ [$label] exporting locally to inspect the distribution signature"
   export_options "$OUT/$label-local.plist" export "$bundle_id" "$profile"
   rm -rf "$OUT/$label-local"
-  xcodebuild -exportArchive -archivePath "$archive" \
-    -exportOptionsPlist "$OUT/$label-local.plist" -exportPath "$OUT/$label-local" \
-    -allowProvisioningUpdates >"$OUT/$label-export.log" 2>&1
+  # Same credentials the upload export uses. Without them
+  # -allowProvisioningUpdates has no account to authenticate as, fails with
+  # "No Accounts", and cannot regenerate a profile that is missing a newly
+  # added capability — so the inspection step breaks on exactly the change it
+  # exists to check.
+  if ! xcodebuild -exportArchive -archivePath "$archive" \
+      -exportOptionsPlist "$OUT/$label-local.plist" -exportPath "$OUT/$label-local" \
+      -allowProvisioningUpdates \
+      ${ASC_ISSUER_ID:+-authenticationKeyPath "$ASC_KEY_PATH"} \
+      ${ASC_ISSUER_ID:+-authenticationKeyID "$ASC_KEY_ID"} \
+      ${ASC_ISSUER_ID:+-authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
+      >"$OUT/$label-export.log" 2>&1; then
+    echo "✗ [$label] export failed. Last lines:"
+    grep -iE 'error' "$OUT/$label-export.log" | head -5 | sed 's/^/    /'
+    if grep -q "doesn't include the" "$OUT/$label-export.log"; then
+      echo "  A profile is missing a capability the app now requests. Enable it on"
+      echo "  the App ID in the developer portal (Certificates, Identifiers &"
+      echo "  Profiles -> Identifiers), then re-run: profiles regenerate on export."
+    fi
+    echo "  Full log: $OUT/$label-export.log"
+    exit 1
+  fi
 
   rm -rf "$OUT/$label-unzip" && mkdir -p "$OUT/$label-unzip"
   unzip -q "$OUT/$label-local/$product.ipa" -d "$OUT/$label-unzip"
