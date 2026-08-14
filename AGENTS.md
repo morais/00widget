@@ -258,6 +258,12 @@ committed.
 3. **`com.apple.developer.applesignin` survives into the signed tvOS app.** A
    profile can grant the capability while the final signature omits it, in which
    case Sign in with Apple fails at runtime on a build that installed fine.
+4. **`com.apple.developer.associated-domains` survives into the signed iOS
+   app.** Same trap as gate 3 and a quieter one: a dropped entitlement has no
+   symptom beyond universal links continuing to open in Safari, and Apple's CDN
+   caches the wrong association for hours afterwards. Each platform takes a
+   `;`-separated list of entitlements, and a run reports every missing one
+   rather than stopping at the first.
 
 ### Keeping iOS and tvOS symmetric
 
@@ -336,6 +342,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **APNs payload shapes are date-stamped in `server/src/apns.ts`.** Apple has shifted ActivityKit / WidgetKit payload field names and header values across iOS releases. Before changing those helpers, re-check the live docs:
   - https://developer.apple.com/documentation/activitykit/starting-and-updating-live-activities-with-activitykit-push-notifications
   - https://developer.apple.com/documentation/WidgetKit/Updating-widgets-with-widgetkit-push-notifications
+- **Associated domains are configured in two places that must agree.** The Worker serves `/.well-known/apple-app-site-association` from the `APPLE_APP_ID` var in the gitignored `wrangler.toml` (`<Team ID>.<bundle id>`), and the iOS app claims the host in its `com.apple.developer.associated-domains` entitlement in the gitignored `project.yml`. A mismatch fails silently in both directions — links simply keep opening in Safari, with no error on the device or in the Worker logs. The app claims only the `/app/*` prefix (`UNIVERSAL_LINK_PATH_PREFIX` in `server/src/appleAppSite.ts`, mirrored by `ZeroZeroWidgetUniversalLink.pathPrefix`); widening it to `*` would swallow `/admin/*`, which is a web sign-in flow that breaks when iOS diverts it into the app. Apple's CDN caches the association, so append `?mode=developer` to the entitlement while testing an unreleased change — and take it back out before release.
 - **App Group and shared Keychain identifiers come from `project.yml`.** The generated Info.plists and entitlements must match across the app and widget targets; edit `project.yml.sample` for shared changes and rerun `xcodegen`.
 - **The iOS app never holds the APNs `.p8`.** Only the backend has it, as a Wrangler secret. Don't introduce code that reads APNs private material on-device.
 - **Destructive actions don't run from widgets.** `RunDashboardActionIntent` checks `ActionDefinition.isSafeFromWidget` and silently no-ops for `role == .destructive` or `confirm == true`. Route those to the app via `deepLink` instead — don't loosen this without explicit user signoff.

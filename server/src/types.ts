@@ -593,6 +593,13 @@ export interface Env {
   // Activity pushes.
   SHARING_ENABLED?: string;
 
+  // Associated domains. `<TeamID>.<bundle id>`, e.g.
+  // ABCDE12345.com.example.zerozerowidget. Leaving APPLE_APP_ID unset makes
+  // /.well-known/apple-app-site-association 404, which is the right answer for
+  // a deployment with no app attached to it.
+  APPLE_APP_ID?: string;
+  APPLE_APP_CLIP_ID?: string;           // `<TeamID>.<bundle id>.Clip`, once a clip target exists
+
   // Optional operator alert when self-service signup creates a new tenant.
   // Both must be present or nothing is sent, so the default deployment needs no
   // Email Routing setup. Worth enabling wherever APPLE_APP_LOGIN_ENABLED is

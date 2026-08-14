@@ -16,6 +16,14 @@ custom_domain = true
 # or `.dev.vars` locally — see server/README.md.
 [vars]
 APNS_ENV = "sandbox"
+
+# Associated domains. `<Team ID>.<bundle id>` — must match the app's
+# DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in ios/project.yml, and the
+# domain here must be the one in that target's `applinks:` entitlement.
+# Unset (as here) means /.well-known/apple-app-site-association returns 404,
+# which is correct for a deployment with no app attached to it.
+# APPLE_APP_ID = "ABCDE12345.com.example.zerozerowidget"
+# APPLE_APP_CLIP_ID = "ABCDE12345.com.example.zerozerowidget.Clip"
 # Master kill switch for the cross-tenant sharing feature. Anything other
 # than "true" disables every /v1/shares/* route and recipient push fanout.
 # Off by default: sharing by activity_kind is coarse-grained — accepting a

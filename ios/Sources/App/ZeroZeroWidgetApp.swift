@@ -16,13 +16,29 @@ struct ZeroZeroWidgetApp: App {
                     Task { await env.startupSync() }
                 }
                 .onOpenURL { url in
-                    openExternalDeepLink(url)
+                    handleIncomingURL(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task { await env.syncAfterForeground() }
                 }
         }
+    }
+
+    /// `onOpenURL` sees two unrelated kinds of URL: card and Live Activity deep
+    /// links, which belong to whoever published them and open in the browser,
+    /// and — since the app claims `applinks:` — universal links for our own
+    /// host, which must not be forwarded. Handing one of those to
+    /// `UIApplication.open` gives it straight back to iOS, which routes it to
+    /// this app again.
+    private func handleIncomingURL(_ url: URL) {
+        if ZeroZeroWidgetUniversalLink.route(for: url, serverBaseURL: env.serverBaseURL) != nil {
+            // No routes are defined yet; the claim exists so the association is
+            // testable end to end. Bringing the app to the front, which iOS has
+            // already done by now, is the whole behaviour.
+            return
+        }
+        openExternalDeepLink(url)
     }
 
     private func openExternalDeepLink(_ url: URL) {

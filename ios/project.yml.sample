@@ -70,6 +70,12 @@ targets:
           - $(AppIdentifierPrefix)com.example.zerozerowidget
         com.apple.developer.applesignin:
           - Default
+        # Must be the host serving /.well-known/apple-app-site-association, and
+        # its APPLE_APP_ID var must be this target's <Team ID>.<bundle id>.
+        # Append `?mode=developer` while testing against an unreleased AASA —
+        # it bypasses Apple's CDN cache, and must come back out before release.
+        com.apple.developer.associated-domains:
+          - applinks:api.example.com
         aps-environment: development
     settings:
       base:

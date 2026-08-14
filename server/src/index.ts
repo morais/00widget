@@ -15,6 +15,7 @@ import * as liveActivities from "./liveActivities";
 import * as actions from "./actions";
 import * as admin from "./admin";
 import * as appLogin from "./appLogin";
+import * as appleAppSite from "./appleAppSite";
 import * as landing from "./landing";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
@@ -41,6 +42,11 @@ const routes: Route[] = [
   // Public landing + API docs.
   { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
+  // Associated domains. No trailing-slash variant: Apple fetches this exact
+  // path and does not follow redirects.
+  { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
+    appleAppSite.handleAppleAppSiteAssociation(req, env),
+  },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),

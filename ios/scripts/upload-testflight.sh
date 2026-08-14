@@ -18,6 +18,9 @@
 #    tells you nothing — only the exported IPA does. The same applies to
 #    com.apple.developer.applesignin on tvOS, where a dropped entitlement means
 #    Sign in with Apple fails at runtime on a build that installed fine.
+#    com.apple.developer.associated-domains on iOS is the same class of trap,
+#    and a quieter one: universal links just keep opening in Safari, and
+#    Apple's CDN caches the wrong association for hours.
 #
 # 3. Automatic signing archives against a *development* profile, and Apple only
 #    mints one for a platform that has a registered device. A team with
@@ -171,12 +174,12 @@ export_options() { # <path> <destination> <bundle-id> <profile-name-or-empty>
 
 # One path for every platform. Differences are arguments, not branches.
 #   $1 label   $2 scheme   $3 destination   $4 product name
-#   $5 entitlement the *signed* app must contain
+#   $5 ';'-separated entitlements the *signed* app must contain
 #   $6 manually-managed profile name, empty for automatic signing
 #   $7 optional extra bundle inside the app whose build number must also match
 ship() {
   local label="$1" scheme="$2" destination="$3" product="$4"
-  local required_entitlement="$5" profile="$6" extra_bundle="${7:-}"
+  local required_entitlements="$5" profile="$6" extra_bundle="${7:-}"
   local archive="$OUT/$product-$BUILD_NUMBER.xcarchive"
   local app="$archive/Products/Applications/$product.app"
 
@@ -228,12 +231,22 @@ ship() {
   unzip -q "$OUT/$label-local/$product.ipa" -d "$OUT/$label-unzip"
   local entitlements
   entitlements="$(codesign -d --entitlements - --xml "$OUT/$label-unzip/Payload/$product.app" 2>/dev/null | plutil -p -)"
-  if ! grep -qF "$required_entitlement" <<<"$entitlements"; then
-    echo "✗ [$label] signed app is missing: $required_entitlement"
+  # Report every missing entitlement, not just the first: one run should show
+  # the whole picture rather than uncovering them one archive at a time.
+  local missing=0 required
+  while IFS= read -r required; do
+    [[ -z "$required" ]] && continue
+    if grep -qF "$required" <<<"$entitlements"; then
+      echo "  ✓ signed app has $required"
+    else
+      echo "✗ [$label] signed app is missing: $required"
+      missing=1
+    fi
+  done <<<"${required_entitlements//;/$'\n'}"
+  if (( missing )); then
     echo "$entitlements" | sed 's/^/    /'
     exit 1
   fi
-  echo "  ✓ signed app has $required_entitlement"
 
   if [[ "$UPLOAD" != "1" ]]; then
     echo "  (skipping upload: --verify-only)"
@@ -252,7 +265,8 @@ ship() {
 
 if [[ "$DO_IOS" == "1" ]]; then
   ship iOS ZeroZeroWidgetApp 'generic/platform=iOS' ZeroZeroWidgetApp \
-    '"aps-environment" => "production"' "${ZW_IOS_PROFILE:-}" \
+    '"aps-environment" => "production";com.apple.developer.associated-domains' \
+    "${ZW_IOS_PROFILE:-}" \
     "PlugIns/ZeroZeroWidgetWidgets.appex"
 fi
 

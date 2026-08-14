@@ -81,6 +81,36 @@ public enum ZeroZeroWidgetConstants {
     }
 }
 
+/// Universal links the app claims through its `applinks:` entitlement.
+///
+/// The path prefix mirrors `UNIVERSAL_LINK_PATH_PREFIX` in
+/// `server/src/appleAppSite.ts` — the server decides what it claims, and this
+/// side has to agree or links arrive and go nowhere. Keep the two in lockstep.
+public enum ZeroZeroWidgetUniversalLink {
+    public static let pathPrefix = "/app/"
+
+    /// The in-app route for `url`, or nil when the URL belongs to somebody else
+    /// and should open in the browser.
+    ///
+    /// Host is matched against both the configured server and the build's
+    /// default, because the entitlement is pinned to the default host: pointing
+    /// the app at a different server must not turn links from the claimed
+    /// domain into something the app hands back to iOS.
+    public static func route(for url: URL, serverBaseURL: String) -> String? {
+        guard
+            url.scheme?.lowercased() == "https",
+            let host = url.host?.lowercased(),
+            url.path.hasPrefix(pathPrefix)
+        else {
+            return nil
+        }
+        let claimed = [serverBaseURL, ZeroZeroWidgetConstants.defaultServerBaseURL]
+            .compactMap { URL(string: $0.trimmingCharacters(in: .whitespacesAndNewlines))?.host?.lowercased() }
+        guard claimed.contains(host) else { return nil }
+        return String(url.path.dropFirst(pathPrefix.count))
+    }
+}
+
 public enum ZeroZeroWidgetDeepLinkPolicy {
     public static func sanitize(_ url: URL?) -> URL? {
         guard
