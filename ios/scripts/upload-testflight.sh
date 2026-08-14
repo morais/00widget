@@ -223,24 +223,27 @@ ship() {
   echo "→ [$label] exporting locally to inspect the distribution signature"
   export_options "$OUT/$label-local.plist" export "$bundle_id" "$profile"
   rm -rf "$OUT/$label-local"
-  # Same credentials the upload export uses. Without them
-  # -allowProvisioningUpdates has no account to authenticate as, fails with
-  # "No Accounts", and cannot regenerate a profile that is missing a newly
-  # added capability — so the inspection step breaks on exactly the change it
-  # exists to check.
+  # Deliberately no -authenticationKey* flags here, unlike the upload export
+  # below. Those take precedence over the accounts configured in Xcode, and an
+  # App Store Connect key without distribution-signing permission then fails
+  # with "Cloud signing permission error" on a machine where the Xcode account
+  # would have regenerated the profile happily. This step only needs a locally
+  # signed IPA to inspect, so let Xcode's account do it.
   if ! xcodebuild -exportArchive -archivePath "$archive" \
       -exportOptionsPlist "$OUT/$label-local.plist" -exportPath "$OUT/$label-local" \
-      -allowProvisioningUpdates \
-      ${ASC_ISSUER_ID:+-authenticationKeyPath "$ASC_KEY_PATH"} \
-      ${ASC_ISSUER_ID:+-authenticationKeyID "$ASC_KEY_ID"} \
-      ${ASC_ISSUER_ID:+-authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
-      >"$OUT/$label-export.log" 2>&1; then
+      -allowProvisioningUpdates >"$OUT/$label-export.log" 2>&1; then
     echo "✗ [$label] export failed. Last lines:"
     grep -iE 'error' "$OUT/$label-export.log" | head -5 | sed 's/^/    /'
     if grep -q "doesn't include the" "$OUT/$label-export.log"; then
-      echo "  A profile is missing a capability the app now requests. Enable it on"
-      echo "  the App ID in the developer portal (Certificates, Identifiers &"
-      echo "  Profiles -> Identifiers), then re-run: profiles regenerate on export."
+      echo "  A profile is missing a capability the app now requests. Check the App"
+      echo "  ID has it in the developer portal, then let Xcode regenerate the"
+      echo "  *distribution* profile — it only does so during an export, not on"
+      echo "  launch, and it needs an account in Xcode -> Settings -> Accounts."
+    fi
+    if grep -q "No Accounts" "$OUT/$label-export.log"; then
+      echo "  No account in Xcode -> Settings -> Accounts to sign with. On a machine"
+      echo "  that cannot have one, set ZW_$(printf '%s' "$label" | tr '[:lower:]' '[:upper:]')_PROFILE to a manually managed"
+      echo "  App Store profile instead."
     fi
     echo "  Full log: $OUT/$label-export.log"
     exit 1
