@@ -89,12 +89,8 @@ struct GuestLinkShareSheet: View {
     private func mint() async {
         isLoading = true
         defer { isLoading = false }
-        guard let client = env.apiClient() else {
-            error = "Sign in first to share."
-            return
-        }
         do {
-            link = try await client.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
+            link = try await env.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
         } catch let apiError as APIClientError where apiError.status == 403 {
             error = AppEnvironment.reauthorizationMessage
         } catch {

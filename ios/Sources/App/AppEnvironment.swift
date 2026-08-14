@@ -287,6 +287,22 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Mints a read-only link for one card or activity.
+    ///
+    /// Runs on the app credential, not `apiClient()`. Minting needs
+    /// `shares:manage`, which lives on the app credential exactly like every
+    /// other sharing call — the primary token carries the device preset and
+    /// would 403.
+    public func createGuestLink(
+        resourceKind: String,
+        resourceId: String
+    ) async throws -> APIClient.GuestLinkResponse {
+        guard let client = confirmedActionClient() else {
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
+        }
+        return try await client.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
+    }
+
     public func removeGuestLink(token: String) {
         guestLinks = GuestLinkStore.remove(token: token)
         guestCards.removeAll { card in !guestLinks.contains { $0.resourceId == card.id } }
