@@ -108,6 +108,34 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
     }
 
+    /// Captures the app surfaces without depending on a particular SpringBoard
+    /// page layout. This is useful for legacy App Store display classes whose
+    /// simulator Home Screen differs from the current marketing device.
+    func testCaptureAppScreenshots() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let widgetsTab = navigationButton(named: "Widgets", in: app)
+        XCTAssertTrue(
+            widgetsTab.waitForExistence(timeout: 30),
+            "Navigation never appeared — the app may have failed to launch."
+        )
+        hideSampleIndicators(in: app)
+        widgetsTab.tap()
+
+        let generate = app.buttons["Generate sample widgets"]
+        if generate.waitForExistence(timeout: 5) {
+            generate.tap()
+        }
+
+        XCTAssertTrue(
+            app.staticTexts["Solar"].waitForExistence(timeout: 15),
+            "Sample cards did not render on the Widgets tab."
+        )
+        capture(named: "screenshot-widgets")
+        XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
+    }
+
     @discardableResult
     private func captureActivities(in app: XCUIApplication) -> Bool {
         let activitiesTab = navigationButton(named: "Activities", in: app)

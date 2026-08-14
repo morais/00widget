@@ -10,6 +10,7 @@
 #
 #   ios/scripts/capture-screenshots.sh
 #   ios/scripts/capture-screenshots.sh --only activities
+#   ios/scripts/capture-screenshots.sh --only app
 #   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
 #   ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"
 #
@@ -30,8 +31,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" ]]; then
-  echo "--only must be 'all' or 'activities'" >&2
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" ]]; then
+  echo "--only must be 'all', 'activities', or 'app'" >&2
   exit 2
 fi
 
@@ -115,6 +116,8 @@ XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
 echo "→ running ScreenshotTests"
 if [[ "$ONLY" == "activities" ]]; then
   TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot"
+elif [[ "$ONLY" == "app" ]]; then
+  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureAppScreenshots"
 else
   TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots"
 fi
