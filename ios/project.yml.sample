@@ -42,6 +42,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Scanning a shared link's QR code is the only use of the camera.
+        NSCameraUsageDescription: 00Widget uses the camera to scan a QR code when someone shares a card or Live Activity with you.
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
         UIBackgroundModes:

@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var copiedAgentConfig = false
     @State private var copyResetTask: Task<Void, Never>?
     @State private var confirmingSignOut = false
+    @State private var showScanner = false
 
     /// How long the copied agent config survives on the pasteboard. The label
     /// promises this, so the expiry below and the reset timer read it here.
@@ -105,6 +106,42 @@ struct OnboardingView: View {
                     }
                 }
 
+                // Above Sharing and outside the ZW_SHARING_ENABLED gate on
+                // purpose: scanning a link needs no account, and for a guest
+                // this is the only section on the screen that does anything.
+                Section {
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Label("Scan a shared code", systemImage: "qrcode.viewfinder")
+                    }
+
+                    ForEach(env.guestLinks) { link in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(link.title ?? "Shared item")
+                            Text(link.hasExpired
+                                 ? "Expired"
+                                 : link.expiresAt.map { "Until \($0.formatted(date: .abbreviated, time: .shortened))" }
+                                    ?? "Read-only")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .onDelete { offsets in
+                        for index in offsets {
+                            env.removeGuestLink(token: env.guestLinks[index].token)
+                        }
+                    }
+                } header: {
+                    Text("Shared with you")
+                } footer: {
+                    if env.guestLinks.isEmpty {
+                        Text("Scan a code someone shows you to follow one of their cards or Live Activities. You do not need an account.")
+                    } else {
+                        Text("Swipe to remove. Removing a link only affects this device.")
+                    }
+                }
+
                 #if ZW_SHARING_ENABLED
                 Section("Sharing") {
                     NavigationLink("Manage sharing") {
@@ -129,6 +166,9 @@ struct OnboardingView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showScanner) {
+                GuestLinkScannerSheet().environmentObject(env)
+            }
             .task {
                 await env.refreshNotificationAuthorization()
                 await env.refreshConnectionHealth()
