@@ -37,7 +37,14 @@ struct LiveActivitiesView: View {
                         NavigationLink {
                             ActivityDetailView(session: session)
                         } label: {
-                            ActivityCard(session: session)
+                            VStack(alignment: .leading, spacing: 6) {
+                                if env.guestActivities.contains(where: { $0.id == session.id }) {
+                                    Label("Read-only link", systemImage: "link")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                ActivityCard(session: session)
+                            }
                         }
                         .buttonStyle(.plain)
                         #if ZW_SHARING_ENABLED

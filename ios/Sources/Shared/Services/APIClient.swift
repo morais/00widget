@@ -20,17 +20,23 @@ public struct APIClientConfig {
     }
 
     public static func fromSettings() -> APIClientConfig? {
-        let defaults = UserDefaults.standard
-        let urlString = SharedSettings.serverBaseURL
-            ?? defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
-            ?? ZeroZeroWidgetConstants.defaultServerBaseURL
         guard
-            !urlString.isEmpty,
-            let url = validatedBaseURL(from: urlString),
+            let url = resolvedBaseURL(),
             let key = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey),
             !key.isEmpty
         else { return nil }
         return APIClientConfig(baseURL: url, apiKey: key)
+    }
+
+    /// The server URL alone, with no credential. A guest holds links but may
+    /// have no API key at all, so the two have to be resolvable separately.
+    public static func resolvedBaseURL() -> URL? {
+        let defaults = UserDefaults.standard
+        let urlString = SharedSettings.serverBaseURL
+            ?? defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
+            ?? ZeroZeroWidgetConstants.defaultServerBaseURL
+        guard !urlString.isEmpty else { return nil }
+        return validatedBaseURL(from: urlString)
     }
 
     public static func validatedBaseURL(from urlString: String) -> URL? {

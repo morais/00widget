@@ -251,6 +251,7 @@ public final class AppEnvironment: ObservableObject {
             guestLinks = GuestLinkStore.add(link)
             applyGuestResource(resource, for: token)
             guestRefreshError = nil
+            await syncGuestActivities()
             let title = link.title ?? "Shared item"
             return alreadyHeld ? .alreadyHeld(title: title) : .added(title: title)
         } catch let error as APIClientError where error.status == 401 {
@@ -304,9 +305,15 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public func removeGuestLink(token: String) {
+        let removed = guestLinks.first { $0.token == token }
         guestLinks = GuestLinkStore.remove(token: token)
-        guestCards.removeAll { card in !guestLinks.contains { $0.resourceId == card.id } }
         rebuildGuestResources()
+        Task {
+            if removed?.resourceKind == "activity", let id = removed?.resourceId {
+                await liveActivityController.endGuestActivity(instanceId: id)
+            }
+            await syncGuestActivities()
+        }
     }
 
     /// Re-reads every held link. Expired ones are dropped rather than left to
@@ -323,6 +330,7 @@ public final class AppEnvironment: ObservableObject {
         var activities: [LiveActivitySession] = []
         var surviving: [GuestLink] = []
         var lastError: String?
+        var droppedInstanceIds: Set<String> = []
 
         for link in guestLinks {
             do {
@@ -338,6 +346,9 @@ public final class AppEnvironment: ObservableObject {
                 if let activity = resource.activity { activities.append(activity) }
             } catch let error as APIClientError where error.status == 401 {
                 // Gone for good: guest tokens never renew, so a 401 is final.
+                if link.resourceKind == "activity", let id = link.resourceId {
+                    droppedInstanceIds.insert(id)
+                }
                 continue
             } catch {
                 // A transient failure must not discard a link that may still be
@@ -352,6 +363,29 @@ public final class AppEnvironment: ObservableObject {
         guestCards = cards
         guestActivities = activities
         guestRefreshError = lastError
+        await syncGuestActivities(dropped: droppedInstanceIds)
+    }
+
+    /// Hands the controller the tokens for followed activities and starts a
+    /// Live Activity for each one, so the owner's updates land on this device's
+    /// Lock Screen. Ends the ones whose links have gone.
+    private func syncGuestActivities(dropped: Set<String> = []) async {
+        var tokens: [String: String] = [:]
+        for link in guestLinks where link.resourceKind == "activity" && !link.hasExpired {
+            if let id = link.resourceId { tokens[id] = link.token }
+        }
+        liveActivityController.setGuestActivityTokens(tokens)
+
+        for instanceId in dropped {
+            await liveActivityController.endGuestActivity(instanceId: instanceId)
+        }
+        for activity in guestActivities {
+            do {
+                try await liveActivityController.startGuestActivity(activity)
+            } catch {
+                guestRefreshError = error.localizedDescription
+            }
+        }
     }
 
     private func applyGuestResource(_ resource: GuestResourceResponse, for token: String) {

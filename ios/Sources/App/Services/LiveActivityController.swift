@@ -17,6 +17,11 @@ public final class LiveActivityController: ObservableObject {
     private var contentUpdateTasks: [String: Task<Void, Never>] = [:]
     private var stateUpdateTasks: [String: Task<Void, Never>] = [:]
     private var activityUpdatesTask: Task<Void, Never>?
+    /// activityInstanceId -> guest token, for activities this device follows
+    /// through a shared link rather than through its own account. Pushed in by
+    /// AppEnvironment so the controller never reads the Keychain on the hot
+    /// refresh path.
+    private var guestActivityTokens: [String: String] = [:]
     private var pushToStartTask: Task<Void, Never>?
     private var latestPushToStartToken: Data?
     private var registeredActivityTokens: [String: String] = [:]
@@ -80,6 +85,11 @@ public final class LiveActivityController: ObservableObject {
                     return false
                 }
                 if let activityInstanceId = attributes.activityInstanceId {
+                    // An activity followed through a guest link belongs to
+                    // someone else's tenant and can never appear in this
+                    // account's list. Without this it is orphaned on the first
+                    // reconcile and ended seconds after being scanned.
+                    if guestActivityTokens[activityInstanceId] != nil { return false }
                     return !ongoingInstanceIds.contains(activityInstanceId)
                 }
                 return !ongoingExternalIds.contains(attributes.externalActivityId)
@@ -100,6 +110,15 @@ public final class LiveActivityController: ObservableObject {
                 "Failed to reconcile Live Activities: \(error.localizedDescription, privacy: .public)"
             )
         }
+        #endif
+    }
+
+    /// Replaces the set of activities followed through a guest link.
+    public func setGuestActivityTokens(_ tokens: [String: String]) {
+        #if canImport(ActivityKit)
+        guard tokens != guestActivityTokens else { return }
+        guestActivityTokens = tokens
+        refreshActiveActivities()
         #endif
     }
 
@@ -133,6 +152,40 @@ public final class LiveActivityController: ObservableObject {
             content: ActivityContent(state: state, staleDate: session.staleAt),
             pushType: nil
         )
+        refreshActiveActivities()
+    }
+
+    /// Starts a Live Activity for something followed through a guest link.
+    ///
+    /// Requested with `pushType: .token`, unlike a sample: the whole point is
+    /// that the owner's agent keeps updating it, which needs a push token
+    /// registered against the guest credential. The activity belongs to another
+    /// tenant, so nothing here touches this device's own account.
+    public func startGuestActivity(_ session: LiveActivitySession) async throws {
+        guard let instanceId = session.activityInstanceId else { return }
+        guard guestActivityTokens[instanceId] != nil else { return }
+        let alreadyRunning = Activity<ZeroZeroWidgetActivityAttributes>.activities.contains {
+            $0.attributes.activityInstanceId == instanceId
+        }
+        guard !alreadyRunning else { return }
+
+        let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
+        _ = try Activity.request(
+            attributes: attributes,
+            content: ActivityContent(state: state, staleDate: session.staleAt),
+            pushType: .token
+        )
+        refreshActiveActivities()
+    }
+
+    /// Ends the Live Activity for a guest link that was removed or expired.
+    /// The owner cannot end it for us — their end push reaches the deliveries
+    /// registered for it, and a link we have dropped no longer has one.
+    public func endGuestActivity(instanceId: String) async {
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
+        where activity.attributes.activityInstanceId == instanceId {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
         refreshActiveActivities()
     }
 
@@ -278,7 +331,11 @@ public final class LiveActivityController: ObservableObject {
         // instance so an APNs update received while the screen is open appears
         // immediately without waiting for another server fetch. Local samples
         // never exist on the server, so merge those back in separately.
-        let localRemoteSessions = localSessions.filter { !$0.isSample }
+        let isGuestSession: (LiveActivitySession) -> Bool = { [guestActivityTokens] session in
+            guard let id = session.activityInstanceId else { return false }
+            return guestActivityTokens[id] != nil
+        }
+        let localRemoteSessions = localSessions.filter { !$0.isSample && !isGuestSession($0) }
         let mergedRemoteSessions = serverSessions.map { serverSession in
             let localSession = localRemoteSessions.first { candidate in
                 if let serverInstanceId = serverSession.activityInstanceId,
@@ -292,7 +349,11 @@ public final class LiveActivityController: ObservableObject {
             }
             return localSession
         }
-        activeSessions = mergedRemoteSessions + localSessions.filter(\.isSample)
+        // Guest activities join samples in surviving the merge: neither can
+        // appear in this account's server list, and treating "absent from the
+        // server" as "gone" would drop both.
+        activeSessions = mergedRemoteSessions
+            + localSessions.filter { $0.isSample || isGuestSession($0) }
     }
 
     private func recoverMissingActivities(
@@ -412,6 +473,25 @@ public final class LiveActivityController: ObservableObject {
         }
     }
 
+    private func registerGuestPushToken(
+        guestToken: String,
+        localActivityId: String,
+        pushToken: String
+    ) async -> Bool {
+        guard let url = APIClientConfig.resolvedBaseURL() else { return false }
+        do {
+            try await APIClient.guest(baseURL: url, token: guestToken).registerGuestActivity(
+                deviceId: DeviceRegistration.deviceId(),
+                localActivityId: localActivityId,
+                pushToken: pushToken
+            )
+            return true
+        } catch {
+            log.error("Failed to register guest activity token: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     private func registerStartToken(pushToken: String) async -> Bool {
         guard let config = APIClientConfig.fromSettings() else { return false }
         let client = APIClient(config: config)
@@ -436,6 +516,16 @@ public final class LiveActivityController: ObservableObject {
         kind: LiveActivityKind,
         pushToken: String
     ) async -> Bool {
+        // A guest activity registers against the link's own credential. The
+        // tenant credential would be rejected — the instance is not this
+        // account's — and a guest may not have one at all.
+        if let activityInstanceId, let guestToken = guestActivityTokens[activityInstanceId] {
+            return await registerGuestPushToken(
+                guestToken: guestToken,
+                localActivityId: localActivityId,
+                pushToken: pushToken
+            )
+        }
         guard let config = APIClientConfig.fromSettings() else { return false }
         let client = APIClient(config: config)
         let deviceId = DeviceRegistration.deviceId()
