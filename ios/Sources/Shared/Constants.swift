@@ -78,6 +78,10 @@ public enum ZeroZeroWidgetConstants {
         public static let apiKey = "zw.apiKey"
         public static let appCredential = "zw.appCredential"
         public static let publisherCredential = "zw.publisherCredential"
+        /// Bearer tokens for resources other people shared with this device.
+        /// In the shared access group: the widget extension renders guest cards
+        /// alongside owned ones.
+        public static let guestLinks = "zw.guestLinks"
     }
 }
 

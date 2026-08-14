@@ -83,8 +83,11 @@ struct RootView: View {
     @State private var selectedTab: String
 
     init() {
+        // Holding a link somebody shared is as good a reason to open on the
+        // dashboard as having an account: a guest may never sign in at all.
         let hasKey = !(KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? "").isEmpty
-        _selectedTab = State(initialValue: hasKey ? "widgets" : "settings")
+        let hasGuestLinks = !GuestLinkStore.load().isEmpty
+        _selectedTab = State(initialValue: hasKey || hasGuestLinks ? "widgets" : "settings")
     }
 
     var body: some View {

@@ -91,6 +91,15 @@ public struct AppleTokenResponse: Codable {
 
 public struct EmptyBody: Codable {}
 
+/// What a guest link unlocks. Exactly one of `card` / `activity` is present,
+/// matching `resourceKind`.
+public struct GuestResourceResponse: Codable {
+    public let resourceKind: String
+    public let card: DashboardCard?
+    public let activity: LiveActivitySession?
+    public let expiresAt: Date?
+}
+
 public final class APIClient {
     public let config: APIClientConfig
     public let session: URLSession
@@ -98,6 +107,34 @@ public final class APIClient {
     public init(config: APIClientConfig, session: URLSession = .shared) {
         self.config = config
         self.session = session
+    }
+
+    /// A client authenticated as a guest rather than as this device's tenant.
+    /// The guest token goes in the same Authorization header — it is an API
+    /// credential, just one whose only scope is reading a single resource.
+    public static func guest(baseURL: URL, token: String) -> APIClient {
+        APIClient(config: APIClientConfig(baseURL: baseURL, apiKey: token))
+    }
+
+    public func fetchGuestResource() async throws -> GuestResourceResponse {
+        try await request("GET", path: "/v1/guest/resource")
+    }
+
+    public func registerGuestActivity(
+        deviceId: String,
+        localActivityId: String,
+        pushToken: String
+    ) async throws {
+        struct Body: Codable {
+            let deviceId: String
+            let localActivityId: String
+            let pushToken: String
+        }
+        let _: EmptyBody = try await request(
+            "POST",
+            path: "/v1/guest/live-activities/register",
+            body: Body(deviceId: deviceId, localActivityId: localActivityId, pushToken: pushToken)
+        )
     }
 
     public func health() async throws -> Bool {

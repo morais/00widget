@@ -52,6 +52,13 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var outgoingShares: [ShareRecord] = []
     @Published public private(set) var sharingDisabledByServer: Bool = false
     #endif
+    /// Links other people shared with this device. Independent of `apiKey`:
+    /// somebody who has never signed in can hold several, which is the whole
+    /// point of a guest link.
+    @Published public private(set) var guestLinks: [GuestLink] = []
+    @Published public private(set) var guestCards: [DashboardCard] = []
+    @Published public private(set) var guestActivities: [LiveActivitySession] = []
+    @Published public private(set) var guestRefreshError: String?
     @Published public private(set) var apnsDeviceToken: String?
     @Published public private(set) var notificationsAuthorized = false
     @Published public private(set) var notificationsDenied = false
@@ -93,6 +100,7 @@ public final class AppEnvironment: ObservableObject {
         self.showActivitiesTab = defaults.object(forKey: "zw.showActivitiesTab") as? Bool ?? true
         self.didDismissWidgetSetupHint = defaults.bool(forKey: "zw.didDismissWidgetSetupHint")
         self.cards = CardCache.load().cards
+        self.guestLinks = GuestLinkStore.load()
         SharedSettings.setServerBaseURL(serverBaseURL)
         _ = SharedSettings.deviceId()
     }
@@ -179,6 +187,10 @@ public final class AppEnvironment: ObservableObject {
     }
 
     private func clearLocalCredentials() {
+        // Deliberately leaves guestLinks alone. Those are other people's
+        // resources shared *with* this device; signing out of this account has
+        // nothing to do with them. Links this account *minted* are revoked
+        // server-side by the same sign-out call.
         apiKey = ""
         appleLoginEmail = nil
         appleLoginError = nil
@@ -196,6 +208,126 @@ public final class AppEnvironment: ObservableObject {
         else { return nil }
         let config = APIClientConfig(baseURL: url, apiKey: apiKey)
         return APIClient(config: config)
+    }
+
+    // MARK: - Guest links
+
+    /// True when this device can show something: an account of its own, or at
+    /// least one link somebody shared with it. The app opens on Settings only
+    /// when neither is true.
+    public var hasAnyAccess: Bool {
+        !apiKey.isEmpty || !guestLinks.isEmpty
+    }
+
+    public enum GuestLinkResult: Equatable {
+        case added(title: String)
+        case alreadyHeld(title: String)
+        case invalid
+        case expired
+        case failed(String)
+    }
+
+    /// Accepts a token from a scanned QR code or an opened link, verifies it
+    /// against the server, and keeps it only if it actually unlocks something.
+    /// Storing an unverified token would leave a row that can never render.
+    @discardableResult
+    public func addGuestLink(token rawToken: String) async -> GuestLinkResult {
+        guard GuestToken.looksValid(rawToken) else { return .invalid }
+        let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
+            return .failed("Server URL must use HTTPS")
+        }
+        let alreadyHeld = guestLinks.contains { $0.token == token }
+        do {
+            let resource = try await APIClient.guest(baseURL: url, token: token).fetchGuestResource()
+            let link = GuestLink(
+                token: token,
+                resourceKind: resource.resourceKind,
+                resourceId: resource.card?.id ?? resource.activity?.id,
+                title: resource.card?.title ?? resource.activity?.title,
+                expiresAt: resource.expiresAt,
+                addedAt: guestLinks.first { $0.token == token }?.addedAt ?? Date()
+            )
+            guestLinks = GuestLinkStore.add(link)
+            applyGuestResource(resource, for: token)
+            guestRefreshError = nil
+            let title = link.title ?? "Shared item"
+            return alreadyHeld ? .alreadyHeld(title: title) : .added(title: title)
+        } catch let error as APIClientError where error.status == 401 {
+            // Revoked, expired, or simply never valid — the server does not
+            // distinguish, and neither should the message.
+            return .expired
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
+
+    public func removeGuestLink(token: String) {
+        guestLinks = GuestLinkStore.remove(token: token)
+        guestCards.removeAll { card in !guestLinks.contains { $0.resourceId == card.id } }
+        rebuildGuestResources()
+    }
+
+    /// Re-reads every held link. Expired ones are dropped rather than left to
+    /// fail silently on every refresh.
+    public func refreshGuestLinks() async {
+        guard !guestLinks.isEmpty else {
+            guestCards = []
+            guestActivities = []
+            return
+        }
+        guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else { return }
+
+        var cards: [DashboardCard] = []
+        var activities: [LiveActivitySession] = []
+        var surviving: [GuestLink] = []
+        var lastError: String?
+
+        for link in guestLinks {
+            do {
+                let resource = try await APIClient.guest(baseURL: url, token: link.token)
+                    .fetchGuestResource()
+                var updated = link
+                updated.resourceKind = resource.resourceKind
+                updated.title = resource.card?.title ?? resource.activity?.title
+                updated.expiresAt = resource.expiresAt
+                updated.resourceId = resource.card?.id ?? resource.activity?.id
+                surviving.append(updated)
+                if let card = resource.card { cards.append(card) }
+                if let activity = resource.activity { activities.append(activity) }
+            } catch let error as APIClientError where error.status == 401 {
+                // Gone for good: guest tokens never renew, so a 401 is final.
+                continue
+            } catch {
+                // A transient failure must not discard a link that may still be
+                // perfectly valid, so keep it and surface the problem instead.
+                surviving.append(link)
+                lastError = error.localizedDescription
+            }
+        }
+
+        guestLinks = surviving
+        GuestLinkStore.save(surviving)
+        guestCards = cards
+        guestActivities = activities
+        guestRefreshError = lastError
+    }
+
+    private func applyGuestResource(_ resource: GuestResourceResponse, for token: String) {
+        if let card = resource.card {
+            guestCards.removeAll { $0.id == card.id }
+            guestCards.append(card)
+        }
+        if let activity = resource.activity {
+            guestActivities.removeAll { $0.id == activity.id }
+            guestActivities.append(activity)
+        }
+    }
+
+    private func rebuildGuestResources() {
+        let heldIds = Set(guestLinks.compactMap { $0.resourceId })
+        guestCards = guestCards.filter { heldIds.contains($0.id) }
+        guestActivities = guestActivities.filter { heldIds.contains($0.id) }
     }
 
     public func confirmedActionClient() -> APIClient? {
@@ -314,6 +446,7 @@ public final class AppEnvironment: ObservableObject {
         // ActivityKit's local state with the server on every foreground so an
         // orphan does not remain on the Lock Screen indefinitely.
         await liveActivityController.reconcileWithServer()
+        await refreshGuestLinks()
         let now = Date()
         if let lastForegroundFetchAt, now.timeIntervalSince(lastForegroundFetchAt) < 30 {
             return
@@ -338,6 +471,7 @@ public final class AppEnvironment: ObservableObject {
             await requestNotificationAuthorization()
         }
         await refreshConnectionHealth()
+        await refreshGuestLinks()
         await registerDevice()
         await registerPendingWidgetTokens()
         await refreshInstalledWidgetCount()

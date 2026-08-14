@@ -38,6 +38,10 @@ struct DashboardView: View {
             let cardId = String(id.dropFirst("shared:".count))
             return env.sharedCards.first { $0.id == cardId }
         }
+        if id.hasPrefix("guest:") {
+            let cardId = String(id.dropFirst("guest:".count))
+            return env.guestCards.first { $0.id == cardId }
+        }
         return env.cards.first { $0.id == id }
     }
 
@@ -46,7 +50,7 @@ struct DashboardView: View {
         // Two scroll views rather than one with a branch inside: removing the
         // last card shrinks the content, and a shared scroll view keeps its old
         // offset, leaving the user parked on blank space below the empty state.
-        if env.cards.isEmpty && env.sharedCards.isEmpty {
+        if env.cards.isEmpty && env.sharedCards.isEmpty && env.guestCards.isEmpty {
             ScrollView {
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
@@ -85,6 +89,25 @@ struct DashboardView: View {
                                             .font(.caption.weight(.medium))
                                             .foregroundStyle(.secondary)
                                     }
+                                    CardView(card: card, context: .app, density: .compact)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if !env.guestCards.isEmpty {
+                        Text("Shared links")
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 12)
+
+                        ForEach(env.guestCards) { card in
+                            NavigationLink(value: "guest:\(card.id)") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label("Read-only link", systemImage: "link")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
                                     CardView(card: card, context: .app, density: .compact)
                                 }
                             }
