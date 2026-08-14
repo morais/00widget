@@ -57,6 +57,13 @@ iOS app and use credentials it holds itself, which you are never given and never
 need. A `403` naming a required scope means the operator must issue the right
 credential; do not try to work around it with another endpoint.
 
+Guest links (`zwg_` tokens) are a fourth kind of credential you may encounter
+but should never mint or handle: they carry only `guest:read`, unlock exactly
+one card or one Live Activity instance, and cannot publish or run actions. They
+are created by a person in the iOS app to share something read-only. If one is
+ever handed to you as `00WIDGET_API_KEY`, the operator has given you the wrong
+credential — say so rather than trying to publish with it.
+
 ## Data model
 
 A **DashboardCard** is one tile on a widget. Wire format:
@@ -567,6 +574,7 @@ struct WidgetClient {
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
 - **Don't** make destructive actions auto-run from widgets. Set `confirm: true` or `role: destructive` and let the iOS app handle confirmation.
 - **Don't** loop over `/v1/cards/upsert` for cards from the same producer snapshot. Use `/v1/cards/upsert-batch` so the snapshot creates one coalesced reload decision.
+- **Don't** publish anything to a card or Live Activity you would not show a stranger. A person can share either of them as a read-only link, and the holder of that link needs no account.
 - **Don't** treat a Home Screen widget as a real-time display. WidgetKit budgets reloads; publish current state whenever it changes, and let 00Widget coalesce reload pushes. Use a Live Activity for frequent, time-sensitive updates.
 
 ## Notes for Cloudflare Workers callers
