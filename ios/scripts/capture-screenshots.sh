@@ -11,7 +11,7 @@
 #   ios/scripts/capture-screenshots.sh
 #   ios/scripts/capture-screenshots.sh --only activities
 #   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
-#   ios/scripts/capture-screenshots.sh --device "iPad Air 11-inch (M4)"
+#   ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"
 #
 # Output is PNGs named after the XCTAttachment names in UITests/ScreenshotTests.swift.
 set -euo pipefail

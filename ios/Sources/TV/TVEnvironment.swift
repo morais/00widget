@@ -20,11 +20,26 @@ final class TVEnvironment: ObservableObject {
     private var autoRefreshTask: Task<Void, Never>?
 
     init() {
+        #if ZW_SCREENSHOTS
+        self.serverBaseURL = ZeroZeroWidgetConstants.defaultServerBaseURL
+        self.apiKey = "screenshot"
+        self.appleLoginEmail = nil
+        let screenshotSection = ProcessInfo.processInfo.arguments
+            .drop(while: { $0 != "--screenshot-section" })
+            .dropFirst()
+            .first
+        self.cards = screenshotSection == "activities" ? [] : SampleDataFactory.makeCards()
+        self.liveActivities = screenshotSection == "widgets"
+            ? []
+            : [SampleDataFactory.makeLiveActivitySession()]
+        SharedSettings.setHideSampleIndicators(true)
+        #else
         let defaults = UserDefaults.standard
         self.serverBaseURL = ZeroZeroWidgetConstants.defaultServerBaseURL
         self.apiKey = KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? ""
         self.appleLoginEmail = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
         self.cards = CardCache.load().cards
+        #endif
     }
 
     var isSignedIn: Bool { !apiKey.isEmpty }
@@ -39,8 +54,12 @@ final class TVEnvironment: ObservableObject {
     }
 
     func startupSync() async {
+        #if ZW_SCREENSHOTS
+        return
+        #else
         await fetchCards()
         startAutoRefresh()
+        #endif
     }
 
     func signInWithAppleIdentityToken(_ identityToken: String, rawNonce: String) async {

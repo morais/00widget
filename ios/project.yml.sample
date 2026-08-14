@@ -130,6 +130,19 @@ targets:
         # screenshot run does; without signing Xcode never asks for it.
         GENERATE_INFOPLIST_FILE: YES
 
+  ZeroZeroWidgetTVUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources:
+      - path: TVUITests
+    dependencies:
+      - target: ZeroZeroWidgetTV
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tvuitests
+        TEST_TARGET_NAME: ZeroZeroWidgetTV
+        GENERATE_INFOPLIST_FILE: YES
+
   ZeroZeroWidgetTV:
     type: application
     platform: tvOS
@@ -210,3 +223,13 @@ schemes:
       config: Debug
       targets:
         - ZeroZeroWidgetUITests
+
+  ZeroZeroWidgetTVScreenshots:
+    build:
+      targets:
+        ZeroZeroWidgetTV: all
+        ZeroZeroWidgetTVUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetTVUITests

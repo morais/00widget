@@ -4,6 +4,7 @@
 #   ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
 #   ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
 #   ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
+#   ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
 set -euo pipefail
 
 SET="iphone"
@@ -38,10 +39,17 @@ IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$SET" in
   iphone) SOURCE="$IOS_ROOT/build/screenshots" ;;
   ipad) SOURCE="$IOS_ROOT/build/screenshots/ipad" ;;
-  *) echo "--set must be 'iphone' or 'ipad'" >&2; exit 2 ;;
+  tvos) SOURCE="$IOS_ROOT/build/screenshots/tvos" ;;
+  *) echo "--set must be 'iphone', 'ipad', or 'tvos'" >&2; exit 2 ;;
 esac
 
-if [[ "$ONLY" == "activities" ]]; then
+if [[ "$SET" == "tvos" ]]; then
+  if [[ "$ONLY" == "activities" ]]; then
+    FILES=(screenshot-tv-activities.png)
+  else
+    FILES=(screenshot-tv-widgets.png screenshot-tv-activities.png)
+  fi
+elif [[ "$ONLY" == "activities" ]]; then
   FILES=(screenshot-activities.png)
 else
   FILES=(

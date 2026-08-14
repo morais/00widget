@@ -48,6 +48,8 @@ cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
 ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
+ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
+ios/scripts/capture-tv-screenshots.sh --only activities  # quick Apple TV refresh
 ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
 ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
 
@@ -136,12 +138,21 @@ assumed:
 ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
 ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
 ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
+ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
+ios/scripts/copy-screenshots.sh --set tvos --only activities --to /path/to/site/public/assets/tvos
 ```
 
 For a quick Activities-only refresh, use
 `ios/scripts/capture-screenshots.sh --only activities` (and add `--device` for
 iPad). This skips Home Screen widget placement while producing the same
 `screenshot-activities.png` filename consumed by the copy helper.
+
+Apple TV uses `ios/scripts/capture-tv-screenshots.sh`, which builds a private
+`ZW_SCREENSHOTS` sample dashboard through the dedicated
+`ZeroZeroWidgetTVScreenshots` scheme and writes native 1920×1080 PNGs to
+`ios/build/screenshots/tvos/`. The screenshot-only state and UI-test target are
+not compiled into the shipping tvOS scheme. Pass `--only activities` for a
+quick Activities-only refresh.
 
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
@@ -182,11 +193,11 @@ Washer small widgets on the first row, Boiler below. It removes any previous
 gallery, and asserts all three exist before capturing
 `screenshot-home-widgets.png`.
 
-Pass `--device "iPad Air 11-inch (M4)"` to capture the iPad set under
-`ios/build/screenshots/ipad/`. The test uses the same three-widget layout on a
-clean regular Home Screen page and captures the Widgets and Activities tabs.
-It intentionally omits the compact and expanded Dynamic Island variants,
-because iPad has no Dynamic Island.
+Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
+`ios/build/screenshots/ipad/`. It produces native 2064×2752 images, uses the
+same three-widget layout on a clean regular Home Screen page, and captures the
+Widgets and Activities tabs. It intentionally omits the compact and expanded
+Dynamic Island variants, because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
 condition. It adds three static, small-only widget kinds that feed Solar,
@@ -198,8 +209,9 @@ simulator builds and every shipping build do not compile these widget kinds.
 
 ### Schemes are declared explicitly
 
-`project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`, and
-`ZeroZeroWidgetScreenshots`. This is load-bearing: adding *any* `schemes:` entry
+`project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`,
+`ZeroZeroWidgetScreenshots`, and `ZeroZeroWidgetTVScreenshots`. This is
+load-bearing: adding *any* `schemes:` entry
 turns off Xcode's scheme autocreation for every target, which silently removed
 the `ZeroZeroWidgetApp` scheme that `build-sim.sh` and `upload-testflight.sh`
 archive with. If you add a target, add its scheme too. The UI test target is
