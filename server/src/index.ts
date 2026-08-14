@@ -16,6 +16,8 @@ import * as actions from "./actions";
 import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as appleAppSite from "./appleAppSite";
+import * as guestLinks from "./guestLinks";
+import * as guestPage from "./guestPage";
 import * as landing from "./landing";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
@@ -42,6 +44,9 @@ const routes: Route[] = [
   // Public landing + API docs.
   { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
+  // Browser fallback for a guest link. Only reachable by people without the
+  // app installed; everyone else has /app/* routed into the app by iOS.
+  { method: "GET", pattern: /^\/app\/g\/?$/, handler: (req) => guestPage.handleGuestPage(req) },
   // Associated domains. No trailing-slash variant: Apple fetches this exact
   // path and does not follow redirects.
   { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
@@ -105,6 +110,25 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/shares\/?$/, "shares:manage", (req, env, auth) => shares.createShare(req, env, auth)),
   authed("GET", /^\/v1\/shares\/outgoing\/?$/, "shares:manage", (req, env, auth) => shares.listOutgoing(req, env, auth)),
   authed("GET", /^\/v1\/shares\/incoming\/?$/, "shares:manage", (req, env, auth) => shares.listIncoming(req, env, auth)),
+  // Guest links. Minting and managing needs the owner's credential; the two
+  // /v1/guest/* routes are the only thing a guest credential can reach, which
+  // the "guest:read" scope enforces on its own — every other route requires a
+  // scope the guest preset does not contain.
+  authed("POST", /^\/v1\/shares\/guest\/?$/, "shares:manage", (req, env, auth) =>
+    guestLinks.createGuestLink(req, env, auth),
+  ),
+  authed("GET", /^\/v1\/shares\/guest\/?$/, "shares:manage", (req, env, auth) =>
+    guestLinks.listGuestLinks(req, env, auth),
+  ),
+  authed("DELETE", /^\/v1\/shares\/guest\/([^/]+)\/?$/, "shares:manage", (req, env, auth, m) =>
+    guestLinks.revokeGuestLink(req, env, auth, m[1]),
+  ),
+  authed("GET", /^\/v1\/guest\/resource\/?$/, "guest:read", (req, env, auth) =>
+    guestLinks.getGuestResource(req, env, auth), { credentialKind: "guest" },
+  ),
+  authed("POST", /^\/v1\/guest\/live-activities\/register\/?$/, "guest:read", (req, env, auth) =>
+    guestLinks.registerGuestActivity(req, env, auth), { credentialKind: "guest" },
+  ),
   authed("POST", /^\/v1\/shares\/([^/]+)\/accept\/?$/, "shares:manage", (req, env, auth, m) =>
     shares.acceptShare(req, env, auth, m[1]),
   ),

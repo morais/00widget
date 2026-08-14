@@ -11,11 +11,14 @@ export interface AuthContext {
   deviceId?: string;
   expiresAt: string;
   scopes: ApiScope[];
+  /// Set only for `guest` credentials, which may touch exactly this resource.
+  resourceKind?: string;
+  resourceId?: string;
 }
 
-export type CredentialKind = "publisher" | "app";
+export type CredentialKind = "publisher" | "app" | "guest";
 
-const API_TOKEN_PATTERN = /^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43})$/;
+const API_TOKEN_PATTERN = /^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43}|zwg_[A-Za-z0-9_-]{43})$/;
 
 export const DEFAULT_TOKEN_LIFETIME_SECONDS = 90 * 24 * 60 * 60;
 
@@ -31,6 +34,7 @@ export const API_SCOPES = [
   "actions:confirm",
   "shares:manage",
   "webhook:manage",
+  "guest:read",
 ] as const;
 
 export type ApiScope = typeof API_SCOPES[number];
@@ -44,6 +48,10 @@ export const ApiScopePresets = {
   device: ["tenant:read", "device:register", "actions:run"] as ApiScope[],
   appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],
   webhookManager: ["tenant:read", "webhook:manage"] as ApiScope[],
+  // Deliberately the whole of a guest's authority: read the one resource the
+  // credential is bound to. No publish, no actions:run, no actions:confirm —
+  // holding a shared link must never let anyone act on someone else's account.
+  guest: ["guest:read"] as ApiScope[],
   legacyPublisher: [
     "tenant:read",
     "publish",
@@ -64,6 +72,8 @@ interface AuthRow {
   expires_at: string;
   scopes_json: string;
   renew_seconds: number | null;
+  resource_kind: string | null;
+  resource_id: string | null;
 }
 
 export interface TenantRecord {
@@ -86,6 +96,8 @@ export interface ApiKeyRecord {
   deviceId?: string;
   expiresAt: string;
   scopes: ApiScope[];
+  resourceKind?: string;
+  resourceId?: string;
   /// Seconds of inactivity the credential tolerates before expiring. Undefined
   /// means a fixed deadline that use does not extend.
   renewSeconds?: number;
@@ -100,6 +112,8 @@ export interface CreateApiKeyInput {
   deviceId?: string;
   expiresAt?: string;
   scopes?: readonly ApiScope[];
+  resourceKind?: string;
+  resourceId?: string;
   /// Pass `null` for a credential whose deadline use should never extend.
   renewSeconds?: number | null;
 }
@@ -136,7 +150,8 @@ export async function requireAuth(
   const row = await env.ZW_DB.prepare(
     `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
             api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at,
-            api_keys.scopes_json, api_keys.renew_seconds
+            api_keys.scopes_json, api_keys.renew_seconds,
+            api_keys.resource_kind, api_keys.resource_id
      FROM api_keys
      JOIN tenants ON tenants.id = api_keys.tenant_id
      WHERE api_keys.token_hash = ?
@@ -165,6 +180,8 @@ export async function requireAuth(
     deviceId: row.device_id ?? undefined,
     expiresAt: row.expires_at,
     scopes,
+    resourceKind: row.resource_kind ?? undefined,
+    resourceId: row.resource_id ?? undefined,
   };
 }
 
@@ -227,7 +244,11 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   const label = input.label?.trim() || "default";
   const kind = input.kind ?? "publisher";
   const scopes = normalizeScopes(
-    input.scopes ?? (kind === "app" ? ApiScopePresets.appOnly : ApiScopePresets.producer),
+    input.scopes ?? (kind === "app"
+      ? ApiScopePresets.appOnly
+      : kind === "guest"
+        ? ApiScopePresets.guest
+        : ApiScopePresets.producer),
   );
   const sessionId = input.sessionId?.trim() || undefined;
   const deviceId = input.deviceId?.trim() || undefined;
@@ -236,13 +257,20 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   if (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) {
     throw new Error("expiresAt must be a future ISO-8601 timestamp");
   }
-  const renewSeconds = input.renewSeconds === undefined
-    ? DEFAULT_TOKEN_LIFETIME_SECONDS
-    : input.renewSeconds;
+  // A guest link never renews on use. Sliding expiry on a bearer credential
+  // that is printed on a QR code would let anyone holding it keep the link
+  // alive indefinitely just by opening it, which defeats the fixed TTL that is
+  // the main control on a link we cannot un-publish.
+  const renewSeconds = kind === "guest"
+    ? null
+    : input.renewSeconds === undefined
+      ? DEFAULT_TOKEN_LIFETIME_SECONDS
+      : input.renewSeconds;
   if (renewSeconds !== null && (!Number.isInteger(renewSeconds) || renewSeconds <= 0)) {
     throw new Error("renewSeconds must be a positive integer or null");
   }
-  const token = `${kind === "app" ? "zwa" : "zw"}_${randomUrlToken(32)}`;
+  const tokenPrefix = kind === "app" ? "zwa" : kind === "guest" ? "zwg" : "zw";
+  const token = `${tokenPrefix}_${randomUrlToken(32)}`;
   const tokenHash = await sha256Hex(token);
   const apiKeyId = crypto.randomUUID();
 
@@ -262,8 +290,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
        (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id,
-        expires_at, scopes_json, renew_seconds)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        expires_at, scopes_json, renew_seconds, resource_kind, resource_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       apiKeyId,
@@ -277,6 +305,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       expiresAt,
       JSON.stringify(scopes),
       renewSeconds,
+      input.resourceKind ?? null,
+      input.resourceId ?? null,
     )
     .run();
 
@@ -298,6 +328,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       deviceId,
       expiresAt,
       scopes,
+      resourceKind: input.resourceKind,
+      resourceId: input.resourceId,
       renewSeconds: renewSeconds ?? undefined,
     },
     token,
@@ -338,7 +370,8 @@ export async function listTenants(env: Env): Promise<TenantRecord[]> {
 export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
-            kind, session_id, device_id, expires_at, scopes_json, renew_seconds
+            kind, session_id, device_id, expires_at, scopes_json, renew_seconds,
+            resource_kind, resource_id
      FROM api_keys
      ORDER BY created_at DESC`,
   ).all<{
@@ -355,6 +388,8 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     expires_at: string;
     scopes_json: string;
     renew_seconds: number | null;
+    resource_kind: string | null;
+    resource_id: string | null;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
@@ -369,6 +404,8 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
     deviceId: row.device_id ?? undefined,
     expiresAt: row.expires_at,
     scopes: parseScopes(row.scopes_json),
+    resourceKind: row.resource_kind ?? undefined,
+    resourceId: row.resource_id ?? undefined,
     renewSeconds: row.renew_seconds ?? undefined,
   }));
 }

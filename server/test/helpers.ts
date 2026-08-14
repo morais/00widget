@@ -149,6 +149,9 @@ export class FakeD1 {
       // Read straight from `values` so the number/null distinction survives the
       // String() mapping above — NULL here means "fixed deadline, never renew".
       const renew_seconds = typeof values[10] === "number" ? values[10] : null;
+      // Guest links bind a credential to one resource; NULL for every other kind.
+      const resource_kind = values[11] == null ? "" : String(values[11]);
+      const resource_id = values[12] == null ? "" : String(values[12]);
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -163,6 +166,8 @@ export class FakeD1 {
         expires_at,
         scopes_json,
         renew_seconds,
+        resource_kind,
+        resource_id,
       });
       return 1;
     }
@@ -643,7 +648,7 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds, api_keys.resource_kind, api_keys.resource_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
         const tenant = this.tenants.get(String(candidate.tenant_id ?? ""));
@@ -660,6 +665,10 @@ export class FakeD1 {
             expires_at: row.expires_at,
             scopes_json: row.scopes_json,
             renew_seconds: row.renew_seconds ?? null,
+            // Empty string is how this fake spells an absent TEXT column;
+            // real D1 hands back NULL, and auth.ts treats both as unbound.
+            resource_kind: row.resource_kind || null,
+            resource_id: row.resource_id || null,
           }]
         : [];
     }
@@ -677,7 +686,7 @@ export class FakeD1 {
         .sort(by("created_at"))[0];
       return pick(row, ["id", "owner_email"]);
     }
-    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds FROM api_keys ORDER BY created_at DESC") {
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds, resource_kind, resource_id FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
     }
     if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
@@ -1132,7 +1141,8 @@ export class FakeRateLimit {
 }
 
 export function testApiKey(label = "test-key"): string {
-  if (/^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43})$/.test(label)) return label;
+  // A real minted token (including a zwg_ guest link) passes through unchanged.
+  if (/^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43}|zwg_[A-Za-z0-9_-]{43})$/.test(label)) return label;
   const safeLabel = label.replace(/[^A-Za-z0-9_-]/g, "_");
   return `zw_${`${safeLabel}_${"x".repeat(43)}`.slice(0, 43)}`;
 }

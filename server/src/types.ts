@@ -10,6 +10,7 @@ export const RequestBodyLimits = {
   actionRun: 4 * KiB,
   webhookIntegration: 4 * KiB,
   share: 4 * KiB,
+  guestLink: 4 * KiB,
   appleLogin: 16 * KiB,
 } as const;
 
@@ -533,6 +534,47 @@ export const CreateShareSchema = z.object({
   resourceId: z.string().min(1).max(FieldLimits.externalActivityId),
 });
 
+// Guest links name a single activity *instance*, not an activity kind. This is
+// the one deliberate difference from ShareResourceKindSchema above: a share for
+// kind "progress" exposes every current and future progress activity, which is
+// tolerable between two accounts that trust each other and not tolerable for a
+// bearer link anyone can hold.
+export const GuestResourceKindSchema = z.enum(["card", "activity"]);
+
+export const CreateGuestLinkSchema = z.object({
+  resourceKind: GuestResourceKindSchema,
+  resourceId: z.string().min(1).max(FieldLimits.externalActivityId),
+  ttlSeconds: z.number().int().positive().optional(),
+  label: z.string().min(1).max(FieldLimits.title).optional(),
+});
+
+export const RegisterGuestActivitySchema = z.object({
+  deviceId: z.string().min(1).max(FieldLimits.deviceId),
+  // The ActivityKit id on the guest's own device, so a second registration from
+  // the same phone replaces the first rather than accumulating dead tokens.
+  localActivityId: z.string().min(1).max(FieldLimits.localActivityId),
+  // Same hex-validated token type the owner's registration uses: it ends up
+  // interpolated into the APNs `/3/device/<token>` path either way.
+  pushToken: PushTokenString,
+});
+
+/// Ceilings on how long a guest link stays valid.
+///
+/// A link is a bearer credential printed on a QR code: it gets photographed,
+/// screenshotted and left stuck to a fridge, and it cannot be un-published.
+/// Expiry, not revocation, is the control that works without anyone
+/// remembering to act.
+///
+/// The activity ceiling is free — a Live Activity is ended by the system after
+/// 8 hours and leaves the Lock Screen no more than 4 hours later, so a token
+/// outliving 12 hours could only ever unlock content nothing is updating.
+export const GuestLinkTtl = {
+  activityDefaultSeconds: 12 * 60 * 60,
+  activityMaxSeconds: 12 * 60 * 60,
+  cardDefaultSeconds: 7 * 24 * 60 * 60,
+  cardMaxSeconds: 30 * 24 * 60 * 60,
+} as const;
+
 export type DashboardCard = z.infer<typeof DashboardCardSchema>;
 export type DashboardCardInput = z.infer<typeof DashboardCardInputSchema>;
 export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
@@ -556,6 +598,9 @@ export type WebhookIntegration = z.infer<typeof WebhookIntegrationSchema>;
 export type ShareResourceKind = z.infer<typeof ShareResourceKindSchema>;
 export type ShareStatus = z.infer<typeof ShareStatusSchema>;
 export type CreateShareRequest = z.infer<typeof CreateShareSchema>;
+export type GuestResourceKind = z.infer<typeof GuestResourceKindSchema>;
+export type CreateGuestLinkRequest = z.infer<typeof CreateGuestLinkSchema>;
+export type RegisterGuestActivity = z.infer<typeof RegisterGuestActivitySchema>;
 
 export interface WidgetReloadQueueMessage {
   tenantId: string;
