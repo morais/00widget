@@ -32,13 +32,26 @@ struct ZeroZeroWidgetApp: App {
     /// `UIApplication.open` gives it straight back to iOS, which routes it to
     /// this app again.
     private func handleIncomingURL(_ url: URL) {
-        if ZeroZeroWidgetUniversalLink.route(for: url, serverBaseURL: env.serverBaseURL) != nil {
-            // No routes are defined yet; the claim exists so the association is
-            // testable end to end. Bringing the app to the front, which iOS has
-            // already done by now, is the whole behaviour.
+        if let route = ZeroZeroWidgetUniversalLink.route(for: url, serverBaseURL: env.serverBaseURL) {
+            handleUniversalLink(route: route, url: url)
             return
         }
         openExternalDeepLink(url)
+    }
+
+    /// Guest links are the only route so far. The token is in the fragment, so
+    /// it arrives here having never been sent to the server — the reason the
+    /// URL is shaped that way in the first place.
+    private func handleUniversalLink(route: String, url: URL) {
+        guard route == "g" || route.hasPrefix("g/") else { return }
+        guard let token = GuestToken.fromURL(url) else {
+            // A /app/g link with no usable token in the fragment. Opening the
+            // browser fallback would only show the same "missing its code"
+            // message, so say it here instead of bouncing the person out.
+            env.reportGuestLinkProblem("That link is missing its code. Ask for it again.")
+            return
+        }
+        Task { await env.acceptGuestLinkFromURL(token: token) }
     }
 
     private func openExternalDeepLink(_ url: URL) {
@@ -108,6 +121,11 @@ struct RootView: View {
             OnboardingView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag("settings")
+        }
+        // An opened link lands on the dashboard, where the new card is, rather
+        // than leaving the outcome on whichever tab happened to be showing.
+        .onChange(of: env.guestLinkBanner) { _, banner in
+            if banner != nil { selectedTab = "widgets" }
         }
     }
 }

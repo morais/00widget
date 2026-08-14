@@ -33,6 +33,25 @@ struct DashboardView: View {
         }
     }
 
+    private func guestLinkBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "link")
+            Text(message)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button {
+                env.guestLinkBanner = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .font(.callout)
+        .padding(12)
+        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+
     private func card(forDestination id: String) -> DashboardCard? {
         if id.hasPrefix("shared:") {
             let cardId = String(id.dropFirst("shared:".count))
@@ -52,6 +71,11 @@ struct DashboardView: View {
         // offset, leaving the user parked on blank space below the empty state.
         if env.cards.isEmpty && env.sharedCards.isEmpty && env.guestCards.isEmpty {
             ScrollView {
+                if let banner = env.guestLinkBanner {
+                    guestLinkBanner(banner)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
             }
@@ -60,6 +84,10 @@ struct DashboardView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
+                    if let banner = env.guestLinkBanner {
+                        guestLinkBanner(banner)
+                    }
+
                     if env.shouldShowWidgetSetupHint {
                         widgetSetupHint
                     }

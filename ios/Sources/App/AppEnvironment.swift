@@ -262,6 +262,31 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Surfaced by the dashboard so an opened link reports its outcome the way
+    /// the scanner does, rather than appearing to do nothing.
+    @Published public var guestLinkBanner: String?
+
+    public func reportGuestLinkProblem(_ message: String) {
+        guestLinkBanner = message
+    }
+
+    /// Accepts a token that arrived by universal link. Same path as the
+    /// scanner, so an opened link and a scanned code cannot drift apart.
+    public func acceptGuestLinkFromURL(token: String) async {
+        switch await addGuestLink(token: token) {
+        case .added(let title):
+            guestLinkBanner = "Added \u{201C}\(title)\u{201D}."
+        case .alreadyHeld(let title):
+            guestLinkBanner = "You already have \u{201C}\(title)\u{201D}."
+        case .invalid:
+            guestLinkBanner = "That is not a 00Widget link."
+        case .expired:
+            guestLinkBanner = "That link has expired or been revoked."
+        case .failed(let message):
+            guestLinkBanner = message
+        }
+    }
+
     public func removeGuestLink(token: String) {
         guestLinks = GuestLinkStore.remove(token: token)
         guestCards.removeAll { card in !guestLinks.contains { $0.resourceId == card.id } }
