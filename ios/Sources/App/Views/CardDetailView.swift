@@ -7,9 +7,14 @@ struct CardDetailView: View {
     @State private var actionError: String?
     @State private var showRawJson = false
     @State private var showCurlExample = false
+    @State private var showGuestLinkSheet = false
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
     #endif
+
+    private var isGuestCard: Bool {
+        env.guestCards.contains { $0.id == card.id }
+    }
 
     var body: some View {
         let currentCard = resolvedCard
@@ -72,20 +77,39 @@ struct CardDetailView: View {
             await env.fetchCards()
         }
         .navigationTitle(currentCard.title)
-        #if ZW_SHARING_ENABLED
         .toolbar {
-            // Only the owner can share; receivers (cards with sharedBy set)
-            // cannot re-share.
-            if currentCard.sharedBy == nil {
+            // Only the owner can share. A card arriving through a share
+            // (sharedBy set) or a guest link is not this account's to hand on.
+            if currentCard.sharedBy == nil && !isGuestCard {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showShareSheet = true
+                    Menu {
+                        Button {
+                            showGuestLinkSheet = true
+                        } label: {
+                            Label("Share a link", systemImage: "qrcode")
+                        }
+                        #if ZW_SHARING_ENABLED
+                        Button {
+                            showShareSheet = true
+                        } label: {
+                            Label("Share with a 00Widget account", systemImage: "person.crop.circle.badge.plus")
+                        }
+                        #endif
                     } label: {
-                        Label("Share", systemImage: "person.crop.circle.badge.plus")
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                 }
             }
         }
+        .sheet(isPresented: $showGuestLinkSheet) {
+            GuestLinkShareSheet(
+                resourceKind: "card",
+                resourceId: currentCard.id,
+                title: currentCard.title
+            )
+            .environmentObject(env)
+        }
+        #if ZW_SHARING_ENABLED
         .sheet(isPresented: $showShareSheet) {
             ShareCardSheet(card: currentCard)
                 .environmentObject(env)

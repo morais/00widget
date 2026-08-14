@@ -267,10 +267,12 @@ private struct ActivityCard: View {
 }
 
 private struct ActivityDetailView: View {
+    @EnvironmentObject var env: AppEnvironment
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     let session: LiveActivitySession
     @State private var showRawJson = false
     @State private var showCurlExample = false
+    @State private var showGuestLinkSheet = false
 
     var body: some View {
         let currentSession = resolvedSession
@@ -317,6 +319,35 @@ private struct ActivityDetailView: View {
         .refreshable { await liveActivityController.reconcileWithServer() }
         .navigationTitle(currentSession.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // A sample has no server-side instance to bind a link to, and a
+            // guest's own activity is not theirs to pass on.
+            if let instanceId = currentSession.activityInstanceId, !isGuestActivity {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showGuestLinkSheet = true
+                    } label: {
+                        Label("Share a link", systemImage: "qrcode")
+                    }
+                    .accessibilityIdentifier("share-activity-link")
+                    .id(instanceId)
+                }
+            }
+        }
+        .sheet(isPresented: $showGuestLinkSheet) {
+            if let instanceId = currentSession.activityInstanceId {
+                GuestLinkShareSheet(
+                    resourceKind: "activity",
+                    resourceId: instanceId,
+                    title: currentSession.title
+                )
+                .environmentObject(env)
+            }
+        }
+    }
+
+    private var isGuestActivity: Bool {
+        env.guestActivities.contains { $0.id == session.id }
     }
 
     private var resolvedSession: LiveActivitySession {

@@ -116,6 +116,33 @@ public final class APIClient {
         APIClient(config: APIClientConfig(baseURL: baseURL, apiKey: token))
     }
 
+    public struct GuestLinkResponse: Codable {
+        public let id: String
+        public let token: String
+        public let url: String
+        public let resourceKind: String
+        public let resourceId: String
+        public let expiresAt: Date
+    }
+
+    /// Mints a read-only link for one card or one Live Activity instance.
+    /// `resourceKind` is "card" or "activity" — deliberately per instance, not
+    /// the coarser kind the email-based sharing feature uses.
+    public func createGuestLink(
+        resourceKind: String,
+        resourceId: String
+    ) async throws -> GuestLinkResponse {
+        struct Body: Codable {
+            let resourceKind: String
+            let resourceId: String
+        }
+        return try await request(
+            "POST",
+            path: "/v1/shares/guest",
+            body: Body(resourceKind: resourceKind, resourceId: resourceId)
+        )
+    }
+
     public func fetchGuestResource() async throws -> GuestResourceResponse {
         try await request("GET", path: "/v1/guest/resource")
     }
