@@ -149,6 +149,13 @@ export class FakeD1 {
       // Read straight from `values` so the number/null distinction survives the
       // String() mapping above — NULL here means "fixed deadline, never renew".
       const renew_seconds = typeof values[10] === "number" ? values[10] : null;
+      // api_keys.kind carries a CHECK constraint in the real schema. This fake
+      // enforces no constraints, which is how a guest kind reached production
+      // against a CHECK that still read ('publisher', 'app') and 500'd every
+      // mint. Mirror it here so the suite fails instead of the deployment.
+      if (!["publisher", "app", "guest"].includes(kind)) {
+        throw new Error(`CHECK constraint failed: kind IN ('publisher','app','guest') — got ${kind}`);
+      }
       // Guest links bind a credential to one resource; NULL for every other kind.
       const resource_kind = values[11] == null ? "" : String(values[11]);
       const resource_id = values[12] == null ? "" : String(values[12]);
