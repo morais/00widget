@@ -36,6 +36,12 @@ struct ClipRootView: View {
         }
         .padding(24)
         .multilineTextAlignment(.center)
+        .task {
+            // onContinueUserActivity arrives after the first render, so give it
+            // a moment before concluding there is no link.
+            try? await Task.sleep(for: .seconds(2))
+            launcher.reportMissingInvocation()
+        }
         .appStoreOverlay(isPresented: $showAppStoreOverlay) {
             SKOverlay.AppClipConfiguration(position: .bottom)
         }

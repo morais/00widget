@@ -78,10 +78,6 @@ targets:
         # it bypasses Apple's CDN cache, and must come back out before release.
         com.apple.developer.associated-domains:
           - applinks:api.example.com
-        # Names the App Clip this app carries. App Store Connect warns without
-        # it, and the pairing is what lets the clip hand off to the full app.
-        com.apple.developer.associated-appclip-app-identifiers:
-          - $(AppIdentifierPrefix)com.example.zerozerowidget.Clip
         aps-environment: development
     settings:
       base:

@@ -22,6 +22,20 @@ final class GuestActivityLauncher: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
+    /// Called when the clip has been on screen a moment with no usable link.
+    ///
+    /// A clip is always launched from a URL, but not always a *complete* one:
+    /// a TestFlight invocation carries whatever URL was registered, and the
+    /// registered one has no token because the token lives in the fragment and
+    /// differs per link. Without this the clip spins on "Opening…" forever and
+    /// looks broken rather than under-specified.
+    func reportMissingInvocation() {
+        guard state == .idle else { return }
+        state = .failed(
+            "Open a 00Widget link to see what someone shared with you. This opened without one."
+        )
+    }
+
     private var pushTokenTask: Task<Void, Never>?
 
     func open(token: String) async {
