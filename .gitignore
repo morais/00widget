@@ -52,12 +52,11 @@ xcuserdata/
 # project.yml itself is per-developer (Team ID, bundle ids, App Group);
 # the committed source-of-truth is project.yml.sample.
 ios/project.yml
-ios/Resources/App/Info.plist
-ios/Resources/Widgets/Info.plist
-ios/Resources/TV/Info.plist
-ios/Resources/App/ZeroZeroWidget.entitlements
-ios/Resources/Widgets/Widgets.entitlements
-ios/Resources/TV/ZeroZeroWidgetTV.entitlements
+# Globs, not a list: naming each one meant a new target's generated plist and
+# entitlements were committed by default, carrying the real bundle id and App
+# Group the rest of this file exists to keep out.
+ios/Resources/*/Info.plist
+ios/Resources/*/*.entitlements
 
 # macOS
 .DS_Store
