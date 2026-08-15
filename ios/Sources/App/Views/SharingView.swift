@@ -216,6 +216,7 @@ struct ShareActivityKindSheet: View {
     let kind: LiveActivityKind
 
     @State private var email: String = ""
+
     @State private var submitting = false
     @State private var errorText: String?
 
@@ -223,8 +224,20 @@ struct ShareActivityKindSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Share every Live Activity of kind \(kind.rawValue) with this person.")
-                        .font(.subheadline)
+                    // The single most important thing to say, and the previous
+                    // copy did not: this is not a share of the activity the
+                    // person was looking at. It covers a whole class, including
+                    // activities that do not exist yet.
+                    Label {
+                        Text("This shares **every \(kind.rawValue) Live Activity** on your account — the ones running now and any you start in future — until you revoke it.")
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .font(.subheadline)
+
+                    Text("To share only the one activity, close this and choose “Share this activity as a link” instead.")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
@@ -264,7 +277,7 @@ struct ShareActivityKindSheet: View {
                     Section { Text(errorText).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("Share \(kind.rawValue)")
+            .navigationTitle("Share all \(kind.rawValue) activities")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

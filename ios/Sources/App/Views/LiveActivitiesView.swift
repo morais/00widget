@@ -5,9 +5,6 @@ struct LiveActivitiesView: View {
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     @State private var isGeneratingSample = false
     @State private var sampleError: String?
-    #if ZW_SHARING_ENABLED
-    @State private var shareKind: LiveActivityKind?
-    #endif
 
     var body: some View {
         NavigationStack {
@@ -15,12 +12,6 @@ struct LiveActivitiesView: View {
                 .navigationTitle("Activities")
                 .refreshable { await liveActivityController.reconcileWithServer() }
                 .task { await liveActivityController.reconcileWithServer() }
-                #if ZW_SHARING_ENABLED
-                .sheet(item: $shareKind) { kind in
-                    ShareActivityKindSheet(kind: kind)
-                        .environmentObject(env)
-                }
-                #endif
         }
     }
 
@@ -47,15 +38,6 @@ struct LiveActivitiesView: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        #if ZW_SHARING_ENABLED
-                        .contextMenu {
-                            Button {
-                                shareKind = session.kind
-                            } label: {
-                                Label("Share \(session.kind.rawValue) activities", systemImage: "person.crop.circle.badge.plus")
-                            }
-                        }
-                        #endif
                     }
                 }
                 .padding()
@@ -280,6 +262,9 @@ private struct ActivityDetailView: View {
     @State private var showRawJson = false
     @State private var showCurlExample = false
     @State private var showGuestLinkSheet = false
+    #if ZW_SHARING_ENABLED
+    @State private var showKindShareSheet = false
+    #endif
 
     var body: some View {
         let currentSession = resolvedSession
@@ -331,10 +316,24 @@ private struct ActivityDetailView: View {
             // guest's own activity is not theirs to pass on.
             if let instanceId = currentSession.activityInstanceId, !isGuestActivity {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showGuestLinkSheet = true
+                    Menu {
+                        Button {
+                            showGuestLinkSheet = true
+                        } label: {
+                            Label("Share this activity as a link", systemImage: "qrcode")
+                        }
+                        #if ZW_SHARING_ENABLED
+                        Button {
+                            showKindShareSheet = true
+                        } label: {
+                            Label(
+                                "Share all \(currentSession.kind.rawValue) activities…",
+                                systemImage: "person.crop.circle.badge.plus"
+                            )
+                        }
+                        #endif
                     } label: {
-                        Label("Share a link", systemImage: "qrcode")
+                        Label("Share", systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("share-activity-link")
                     .id(instanceId)
@@ -351,6 +350,12 @@ private struct ActivityDetailView: View {
                 .environmentObject(env)
             }
         }
+        #if ZW_SHARING_ENABLED
+        .sheet(isPresented: $showKindShareSheet) {
+            ShareActivityKindSheet(kind: currentSession.kind)
+                .environmentObject(env)
+        }
+        #endif
     }
 
     private var isGuestActivity: Bool {

@@ -86,13 +86,13 @@ struct CardDetailView: View {
                         Button {
                             showGuestLinkSheet = true
                         } label: {
-                            Label("Share a link", systemImage: "qrcode")
+                            Label("Share this card as a link", systemImage: "qrcode")
                         }
                         #if ZW_SHARING_ENABLED
                         Button {
                             showShareSheet = true
                         } label: {
-                            Label("Share with a 00Widget account", systemImage: "person.crop.circle.badge.plus")
+                            Label("Share this card with an account…", systemImage: "person.crop.circle.badge.plus")
                         }
                         #endif
                     } label: {
