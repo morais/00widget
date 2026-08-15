@@ -146,7 +146,7 @@ struct OnboardingView: View {
                     Text("Shared with you")
                 } footer: {
                     if env.guestLinks.isEmpty {
-                        Text("Scan a code someone shows you to follow one of their cards or Live Activities. You do not need an account.")
+                        Text("Scan a code someone shows you to follow one of their cards or Live Activities. You do not need to be signed in.")
                     } else {
                         Text("Swipe to remove. Removing a link only affects this device.")
                     }

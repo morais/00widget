@@ -15,7 +15,7 @@ struct SharingView: View {
                     SharedGuestLinksView()
                 }
             } footer: {
-                Text("Read-only QR links, for people who don't have a 00Widget account.")
+                Text("Read-only QR links. Whoever you show one to does not need to be signed in.")
             }
 
             if env.sharingDisabledByServer {
