@@ -305,6 +305,22 @@ public final class AppEnvironment: ObservableObject {
         return try await client.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
     }
 
+    /// Links this account has handed out. Runs on the app credential, like
+    /// every other shares:manage call.
+    public func fetchSharedGuestLinks() async throws -> [APIClient.GuestLinkSummary] {
+        guard let client = confirmedActionClient() else {
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
+        }
+        return try await client.listGuestLinks()
+    }
+
+    public func revokeSharedGuestLink(id: String) async throws {
+        guard let client = confirmedActionClient() else {
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
+        }
+        try await client.revokeGuestLink(id: id)
+    }
+
     public func removeGuestLink(token: String) {
         let removed = guestLinks.first { $0.token == token }
         guestLinks = GuestLinkStore.remove(token: token)
@@ -405,7 +421,17 @@ public final class AppEnvironment: ObservableObject {
     /// Guest cards live in their own App Group file, so a widget refresh that
     /// overwrites the tenant's cache cannot take them with it.
     private func persistGuestCardsForWidgets() {
-        try? GuestCardCache.save(guestCards)
+        // Pair each card with its link's deadline. The extension cannot ask the
+        // server whether a link is still good, so the expiry has to travel with
+        // the data or an expired card lingers on the Home Screen until somebody
+        // happens to open the app.
+        let entries = guestCards.map { card in
+            GuestCachedCard(
+                card: card,
+                expiresAt: guestLinks.first { $0.resourceId == card.id }?.expiresAt
+            )
+        }
+        try? GuestCardCache.save(entries)
         WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.card)
         WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid)
     }

@@ -116,6 +116,16 @@ struct OnboardingView: View {
                         Label("Scan a shared code", systemImage: "qrcode.viewfinder")
                     }
 
+                    #if !ZW_SHARING_ENABLED
+                    // With account-to-account sharing compiled out there is no
+                    // "Manage sharing" screen to host this, and minting stays
+                    // available on every card — so revoking has to live here or
+                    // a build could hand out links it cannot withdraw.
+                    NavigationLink("Links you've shared") {
+                        SharedGuestLinksView()
+                    }
+                    #endif
+
                     ForEach(env.guestLinks) { link in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(link.title ?? "Shared item")

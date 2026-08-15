@@ -149,6 +149,31 @@ public final class APIClient {
         )
     }
 
+    public struct GuestLinkSummary: Codable, Identifiable, Equatable {
+        public let id: String
+        public let label: String?
+        public let resourceKind: String?
+        public let resourceId: String?
+        public let createdAt: Date?
+        public let expiresAt: Date?
+        public let lastUsedAt: Date?
+    }
+
+    struct GuestLinksListResponse: Codable {
+        let links: [GuestLinkSummary]
+    }
+
+    /// Links this account has minted and not yet revoked. Never includes the
+    /// tokens themselves — they exist only in the response that created them.
+    public func listGuestLinks() async throws -> [GuestLinkSummary] {
+        let response: GuestLinksListResponse = try await request("GET", path: "/v1/shares/guest")
+        return response.links
+    }
+
+    public func revokeGuestLink(id: String) async throws {
+        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/guest/\(id)")
+    }
+
     public func fetchGuestResource() async throws -> GuestResourceResponse {
         try await request("GET", path: "/v1/guest/resource")
     }

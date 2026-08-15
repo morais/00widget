@@ -7,6 +7,17 @@ struct SharingView: View {
 
     var body: some View {
         Form {
+            // Guest links are not governed by the server's sharing kill switch
+            // or by ZW_SHARING_ENABLED, so this row sits above the notice below
+            // and stays useful when account-to-account sharing is off.
+            Section {
+                NavigationLink("Links you've shared") {
+                    SharedGuestLinksView()
+                }
+            } footer: {
+                Text("Read-only QR links, for people who don't have a 00Widget account.")
+            }
+
             if env.sharingDisabledByServer {
                 Section {
                     Text("Sharing is disabled on the server.")
