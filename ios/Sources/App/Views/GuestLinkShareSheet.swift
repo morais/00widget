@@ -71,9 +71,10 @@ struct GuestLinkShareSheet: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
-                Text("Stops working \(link.expiresAt.formatted(date: .abbreviated, time: .shortened)).")
+                Text(expiryText(for: link.expiresAt))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
 
                 ShareLink(item: link.url) {
                     Label("Share link", systemImage: "square.and.arrow.up")
@@ -84,6 +85,32 @@ struct GuestLinkShareSheet: View {
             }
             .padding(20)
         }
+    }
+
+    /// "Stops working <date>" left people counting days in their head and said
+    /// nothing about the other way a link ends. Lead with the duration, keep the
+    /// exact moment for anyone who needs it, and name where to revoke.
+    private func expiryText(for date: Date) -> String {
+        let absolute = date.formatted(date: .abbreviated, time: .shortened)
+        #if ZW_SHARING_ENABLED
+        let revokeHint = "Settings → Manage sharing"
+        #else
+        let revokeHint = "Settings → Links you've shared"
+        #endif
+        return "Expires in \(relativeDuration(until: date)) (\(absolute)), or revoke it sooner in \(revokeHint)."
+    }
+
+    /// Whole hours below two days, whole days above. An activity link lasts 12
+    /// hours, so "in 0 days" would be both wrong and the common case.
+    private func relativeDuration(until date: Date) -> String {
+        let seconds = max(0, date.timeIntervalSinceNow)
+        let hours = Int((seconds / 3600).rounded())
+        if hours < 48 {
+            if hours < 1 { return "less than an hour" }
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        }
+        let days = Int((seconds / 86_400).rounded())
+        return days == 1 ? "1 day" : "\(days) days"
     }
 
     private func mint() async {
