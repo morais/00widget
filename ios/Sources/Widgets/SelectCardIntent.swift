@@ -60,15 +60,24 @@ public struct CardEntityQuery: EntityQuery {
         card.isFromGuestLink ? "\(card.title) (shared)" : card.title
     }
 
-    // Deliberately no `defaultResult()`.
-    //
-    // It used to return the first cached card, which meant any parameter
-    // AppIntents could not resolve silently became "whatever card happens to be
-    // first" — rendering another card's live data in a widget the user had set
-    // to something else. That is indistinguishable from a correctly configured
-    // widget, so the failure is invisible: a widget set to Car shows Solar and
-    // looks right. An unconfigured or unresolvable widget must say so, which is
-    // what `.noCardSelected` ("Pick a card") is for.
+    /// Defaults a fresh widget to the only card there is, and never guesses
+    /// beyond that.
+    ///
+    /// This used to return the first cached card unconditionally, which meant
+    /// any parameter AppIntents could not resolve silently became "whatever
+    /// card happens to be first" — a widget set to Car rendering Solar, and
+    /// looking perfectly correct while doing it. That is the failure this
+    /// deliberately does not reintroduce.
+    ///
+    /// One candidate is a different situation: there is nothing to pick wrongly,
+    /// so "the only card" and "the first card" are the same answer. Anything
+    /// else still resolves to nothing, and the widget says "Pick a card"
+    /// rather than choosing on the user's behalf.
+    public func defaultResult() async -> CardEntity? {
+        let cards = CardCache.cardsForWidgets()
+        guard cards.count == 1, let only = cards.first else { return nil }
+        return CardEntity(id: only.id, title: Self.pickerTitle(for: only))
+    }
 }
 
 public struct SelectCardIntent: WidgetConfigurationIntent {

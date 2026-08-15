@@ -268,18 +268,29 @@ public final class AppEnvironment: ObservableObject {
     /// the scanner does, rather than appearing to do nothing.
     @Published public var guestLinkBanner: String?
 
+    /// Tab to land on after taking a link: where the thing that just arrived
+    /// actually is. Scanning a code and staying on Settings looks like nothing
+    /// happened, which is how this reads to anyone who has not been told the
+    /// card appeared two tabs away.
+    @Published public var guestLinkLandingTab: String?
+
     public func reportGuestLinkProblem(_ message: String) {
         guestLinkBanner = message
     }
 
-    /// Accepts a token that arrived by universal link. Same path as the
-    /// scanner, so an opened link and a scanned code cannot drift apart.
-    public func acceptGuestLinkFromURL(token: String) async {
-        switch await addGuestLink(token: token) {
+    /// Takes a link and reports the outcome. One path for the scanner and for
+    /// an opened universal link, so the two cannot drift apart in what they
+    /// accept, how they fail, or where they leave the person afterwards.
+    @discardableResult
+    public func acceptGuestLink(token: String) async -> GuestLinkResult {
+        let result = await addGuestLink(token: token)
+        switch result {
         case .added(let title):
             guestLinkBanner = "Added \u{201C}\(title)\u{201D}."
+            guestLinkLandingTab = landingTab(forTokenNamed: token)
         case .alreadyHeld(let title):
             guestLinkBanner = "You already have \u{201C}\(title)\u{201D}."
+            guestLinkLandingTab = landingTab(forTokenNamed: token)
         case .invalid:
             guestLinkBanner = "That is not a 00Widget link."
         case .expired:
@@ -287,6 +298,14 @@ public final class AppEnvironment: ObservableObject {
         case .failed(let message):
             guestLinkBanner = message
         }
+        return result
+    }
+
+    /// A Live Activity lives on the Activities tab and a card on the dashboard,
+    /// so "where did it go" has two answers.
+    private func landingTab(forTokenNamed token: String) -> String {
+        let kind = guestLinks.first { $0.token == token }?.resourceKind
+        return kind == "activity" ? "activities" : "widgets"
     }
 
     /// Mints a read-only link for one card or activity.

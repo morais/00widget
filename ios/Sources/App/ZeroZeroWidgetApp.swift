@@ -51,7 +51,7 @@ struct ZeroZeroWidgetApp: App {
             env.reportGuestLinkProblem("That link is missing its code. Ask for it again.")
             return
         }
-        Task { await env.acceptGuestLinkFromURL(token: token) }
+        Task { await env.acceptGuestLink(token: token) }
     }
 
     private func openExternalDeepLink(_ url: URL) {
@@ -122,10 +122,15 @@ struct RootView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag("settings")
         }
-        // An opened link lands on the dashboard, where the new card is, rather
-        // than leaving the outcome on whichever tab happened to be showing.
-        .onChange(of: env.guestLinkBanner) { _, banner in
-            if banner != nil { selectedTab = "widgets" }
+        // Land where the thing that just arrived actually is: the dashboard for
+        // a card, Activities for a Live Activity. Scanning a code and staying
+        // on Settings reads as nothing having happened.
+        .onChange(of: env.guestLinkLandingTab) { _, tab in
+            guard let tab else { return }
+            // Activities can be switched off, and selecting a tab that is not
+            // in the TabView leaves it showing nothing at all.
+            selectedTab = (tab == "activities" && !env.showActivitiesTab) ? "widgets" : tab
+            env.guestLinkLandingTab = nil
         }
     }
 }

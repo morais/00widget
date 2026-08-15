@@ -147,13 +147,15 @@ struct GuestLinkScannerSheet: View {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
-        switch await env.addGuestLink(token: token) {
+        switch await env.acceptGuestLink(token: token) {
         case .added(let title):
             status = "Added “\(title)”."
             try? await Task.sleep(for: .milliseconds(700))
             dismiss()
         case .alreadyHeld(let title):
             status = "You already have “\(title)”."
+            try? await Task.sleep(for: .milliseconds(700))
+            dismiss()
         case .invalid:
             status = "That is not a 00Widget link."
         case .expired:
