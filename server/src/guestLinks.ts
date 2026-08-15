@@ -7,9 +7,17 @@ import {
 } from "./types";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
-import { ApiScopePresets, createApiKey, listApiKeys, revokeApiKey } from "./auth";
+import {
+  ApiScopePresets,
+  countLiveGuestApiKeys,
+  createApiKey,
+  getGuestApiKey,
+  listLiveGuestApiKeys,
+  pruneExpiredGuestApiKeys,
+  revokeApiKey,
+} from "./auth";
 import { parseJson } from "./cards";
-import { enforceTenantRateLimits, tenantKey } from "./rateLimit";
+import { enforceRateLimits, enforceTenantRateLimits, guestCredentialKey, tenantKey } from "./rateLimit";
 import * as storage from "./storage";
 
 // Guest links let someone who has no 00Widget account watch exactly one card or
@@ -26,6 +34,10 @@ import * as storage from "./storage";
 // page reads it client-side. Anything that builds a guest URL must keep the
 // "#" — moving the token into the path would quietly start logging it.
 export const GUEST_LINK_PATH = "/app/g";
+
+/// Ceiling on live links per tenant. Each one is a bearer credential someone
+/// may still be holding, so the standing total matters more than the rate.
+export const MAX_LIVE_GUEST_LINKS = 200;
 
 export function guestLinkUrl(origin: string, token: string): string {
   return `${origin}${GUEST_LINK_PATH}#${token}`;
@@ -46,12 +58,28 @@ export async function createGuestLink(
   const body = await parseJson(req, RequestBodyLimits.guestLink);
   const parsed = CreateGuestLinkSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
+  // Minting is a share mutation, not a registration. Spending the registration
+  // budget here would let someone who hands out links lose the ability to
+  // register their own devices and Live Activities.
   const limited = await enforceTenantRateLimits(env, auth, [
-    { policy: "registrationTenantDay", key: tenantKey(auth.tenantId) },
+    { policy: "shareTenantDay", key: tenantKey(auth.tenantId) },
   ]);
   if (limited) return limited;
 
   const { resourceKind, resourceId, ttlSeconds, label } = parsed.data;
+
+  // Cheap and infrequent enough to piggyback on: guest rows are the only ones
+  // that expire freely and in volume, and nothing else would ever remove them.
+  await pruneExpiredGuestApiKeys(env);
+
+  // A daily rate limit caps how fast links appear, not how many exist at once.
+  // Every live link is a bearer credential in the world, so the standing total
+  // needs its own ceiling.
+  if (await countLiveGuestApiKeys(env, auth.tenantId) >= MAX_LIVE_GUEST_LINKS) {
+    return json({
+      error: `too many active guest links (limit ${MAX_LIVE_GUEST_LINKS}); revoke some first`,
+    }, 429, { "retry-after": "3600" });
+  }
 
   // Mint only for something the caller actually owns, and only for something
   // that exists: a link to a missing resource is a token in the world that can
@@ -99,13 +127,7 @@ export async function listGuestLinks(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const now = Date.now();
-  const links = (await listApiKeys(env))
-    .filter((key) =>
-      key.kind === "guest"
-      && key.tenantId === auth.tenantId
-      && !key.revokedAt
-      && Date.parse(key.expiresAt) > now)
+  const links = (await listLiveGuestApiKeys(env, auth.tenantId))
     .map((key) => ({
       id: key.id,
       label: key.label,
@@ -125,11 +147,9 @@ export async function revokeGuestLink(
   auth: AuthContext,
   id: string,
 ): Promise<Response> {
-  // Scope the lookup to the caller's tenant before revoking, so an id from
-  // another tenant is indistinguishable from one that never existed.
-  const target = (await listApiKeys(env)).find(
-    (key) => key.id === id && key.kind === "guest" && key.tenantId === auth.tenantId,
-  );
+  // Scoped to the caller's tenant, so an id from another tenant is
+  // indistinguishable from one that never existed.
+  const target = await getGuestApiKey(env, auth.tenantId, id);
   if (!target) return notFound();
   const revoked = await revokeApiKey(env, id);
   return json({ ok: true, revoked });
@@ -177,8 +197,11 @@ export async function registerGuestActivity(
   const body = await parseJson(req, RequestBodyLimits.registration);
   const parsed = RegisterGuestActivitySchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
-  const limited = await enforceTenantRateLimits(env, auth, [
-    { policy: "registrationTenantDay", key: tenantKey(auth.tenantId) },
+  // Deliberately not enforceTenantRateLimits: that also charges the owner's
+  // hourly write budget. A guest must not be able to spend the owner's
+  // allowance at all, so this is keyed on the guest credential alone.
+  const limited = await enforceRateLimits(env, [
+    { policy: "guestRegistrationDay", key: guestCredentialKey(auth.apiKeyId) },
   ]);
   if (limited) return limited;
 

@@ -111,6 +111,47 @@ export class FakeD1 {
     });
   }
 
+  private deleteGuestKeys(matches: (row: FakeApiKeyRow) => boolean): number {
+    let removed = 0;
+    for (const [key, row] of [...this.apiKeys.entries()]) {
+      if (row.kind !== "guest" || !matches(row)) continue;
+      this.apiKeys.delete(key);
+      removed += 1;
+    }
+    return removed;
+  }
+
+  /// Seeds live guest credentials directly, so the standing-total cap can be
+  /// tested without minting through a daily rate limit set lower than it.
+  seedGuestKeys(tenantId: string, count: number): void {
+    for (let i = 0; i < count; i++) {
+      this.apiKeys.set(`seeded-guest-${tenantId}-${i}`, {
+        id: `seeded-guest-${tenantId}-${i}`,
+        tenant_id: tenantId,
+        token_hash: `seeded-guest-hash-${tenantId}-${i}`,
+        label: "seeded guest",
+        created_at: "2026-01-01T00:00:00.000Z",
+        last_used_at: "",
+        revoked_at: "",
+        kind: "guest",
+        session_id: "",
+        device_id: "",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        scopes_json: JSON.stringify(["guest:read"]),
+        renew_seconds: null,
+        resource_kind: "card",
+        resource_id: "washer",
+      });
+    }
+  }
+
+  /// Backdates a credential's expiry so pruning and expiry paths are testable
+  /// without waiting.
+  expireApiKey(id: string, expiresAt: string): void {
+    const row = this.findApiKeyById(id);
+    if (row) row.expires_at = expiresAt;
+  }
+
   // `WHERE id = ?` matches the column, not this Map's key. Rows inserted by
   // `createApiKey` are keyed by id, but `seedApiKeyHash` keys by token hash —
   // a `.get(id)` silently misses those and the statement becomes a no-op.
@@ -603,6 +644,14 @@ export class FakeD1 {
       }
       return count;
     }
+    if (normalized === "DELETE FROM api_keys WHERE kind = 'guest' AND expires_at < ?") {
+      const [expiredBefore] = values.map(String);
+      return this.deleteGuestKeys((row) => String(row.expires_at) < expiredBefore);
+    }
+    if (normalized === "DELETE FROM api_keys WHERE kind = 'guest' AND revoked_at IS NOT NULL AND revoked_at < ?") {
+      const [revokedBefore] = values.map(String);
+      return this.deleteGuestKeys((row) => !!row.revoked_at && String(row.revoked_at) < revokedBefore);
+    }
     if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE expires_at < ?")) {
       const [now] = values.map(Number);
       let count = 0;
@@ -695,6 +744,31 @@ export class FakeD1 {
     }
     if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds, resource_kind, resource_id FROM api_keys ORDER BY created_at DESC") {
       return [...this.apiKeys.values()].sort(by("created_at")).reverse();
+    }
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds, resource_kind, resource_id FROM api_keys WHERE tenant_id = ? AND kind = 'guest' AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC") {
+      const [tenant_id, now] = values.map(String);
+      return [...this.apiKeys.values()]
+        .filter((row) => row.tenant_id === tenant_id
+          && row.kind === "guest"
+          && !row.revoked_at
+          && String(row.expires_at) > now)
+        .sort(by("created_at"))
+        .reverse();
+    }
+    if (normalized === "SELECT COUNT(*) AS total FROM api_keys WHERE tenant_id = ? AND kind = 'guest' AND revoked_at IS NULL AND expires_at > ?") {
+      const [tenant_id, now] = values.map(String);
+      const total = [...this.apiKeys.values()].filter((row) => row.tenant_id === tenant_id
+        && row.kind === "guest"
+        && !row.revoked_at
+        && String(row.expires_at) > now).length;
+      return [{ total } as unknown as FakeApiKeyRow];
+    }
+    if (normalized === "SELECT id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at, kind, session_id, device_id, expires_at, scopes_json, renew_seconds, resource_kind, resource_id FROM api_keys WHERE id = ? AND tenant_id = ? AND kind = 'guest'") {
+      const [id, tenant_id] = values.map(String);
+      const row = [...this.apiKeys.values()].find((candidate) => candidate.id === id
+        && candidate.tenant_id === tenant_id
+        && candidate.kind === "guest");
+      return row ? [row] : [];
     }
     if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
       const [tenant_id, session_id] = values.map(String);

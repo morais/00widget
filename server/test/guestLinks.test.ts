@@ -4,6 +4,7 @@ import { makeEnv, authedRequest, seedApiKey, testApiKey } from "./helpers";
 import * as storage from "../src/storage";
 import { sha256Hex, ApiScopePresets } from "../src/auth";
 import { GuestLinkTtl } from "../src/types";
+import { MAX_LIVE_GUEST_LINKS } from "../src/guestLinks";
 
 const ctx = {} as ExecutionContext;
 const TENANT = "tenant-owner";
@@ -294,6 +295,79 @@ describe("guest links — listing and revocation", () => {
 
     expect((await asGuest(env, cardLink.token)).status).toBe(401);
     expect((await asGuest(env, activityLink.token)).status).toBe(401);
+  });
+});
+
+describe("guest links — abuse limits", () => {
+  it("spends the share budget, not the registration budget", async () => {
+    // Minting used to burn registrationTenantDay, which device, widget and
+    // Live Activity registration also draw on — so handing out links could
+    // lock a tenant out of registering its own hardware.
+    const env = await ownerEnv(ApiScopePresets.legacyPublisher);
+    await seedCard(env);
+    for (let i = 0; i < 3; i++) {
+      expect((await mint(env, { resourceKind: "card", resourceId: "washer" })).status).toBe(201);
+    }
+    const register = await asOwner(env, "/v1/devices/register", {
+      method: "POST",
+      body: JSON.stringify({ deviceId: "d1", appVersion: "1.0", platform: "ios" }),
+    });
+    expect(register.status).not.toBe(429);
+  });
+
+  it("caps the number of links standing at once", async () => {
+    // Two limits at different timescales, and the standing cap is the one that
+    // survives a patient attacker: shareTenantDay (120) bounds a single day, so
+    // reaching 200 live links takes more than one — seed them rather than
+    // minting through a limit deliberately set lower.
+    const env = await ownerEnv();
+    await seedCard(env);
+    (env.ZW_DB as any).seedGuestKeys(TENANT, MAX_LIVE_GUEST_LINKS);
+    const res = await mint(env, { resourceKind: "card", resourceId: "washer" });
+    expect(res.status).toBe(429);
+    expect(await res.text()).toContain("too many active guest links");
+  });
+
+  it("still mints when the standing total is one below the cap", async () => {
+    const env = await ownerEnv();
+    await seedCard(env);
+    (env.ZW_DB as any).seedGuestKeys(TENANT, MAX_LIVE_GUEST_LINKS - 1);
+    expect((await mint(env, { resourceKind: "card", resourceId: "washer" })).status).toBe(201);
+  });
+
+  it("charges a guest's registration to the guest, never the owner", async () => {
+    // A QR code is a bearer token with no per-person identity. If a guest's
+    // registration drew on the owner's budget, one widely-shown code would
+    // exhaust it and take the owner's own registrations down with it.
+    const env = await ownerEnv();
+    await seedActivity(env);
+    const link = (await (await mint(env, { resourceKind: "activity", resourceId: "activity-1" })).json()) as any;
+    for (let i = 0; i < 5; i++) {
+      const res = await asGuest(env, link.token, "/v1/guest/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({ deviceId: `d${i}`, localActivityId: `l${i}`, pushToken: "abcd" }),
+      });
+      expect(res.status).toBe(200);
+    }
+    const ownerWrite = await asOwner(env, "/v1/devices/register", {
+      method: "POST",
+      body: JSON.stringify({ deviceId: "owner-device", appVersion: "1.0", platform: "ios" }),
+    });
+    expect(ownerWrite.status).not.toBe(429);
+  });
+
+  it("prunes guest credentials that lapsed over a day ago", async () => {
+    const env = await ownerEnv();
+    await seedCard(env);
+    const stale = (await (await mint(env, { resourceKind: "card", resourceId: "washer" })).json()) as any;
+    // Backdate it past the grace period, then mint again to trigger the sweep.
+    const db = env.ZW_DB as any;
+    db.expireApiKey(stale.id, "2020-01-01T00:00:00.000Z");
+    expect((await mint(env, { resourceKind: "card", resourceId: "washer" })).status).toBe(201);
+    // Gone entirely, not merely filtered out of the listing.
+    expect((await asGuest(env, stale.token)).status).toBe(401);
+    const links = (await (await asOwner(env, "/v1/shares/guest")).json()) as any;
+    expect(links.links.some((l: any) => l.id === stale.id)).toBe(false);
   });
 });
 

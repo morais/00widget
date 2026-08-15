@@ -20,6 +20,11 @@ export const RateLimitPolicies = {
   registrationTenantDay: { label: "Registrations", limit: 240, windowSeconds: DAY },
   webhookTenantDay: { label: "Webhook changes", limit: 20, windowSeconds: DAY },
   shareTenantDay: { label: "Share mutations", limit: 120, windowSeconds: DAY },
+  // Keyed on the guest credential, never the owner's tenant. A QR code is a
+  // bearer token with no per-person identity, so charging a guest's
+  // registration to the owner would let one widely-shown code exhaust the
+  // owner's budget and lock them out of registering their own devices.
+  guestRegistrationDay: { label: "Guest registrations", limit: 60, windowSeconds: DAY },
   appleLoginIpHour: { label: "Apple login attempts per IP", limit: 60, windowSeconds: HOUR },
   appleLoginSubHour: { label: "Apple login token exchange", limit: 30, windowSeconds: HOUR },
   adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
@@ -177,6 +182,10 @@ export function tenantKey(tenantId: string): string {
 
 export function tenantResourceKey(tenantId: string, kind: string, id: string): string {
   return `tenant:${tenantId}:${kind}:${id}`;
+}
+
+export function guestCredentialKey(apiKeyId: string): string {
+  return `guest-credential:${apiKeyId}`;
 }
 
 export function appleSubKey(sub: string): string {

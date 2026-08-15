@@ -410,6 +410,123 @@ export async function listApiKeys(env: Env): Promise<ApiKeyRecord[]> {
   }));
 }
 
+const GUEST_KEY_COLUMNS = `id, tenant_id, token_hash, label, created_at, last_used_at, revoked_at,
+            kind, session_id, device_id, expires_at, scopes_json, renew_seconds,
+            resource_kind, resource_id`;
+
+interface ApiKeyRow {
+  id: string;
+  tenant_id: string;
+  token_hash: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  kind: CredentialKind;
+  session_id: string | null;
+  device_id: string | null;
+  expires_at: string;
+  scopes_json: string;
+  renew_seconds: number | null;
+  resource_kind: string | null;
+  resource_id: string | null;
+}
+
+function rowToApiKeyRecord(row: ApiKeyRow): ApiKeyRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    tokenHash: row.token_hash,
+    label: row.label,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at ?? undefined,
+    revokedAt: row.revoked_at ?? undefined,
+    kind: row.kind,
+    sessionId: row.session_id ?? undefined,
+    deviceId: row.device_id ?? undefined,
+    expiresAt: row.expires_at,
+    scopes: parseScopes(row.scopes_json),
+    resourceKind: row.resource_kind ?? undefined,
+    resourceId: row.resource_id ?? undefined,
+    renewSeconds: row.renew_seconds ?? undefined,
+  };
+}
+
+/// One tenant's live guest links. Scoped in SQL rather than filtered in the
+/// Worker: `listApiKeys` reads every row of every tenant, which is fine for the
+/// admin dashboard and absurd for rendering one person's list of three links.
+/// Hits `api_keys_by_tenant_kind`.
+export async function listLiveGuestApiKeys(
+  env: Env,
+  tenantId: string,
+): Promise<ApiKeyRecord[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT ${GUEST_KEY_COLUMNS}
+     FROM api_keys
+     WHERE tenant_id = ? AND kind = 'guest' AND revoked_at IS NULL AND expires_at > ?
+     ORDER BY created_at DESC`,
+  )
+    .bind(tenantId, new Date().toISOString())
+    .all<ApiKeyRow>();
+  return rows.results.map(rowToApiKeyRecord);
+}
+
+export async function countLiveGuestApiKeys(env: Env, tenantId: string): Promise<number> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT COUNT(*) AS total
+     FROM api_keys
+     WHERE tenant_id = ? AND kind = 'guest' AND revoked_at IS NULL AND expires_at > ?`,
+  )
+    .bind(tenantId, new Date().toISOString())
+    .first<{ total: number }>();
+  return row?.total ?? 0;
+}
+
+/// A single guest credential, scoped to its tenant so an id belonging to
+/// somebody else is indistinguishable from one that never existed.
+export async function getGuestApiKey(
+  env: Env,
+  tenantId: string,
+  id: string,
+): Promise<ApiKeyRecord | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT ${GUEST_KEY_COLUMNS}
+     FROM api_keys
+     WHERE id = ? AND tenant_id = ? AND kind = 'guest'`,
+  )
+    .bind(id, tenantId)
+    .first<ApiKeyRow>();
+  return row ? rowToApiKeyRecord(row) : null;
+}
+
+/// Deletes guest credentials that expired or were revoked more than a day ago.
+///
+/// Guest links are minted freely and never renew, so without this the table
+/// grows for the life of the deployment. Only `kind = 'guest'` rows are
+/// touched: a revoked publisher or app credential is account history, while a
+/// lapsed guest link is litter. Opportunistic and fail-safe, in the manner of
+/// the rate limiter's own bucket cleanup.
+export async function pruneExpiredGuestApiKeys(env: Env): Promise<void> {
+  const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  try {
+    // Two statements rather than one OR: each matches a partial index, while
+    // the disjunction forced SQLite to scan the whole table.
+    await env.ZW_DB.batch([
+      env.ZW_DB.prepare(
+        `DELETE FROM api_keys WHERE kind = 'guest' AND expires_at < ?`,
+      ).bind(threshold),
+      env.ZW_DB.prepare(
+        `DELETE FROM api_keys
+         WHERE kind = 'guest' AND revoked_at IS NOT NULL AND revoked_at < ?`,
+      ).bind(threshold),
+    ]);
+  } catch (err) {
+    console.warn("guest_api_key.prune_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export function hasScope(auth: Pick<AuthContext, "scopes">, scope: ApiScope): boolean {
   return auth.scopes.includes(scope);
 }
