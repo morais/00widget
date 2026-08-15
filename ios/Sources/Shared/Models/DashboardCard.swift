@@ -100,6 +100,12 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         return Date().timeIntervalSince(updatedAt) > 3600
     }
 
+    /// A card reaching this device through a link somebody shared. Read-only:
+    /// the server strips actions before it ever gets here.
+    public var isFromGuestLink: Bool {
+        id.hasPrefix(ZeroZeroWidgetConstants.guestCardIdPrefix)
+    }
+
     public var isSample: Bool {
         id.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix)
     }

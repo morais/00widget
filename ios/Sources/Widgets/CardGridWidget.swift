@@ -50,7 +50,7 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     public var statusFilter: WidgetStatusFilter
 
     public init() {
-        let cards = CardCache.load().cards
+        let cards = CardCache.cardsForWidgets()
         func slot(_ index: Int) -> CardEntity? {
             guard cards.indices.contains(index) else { return nil }
             return CardEntity(id: cards[index].id, title: cards[index].title)
@@ -148,7 +148,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
             return id
         }
         let allUnconfigured = ids.allSatisfy { $0 == nil }
-        let cached = CardCache.load().cards
+        let cached = CardCache.cardsForWidgets()
         let slots: [DashboardCard?] = ids.map { id in
             guard let id else { return nil }
             guard let card = cached.first(where: { $0.id == id }) else { return nil }

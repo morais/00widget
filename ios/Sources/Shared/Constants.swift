@@ -58,6 +58,14 @@ public enum ZeroZeroWidgetConstants {
     /// keep using it and producers should avoid it.
     public static let sampleCardIdPrefix = "sample-"
 
+    /// Prefix applied to a card's id when it is written to the widget cache
+    /// through a guest link. Two purposes: card ids are unique per tenant, so a
+    /// shared card can collide with one of your own, and the rendering layer
+    /// needs to know a card is someone else's without a side channel.
+    public static let guestCardIdPrefix = "guest-"
+
+    public static let guestCardsCacheFilename = "guest-cards.json"
+
     public enum WidgetKinds {
         public static let card = "ZeroZeroWidgetCardWidget"
         public static let cardGrid = "ZeroZeroWidgetCardGridWidget"
@@ -79,8 +87,10 @@ public enum ZeroZeroWidgetConstants {
         public static let appCredential = "zw.appCredential"
         public static let publisherCredential = "zw.publisherCredential"
         /// Bearer tokens for resources other people shared with this device.
-        /// In the shared access group: the widget extension renders guest cards
-        /// alongside owned ones.
+        /// In the shared access group rather than app-only so the widget
+        /// extension could refresh guest cards itself later; today the app
+        /// fetches them and writes GuestCardCache, which is what the extension
+        /// actually reads.
         public static let guestLinks = "zw.guestLinks"
     }
 }

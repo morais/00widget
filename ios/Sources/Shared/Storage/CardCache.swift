@@ -70,6 +70,13 @@ public enum CardCache {
         return CardCachePayload(cards: [])
     }
 
+    /// Everything the widget layer should offer: the tenant's own cards plus
+    /// any followed through a guest link, the latter namespaced so a shared
+    /// card and one of your own cannot collide on id.
+    public static func cardsForWidgets() -> [DashboardCard] {
+        load().cards + GuestCardCache.namespacedCards()
+    }
+
     public static func save(_ cards: [DashboardCard]) throws {
         let payload = CardCachePayload(cards: cards)
         let data = try jsonEncoder().encode(payload)

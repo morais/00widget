@@ -251,6 +251,7 @@ public final class AppEnvironment: ObservableObject {
             guestLinks = GuestLinkStore.add(link)
             applyGuestResource(resource, for: token)
             guestRefreshError = nil
+            persistGuestCardsForWidgets()
             await syncGuestActivities()
             let title = link.title ?? "Shared item"
             return alreadyHeld ? .alreadyHeld(title: title) : .added(title: title)
@@ -308,6 +309,7 @@ public final class AppEnvironment: ObservableObject {
         let removed = guestLinks.first { $0.token == token }
         guestLinks = GuestLinkStore.remove(token: token)
         rebuildGuestResources()
+        persistGuestCardsForWidgets()
         Task {
             if removed?.resourceKind == "activity", let id = removed?.resourceId {
                 await liveActivityController.endGuestActivity(instanceId: id)
@@ -363,6 +365,7 @@ public final class AppEnvironment: ObservableObject {
         guestCards = cards
         guestActivities = activities
         guestRefreshError = lastError
+        persistGuestCardsForWidgets()
         await syncGuestActivities(dropped: droppedInstanceIds)
     }
 
@@ -397,6 +400,14 @@ public final class AppEnvironment: ObservableObject {
             guestActivities.removeAll { $0.id == activity.id }
             guestActivities.append(activity)
         }
+    }
+
+    /// Guest cards live in their own App Group file, so a widget refresh that
+    /// overwrites the tenant's cache cannot take them with it.
+    private func persistGuestCardsForWidgets() {
+        try? GuestCardCache.save(guestCards)
+        WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.card)
+        WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid)
     }
 
     private func rebuildGuestResources() {

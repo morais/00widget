@@ -37,19 +37,27 @@ public struct CardEntityQuery: EntityQuery {
     /// alive lets `CardTimelineProvider` say `.noCachedData` about the right
     /// card instead.
     public func entities(for identifiers: [CardEntity.ID]) async throws -> [CardEntity] {
-        let cards = CardCache.load().cards
+        let cards = CardCache.cardsForWidgets()
         return identifiers.map { id in
             if id == Self.noneId { return CardEntity(id: id, title: "None") }
             guard let card = cards.first(where: { $0.id == id }) else {
                 return CardEntity(id: id, title: id)
             }
-            return CardEntity(id: card.id, title: card.title)
+            return CardEntity(id: card.id, title: Self.pickerTitle(for: card))
         }
     }
 
     public func suggestedEntities() async throws -> [CardEntity] {
-        let cards = CardCache.load().cards.map { CardEntity(id: $0.id, title: $0.title) }
+        let cards = CardCache.cardsForWidgets()
+            .map { CardEntity(id: $0.id, title: Self.pickerTitle(for: $0)) }
         return [CardEntity(id: Self.noneId, title: "None")] + cards
+    }
+
+    /// A shared card and one of your own can carry the same title — ids are
+    /// unique per tenant, not globally — so the picker has to say which is
+    /// which. The rendered widget carries the link badge; this list is text.
+    private static func pickerTitle(for card: DashboardCard) -> String {
+        card.isFromGuestLink ? "\(card.title) (shared)" : card.title
     }
 
     // Deliberately no `defaultResult()`.

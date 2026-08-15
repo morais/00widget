@@ -58,7 +58,7 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     private func entry(for configuration: SelectCardIntent) -> CardTimelineEntry {
         let density = configuration.density.renderDensity
         let filter = configuration.statusFilter
-        let cached = CardCache.load().cards
+        let cached = CardCache.cardsForWidgets()
 
         guard let cardId = configuration.card?.id else {
             if filter == .all {
