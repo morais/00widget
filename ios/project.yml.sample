@@ -78,6 +78,10 @@ targets:
         # it bypasses Apple's CDN cache, and must come back out before release.
         com.apple.developer.associated-domains:
           - applinks:api.example.com
+        # Names the App Clip this app carries. App Store Connect warns without
+        # it, and the pairing is what lets the clip hand off to the full app.
+        com.apple.developer.associated-appclip-app-identifiers:
+          - $(AppIdentifierPrefix)com.example.zerozerowidget.Clip
         aps-environment: development
     settings:
       base:
@@ -132,7 +136,7 @@ targets:
     sources:
       - path: Sources/Clip
       - path: Sources/Shared
-      - path: Resources/App/Assets.xcassets
+      - path: Resources/Clip/Assets.xcassets
     info:
       path: Resources/Clip/Info.plist
       properties:
@@ -142,12 +146,22 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # XcodeGen writes APPL for `application` but not for
+        # `application.on-demand-install-capable`; App Store Connect rejects
+        # the upload without it (error 90183).
+        CFBundlePackageType: APPL
+        # Required alongside the catalog for any target built with the iOS 11+
+        # SDK (error 90713).
+        CFBundleIconName: AppIcon
         NSSupportsLiveActivities: true
         NSAppClip:
           # The clip asks for nothing beyond the link it was opened with.
           NSAppClipRequestEphemeralUserNotification: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         ZWAppGroupIdentifier: group.com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""
     entitlements:
@@ -164,6 +178,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.Clip
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: ZeroZeroWidgetClipLiveActivity
         embed: true
