@@ -129,7 +129,8 @@ xcodegen >/dev/null
 
 # A generated plist holding a literal build number instead of the variable means
 # App Store Connect will see "1" and reject the upload after a full archive.
-for plist in Resources/App/Info.plist Resources/Widgets/Info.plist Resources/TV/Info.plist; do
+for plist in Resources/App/Info.plist Resources/Widgets/Info.plist Resources/TV/Info.plist \
+             Resources/Clip/Info.plist Resources/ClipWidgets/Info.plist; do
   [[ -f "$plist" ]] || continue
   got="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist" 2>/dev/null || true)"
   if [[ "$got" != '$(CURRENT_PROJECT_VERSION)' ]]; then
@@ -176,7 +177,8 @@ export_options() { # <path> <destination> <bundle-id> <profile-name-or-empty>
 #   $1 label   $2 scheme   $3 destination   $4 product name
 #   $5 ';'-separated entitlements the *signed* app must contain
 #   $6 manually-managed profile name, empty for automatic signing
-#   $7 optional extra bundle inside the app whose build number must also match
+#   $7 optional ';'-separated bundles inside the app whose build numbers must
+#      also match — extensions, and the App Clip with its own extension
 ship() {
   local label="$1" scheme="$2" destination="$3" product="$4"
   local required_entitlements="$5" profile="$6" extra_bundle="${7:-}"
@@ -215,7 +217,11 @@ ship() {
   [[ "$archive_build" == "$BUILD_NUMBER" ]] || { echo "✗ [$label] archive build is '$archive_build', expected $BUILD_NUMBER"; exit 1; }
   echo "  ✓ archive build number"
   assert_build "$label app" "$app/Info.plist"
-  [[ -n "$extra_bundle" ]] && assert_build "$label $extra_bundle" "$app/$extra_bundle/Info.plist"
+  local nested
+  while IFS= read -r nested; do
+    [[ -z "$nested" ]] && continue
+    assert_build "$label $nested" "$app/$nested/Info.plist"
+  done <<<"${extra_bundle//;/$'\n'}"
 
   # Only the re-signed export shows what TestFlight will actually receive.
   local bundle_id
@@ -270,6 +276,27 @@ ship() {
     exit 1
   fi
 
+  # The App Clip is signed separately from the app that carries it, so the
+  # checks above say nothing about it. Without parent-application-identifiers
+  # the clip installs and refuses to launch; without associated-domains the QR
+  # code opens Safari instead of the clip, which looks like nothing happening.
+  local clip="$OUT/$label-unzip/Payload/$product.app/AppClips/ZeroZeroWidgetClip.app"
+  if [[ -d "$clip" ]]; then
+    local clip_entitlements
+    clip_entitlements="$(codesign -d --entitlements - --xml "$clip" 2>/dev/null | plutil -p -)"
+    local required
+    for required in com.apple.developer.parent-application-identifiers \
+                    com.apple.developer.associated-domains; do
+      if grep -qF "$required" <<<"$clip_entitlements"; then
+        echo "  ✓ signed App Clip has $required"
+      else
+        echo "✗ [$label] signed App Clip is missing: $required"
+        echo "$clip_entitlements" | sed 's/^/    /'
+        exit 1
+      fi
+    done
+  fi
+
   if [[ "$UPLOAD" != "1" ]]; then
     echo "  (skipping upload: --verify-only)"
     return
@@ -289,7 +316,7 @@ if [[ "$DO_IOS" == "1" ]]; then
   ship iOS ZeroZeroWidgetApp 'generic/platform=iOS' ZeroZeroWidgetApp \
     '"aps-environment" => "production";com.apple.developer.associated-domains' \
     "${ZW_IOS_PROFILE:-}" \
-    "PlugIns/ZeroZeroWidgetWidgets.appex"
+    "PlugIns/ZeroZeroWidgetWidgets.appex;AppClips/ZeroZeroWidgetClip.app;AppClips/ZeroZeroWidgetClip.app/PlugIns/ZeroZeroWidgetClipLiveActivity.appex"
 fi
 
 if [[ "$DO_TVOS" == "1" ]]; then

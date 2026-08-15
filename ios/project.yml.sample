@@ -88,6 +88,8 @@ targets:
     dependencies:
       - target: ZeroZeroWidgetWidgets
         embed: true
+      - target: ZeroZeroWidgetClip
+        embed: true
 
   ZeroZeroWidgetWidgets:
     type: app-extension
@@ -119,6 +121,86 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.widgets
         INFOPLIST_KEY_CFBundleDisplayName: 00Widget
+
+
+  # App Clip. Launched from a guest link's QR code without installing anything,
+  # to run one shared Live Activity. Apple forbids Home Screen widgets in a
+  # clip; a Live-Activity-only widget extension is the documented carve-out.
+  ZeroZeroWidgetClip:
+    type: application.on-demand-install-capable
+    platform: iOS
+    sources:
+      - path: Sources/Clip
+      - path: Sources/Shared
+      - path: Resources/App/Assets.xcassets
+    info:
+      path: Resources/Clip/Info.plist
+      properties:
+        CFBundleDisplayName: 00Widget
+        UILaunchScreen:
+          {}
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
+        NSAppClip:
+          # The clip asks for nothing beyond the link it was opened with.
+          NSAppClipRequestEphemeralUserNotification: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ZWAppGroupIdentifier: group.com.example.zerozerowidget
+        ZWDefaultServerBaseURL: ""
+    entitlements:
+      path: Resources/Clip/ZeroZeroWidgetClip.entitlements
+      properties:
+        com.apple.developer.parent-application-identifiers:
+          - $(AppIdentifierPrefix)com.example.zerozerowidget
+        com.apple.developer.associated-domains:
+          - applinks:api.example.com
+        com.apple.security.application-groups:
+          - group.com.example.zerozerowidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.Clip
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    dependencies:
+      - target: ZeroZeroWidgetClipLiveActivity
+        embed: true
+
+  # Live Activities only. Apple: "Reserve widgets that appear on the Home
+  # Screen, Lock Screen, or in Today View for your full app." Compiles the one
+  # shared Live Activity view rather than Sources/Widgets wholesale, because
+  # that directory's WidgetBundle.swift is the full app's @main.
+  ZeroZeroWidgetClipLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/ClipWidgets
+      - path: Sources/Widgets/LiveActivityWidget.swift
+      - path: Sources/Shared
+    info:
+      path: Resources/ClipWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: 00Widget
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        ZWAppGroupIdentifier: group.com.example.zerozerowidget
+        ZWDefaultServerBaseURL: ""
+    entitlements:
+      path: Resources/ClipWidgets/ClipLiveActivity.entitlements
+      properties:
+        # The App Clip Extension capability. Without it the clip cannot carry
+        # the widget extension at all.
+        com.apple.developer.on-demand-install-capable: true
+        com.apple.security.application-groups:
+          - group.com.example.zerozerowidget
+    settings:
+      base:
+        # Must be prefixed by the App Clip's bundle id, not the app's.
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.Clip.liveactivities
 
   # Marketing-screenshot capture only — not part of any shipping build. The
   # dedicated ZeroZeroWidgetScreenshots scheme below keeps it out of the
@@ -212,6 +294,19 @@ schemes:
     run:
       config: Debug
     test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  ZeroZeroWidgetClip:
+    build:
+      targets:
+        ZeroZeroWidgetClip: all
+    run:
       config: Debug
     profile:
       config: Release
