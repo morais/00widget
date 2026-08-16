@@ -449,7 +449,13 @@ interface StartTokenEntry {
 // APNs reasons that mean "this token is permanently dead, drop it." See:
 // https://developer.apple.com/documentation/usernotifications/handling-notification-responses-from-apns
 function isDeadTokenReason(reason: string | undefined): boolean {
-  return reason === "BadDeviceToken" || reason === "Unregistered" || reason === "DeviceTokenNotForTopic";
+  return reason === "BadDeviceToken"
+    || reason === "Unregistered"
+    || reason === "DeviceTokenNotForTopic"
+    // APNs returns this once a Live Activity has ended on the device, which
+    // happens on its own after ActivityKit's 8-hour ceiling. The token is gone
+    // for good, so retrying can never succeed.
+    || reason === "ExpiredToken";
 }
 
 export async function updateLiveActivity(
@@ -602,7 +608,10 @@ export interface EndAndDeleteActivityResult {
 }
 
 function endDeliverySucceeded(result: ApnsResult): boolean {
-  return result.status === 200 || isDeadTokenReason(result.reason);
+  // 410 is APNs saying the token is permanently invalid, whatever reason it
+  // pairs with it. Matching on status as well as the named reasons means a
+  // reason string we have not seen before cannot strand an activity forever.
+  return result.status === 200 || result.status === 410 || isDeadTokenReason(result.reason);
 }
 
 // Send the APNs end push to the exact deliveries bound to the owner-scoped

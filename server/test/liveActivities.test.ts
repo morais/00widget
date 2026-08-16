@@ -432,6 +432,130 @@ describe("live activities", () => {
     expect((await ended.json()) as { activities: unknown[] }).toEqual({ activities: [] });
   });
 
+  it("ends an activity whose push token APNs reports as expired", async () => {
+    // A Live Activity is ended by ActivityKit after eight hours, and its push
+    // token dies with it. APNs then answers 410 ExpiredToken forever, so
+    // treating that as retryable stranded the activity server-side with no way
+    // to clear it — it kept appearing in the app as a phantom.
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-expired",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "dev-expired",
+          localActivityId: "local-expired",
+          externalActivityId: "washer-expired",
+          kind: "appliance",
+          pushToken: "aaaabbbbccccdddd",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ reason: "ExpiredToken" }), { status: 410 })) as typeof fetch;
+    try {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-expired" }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const after = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect((await after.json()) as { activities: unknown[] }).toEqual({ activities: [] });
+  });
+
+  it("treats any 410 from APNs as a dead token, whatever reason it names", async () => {
+    // Matching only on reason strings meant an unfamiliar one could strand an
+    // activity permanently. The status alone is enough to know the token is
+    // gone for good.
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-410",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "dev-410",
+          localActivityId: "local-410",
+          externalActivityId: "washer-410",
+          kind: "appliance",
+          pushToken: "aaaabbbbccccdddd",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ reason: "SomethingApplePutThereLater" }), {
+        status: 410,
+      })) as typeof fetch;
+    try {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/end", {
+          method: "POST",
+          body: JSON.stringify({ externalActivityId: "washer-410" }),
+        }),
+        env,
+        executionCtx,
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("merges updates into pending activities before a push token exists", async () => {
     const env = makeEnv();
 
