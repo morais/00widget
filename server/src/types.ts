@@ -394,9 +394,11 @@ export const LiveActivitySessionSchema = z.object({
   deepLink: OptionalDeepLink,
 });
 
+// No `finalTitle`: the title is an ActivityAttributes property, frozen when the
+// activity starts, so nothing on the end push could apply it. The final frame is
+// content state only.
 export const EndLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
-  finalTitle: z.string().max(FieldLimits.title).optional(),
   finalSubtitle: OptionalSubtitleString,
   finalState: z.string().max(FieldLimits.activityState).optional(),
   dismissalDate: IsoDate.optional(),

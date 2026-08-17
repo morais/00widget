@@ -320,6 +320,39 @@ Live Activity rendering fields:
 
 For a time-bounded operation, prefer `endsAt` over server-ticked percentage updates. A "boosting until 21:30" activity can be `start` with `endsAt`, then `end` when finished or cancelled.
 
+#### `title` is frozen when the activity starts
+
+iOS splits a Live Activity into *static attributes*, fixed for the whole life of
+the activity, and *dynamic content state*, which is the only thing an update can
+carry. Apple's wording: "The `ActivityAttributes` inform the system about static
+data that appears in the Live Activity", and `Activity.update(_:)` "updates the
+**dynamic** content of a Live Activity". There is no API — in-app or via APNs —
+that replaces the attributes of a running activity.
+
+In 00Widget, three of the start fields are attributes and **cannot be changed
+after `start`**:
+
+- `title`
+- `kind`
+- `deepLink`
+
+Everything else is content state and updates normally: `subtitle`, `state`,
+`icon`, `value`, `unit`, `progress`, `items`, `endsAt`,
+`countdownGranularity`, `staleAt`, `relevanceScore`.
+
+So `title` must be the stable *name of the thing*, never a value that moves.
+`"CI build #1234"`, `"Dishwasher"`, `"Deploy to prod"` are good titles;
+`"3/12 tests failed"`, `"42 min left"`, `"64% charged"` are not — they will
+still say `3/12` an hour later, on the Lock Screen, while every other field on
+the same activity is current. Put counters in `value` + `unit`, progress in
+`progress`, prose in `subtitle`, per-row detail in `items`, and remaining time
+in `endsAt`.
+
+If a title genuinely has to change — the activity is now about a different
+thing, not a different value — `end` the activity and `start` a new one with a
+new `externalActivityId`. That is a visible restart to the user (the old
+activity dismisses, the new one animates in), so don't do it per tick.
+
 ### Update
 
 ```sh
@@ -337,7 +370,14 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
   }'
 ```
 
-Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly.
+Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly. The `alert` title is the banner text for that one notification; it does not rename the activity.
+
+An update accepts a `title`, and it does change what `GET /v1/live-activities`
+reports, but **it does not change the running Live Activity** on the Lock
+Screen, in the Dynamic Island, or on a paired Watch — see
+["`title` is frozen when the activity starts"](#title-is-frozen-when-the-activity-starts)
+above. Treat `/v1/live-activities/update` as content-state-only and leave
+`title` out of it.
 
 `items` uses snapshot semantics. Omitting it from an update preserves the current
 items, sending a new array replaces the complete list, and sending `"items": []`
@@ -361,13 +401,17 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/end" \
   -H "Content-Type: application/json" \
   --data '{
     "externalActivityId": "ci-build-2026-04-26-1234",
-    "finalTitle": "CI build #1234",
     "finalSubtitle": "passed in 4m 12s",
     "finalState": "finished"
   }'
 ```
 
 Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
+
+The final frame is content state too, so `finalSubtitle` and `finalState` are
+the fields that land. There is no `finalTitle` — the title is an attribute and
+cannot be rewritten, not even on the last frame. Say what happened in
+`finalSubtitle`.
 
 When `dismissalDate` is omitted, 00Widget dismisses the ended Live Activity immediately. To keep the final state visible briefly, set `dismissalDate` to an ISO-8601 time within Apple's four-hour dismissal window. The free-form `state` field does not end an activity by itself, even when its value is `finished`.
 
@@ -572,6 +616,7 @@ struct WidgetClient {
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
+- **Don't** put a counter, a countdown, or any other moving value in a Live Activity `title`. iOS freezes the title (along with `kind` and `deepLink`) when the activity starts, and no update can change it. Use `value`, `progress`, `subtitle`, `items`, or `endsAt`.
 - **Don't** make destructive actions auto-run from widgets. Set `confirm: true` or `role: destructive` and let the iOS app handle confirmation.
 - **Don't** loop over `/v1/cards/upsert` for cards from the same producer snapshot. Use `/v1/cards/upsert-batch` so the snapshot creates one coalesced reload decision.
 - **Don't** publish anything to a card or Live Activity you would not show a stranger. A person can share either of them as a read-only link, and the holder of that link needs no account.
@@ -627,5 +672,6 @@ If you're integrating from Vercel, Lambda, a Cloudflare Pages static site (no fu
 - The full public API surface is documented in [`server/README.md`](../server/README.md).
 - The data model in TypeScript (zod) lives at [`server/src/types.ts`](../server/src/types.ts).
 - The same model in Swift (for reference) lives at [`ios/Sources/Shared/Models/`](../ios/Sources/Shared/Models/).
+- The static-attributes / dynamic-content-state split that freezes a Live Activity's `title` is Apple's, described in [`ActivityAttributes`](https://developer.apple.com/documentation/activitykit/activityattributes) and [Displaying live data with Live Activities](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).
 
 If you're integrating from a project that doesn't have an obvious place to call from, prefer the smallest possible code path: one function that builds the card JSON and POSTs one card or one batch. Resist the urge to wrap this in a class hierarchy.
