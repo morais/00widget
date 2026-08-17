@@ -167,7 +167,10 @@ private struct ActivityCard: View {
 
                 Spacer()
 
-                if activeItems.isEmpty {
+                // A composite activity normally summarises itself with the
+                // per-item rows below, but a producer-sent `value` outranks
+                // that and keeps its slot.
+                if activeItems.isEmpty || hasExplicitValue {
                     trailingValue
                 }
             }
@@ -252,6 +255,10 @@ private struct ActivityCard: View {
 
     private var activeItems: [LiveActivityItem] {
         (session.items ?? []).filter(\.isActive)
+    }
+
+    private var hasExplicitValue: Bool {
+        !(session.value ?? "").isEmpty
     }
 }
 

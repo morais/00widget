@@ -21,7 +21,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Group {
-                        if !context.state.activeItems.isEmpty {
+                        if context.state.showsItemCount {
                             Text("\(context.state.activeItems.count) active")
                                 .font(.headline)
                         } else if let endsAt = context.state.endsAt {
@@ -74,7 +74,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 // clips from the leading edge — "20%" renders as "0%", which
                 // reads as a real value and not as truncation.
                 Group {
-                    if !context.state.activeItems.isEmpty {
+                    if context.state.showsItemCount {
                         Text("\(context.state.activeItems.count)")
                             .monospacedDigit()
                     } else if let endsAt = context.state.endsAt {
@@ -171,9 +171,22 @@ private struct LockScreenView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                Text("\(state.activeItems.count) active")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if state.hasExplicitValue, let value = state.value {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(value)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        if let unit = state.unit {
+                            Text(unit)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text("\(state.activeItems.count) active")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             ForEach(Array(state.activeItems.prefix(3))) { item in
                 LiveActivityItemRow(item: item)
@@ -246,7 +259,7 @@ private struct LockScreenView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let item = state.activeItems.first {
+                if !state.hasExplicitValue, let item = state.activeItems.first {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Image(systemName: item.icon ?? "circle.fill")
                             .font(.caption2)
@@ -263,7 +276,7 @@ private struct LockScreenView: View {
                 }
             }
             Spacer(minLength: 0)
-            if state.activeItems.count > 1 {
+            if state.showsItemCount, state.activeItems.count > 1 {
                 Text("\(state.activeItems.count)")
                     .font(.headline)
                     .monospacedDigit()
@@ -371,5 +384,16 @@ private struct LiveActivityItemRow: View {
 private extension ZeroZeroWidgetActivityAttributes.ContentState {
     var activeItems: [LiveActivityItem] {
         (items ?? []).filter(\.isActive)
+    }
+
+    var hasExplicitValue: Bool {
+        !(value ?? "").isEmpty
+    }
+
+    // The active-item count is a *derived* stand-in for a value the producer
+    // did not send. A composite activity that publishes its own `value` means
+    // it, so the count must never overwrite it with "2 active".
+    var showsItemCount: Bool {
+        !activeItems.isEmpty && !hasExplicitValue
     }
 }
