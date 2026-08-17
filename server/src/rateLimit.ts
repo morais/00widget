@@ -90,9 +90,13 @@ export async function enforceRateLimits(
 // takes the new count off the write itself instead of re-reading the row, and
 // `batch` sends every bucket together — this runs on the hot path of every
 // authenticated write, and D1 latency, not CPU, is what the caller waits for.
-// Expired rows are swept by the scheduled handler rather than here; sweeping
-// per request cost a table-wide DELETE on every call and bought nothing that a
-// once-a-minute cron does not.
+// Garbage collection rides along in the same batch. The old code swept the
+// whole table on every call; this deletes only the closed windows of the keys
+// this request already touches, which the primary key answers with a seek
+// (`SEARCH ... USING INDEX sqlite_autoindex_rate_limit_buckets_1`) and which
+// writes nothing at all unless a window has actually rolled over. A key that
+// goes permanently silent keeps its last row or two until the scheduled sweep
+// runs — see `sweepExpiredRateLimitBuckets`.
 export async function incrementRateLimitBuckets(
   env: Env,
   buckets: RateLimitBucketInput[],
@@ -111,8 +115,10 @@ export async function incrementRateLimitBuckets(
     };
   });
 
-  const results = await env.ZW_DB.batch<{ count: number }>(
-    planned.map((entry) =>
+  // Upserts first so a result index lines up with `planned`; the trailing
+  // deletes are fire-and-forget.
+  const results = await env.ZW_DB.batch<{ count: number }>([
+    ...planned.map((entry) =>
       env.ZW_DB.prepare(
         `INSERT INTO rate_limit_buckets (bucket_key, window_start, count, expires_at)
          VALUES (?, ?, 1, ?)
@@ -122,7 +128,12 @@ export async function incrementRateLimitBuckets(
          RETURNING count`,
       ).bind(entry.bucketKey, entry.windowStart, entry.expiresAt),
     ),
-  );
+    ...planned.map((entry) =>
+      env.ZW_DB.prepare(
+        `DELETE FROM rate_limit_buckets WHERE bucket_key = ? AND window_start < ?`,
+      ).bind(entry.bucketKey, entry.windowStart),
+    ),
+  ]);
 
   for (const [index, entry] of planned.entries()) {
     const count = Number(results[index]?.results?.[0]?.count ?? 0);

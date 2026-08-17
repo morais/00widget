@@ -76,12 +76,16 @@ namespace_id = "10002"
 [observability]
 enabled = true
 
-# Sweeps expired rate limit counters. This used to run inline on every request,
-# which cost a table-wide DELETE per API call. Buckets already carry an
-# expires_at two windows past their own, so nothing depends on the sweep being
-# prompt.
-[triggers]
-crons = ["0 * * * *"]
+# The `scheduled` handler sweeps expired rate limit counters, but the trigger is
+# NOT enabled here: the Workers Free plan allows 5 cron triggers per account and
+# this account has none spare, so `wrangler deploy` fails the trigger update
+# while still shipping the code. It is not load-bearing — incrementRateLimitBuckets
+# garbage-collects the keys it touches in its own batch, so the sweep only
+# reclaims keys that have gone permanently silent. Uncomment on Workers Paid or
+# once a slot frees up.
+#
+# [triggers]
+# crons = ["0 * * * *"]
 
 # One delayed message per receiving tenant drains its durable coalesced reload
 # as soon as the 30-minute WidgetKit cadence window opens. Empty queues do not

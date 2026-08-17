@@ -57,12 +57,29 @@ describe("incrementRateLimitBuckets", () => {
       { policy: "cardUpsertCardHour", key: "tenant:t1:card:solar" },
     ]);
 
+    // Three counters and their three garbage-collecting deletes, in one trip.
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(batch.mock.calls[0][0]).toHaveLength(3);
-    expect(prepare).toHaveBeenCalledTimes(3);
-    for (const [sql] of prepare.mock.calls) {
-      expect(sql).toContain("RETURNING count");
-    }
+    expect(batch.mock.calls[0][0]).toHaveLength(6);
+    expect(prepare).toHaveBeenCalledTimes(6);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("RETURNING count"))).toHaveLength(3);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(3);
+  });
+
+  it("drops a key's closed windows as it counts the current one", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
+    const env = makeEnv();
+    const bucket = { policy: "cardUpsertTenantHour", key: tenantKey("t1") } as const;
+    await incrementRateLimitBuckets(env, [bucket]);
+
+    // Two windows on, the 10:00 row is still inside its two-window expiry and
+    // would survive the sweep — the in-batch delete is what removes it.
+    vi.setSystemTime(new Date("2026-08-17T12:10:00Z"));
+    await incrementRateLimitBuckets(env, [bucket]);
+
+    const views = await listTenantRateLimitBuckets(env, "t1");
+    expect(views).toHaveLength(1);
+    expect(views[0].count).toBe(1);
   });
 
   it("reports the first exceeded bucket while still counting the rest", async () => {

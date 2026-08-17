@@ -677,6 +677,17 @@ export class FakeD1 {
       const [revokedBefore] = values.map(String);
       return this.deleteGuestKeys((row) => !!row.revoked_at && String(row.revoked_at) < revokedBefore);
     }
+    if (normalized === "DELETE FROM rate_limit_buckets WHERE bucket_key = ? AND window_start < ?") {
+      const [bucket_key, window_start] = [String(values[0]), Number(values[1])];
+      let count = 0;
+      for (const [key, row] of this.rateLimitBuckets.entries()) {
+        if (row.bucket_key === bucket_key && Number(row.window_start) < window_start) {
+          this.rateLimitBuckets.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
     if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE expires_at < ?")) {
       const [now] = values.map(Number);
       let count = 0;
