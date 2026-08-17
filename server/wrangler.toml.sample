@@ -76,6 +76,13 @@ namespace_id = "10002"
 [observability]
 enabled = true
 
+# Sweeps expired rate limit counters. This used to run inline on every request,
+# which cost a table-wide DELETE per API call. Buckets already carry an
+# expires_at two windows past their own, so nothing depends on the sweep being
+# prompt.
+[triggers]
+crons = ["0 * * * *"]
+
 # One delayed message per receiving tenant drains its durable coalesced reload
 # as soon as the 30-minute WidgetKit cadence window opens. Empty queues do not
 # invoke the Worker.

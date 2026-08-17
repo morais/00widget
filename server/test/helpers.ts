@@ -23,9 +23,16 @@ class FakeD1Statement {
     return new FakeD1Statement(this.owner, this.sql, values);
   }
 
-  async run(): Promise<D1Result> {
+  async run<T = unknown>(): Promise<D1Result<T>> {
+    // A RETURNING statement mutates *and* yields rows, so it is served by the
+    // read path and its rows travel back in `results` — that is what `batch`
+    // hands the caller, and the rate limiter reads its new counts from there.
+    if (/\bRETURNING\b/i.test(this.sql)) {
+      const results = this.owner.all(this.sql, this.values) as T[];
+      return { results, success: true, meta: { changes: results.length } } as D1Result<T>;
+    }
     const changes = this.owner.run(this.sql, this.values);
-    return { success: true, meta: { changes } } as D1Result;
+    return { success: true, meta: { changes } } as D1Result<T>;
   }
 
   async first<T = unknown>(): Promise<T | null> {
@@ -157,6 +164,24 @@ export class FakeD1 {
   // a `.get(id)` silently misses those and the statement becomes a no-op.
   private findApiKeyById(id: string): FakeApiKeyRow | undefined {
     return [...this.apiKeys.values()].find((candidate) => candidate.id === id);
+  }
+
+  private upsertRateLimitBucket(values: unknown[]): number {
+    const [bucket_key, window_start, expires_at] = [
+      String(values[0]),
+      String(values[1]),
+      String(values[2]),
+    ];
+    const key = `${bucket_key}:${window_start}`;
+    const existing = this.rateLimitBuckets.get(key);
+    const count = Number(existing?.count ?? 0) + 1;
+    this.rateLimitBuckets.set(key, {
+      bucket_key,
+      window_start,
+      count: String(count),
+      expires_at,
+    });
+    return count;
   }
 
   run(sql: string, values: unknown[]): number {
@@ -664,15 +689,7 @@ export class FakeD1 {
       return count;
     }
     if (normalized.startsWith("INSERT INTO rate_limit_buckets")) {
-      const [bucket_key, window_start, expires_at] = [String(values[0]), String(values[1]), String(values[2])];
-      const key = `${bucket_key}:${window_start}`;
-      const existing = this.rateLimitBuckets.get(key);
-      this.rateLimitBuckets.set(key, {
-        bucket_key,
-        window_start,
-        count: String(Number(existing?.count ?? 0) + 1),
-        expires_at,
-      });
+      this.upsertRateLimitBucket(values);
       return 1;
     }
     if (normalized.startsWith("INSERT INTO widget_push_cadence")) {
@@ -784,6 +801,9 @@ export class FakeD1 {
     if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
       const [apple_sub] = values.map(String);
       return pick(this.appleAccounts.get(apple_sub), ["apple_sub", "tenant_id", "email"]);
+    }
+    if (normalized.startsWith("INSERT INTO rate_limit_buckets") && normalized.endsWith("RETURNING count")) {
+      return [{ count: this.upsertRateLimitBucket(values) } as unknown as FakeApiKeyRow];
     }
     if (normalized === "SELECT bucket_key, window_start, count, expires_at FROM rate_limit_buckets WHERE bucket_key = ? AND window_start = ?") {
       const [bucket_key, window_start] = values.map(String);

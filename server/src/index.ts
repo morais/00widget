@@ -23,6 +23,7 @@ import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
 import { processPendingWidgetReload } from "./widgetPush";
+import { sweepExpiredRateLimitBuckets } from "./rateLimit";
 
 interface Route {
   method: string;
@@ -237,6 +238,9 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
       }
     }
     return preventSensitiveResponseCaching(url.pathname, notFound());
+  },
+  async scheduled(_event, env, _ctx) {
+    await sweepExpiredRateLimitBuckets(env);
   },
   async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env) {
     for (const message of batch.messages) {
