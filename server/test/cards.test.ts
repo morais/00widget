@@ -113,6 +113,25 @@ describe("DashboardCardSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts the delta chart style and rejects unknown styles", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "a",
+      template: "chart",
+      title: "x",
+      chart: { points: [-2, 1, 3], style: "delta" },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.chart?.style).toBe("delta");
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "chart",
+        title: "x",
+        chart: { points: [1, 2], style: "candlestick" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a chart reference value", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "a",

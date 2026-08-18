@@ -29,7 +29,7 @@ public struct SparklineView: View {
         let values = chart.normalizedPoints
         ZStack {
             if let reference = chart.normalizedReference {
-                ReferenceRuleShape(position: reference)
+                HorizontalRuleShape(position: reference)
                     .stroke(
                         .secondary,
                         style: StrokeStyle(lineWidth: 1, dash: [3, 3])
@@ -55,6 +55,19 @@ public struct SparklineView: View {
             case .bar:
                 SparklineBarsShape(values: values)
                     .fill(tint.opacity(0.85))
+            case .delta:
+                // Falling back to the bottom when a pinned axis excludes zero
+                // keeps the bars honest: they are then plain magnitudes, drawn
+                // without a zero rule that would not be where zero is.
+                let baseline = chart.normalizedZero
+                SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .above)
+                    .fill(tint.opacity(0.85))
+                SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .below)
+                    .fill(tint.opacity(0.4))
+                if let baseline {
+                    HorizontalRuleShape(position: baseline)
+                        .stroke(.secondary, lineWidth: 0.75)
+                }
             }
         }
         // A stroke is centred on the path, so the end points would be clipped
@@ -76,8 +89,9 @@ private func sparklinePoints(_ values: [Double], in rect: CGRect) -> [CGPoint] {
     }
 }
 
-/// A horizontal rule at a normalized height, for the chart's reference value.
-struct ReferenceRuleShape: Shape {
+/// A horizontal rule at a normalized height: the chart's reference value, and
+/// the zero line `delta` bars grow from.
+struct HorizontalRuleShape: Shape {
     let position: Double
 
     func path(in rect: CGRect) -> Path {
@@ -119,7 +133,23 @@ struct SparklineAreaShape: Shape {
 }
 
 struct SparklineBarsShape: Shape {
+    /// Which side of the baseline to draw, so signed bars can be filled
+    /// differently without splitting the series into two arrays.
+    enum Selection {
+        case all
+        case above
+        case below
+    }
+
     let values: [Double]
+    let baseline: Double
+    let selection: Selection
+
+    init(values: [Double], baseline: Double = 0, selection: Selection = .all) {
+        self.values = values
+        self.baseline = baseline
+        self.selection = selection
+    }
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -127,13 +157,17 @@ struct SparklineBarsShape: Shape {
         let slot = rect.width / CGFloat(values.count)
         let barWidth = max(1, slot * 0.62)
         let radius = min(2, barWidth / 2)
+        let baselineY = rect.maxY - rect.height * CGFloat(baseline)
         for (index, value) in values.enumerated() {
-            // Every bar keeps a sliver of height so a series minimum still
-            // reads as a bar rather than as a missing point.
-            let height = max(1, rect.height * CGFloat(value))
+            if selection == .above && value < baseline { continue }
+            if selection == .below && value >= baseline { continue }
+            let valueY = rect.maxY - rect.height * CGFloat(value)
+            // Every bar keeps a sliver of height so a value sitting on the
+            // baseline still reads as a bar rather than as a missing point.
+            let height = max(1, abs(valueY - baselineY))
             let bar = CGRect(
                 x: rect.minX + slot * CGFloat(index) + (slot - barWidth) / 2,
-                y: rect.maxY - height,
+                y: Swift.min(baselineY, valueY),
                 width: barWidth,
                 height: height
             )

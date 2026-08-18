@@ -141,7 +141,10 @@ export const DashboardItemSchema = z.object({
   status: DashboardStatusSchema.optional(),
 });
 
-export const ChartStyleSchema = z.enum(["line", "bar"]);
+// "delta" is "bar" anchored at zero rather than at the bottom of the range:
+// signed values grow up or down from a zero rule. Net import/export, commits
+// added/removed, spend vs refund.
+export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
 
 // The numeric series behind a `chart` card. Points are plotted evenly spaced in
 // the order given, oldest first; there are no timestamps, because a widget this

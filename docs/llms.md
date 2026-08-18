@@ -109,7 +109,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
-  "style": "line | bar (default: line)"
+  "style": "line | bar | delta (default: line)"
 }
 ```
 
@@ -122,6 +122,14 @@ Without `min`/`max` the plot scales to the series, so it always fills the card
 and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` —
 whenever the absolute scale is the point, such as a percentage or a 0-100
 score. Values outside an explicit range are clamped, not dropped.
+
+`style` picks how the series is drawn. `line` is a sparkline with a soft area
+fill; `bar` grows every bar from the bottom of the range; `delta` anchors the
+bars at zero instead, so signed values grow up or down from a zero rule — net
+grid import/export per hour, commits added and removed, spend against refunds.
+A `delta` chart always includes zero in its range unless you pin both edges away
+from it, in which case the bars fall back to plain magnitudes and no zero rule
+is drawn.
 
 `reference` draws a dashed rule across the plot: a target, a budget, an SLO, a
 "same week last year". It is usually the difference between a trend you can read
@@ -242,6 +250,7 @@ Pick one based on the *shape* of the data, not the domain:
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
+| One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
 

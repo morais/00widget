@@ -3,6 +3,9 @@ import Foundation
 public enum ChartStyle: String, Codable, CaseIterable, Sendable {
     case line
     case bar
+    /// `bar` anchored at zero rather than at the bottom of the range, so signed
+    /// values grow up or down from a zero rule.
+    case delta
 }
 
 /// The numeric series behind a `chart` card. Mirrors `DashboardChartSchema` in
@@ -59,13 +62,18 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     public var isRenderable: Bool { points.count >= 2 }
 
     /// The plotted range. An unpinned edge stretches to include `reference`,
-    /// because a target the plot cannot show is worse than no target at all.
+    /// because a target the plot cannot show is worse than no target at all,
+    /// and to include zero for `delta`, whose bars have nothing to grow from
+    /// otherwise.
     private var bounds: (lower: Double, upper: Double) {
         var lower = min ?? points.min() ?? 0
         var upper = max ?? points.max() ?? 0
-        if let reference {
-            if min == nil { lower = Swift.min(lower, reference) }
-            if max == nil { upper = Swift.max(upper, reference) }
+        var anchors: [Double] = []
+        if let reference { anchors.append(reference) }
+        if style == .delta { anchors.append(0) }
+        for anchor in anchors {
+            if min == nil { lower = Swift.min(lower, anchor) }
+            if max == nil { upper = Swift.max(upper, anchor) }
         }
         return (lower, upper)
     }
@@ -92,6 +100,16 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         let bounds = self.bounds
         guard reference >= bounds.lower, reference <= bounds.upper else { return nil }
         return normalize(reference, in: bounds)
+    }
+
+    /// Where the zero rule sits for `delta` bars, or nil when the style is not
+    /// `delta` or a pinned axis excludes zero — in which case the bars fall
+    /// back to growing from the bottom like plain `bar`.
+    public var normalizedZero: Double? {
+        guard style == .delta else { return nil }
+        let bounds = self.bounds
+        guard bounds.lower <= 0, bounds.upper >= 0 else { return nil }
+        return normalize(0, in: bounds)
     }
 
     /// Spoken in place of the plot, which is decorative on its own.

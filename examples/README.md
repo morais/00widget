@@ -19,7 +19,8 @@ chmod +x *.sh
 - `upsert-solar.sh` — a `summary` card for solar export.
 - `upsert-school-balances.sh` — a `list` card with sub-items.
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
-- `upsert-energy-chart.sh` — a `chart` card plotting a 10-point series as a sparkline.
+- `upsert-energy-chart.sh` — a `chart` card plotting a 10-point series as a sparkline, with a dashed `reference` target.
+- `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
 
 Each call:
 1. Stores the latest state on the backend.
