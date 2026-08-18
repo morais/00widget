@@ -1,171 +1,36 @@
 import type { Env } from "./types";
 import {
-  apiTokenLoginEnabled,
-  apiTokenLoginConfigured,
-  appleSignInConfigured,
-  buildAuthorizeURL,
-  clearSessionCookie,
-  hashAdminApiToken,
-  isAdminEmail,
-  isAppleEmailVerified,
-  makeSessionCookie,
-  randomToken,
-  readSessionCookie,
-  validateAppleIdToken,
-  type AdminAuthMethod,
-  type AdminSession,
-} from "./appleAuth";
-import { adminApiTokensAreSecure, isSecureAdminSecret } from "./adminSecurity";
-import {
   ApiScopePresets,
   createApiKey,
-  isValidApiKey,
   listApiKeys,
   listTenants,
   type ApiKeyRecord,
   type ApiScope,
   type TenantRecord,
 } from "./auth";
+import { baseHTML, dec, enc, esc, htmlResponse, renderError } from "./html";
+import {
+  adminAccessConfigured,
+  adminEmails,
+  apiTokenLoginConfigured,
+  webSignInConfigured,
+  notAnAdminResponse,
+  redirectToSignIn,
+  requireAdminMutationSession,
+  requireWebSession,
+  type WebAuthMethod,
+  type WebPrincipal,
+} from "./webSession";
 import { revokeCredentialById } from "./sessions";
 import * as storage from "./storage";
 import { deleteCardForTenant } from "./cards";
 import { endAndDeleteActivity } from "./liveActivities";
-import {
-  incrementRateLimitBuckets,
-  listTenantRateLimitBuckets,
-  rateLimitResponse,
-  type RateLimitBucketView,
-} from "./rateLimit";
+import { listTenantRateLimitBuckets, type RateLimitBucketView } from "./rateLimit";
 
-const STATE_COOKIE = "zw_admin_state";
-const NONCE_COOKIE = "zw_admin_nonce";
-const API_TOKEN_LABEL = "api-token";
-const ADMIN_AUTH_FORM_MAX_BYTES = 16 * 1024;
-const ADMIN_HTML_SECURITY_HEADERS = {
-  "content-security-policy": [
-    "default-src 'none'",
-    "base-uri 'none'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "style-src 'unsafe-inline'",
-  ].join("; "),
-  "referrer-policy": "no-referrer",
-  "strict-transport-security": "max-age=31536000; includeSubDomains",
-  "x-content-type-options": "nosniff",
-} as const;
 
-// ---------- Routes ----------
 
-export async function handleAdminLogin(_req: Request, env: Env): Promise<Response> {
-  const apple = appleSignInConfigured(env);
-  const apiToken = apiTokenLoginConfigured(env);
-  if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
-  return htmlResponse(renderLoginPage(env, { apple, apiToken }));
-}
 
-export async function handleAdminLoginApple(_req: Request, env: Env): Promise<Response> {
-  if (!appleSignInConfigured(env)) {
-    return htmlResponse(renderConfigError(env), 500);
-  }
-  const state = randomToken();
-  const nonce = randomToken();
-  const url = buildAuthorizeURL(env, state, nonce);
-  const headers = new Headers({ Location: url });
-  headers.append("Set-Cookie", oauthCookie(STATE_COOKIE, state));
-  headers.append("Set-Cookie", oauthCookie(NONCE_COOKIE, nonce));
-  return new Response(null, { status: 302, headers });
-}
 
-export async function handleAdminLoginApiToken(req: Request, env: Env): Promise<Response> {
-  if (!apiTokenLoginEnabled(env)) {
-    return htmlResponse(renderError("API-token login is disabled (set ADMIN_API_TOKEN_LOGIN=true to enable)."), 403);
-  }
-  if (!isSecureAdminSecret(env.SESSION_SECRET) || !adminApiTokensAreSecure(env)) {
-    return htmlResponse(renderConfigError(env), 500);
-  }
-  const limited = await enforceAdminApiTokenLoginRateLimit(req, env);
-  if (limited) return limited;
-  let form: FormData;
-  try {
-    form = await parseAdminAuthForm(req);
-  } catch (error) {
-    return adminFormErrorResponse(error);
-  }
-  const apiKey = String(form.get("apiKey") ?? "");
-  if (!apiKey) return htmlResponse(renderError("API token is required"), 400);
-  if (!isValidApiKey(env, apiKey)) {
-    return htmlResponse(renderError("Invalid API token."), 401);
-  }
-  const cookie = await makeSessionCookie(env, API_TOKEN_LABEL, "api-token", {
-    apiTokenHash: await hashAdminApiToken(apiKey),
-  });
-  const headers = new Headers({ Location: "/admin" });
-  headers.append("Set-Cookie", cookie);
-  return new Response(null, { status: 302, headers });
-}
-
-export async function handleAdminCallback(req: Request, env: Env): Promise<Response> {
-  if (!appleSignInConfigured(env)) return htmlResponse(renderConfigError(env), 500);
-  const limited = await enforceAdminAppleCallbackRateLimit(req, env);
-  if (limited) return limited;
-
-  const cookies = parseCookies(req.headers.get("cookie"));
-  const expectedState = cookies[STATE_COOKIE];
-  const expectedNonce = cookies[NONCE_COOKIE];
-
-  let form: FormData;
-  try {
-    form = await parseAdminAuthForm(req);
-  } catch (error) {
-    return adminFormErrorResponse(error);
-  }
-
-  const state = String(form.get("state") ?? "");
-  const idToken = String(form.get("id_token") ?? "");
-  const error = form.get("error");
-  if (error) return htmlResponse(renderError(`Apple returned error: ${error}`), 400);
-  if (!state || state !== expectedState) {
-    return htmlResponse(renderError("state mismatch — try again"), 400);
-  }
-  if (!idToken) return htmlResponse(renderError("no id_token in callback"), 400);
-  if (!expectedNonce) return htmlResponse(renderError("nonce cookie missing"), 400);
-
-  let claims;
-  try {
-    claims = await validateAppleIdToken(env, idToken, expectedNonce);
-  } catch (err) {
-    return htmlResponse(renderError(`token validation failed: ${(err as Error).message}`), 401);
-  }
-
-  if (!claims.email) {
-    return htmlResponse(
-      renderError(
-        "Apple didn't return an email. Re-link your account on Apple ID → 'Sign in with Apple' and try again.",
-      ),
-      403,
-    );
-  }
-  if (!isAppleEmailVerified(claims.email_verified)) {
-    return htmlResponse(renderError("Apple email is not verified."), 403);
-  }
-  if (!isAdminEmail(env, claims.email)) {
-    return htmlResponse(renderError(`${claims.email} is not in ADMIN_EMAILS`), 403);
-  }
-
-  const cookie = await makeSessionCookie(env, claims.email);
-  const headers = new Headers({ Location: "/admin" });
-  headers.append("Set-Cookie", cookie);
-  headers.append("Set-Cookie", expireOauthCookie(STATE_COOKIE));
-  headers.append("Set-Cookie", expireOauthCookie(NONCE_COOKIE));
-  return new Response(null, { status: 302, headers });
-}
-
-export async function handleAdminLogout(_req: Request, _env: Env): Promise<Response> {
-  const headers = new Headers({ Location: "/admin/login" });
-  headers.append("Set-Cookie", clearSessionCookie());
-  return new Response(null, { status: 302, headers });
-}
 
 export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
@@ -315,13 +180,12 @@ export async function handleAdminDeleteStartToken(
 }
 
 export async function handleAdminDashboard(req: Request, env: Env): Promise<Response> {
-  const apple = appleSignInConfigured(env);
-  const apiToken = apiTokenLoginConfigured(env);
-  if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
-  const session = await requireAdminSession(req, env);
-  if (!session) {
-    return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
-  }
+  if (!adminAccessConfigured(env)) return htmlResponse(renderAdminNotConfigured(env), 500);
+  const session = await requireWebSession(req, env);
+  if (!session) return redirectToSignIn(req);
+  // Being signed in is identity, not authority. Every route under /admin makes
+  // this check; none of them infer it from the session existing.
+  if (!session.isAdmin) return notAnAdminResponse(session);
 
   const selectedTenantId = new URL(req.url).searchParams.get("tenant")?.trim() || undefined;
   const [tenants, apiKeys] = await Promise.all([listTenants(env), listApiKeys(env)]);
@@ -345,8 +209,28 @@ export async function handleAdminDashboard(req: Request, env: Env): Promise<Resp
 
 // ---------- HTML rendering ----------
 
+/// Deliberately generic. The page is unauthenticated, so naming which setting
+/// is unset would hand a stranger a map of what to probe; the specifics go to
+/// the Worker's logs, where only the operator sees them.
+function renderAdminNotConfigured(env: Env): string {
+  console.warn("admin.not_configured", {
+    adminEmailsConfigured: adminEmails(env).length > 0,
+    webSignInConfigured: webSignInConfigured(env),
+    apiTokenLoginConfigured: apiTokenLoginConfigured(env),
+  });
+  return baseHTML(
+    "00Widget · Admin not configured",
+    `<header><h1>00Widget · Admin</h1></header>
+     <section><h2>Admin not configured</h2>
+     <p>No administrator is configured for this deployment.</p>
+     <p class="muted">If you are the operator, the missing configuration is
+     named in this Worker's logs. Setup walkthrough:
+     <code>server/README.md</code> → "Admin dashboard".</p></section>`,
+  );
+}
+
 interface DashboardData {
-  session: AdminSession;
+  session: WebPrincipal;
   tenants: TenantRecord[];
   apiKeys: ApiKeyRecord[];
   selectedTenant?: TenantRecord;
@@ -354,7 +238,7 @@ interface DashboardData {
 }
 
 function renderDashboard(d: DashboardData): string {
-  const method: AdminAuthMethod = d.session.method;
+  const method: WebAuthMethod = d.session.method;
   const signedInAs = method === "api-token"
     ? `Signed in <strong>via API token</strong>`
     : `Signed in as <strong>${esc(d.session.email)}</strong>`;
@@ -365,7 +249,7 @@ function renderDashboard(d: DashboardData): string {
       <h1>00Widget · Admin</h1>
       <div class="meta">
         ${signedInAs}
-        · <a href="/admin/logout">log out</a>
+        · <a href="/logout">log out</a>
       </div>
     </header>
 
@@ -517,35 +401,6 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
   );
 }
 
-function renderLoginPage(_env: Env, opts: { apple: boolean; apiToken: boolean }): string {
-  const appleBlock = opts.apple
-    ? `<a class="button button-apple" href="/admin/login/apple">Sign in with Apple</a>`
-    : `<p class="muted">Sign in with Apple is not configured.</p>`;
-
-  const apiTokenBlock = opts.apiToken
-    ? `<form method="post" action="/admin/login/api-token" class="api-token-form">
-         <label for="apiKey">API token</label>
-         <input id="apiKey" type="password" name="apiKey" autocomplete="off" autofocus required>
-         <button type="submit" class="button">Sign in with API token</button>
-         <p class="muted">Fallback while Sign in with Apple isn't configured. Opt in by setting <code>ADMIN_API_TOKEN_LOGIN=true</code>.</p>
-       </form>`
-    : "";
-
-  const separator = opts.apple && opts.apiToken
-    ? `<div class="divider"><span>or</span></div>`
-    : "";
-
-  return baseHTML(
-    "00Widget · Admin · Sign in",
-    `<header><h1>00Widget · Admin</h1></header>
-     <section class="login">
-       <h2>Sign in</h2>
-       ${appleBlock}
-       ${separator}
-       ${apiTokenBlock}
-     </section>`,
-  );
-}
 
 function renderCardsSection(tenantId: string, cards: storage.ScopedEntry<unknown>[], csrf: string): string {
   if (cards.length === 0) return section("Cards", "<p class=\"empty\">No cards published yet.</p>");
@@ -730,278 +585,25 @@ function deleteForm(action: string, label: string, csrf: string): string {
   </form>`;
 }
 
-function renderError(message: string): string {
-  return baseHTML(
-    "00Widget · Admin error",
-    `<header><h1>00Widget · Admin</h1></header>
-     <section><h2>Error</h2><p class="error">${esc(message)}</p>
-     <p><a href="/admin/login">try again</a></p></section>`,
-  );
-}
 
 // Reached by unauthenticated visitors, so the page itself stays generic — an
 // itemised list of unset secrets tells an attacker exactly which sign-in
 // method is half-configured and worth probing. The detail an operator needs
 // goes to the Worker log instead, which only they can read.
-function renderConfigError(env: Env): string {
-  const apple: string[] = [];
-  if (!env.APPLE_SIGN_IN_CLIENT_ID) apple.push("APPLE_SIGN_IN_CLIENT_ID");
-  if (!env.APPLE_SIGN_IN_REDIRECT_URI) apple.push("APPLE_SIGN_IN_REDIRECT_URI");
-  if (!env.ADMIN_EMAILS) apple.push("ADMIN_EMAILS");
-  if (!isSecureAdminSecret(env.SESSION_SECRET)) apple.push("SESSION_SECRET (strong random value, 32+ bytes)");
 
-  const apiToken: string[] = [];
-  if (!adminApiTokensAreSecure(env)) apiToken.push("API_KEYS (every token must be a strong random value of 32+ bytes)");
-  if (!isSecureAdminSecret(env.SESSION_SECRET)) apiToken.push("SESSION_SECRET (strong random value, 32+ bytes)");
-
-  console.warn("admin.not_configured", {
-    appleMissing: apple,
-    apiTokenLoginEnabled: apiTokenLoginEnabled(env),
-    apiTokenMissing: apiTokenLoginEnabled(env) ? apiToken : undefined,
-  });
-
-  return baseHTML(
-    "00Widget · Admin not configured",
-    `<header><h1>00Widget · Admin</h1></header>
-     <section><h2>Admin not configured</h2>
-     <p>No sign-in method is available.</p>
-     <p class="muted">If you are the operator, the missing configuration is
-     named in this Worker's logs. Setup walkthrough:
-     <code>server/README.md</code> → "Admin dashboard".</p></section>`,
-  );
-}
-
-function baseHTML(title: string, body: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f8fbff;
-    --fg: #06152a;
-    --muted: #56657a;
-    --line: #e2e7ee;
-    --accent: #0968e8;
-    --good: #11a789;
-    --warn: #b86a00;
-    --crit: #c62828;
-    --offline: #98a2b3;
-    --code-bg: #eef2f7;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #06152a;
-      --fg: #f8fbff;
-      --muted: #98a8c0;
-      --line: #1a2b48;
-      --accent: #22a8ff;
-      --good: #24d6b5;
-      --code-bg: #0c2340;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 24px; max-width: 1200px; margin: 0 auto;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    background: var(--bg); color: var(--fg);
-  }
-  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
-  header h1 { margin: 0; font-size: 22px; font-weight: 800; }
-  .meta { color: var(--muted); font-size: 13px; }
-  .meta a { color: var(--accent); }
-  section { margin: 32px 0; }
-  section h2 { font-size: 16px; font-weight: 700; margin: 0 0 12px; display: flex; align-items: baseline; gap: 8px; }
-  .count { color: var(--muted); font-weight: 500; font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font-weight: 600; color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
-  td.ts { color: var(--muted); white-space: nowrap; }
-  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
-  pre { background: var(--code-bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 11.5px; margin: 8px 0 0; }
-  details summary { cursor: pointer; color: var(--accent); font-size: 12px; }
-  .empty { color: var(--muted); font-size: 13px; }
-  .error { color: var(--crit); }
-  .tok { font-size: 11px; color: var(--muted); }
-  .status { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--code-bg); color: var(--muted); }
-  .status-good, .status-finished { color: var(--good); }
-  .status-warning, .status-paused { color: var(--warn); }
-  .status-critical { color: var(--crit); }
-  .status-running { color: var(--accent); }
-  .status-offline, .status-unknown { color: var(--offline); }
-  .login { max-width: 420px; margin: 24px auto; }
-  .login h2 { margin-bottom: 16px; }
-  .login label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
-  .login input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .button { display: inline-block; padding: 10px 18px; margin-top: 12px; border-radius: 6px; background: var(--accent); color: white; border: 0; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
-  .button-small { padding: 5px 9px; margin: 0; font-size: 12px; }
-  .button-danger { background: var(--crit); }
-  .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
-  .api-token-form { display: flex; flex-direction: column; gap: 4px; }
-  .api-token-form .button { align-self: stretch; text-align: center; }
-  .api-key-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 16px; }
-  .api-key-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-  .api-key-form input, .api-key-form select { padding: 9px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; text-transform: none; letter-spacing: normal; }
-  @media (max-width: 780px) { .api-key-form { grid-template-columns: 1fr; } }
-  .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
-  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  .muted { color: var(--muted); font-size: 12px; }
-</style>
-</head>
-<body>
-${body}
-</body>
-</html>`;
-}
 
 // ---------- Helpers ----------
 
-function htmlResponse(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      ...ADMIN_HTML_SECURITY_HEADERS,
-    },
-  });
-}
 
-async function requireAdminSession(req: Request, env: Env): Promise<AdminSession | null> {
-  return readSessionCookie(env, req);
-}
 
-async function requireAdminMutationSession(req: Request, env: Env): Promise<AdminSession | Response> {
-  const session = await requireAdminSession(req, env);
-  if (!session) return new Response(null, { status: 302, headers: { Location: "/admin/login" } });
-  if (!sameOriginAdminRequest(req)) {
-    return htmlResponse(renderError("Invalid admin request origin."), 403);
-  }
-  const token = await csrfTokenFromRequest(req);
-  if (!token || !constantTimeEqual(token, session.csrf)) {
-    return htmlResponse(renderError("Invalid admin CSRF token."), 403);
-  }
-  return session;
-}
 
-async function enforceAdminApiTokenLoginRateLimit(req: Request, env: Env): Promise<Response | null> {
-  const exceeded = await incrementRateLimitBuckets(env, [
-    { policy: "adminApiTokenLoginIpHour", key: adminLoginIpKey(req) },
-  ]);
-  if (!exceeded) return null;
-  if (wantsJson(req)) return rateLimitResponse(exceeded);
-  return htmlResponse(
-    renderError(`Too many API-token login attempts. Try again after ${formatWindow(exceeded.retryAfter)}.`),
-    429,
-  );
-}
 
-async function enforceAdminAppleCallbackRateLimit(req: Request, env: Env): Promise<Response | null> {
-  const exceeded = await incrementRateLimitBuckets(env, [
-    { policy: "adminAppleCallbackIpHour", key: adminLoginIpKey(req) },
-  ]);
-  if (!exceeded) return null;
-  return htmlResponse(
-    renderError(`Too many Apple callback attempts. Try again after ${formatWindow(exceeded.retryAfter)}.`),
-    429,
-  );
-}
 
-class AdminFormError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-    this.name = "AdminFormError";
-  }
-}
 
-async function parseAdminAuthForm(req: Request): Promise<FormData> {
-  const contentLength = req.headers.get("content-length")?.trim();
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > ADMIN_AUTH_FORM_MAX_BYTES) {
-    throw new AdminFormError("form body is too large", 413);
-  }
 
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  const reader = req.body?.getReader();
-  if (reader) {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > ADMIN_AUTH_FORM_MAX_BYTES) {
-        await reader.cancel();
-        throw new AdminFormError("form body is too large", 413);
-      }
-      chunks.push(value);
-    }
-  }
 
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  const contentType = req.headers.get("content-type");
-  if (!contentType) throw new AdminFormError("missing form body", 400);
-  try {
-    return await new Response(bytes, { headers: { "content-type": contentType } }).formData();
-  } catch {
-    throw new AdminFormError("missing or malformed form body", 400);
-  }
-}
 
-function adminFormErrorResponse(error: unknown): Response {
-  if (error instanceof AdminFormError) {
-    return htmlResponse(renderError(error.message), error.status);
-  }
-  return htmlResponse(renderError("missing or malformed form body"), 400);
-}
 
-function adminLoginIpKey(req: Request): string {
-  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
-  const forwardedIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return `admin-login:${cfIp || forwardedIp || "unknown"}`;
-}
-
-function sameOriginAdminRequest(req: Request): boolean {
-  const expected = new URL(req.url).origin;
-  const origin = req.headers.get("origin");
-  if (origin) return origin === expected;
-  const referer = req.headers.get("referer");
-  if (referer) {
-    try {
-      return new URL(referer).origin === expected;
-    } catch {
-      return false;
-    }
-  }
-  // Neither header present. Browsers always send Origin on a form POST, so
-  // this is a non-browser client — accept it only when the CSRF token arrived
-  // in a custom header, which a cross-origin page cannot set without a CORS
-  // preflight this Worker never answers. Falling through to "allow" would let
-  // a header-stripping intermediary bypass the origin check entirely.
-  return req.headers.get("x-csrf-token") !== null;
-}
-
-async function csrfTokenFromRequest(req: Request): Promise<string | null> {
-  const header = req.headers.get("x-csrf-token")?.trim();
-  if (header) return header;
-  const contentType = req.headers.get("content-type") ?? "";
-  try {
-    if (contentType.includes("application/json")) {
-      const data = (await req.clone().json()) as Record<string, unknown>;
-      return stringField(data.csrf) ?? null;
-    }
-    const form = await req.clone().formData();
-    return stringField(form.get("csrf")) ?? null;
-  } catch {
-    return null;
-  }
-}
 
 async function parseCreateApiKeyInput(
   req: Request,
@@ -1047,31 +649,9 @@ function wantsJson(req: Request): boolean {
   return accept.includes("application/json") || contentType.includes("application/json");
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
-function enc(s: string): string {
-  return encodeURIComponent(s);
-}
 
-function dec(s: string): string {
-  return decodeURIComponent(s);
-}
 
 function redirectToTenant(tenantId: string): Response {
   return new Response(null, { status: 302, headers: { Location: `/admin?tenant=${enc(tenantId)}` } });
@@ -1098,20 +678,11 @@ function formatWindow(seconds: number): string {
   return `${seconds}s`;
 }
 
-function parseCookies(header: string | null): Record<string, string> {
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((s) => {
-      const [k, ...v] = s.trim().split("=");
-      return [k, v.join("=")];
-    }),
-  );
-}
 
-function oauthCookie(name: string, value: string): string {
-  return `${name}=${value}; Path=/admin; Max-Age=600; HttpOnly; Secure; SameSite=None`;
-}
 
-function expireOauthCookie(name: string): string {
-  return `${name}=; Path=/admin; Max-Age=0; HttpOnly; Secure; SameSite=None`;
-}
+// Post-sign-in destination, carried through Apple's cross-site form_post
+// round trip in a cookie. Only same-origin absolute /admin paths are honoured,
+// so this can never become an open redirect: no scheme, no host, no
+// protocol-relative "//evil" form survives the pattern.
+
+

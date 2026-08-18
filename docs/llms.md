@@ -64,6 +64,33 @@ are created by a person in the iOS app to share something read-only. If one is
 ever handed to you as `00WIDGET_API_KEY`, the operator has given you the wrong
 credential — say so rather than trying to publish with it.
 
+## If your host speaks MCP
+
+00Widget also exposes a Model Context Protocol server at `<BASE_URL>/mcp`, when
+the operator has enabled it. It wraps the same endpoints as tools —
+`upsert_card`, `upsert_cards_batch`, `list_cards`, `get_card`, `delete_card`,
+`start_live_activity`, `update_live_activity`, `end_live_activity`,
+`list_live_activities`, and `get_integration_guide`, which returns this
+document. Everything below still applies: the tool arguments *are* the JSON
+bodies documented here, validated by the same schemas.
+
+Use it when the thing that wants to publish is an MCP client (ChatGPT, a Claude
+connector, an editor). Do **not** reach for it when you are writing code — a
+plain `fetch` to `/v1/cards/upsert` is simpler and needs no connector.
+
+The transport is Streamable HTTP: one `POST` with a JSON-RPC body, one JSON
+response, no SSE stream and no session id. `GET <BASE_URL>/mcp.json` returns a
+ready-to-paste client config for whichever host is serving it.
+
+Authorization is OAuth 2.1 rather than the `00WIDGET_API_KEY` used everywhere
+else, because the clients that need MCP cannot send a custom API key header.
+An unauthenticated request gets a `401` naming the metadata document, and the
+client takes it from there; the account's owner then signs in and approves the
+connection in a browser, which scopes it to their own account.
+If you already hold an API token, ignore all of this and call `/v1/*` directly —
+the MCP endpoint accepts the same `zw_` tokens, so an existing credential works
+there too without any OAuth.
+
 ## Data model
 
 A **DashboardCard** is one tile on a widget. Wire format:

@@ -23,7 +23,7 @@ APNS_ENV="sandbox"
 #
 # Sign in with Apple — required for production. All four below.
 APPLE_SIGN_IN_CLIENT_ID=""              # Services ID, e.g. com.example.zerozerowidget.signin
-APPLE_SIGN_IN_REDIRECT_URI=""           # full URL of /admin/auth/apple/callback
+APPLE_SIGN_IN_REDIRECT_URI=""           # full URL of /auth/apple/callback
 ADMIN_EMAILS=""                         # comma-separated emails allowed to sign in
 SESSION_SECRET=""                       # 32+ random bytes; rotates the admin cookie
 #

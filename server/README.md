@@ -65,7 +65,7 @@ Then:
 curl http://localhost:8787/health
 ```
 
-If you enabled the fallback, open `http://localhost:8787/admin/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant owner email, and use that generated token for `/v1/*` calls:
+If you enabled the fallback, open `http://localhost:8787/login`, sign in with the `API_KEYS` fallback token, create an API token for a tenant owner email, and use that generated token for `/v1/*` calls:
 
 ```
 curl -H "Authorization: Bearer <generated-api-token>" http://localhost:8787/v1/cards
@@ -109,18 +109,46 @@ block. Higher plans can additionally count authentication failures by response
 status. Keep `workers_dev` and preview URLs disabled so requests cannot bypass
 the custom-domain rule.
 
-## Admin dashboard
+## Web sign-in
 
-An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant owner email, and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants.
+**`/login`** authenticates a person in the browser. It is not an admin login: any
+account created in the iOS app can sign in, and administration is a separate
+capability layered on top (see "Admin capabilities" below).
+
+Signing in never signs anyone up. The callback resolves the Apple identity
+against `apple_accounts` — the same table the iOS app writes — falling back to a
+tenant whose `owner_email` matches, and turns away an identity it does not
+recognise. Accounts are created in the app; someone who merely finds this
+endpoint does not become a tenant by visiting a URL. Set
+`WEB_SIGNUP_ENABLED = "true"` to let web sign-in create a tenant as well. It is
+off by default.
 
 Two sign-in methods, either is sufficient:
 
-- **Sign in with Apple** — production; restricted by `ADMIN_EMAILS`. Setup below.
-- **API-token fallback** — uses one of the `API_KEYS` bootstrap values. Disabled by default; enable with `ADMIN_API_TOKEN_LOGIN=true` only while you sort out Sign in with Apple or local bootstrap.
+- **Sign in with Apple** — the normal path, for everyone. Setup below.
+- **API-token bootstrap** — uses one of the `API_KEYS` values, grants admin
+  capabilities without an identity, and owns no tenant. It exists for a
+  deployment with no accounts yet. Disabled by default; enable with
+  `ADMIN_API_TOKEN_LOGIN=true`.
 
-### API-token fallback
+What a signed-in person can do today is sign in, sign out, and approve an MCP
+connector for their own account. There is no user-facing dashboard yet; `/admin`
+remains administrators-only.
 
-Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/admin/login`, and paste any value from `API_KEYS` into the API-token form. Every comma-separated token and `SESSION_SECRET` must be an independently generated value of at least 32 bytes; insecure configuration is rejected. Session cookies are signed with `SESSION_SECRET` (so even the fallback path needs that secret set). Login attempts are rate-limited per client IP.
+### Admin capabilities
+
+`ADMIN_EMAILS` no longer gates authentication — it names the addresses whose
+sessions carry `isAdmin`. Every route under `/admin` asserts that capability;
+being signed in is never enough. The check runs when the session is *read*, so
+adding or removing an address takes effect on the next request rather than at
+the next login, and a session that loses admin keeps working as an ordinary one.
+
+A deployment with no `ADMIN_EMAILS` is valid: web sign-in works and `/admin` is
+unreachable for everybody.
+
+### API-token bootstrap
+
+Set `ADMIN_API_TOKEN_LOGIN=true`, visit `/login`, and paste any value from `API_KEYS` into the API-token form. Every comma-separated token and `SESSION_SECRET` must be an independently generated value of at least 32 bytes; insecure configuration is rejected. Session cookies are signed with `SESSION_SECRET` (so even the bootstrap path needs that secret set). Login attempts are rate-limited per client IP.
 
 Important: `API_KEYS` values are not accepted by `/v1/*` app/agent endpoints. Use the admin dashboard to create a scoped tenant API token, copy the raw token once, and give it only to the intended app or integration. The form offers producer, read-only, device, and webhook-manager presets.
 
@@ -131,7 +159,7 @@ npx wrangler secret put ADMIN_API_TOKEN_LOGIN
 # enter: true
 ```
 
-Existing API-token sessions stop being honored as soon as the flag is removed or set to anything other than `true` — users are redirected back to `/admin/login`, where the API-token form is hidden.
+Existing bootstrap sessions stop being honored as soon as the flag is removed or set to anything other than `true` — users are redirected back to `/login`, where the API-token form is hidden.
 
 ### Sign in with Apple
 
@@ -142,7 +170,7 @@ Existing API-token sessions stop being honored as soon as the flag is removed or
    Enable **Sign in with Apple** → **Configure**:
    - Primary App ID: your iOS app's App ID (the one Apple Sign-In is enabled on).
    - Domains: your custom Worker hostname, e.g. `api.example.com`.
-   - Return URLs: `https://<your-worker-host>/admin/auth/apple/callback`.
+   - Return URLs: `https://<your-worker-host>/auth/apple/callback`.
 2. **Sign-In key** (the `.p8` Apple uses to sign authorization JWTs *to* your server — note: this Worker doesn't currently use the key, only the public-key JWKS, but Apple requires it on the Services ID anyway).
    Keys → "+" → enable **Sign in with Apple**, link to the same Primary App ID, download the `.p8`.
 3. **Enable Sign in with Apple** on your **App ID** if it isn't already.
@@ -151,20 +179,26 @@ Existing API-token sessions stop being honored as soon as the flag is removed or
 
 ```
 npx wrangler secret put APPLE_SIGN_IN_CLIENT_ID     # the Services ID, e.g. com.example.zerozerowidget.signin
-npx wrangler secret put APPLE_SIGN_IN_REDIRECT_URI  # https://<host>/admin/auth/apple/callback
-npx wrangler secret put ADMIN_EMAILS                # comma-separated list, e.g. you@example.com
+npx wrangler secret put APPLE_SIGN_IN_REDIRECT_URI  # https://<host>/auth/apple/callback
+npx wrangler secret put ADMIN_EMAILS                # addresses holding admin capabilities
 npx wrangler secret put SESSION_SECRET              # independently generated random 32+ byte value
 ```
 
-If any of those are missing the `/admin` page renders a "not configured" view listing what's missing — it does not crash and the public API stays unaffected.
+If the Apple values are missing, `/login` renders a "not configured" view and the public API stays unaffected. If `ADMIN_EMAILS` is missing, sign-in still works and `/admin` reports that no administrator is configured. Neither page names which setting is unset — that goes to the Worker's logs, so an unauthenticated visitor gets no map of what to probe.
 
 #### How the flow works
 
-`GET /admin/login` redirects to `https://appleid.apple.com/auth/authorize` with `response_mode=form_post`. Apple posts the result back to `/admin/auth/apple/callback`. The Worker validates the `id_token` against Apple's JWKS (RS256), confirms the email is in `ADMIN_EMAILS`, and sets a 24-hour HMAC-signed `HttpOnly; Secure` session cookie. `GET /admin` reads the cookie and renders the dashboard. `GET /admin/logout` clears it.
+`GET /login/apple` redirects to `https://appleid.apple.com/auth/authorize` with `response_mode=form_post`. Apple posts the result back to `/auth/apple/callback`. The Worker validates the `id_token` against Apple's JWKS (RS256), resolves the account, and sets a 24-hour HMAC-signed `HttpOnly; Secure; SameSite=Lax` session cookie scoped to `Path=/` — the web surface spans `/admin` and `/connect`, so it is no longer one directory. `GET /logout` clears it.
+
+An unauthenticated request to a page that needs a session is redirected to `/login?next=<path>`, and the destination is carried through Apple's cross-site form post in a short-lived cookie. Only same-origin absolute paths under `/admin` or `/connect/` are honoured, so `?next=` cannot be turned into an open redirect.
 
 #### Privacy email relay
 
-If the admin chose "Hide My Email" on first sign-in, Apple returns a relay address like `abc123@privaterelay.appleid.com`. Add that exact address to `ADMIN_EMAILS` rather than the underlying Apple ID — the Worker only sees the relay.
+If someone chose "Hide My Email" on first sign-in, Apple returns a relay address like `abc123@privaterelay.appleid.com`. That exact address is what the Worker sees, so it is what an `ADMIN_EMAILS` entry must contain. Account matching prefers Apple's stable subject id over the address, so a relay or a later address change does not detach someone from their tenant.
+
+## Admin dashboard
+
+An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant owner email, and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants. It requires a web session whose email is in `ADMIN_EMAILS`, or a bootstrap session.
 
 ## iOS app login
 
@@ -218,14 +252,22 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 | POST   | `/v1/actions/:id/run`                        | Deliver an action to the configured webhook. |
 | POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
 | DELETE | `/v1/auth/token`                             | Revoke the current credential/session and device registrations. |
-| GET    | `/admin/login`                               | Login page (Apple + API-token forms).  |
-| GET    | `/admin/login/apple`                         | Redirects to Sign in with Apple.       |
-| POST   | `/admin/login/api-token`                     | API-token fallback login.              |
+| GET    | `/login`                                     | Web sign-in page (Apple + bootstrap forms). |
+| GET    | `/login/apple`                               | Redirects to Sign in with Apple.       |
+| POST   | `/login/api-token`                           | API-token bootstrap login.             |
+| GET    | `/logout`                                    | Clears the session cookie.             |
 | POST   | `/admin/api-keys`                            | Create a tenant API token.             |
 | POST   | `/admin/api-keys/:id/revoke`                 | Revoke a tenant API token.             |
-| POST   | `/admin/auth/apple/callback`                 | Apple form-post callback.              |
-| GET    | `/admin/logout`                              | Clears the admin session cookie.       |
-| GET    | `/admin`                                     | Privileged administrative dashboard (HTML). |
+| POST   | `/auth/apple/callback`                       | Apple form-post callback.              |
+| GET    | `/admin`                                     | Privileged administrative dashboard (HTML). Requires the admin capability. |
+| POST   | `/mcp`                                       | MCP endpoint (Streamable HTTP, JSON-RPC). Off unless `MCP_ENABLED=true`. |
+| GET    | `/mcp.json`                                  | Generated MCP client config for this deployment. |
+| GET    | `/.well-known/oauth-protected-resource`      | RFC 9728 metadata for `/mcp`.          |
+| GET    | `/.well-known/oauth-authorization-server`    | RFC 8414 metadata.                     |
+| POST   | `/oauth/register`                            | Dynamic client registration (RFC 7591). |
+| GET    | `/connect/mcp/authorize`                     | Consent screen; needs any web session. |
+| POST   | `/connect/mcp/authorize`                     | Approve or deny, returning an authorization code. |
+| POST   | `/oauth/token`                               | PKCE code exchange; returns a tenant API token. |
 
 All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authenticated route also requires one explicit capability; a valid token without it receives `403`. `/admin/*` is gated by the admin session cookie set after Sign in with Apple — see "Admin dashboard" below.
 
@@ -261,6 +303,40 @@ The iOS app treats WidgetKit's callback as a canonical subscription snapshot:
 ```
 
 Sending `subscriptions: []` without a token removes that device's WidgetKit subscriptions. If WidgetKit reuses a token after an app reinstall, canonical registration moves it to the new device snapshot and removes the orphaned rows. The original single-`widgetKind` request remains accepted for compatibility with older installed builds.
+
+## MCP (Model Context Protocol)
+
+`POST /mcp` exposes the publishing surface as MCP tools, so a host that speaks
+MCP — a ChatGPT connector, Claude, an editor — can publish without anyone
+writing an integration. Set `MCP_ENABLED = "true"` in `wrangler.toml` to turn it
+on; every route in the table above returns 404 otherwise, as it does when
+`SESSION_SECRET` is missing or weak.
+
+The tools call the same handlers as the `/v1/*` routes and take the same zod
+schemas as arguments, converted to JSON Schema at startup — there is no second
+implementation to keep in sync. The transport is stateless: one POST, one JSON
+response, no SSE and no session id.
+
+Authorization is OAuth 2.1 because ChatGPT connectors cannot present a custom
+API key or header — the only credentials they carry are OAuth tokens. The flow
+is: the client registers itself (`/oauth/register`), sends the person to
+`/connect/mcp/authorize`, and exchanges the resulting code with PKCE at
+`/oauth/token`. What comes back is an ordinary tenant API token with the
+producer scopes, listed and revocable in `/admin` like any other. A caller that
+*already* holds a `zw_` token can skip all of this and send it to `/mcp`
+directly.
+
+Registered clients and authorization codes are signed values rather than rows —
+no table, no migration, no sweep. A code lives 60 seconds and is bound to its
+PKCE challenge; see the header comment in `src/mcpOAuth.ts` for what that does
+and does not buy.
+
+Approving needs a web session, not admin: connecting a client to your own
+account is something any signed-in person may do. The tenant is never read from
+the form — it is re-resolved from the signed-in identity while the code is
+issued — so a connector can only ever be pointed at the approver's own account.
+That holds for administrators too; issuing a credential for someone else is what
+`/admin` is for, and should be deliberate.
 
 ## Storage layout
 

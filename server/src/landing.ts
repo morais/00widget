@@ -1,4 +1,6 @@
 import { llmsMarkdown } from "./generated/llmsDoc";
+import { mcpConfigured } from "./mcpOAuth";
+import type { Env } from "./types";
 
 // Public, unauthenticated routes:
 //   GET /              landing HTML — intro + agent prompt + link to docs
@@ -40,8 +42,8 @@ Constraints:
 If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Workers callers" section in llms.md — same-account integrations should use a Service Binding instead of a public HTTPS fetch.`;
 }
 
-export async function handleLanding(req: Request): Promise<Response> {
-  return new Response(renderLandingHTML(new URL(req.url).origin), {
+export async function handleLanding(req: Request, env: Env): Promise<Response> {
+  return new Response(renderLandingHTML(new URL(req.url).origin, mcpConfigured(env)), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
@@ -94,7 +96,7 @@ export async function handleLlmsMd(req: Request): Promise<Response> {
   });
 }
 
-function renderHostedLlmsMarkdown(baseURL: string): string {
+export function renderHostedLlmsMarkdown(baseURL: string): string {
   return llmsMarkdown
     .replace(
       "- Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`.",
@@ -117,8 +119,17 @@ function renderHostedLlmsMarkdown(baseURL: string): string {
     );
 }
 
-export async function handleLlmsTxt(req: Request): Promise<Response> {
+export async function handleLlmsTxt(req: Request, env: Env): Promise<Response> {
   const baseURL = new URL(req.url).origin;
+  const mcp = mcpConfigured(env)
+    ? `
+## MCP
+
+An MCP server is available at ${baseURL}/mcp (Streamable HTTP, OAuth 2.1).
+${baseURL}/mcp.json returns a client config for it. Agents writing code should
+call the endpoints above directly instead.
+`
+    : "";
   const body = `# 00Widget
 
 Widgets for all your agents.
@@ -143,7 +154,7 @@ document is everything an integrating agent needs.
 
 All /v1/* endpoints require Authorization: Bearer <api-token>. Tokens are issued
 from the operator's /admin dashboard, not from this file.
-`;
+${mcp}`;
   return new Response(body, {
     status: 200,
     headers: {
@@ -245,7 +256,7 @@ const LANDING_SCRIPT = `
   });
 `;
 
-function renderLandingHTML(baseURL: string): string {
+function renderLandingHTML(baseURL: string, mcpEnabled: boolean): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -276,6 +287,7 @@ function renderLandingHTML(baseURL: string): string {
 
 <p class="copy-hint">The API contract is also available at <a href="/llms.md"><code>/llms.md</code></a>.</p>
 
+${mcpEnabled ? mcpSection(baseURL) : ""}
 <h2>API endpoints</h2>
 
 <ul class="endpoints">
@@ -295,6 +307,22 @@ function renderLandingHTML(baseURL: string): string {
 <script>${LANDING_SCRIPT}</script>
 </body>
 </html>`;
+}
+
+// Only rendered where MCP is actually enabled. A deployment that has not turned
+// it on should not advertise an endpoint that answers 404.
+function mcpSection(baseURL: string): string {
+  return `<h2>Connect an MCP client</h2>
+
+<p>Hosts that speak the Model Context Protocol — ChatGPT connectors, Claude, some editors — can publish here without any code. Add this URL as a custom connector:</p>
+
+<div class="copy-wrap">
+  <button type="button" class="copy-btn" data-copy-target="mcp-url" aria-label="Copy MCP server URL">Copy</button>
+  <pre id="mcp-url"><code>${escapeHtml(baseURL)}/mcp</code></pre>
+</div>
+
+<p class="copy-hint">The host will ask you to <a href="/login">sign in</a> with the Apple ID you use in the 00Widget app; approving mints an API token scoped to your account. For clients configured from a file rather than a URL, <a href="/mcp.json"><code>/mcp.json</code></a> is the same thing in config form.</p>
+`;
 }
 
 async function sha256Base64(input: string): Promise<string> {

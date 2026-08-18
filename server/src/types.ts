@@ -12,6 +12,9 @@ export const RequestBodyLimits = {
   share: 4 * KiB,
   guestLink: 4 * KiB,
   appleLogin: 16 * KiB,
+  // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
+  // body any tool forwards (a card batch) plus the wrapper around it.
+  mcpRpc: 160 * KiB,
 } as const;
 
 export const FieldLimits = {
@@ -671,19 +674,35 @@ export interface Env {
   APNS_BUNDLE_ID?: string;
   APNS_ENV?: "sandbox" | "production";
 
-  // Admin dashboard (Sign in with Apple)
+  // Web sign-in (Sign in with Apple). Any account created in the iOS app can
+  // sign in; ADMIN_EMAILS is a separate capability layered on top, not a gate
+  // on authenticating at all.
   APPLE_SIGN_IN_CLIENT_ID?: string;       // Services ID, e.g. com.example.zerozerowidget.signin
-  APPLE_SIGN_IN_REDIRECT_URI?: string;    // full URL of /admin/auth/apple/callback
-  ADMIN_EMAILS?: string;                  // comma-separated allowed emails
+  APPLE_SIGN_IN_REDIRECT_URI?: string;    // full URL of /auth/apple/callback
+  ADMIN_EMAILS?: string;                  // comma-separated addresses holding admin capabilities
   SESSION_SECRET?: string;                // HMAC secret for the admin session cookie
   // Set to "true" to enable the API-token login fallback. It is opt-in so
   // production deployments default to Sign in with Apple only.
   ADMIN_API_TOKEN_LOGIN?: string;
 
+  // Whether a person who has never signed up can become a tenant by signing in
+  // on the web. Off unless "true": accounts are created in the iOS app, so
+  // someone who merely finds this endpoint gets turned away rather than
+  // provisioned. Turning it on makes web sign-in create a tenant the way the
+  // app does.
+  WEB_SIGNUP_ENABLED?: string;
+
   // Optional iOS app login. When enabled, the app can exchange a native
   // Sign in with Apple identity token for a tenant API token.
   APPLE_APP_LOGIN_ENABLED?: string;       // set to "true" to enable
   APPLE_APP_SIGN_IN_CLIENT_ID?: string;   // native app bundle id, e.g. com.example.zerozerowidget
+
+  // Master kill switch for the MCP endpoint and the OAuth authorization server
+  // that fronts it. Off unless set to "true", so a deployment that has not
+  // thought about it exposes neither. Enabling also requires a strong
+  // SESSION_SECRET: MCP OAuth signs its client ids and authorization codes with
+  // it, and identifies the operator through the admin session cookie.
+  MCP_ENABLED?: string;
 
   // Master kill switch for the cross-tenant sharing feature. Any value other
   // than "true" disables every /v1/shares/* route, the ?include=shared

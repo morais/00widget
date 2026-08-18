@@ -1,52 +1,13 @@
 import type { Env } from "./types";
-import {
-  adminApiTokensAreSecure,
-  configuredAdminApiTokens,
-  isSecureAdminSecret,
-} from "./adminSecurity";
 
-// Sign in with Apple — web flow.
-//
-// References:
-//   https://developer.apple.com/documentation/sign_in_with_apple/sign_in_with_apple_js/configuring_your_webpage_for_sign_in_with_apple
-//   https://developer.apple.com/documentation/signinwithapplerestapi
-//
-// Flow:
-// 1. /admin/login → redirect the browser to https://appleid.apple.com/auth/authorize
-//    with our Services ID as client_id, our callback as redirect_uri,
-//    response_type=code id_token, response_mode=form_post.
-// 2. Apple POSTs the result to /admin/auth/apple/callback as form data.
-// 3. We validate the id_token JWT (RS256, signed by Apple, against the JWKS
-//    at https://appleid.apple.com/auth/keys) and check that the email claim
-//    matches one in ADMIN_EMAILS.
-// 4. We mint an HMAC-signed session cookie and redirect to /admin.
+// Apple identity: building the authorize URL and validating the id_token that
+// comes back. What a validated identity is then *allowed* to do lives in
+// webSession.ts; the browser flow that ties the two together lives in
+// webLogin.ts.
 
-export type AdminAuthMethod = "apple" | "api-token";
 
-export interface AdminSession {
-  // For "apple": Apple's email claim. For "api-token": a label like "api-token".
-  email: string;
-  method: AdminAuthMethod;
-  iat: number;
-  exp: number;
-  csrf: string;
-  // API-token sessions are bound to the bootstrap token that minted them.
-  // If API_KEYS rotates, this hash stops matching and the session is rejected.
-  apiTokenHash?: string;
-}
 
-export function apiTokenLoginEnabled(env: Env): boolean {
-  return env.ADMIN_API_TOKEN_LOGIN === "true";
-}
 
-export function apiTokenLoginConfigured(env: Env): boolean {
-  return apiTokenLoginEnabled(env) &&
-    isSecureAdminSecret(env.SESSION_SECRET) &&
-    adminApiTokensAreSecure(env);
-}
-
-const COOKIE_NAME = "zw_admin";
-const SESSION_TTL_SECONDS = 24 * 60 * 60;
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 const APPLE_AUTH_URL = "https://appleid.apple.com/auth/authorize";
 
@@ -61,14 +22,6 @@ interface AppleIdTokenClaims {
   email_verified?: boolean | string;
 }
 
-export function appleSignInConfigured(env: Env): boolean {
-  return Boolean(
-    env.APPLE_SIGN_IN_CLIENT_ID &&
-      env.APPLE_SIGN_IN_REDIRECT_URI &&
-      env.ADMIN_EMAILS &&
-      isSecureAdminSecret(env.SESSION_SECRET),
-  );
-}
 
 export function appAppleLoginConfigured(env: Env): boolean {
   return env.APPLE_APP_LOGIN_ENABLED === "true" && Boolean(env.APPLE_APP_SIGN_IN_CLIENT_ID);
@@ -87,16 +40,7 @@ export function buildAuthorizeURL(env: Env, state: string, nonce: string): strin
   return `${APPLE_AUTH_URL}?${params.toString()}`;
 }
 
-export function adminEmails(env: Env): string[] {
-  return (env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
 
-export function isAdminEmail(env: Env, email: string): boolean {
-  return adminEmails(env).includes(email.trim().toLowerCase());
-}
 
 export function isAppleEmailVerified(value: boolean | string | undefined): boolean {
   return value === true || value === "true";
@@ -193,101 +137,10 @@ export async function validateAppleIdTokenForAudience(
   return claims;
 }
 
-// ---------- Session cookie (HMAC-signed) ----------
 
-export async function makeSessionCookie(
-  env: Env,
-  email: string,
-  method: AdminAuthMethod = "apple",
-  options: { apiTokenHash?: string } = {},
-): Promise<string> {
-  if (!isSecureAdminSecret(env.SESSION_SECRET)) {
-    throw new Error("SESSION_SECRET must be a strong random value of at least 32 bytes");
-  }
-  if (method === "api-token" && !options.apiTokenHash) {
-    throw new Error("api-token sessions require apiTokenHash");
-  }
-  const now = Math.floor(Date.now() / 1000);
-  const session: AdminSession = {
-    email: email.toLowerCase(),
-    method,
-    iat: now,
-    exp: now + SESSION_TTL_SECONDS,
-    csrf: randomToken(18),
-    ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
-  };
-  const payload = b64url(JSON.stringify(session));
-  const sig = await hmacSha256Hex(env.SESSION_SECRET!, payload);
-  const value = `${payload}.${sig}`;
-  return `${COOKIE_NAME}=${value}; Path=/admin; Max-Age=${SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
-}
 
-export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; Path=/admin; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
-}
 
-export async function readSessionCookie(env: Env, req: Request): Promise<AdminSession | null> {
-  if (!isSecureAdminSecret(env.SESSION_SECRET)) return null;
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-  const cookies = Object.fromEntries(
-    cookieHeader.split(";").map((s) => {
-      const [k, ...v] = s.trim().split("=");
-      return [k, v.join("=")];
-    }),
-  );
-  const raw = cookies[COOKIE_NAME];
-  if (!raw) return null;
-  const [payload, sig] = raw.split(".");
-  if (!payload || !sig) return null;
 
-  const expected = await hmacSha256Hex(env.SESSION_SECRET!, payload);
-  if (!constantTimeEqual(sig, expected)) return null;
-
-  let session: AdminSession;
-  try {
-    session = JSON.parse(b64urlDecodeToText(payload)) as AdminSession;
-  } catch {
-    return null;
-  }
-  const now = Math.floor(Date.now() / 1000);
-  if (session.exp < now) return null;
-  if (!session.csrf) return null;
-  // Validation depends on how the user signed in:
-  //   apple    → the email must still be in ADMIN_EMAILS (the operator may
-  //              have rotated the list since the cookie was minted)
-  //   api-token → the cookie must still be bound to one of the currently
-  //              configured API_KEYS. If the operator rotates API_KEYS or
-  //              disables api-token login, existing sessions stop working.
-  const method = session.method;
-  if (method === "apple") {
-    if (!isAdminEmail(env, session.email)) return null;
-  } else if (method === "api-token") {
-    if (!apiTokenLoginEnabled(env)) return null;
-    if (!session.apiTokenHash) return null;
-    if (!(await isCurrentAdminApiTokenHash(env, session.apiTokenHash))) return null;
-  } else {
-    return null;
-  }
-  return session;
-}
-
-export async function hashAdminApiToken(token: string): Promise<string> {
-  const data = new TextEncoder().encode(token.trim());
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function isCurrentAdminApiTokenHash(env: Env, tokenHash: string): Promise<boolean> {
-  if (!adminApiTokensAreSecure(env)) return false;
-  const allowed = configuredAdminApiTokens(env);
-  let valid = false;
-  for (const token of allowed) {
-    const currentHash = await hashAdminApiToken(token);
-    valid = constantTimeEqual(currentHash, tokenHash) || valid;
-  }
-  return valid;
-}
 
 // Random URL-safe state/nonce. Used in OAuth flow.
 export function randomToken(byteLen = 24): string {
@@ -298,7 +151,7 @@ export function randomToken(byteLen = 24): string {
 
 // ---------- Encoding helpers ----------
 
-function b64url(input: string): string {
+export function b64url(input: string): string {
   return b64urlBytes(new TextEncoder().encode(input));
 }
 
@@ -308,7 +161,7 @@ function b64urlBytes(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function b64urlDecodeToText(s: string): string {
+export function b64urlDecodeToText(s: string): string {
   return new TextDecoder().decode(b64urlDecodeToBytes(s));
 }
 
@@ -317,7 +170,7 @@ function b64urlDecodeToBytes(s: string): Uint8Array {
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
 }
 
-async function hmacSha256Hex(secret: string, data: string): Promise<string> {
+export async function hmacSha256Hex(secret: string, data: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -329,7 +182,7 @@ async function hmacSha256Hex(secret: string, data: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);

@@ -19,6 +19,9 @@ import * as appleAppSite from "./appleAppSite";
 import * as guestLinks from "./guestLinks";
 import * as guestPage from "./guestPage";
 import * as landing from "./landing";
+import * as webLogin from "./webLogin";
+import * as mcp from "./mcp";
+import * as mcpOAuth from "./mcpOAuth";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
@@ -43,7 +46,7 @@ const routes: Route[] = [
     handler: async () => json({ ok: true }),
   },
   // Public landing + API docs.
-  { method: "GET", pattern: /^\/?$/, handler: (req) => landing.handleLanding(req) },
+  { method: "GET", pattern: /^\/?$/, handler: (req, env) => landing.handleLanding(req, env) },
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
   // Browser fallback for a guest link. Only reachable by people without the
   // app installed; everyone else has /app/* routed into the app by iOS.
@@ -53,7 +56,24 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
     appleAppSite.handleAppleAppSiteAssociation(req, env),
   },
-  { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req) => landing.handleLlmsTxt(req) },
+  { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req, env) => landing.handleLlmsTxt(req, env) },
+  // MCP. The endpoint authenticates itself (it must answer an anonymous
+  // request with the WWW-Authenticate challenge that starts the OAuth flow),
+  // so it is not wrapped in `authed`.
+  { method: "POST", pattern: /^\/mcp\/?$/, handler: (req, env, _match, ctx) => mcp.handleMcp(req, env, ctx) },
+  { method: "GET", pattern: /^\/mcp\/?$/, handler: (req, env) => mcp.handleMcpMethodNotAllowed(req, env) },
+  { method: "GET", pattern: /^\/mcp\.json\/?$/, handler: (req, env) => mcp.handleMcpConfig(req, env) },
+  // OAuth discovery. RFC 9728 lets a client look for the protected-resource
+  // document either at the bare well-known path or with the resource's own path
+  // appended, and clients differ on which they try first.
+  { method: "GET", pattern: /^\/\.well-known\/oauth-protected-resource(?:\/mcp)?\/?$/, handler: (req, env) =>
+    mcpOAuth.handleProtectedResourceMetadata(req, env),
+  },
+  { method: "GET", pattern: /^\/\.well-known\/oauth-authorization-server(?:\/mcp)?\/?$/, handler: (req, env) =>
+    mcpOAuth.handleAuthorizationServerMetadata(req, env),
+  },
+  { method: "POST", pattern: /^\/oauth\/register\/?$/, handler: (req, env) => mcpOAuth.handleRegister(req, env) },
+  { method: "POST", pattern: /^\/oauth\/token\/?$/, handler: (req, env) => mcpOAuth.handleToken(req, env) },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),
   authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, "publish", (req, env, auth, _match, ctx) =>
@@ -145,11 +165,15 @@ const routes: Route[] = [
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
     sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },
   ),
-  // Admin dashboard — gated by Apple Sign-In or API-token cookie.
-  { method: "GET", pattern: /^\/admin\/login\/?$/, handler: (req, env) => admin.handleAdminLogin(req, env) },
-  { method: "GET", pattern: /^\/admin\/login\/apple\/?$/, handler: (req, env) => admin.handleAdminLoginApple(req, env) },
-  { method: "POST", pattern: /^\/admin\/login\/api-token\/?$/, handler: (req, env) => admin.handleAdminLoginApiToken(req, env) },
-  { method: "POST", pattern: /^\/admin\/auth\/apple\/callback\/?$/, handler: (req, env) => admin.handleAdminCallback(req, env) },
+  // Admin dashboard. Every route asserts the admin capability on top of a
+  // web session; being signed in is never sufficient.
+  // Web sign-in. Not under /admin: authenticating says who you are, and only
+  // some of the people who do it are administrators.
+  { method: "GET", pattern: /^\/login\/?$/, handler: (req, env) => webLogin.handleLogin(req, env) },
+  { method: "GET", pattern: /^\/login\/apple\/?$/, handler: (req, env) => webLogin.handleLoginApple(req, env) },
+  { method: "POST", pattern: /^\/login\/api-token\/?$/, handler: (req, env) => webLogin.handleLoginApiToken(req, env) },
+  { method: "POST", pattern: /^\/auth\/apple\/callback\/?$/, handler: (req, env) => webLogin.handleAppleCallback(req, env) },
+  { method: "GET", pattern: /^\/logout\/?$/, handler: (req, env) => webLogin.handleLogout(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/?$/, handler: (req, env) => admin.handleAdminCreateApiKey(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
     admin.handleAdminRevokeApiKey(req, env, match[1]),
@@ -169,7 +193,12 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/start-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
     admin.handleAdminDeleteStartToken(req, env, match[1], match[2], match[3]),
   },
-  { method: "GET", pattern: /^\/admin\/logout\/?$/, handler: (req, env) => admin.handleAdminLogout(req, env) },
+  // Any signed-in person may connect a client to their own account, so this is
+  // not an /admin route.
+  { method: "GET", pattern: /^\/connect\/mcp\/authorize\/?$/, handler: (req, env) => mcpOAuth.handleAuthorize(req, env) },
+  { method: "POST", pattern: /^\/connect\/mcp\/authorize\/?$/, handler: (req, env) =>
+    mcpOAuth.handleAuthorizeDecision(req, env),
+  },
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
 
@@ -294,7 +323,13 @@ function preventSensitiveResponseCaching(pathname: string, response: Response): 
   const sensitive = pathname === "/v1"
     || pathname.startsWith("/v1/")
     || pathname === "/admin"
-    || pathname.startsWith("/admin/");
+    || pathname.startsWith("/admin/")
+    || pathname === "/mcp"
+    || pathname === "/mcp/"
+    || pathname.startsWith("/oauth/")
+    || pathname.startsWith("/connect/")
+    || pathname.startsWith("/login")
+    || pathname.startsWith("/auth/");
   if (sensitive) {
     response.headers.set("cache-control", "no-store");
   }

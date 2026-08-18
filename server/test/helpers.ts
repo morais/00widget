@@ -1360,3 +1360,58 @@ export function authedRequest(url: string, init: RequestInit = {}, apiKey = TEST
   }
   return new Request(url, { ...init, headers });
 }
+
+/// A signed Apple id_token plus the JWK to serve as Apple's JWKS, so a test can
+/// drive the real callback without reaching appleid.apple.com.
+export async function makeAppleIdToken(input: {
+  aud: string;
+  email: string;
+  emailVerified: boolean | string;
+  nonce: string;
+  sub?: string;
+}): Promise<{ token: string; jwk: JsonWebKey }> {
+  const pair = (await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"],
+  )) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey & {
+    kid?: string;
+    alg?: string;
+    use?: string;
+  };
+  jwk.kid = "admin-test-kid";
+  jwk.alg = "RS256";
+  jwk.use = "sig";
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64urlJson({ alg: "RS256", kid: jwk.kid });
+  const payload = b64urlJson({
+    iss: "https://appleid.apple.com",
+    aud: input.aud,
+    exp: now + 300,
+    iat: now,
+    sub: input.sub ?? "admin-apple-user",
+    nonce: input.nonce,
+    email: input.email,
+    email_verified: input.emailVerified,
+  });
+  const data = new TextEncoder().encode(`${header}.${payload}`);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, data);
+  return { token: `${header}.${payload}.${b64urlBytes(new Uint8Array(signature))}`, jwk };
+}
+
+function b64urlJson(value: unknown): string {
+  return b64urlBytes(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+function b64urlBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}

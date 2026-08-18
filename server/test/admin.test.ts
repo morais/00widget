@@ -1,14 +1,14 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
+import { randomToken, __resetAppleJwksCache } from "../src/appleAuth";
 import {
+  adminAccessConfigured,
   isAdminEmail,
   makeSessionCookie,
   readSessionCookie,
-  randomToken,
-  appleSignInConfigured,
-  __resetAppleJwksCache,
-} from "../src/appleAuth";
-import { authedRequest, makeEnv, seedApiKey } from "./helpers";
+  webSignInConfigured,
+} from "../src/webSession";
+import { authedRequest, makeAppleIdToken, makeEnv, seedApiKey } from "./helpers";
 
 const ctx = {} as ExecutionContext;
 const TEST_ADMIN_TOKEN = "test-admin-token-0123456789abcdef";
@@ -24,7 +24,7 @@ afterEach(() => {
 function adminEnv(overrides = {}) {
   return makeEnv({
     APPLE_SIGN_IN_CLIENT_ID: "com.example.zerozerowidget.signin",
-    APPLE_SIGN_IN_REDIRECT_URI: "https://example.com/admin/auth/apple/callback",
+    APPLE_SIGN_IN_REDIRECT_URI: "https://example.com/auth/apple/callback",
     ADMIN_EMAILS: "admin@example.com,Other@Example.com",
     SESSION_SECRET: TEST_SESSION_SECRET,
     API_KEYS: TEST_ADMIN_TOKEN,
@@ -40,20 +40,25 @@ async function adminCookie(env: ReturnType<typeof adminEnv>): Promise<{ cookie: 
   return { cookie, csrf: session.csrf };
 }
 
-describe("appleSignInConfigured", () => {
+describe("webSignInConfigured", () => {
   it("is false when any required env is missing", () => {
-    expect(appleSignInConfigured(makeEnv())).toBe(false);
-    expect(appleSignInConfigured(adminEnv({ ADMIN_EMAILS: "" }))).toBe(false);
-    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "" }))).toBe(false);
+    expect(webSignInConfigured(makeEnv())).toBe(false);
+    expect(webSignInConfigured(adminEnv({ SESSION_SECRET: "" }))).toBe(false);
+    expect(webSignInConfigured(adminEnv({ APPLE_SIGN_IN_CLIENT_ID: "" }))).toBe(false);
   });
-  it("is true when all four are set", () => {
-    expect(appleSignInConfigured(adminEnv())).toBe(true);
+
+  it("does not require ADMIN_EMAILS, because signing in is not administration", () => {
+    expect(webSignInConfigured(adminEnv({ ADMIN_EMAILS: "" }))).toBe(true);
+    // Nobody holds admin capabilities on that deployment, which is a valid
+    // configuration: web sign-in works and /admin is unreachable for everyone.
+    expect(adminAccessConfigured(adminEnv({ ADMIN_EMAILS: "" }))).toBe(false);
+    expect(adminAccessConfigured(adminEnv())).toBe(true);
   });
 
   it("rejects short and placeholder session secrets", () => {
-    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "too-short" }))).toBe(false);
-    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "change-me" }))).toBe(false);
-    expect(appleSignInConfigured(adminEnv({ SESSION_SECRET: "a".repeat(64) }))).toBe(false);
+    expect(webSignInConfigured(adminEnv({ SESSION_SECRET: "too-short" }))).toBe(false);
+    expect(webSignInConfigured(adminEnv({ SESSION_SECRET: "change-me" }))).toBe(false);
+    expect(webSignInConfigured(adminEnv({ SESSION_SECRET: "a".repeat(64) }))).toBe(false);
   });
 });
 
@@ -71,7 +76,7 @@ describe("session cookie", () => {
   it("round-trips a valid session", async () => {
     const env = adminEnv();
     const cookie = await makeSessionCookie(env, "admin@example.com");
-    const setHeader = cookie.split(";")[0]; // "zw_admin=...."
+    const setHeader = cookie.split(";")[0]; // "zw_session=...."
     const req = new Request("https://x/admin", {
       headers: { cookie: setHeader },
     });
@@ -89,21 +94,24 @@ describe("session cookie", () => {
     // with a fixed value instead left the signature untouched whenever it
     // already ended that way — a real 1-in-256 flake, since the payload carries
     // a random csrf token and the HMAC differs on every run.
-    const tampered = `zw_admin=${payload}.${sig.slice(0, -1)}${sig.endsWith("a") ? "b" : "a"}`;
-    expect(tampered).not.toBe(`zw_admin=${value}`);
+    const tampered = `zw_session=${payload}.${sig.slice(0, -1)}${sig.endsWith("a") ? "b" : "a"}`;
+    expect(tampered).not.toBe(`zw_session=${value}`);
     const req = new Request("https://x/admin", { headers: { cookie: tampered } });
     expect(await readSessionCookie(env, req)).toBeNull();
   });
 
-  it("rejects when email is no longer in ADMIN_EMAILS", async () => {
+  it("keeps the session but drops admin when the email leaves ADMIN_EMAILS", async () => {
     const env = adminEnv();
-    const cookie = await makeSessionCookie(env, "admin@example.com");
-    const setHeader = cookie.split(";")[0];
+    const cookie = (await makeSessionCookie(env, "admin@example.com")).split(";")[0];
+    const req = () => new Request("https://x/admin", { headers: { cookie } });
 
+    expect((await readSessionCookie(env, req()))?.isAdmin).toBe(true);
+    // Same secret, different ADMIN_EMAILS: the person is still signed in and
+    // still owns their tenant. Only the capability is gone.
     const stricter = adminEnv({ ADMIN_EMAILS: "different@example.com" });
-    const req = new Request("https://x/admin", { headers: { cookie: setHeader } });
-    // Different env (different ADMIN_EMAILS) but SAME secret to isolate the email check.
-    expect(await readSessionCookie(stricter, req)).toBeNull();
+    const session = await readSessionCookie(stricter, req());
+    expect(session?.email).toBe("admin@example.com");
+    expect(session?.isAdmin).toBe(false);
   });
 
   it("rejects with no cookie header", async () => {
@@ -124,11 +132,11 @@ describe("randomToken", () => {
 });
 
 describe("admin routes (no Apple call required)", () => {
-  it("/admin without session redirects to /admin/login when configured", async () => {
+  it("/admin without session sends the visitor to sign in, and back afterwards", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(new Request("https://x/admin"), env, ctx);
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/admin/login");
+    expect(res.headers.get("location")).toBe("/login?next=%2Fadmin");
   });
 
   it("/admin shows config error when not configured", async () => {
@@ -147,24 +155,24 @@ describe("admin routes (no Apple call required)", () => {
     expect(body).not.toContain("ADMIN_API_TOKEN_LOGIN");
   });
 
-  it("/admin/login renders the login page with both methods when configured", async () => {
+  it("/login renders the login page with both methods when configured", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
-      new Request("https://x/admin/login"),
+      new Request("https://x/login"),
       env,
       ctx,
     );
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Sign in with Apple");
-    expect(body).toContain("/admin/login/apple");
-    expect(body).toContain("/admin/login/api-token");
+    expect(body).toContain("/login/apple");
+    expect(body).toContain("/login/api-token");
   });
 
   it("admin HTML responses include defense-in-depth security headers", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
-      new Request("https://x/admin/login"),
+      new Request("https://x/login"),
       env,
       ctx,
     );
@@ -195,23 +203,23 @@ describe("admin routes (no Apple call required)", () => {
     expect(missing.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("/admin/login hides API-token form unless ADMIN_API_TOKEN_LOGIN=true", async () => {
+  it("/login hides API-token form unless ADMIN_API_TOKEN_LOGIN=true", async () => {
     const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
     const res = await (handler.fetch as any)(
-      new Request("https://x/admin/login"),
+      new Request("https://x/login"),
       env,
       ctx,
     );
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Sign in with Apple");
-    expect(body).not.toContain("/admin/login/api-token");
+    expect(body).not.toContain("/login/api-token");
   });
 
-  it("/admin/login/apple redirects to appleid.apple.com", async () => {
+  it("/login/apple redirects to appleid.apple.com", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
-      new Request("https://x/admin/login/apple"),
+      new Request("https://x/login/apple"),
       env,
       ctx,
     );
@@ -223,14 +231,14 @@ describe("admin routes (no Apple call required)", () => {
     expect(loc).toContain("response_mode=form_post");
     const setCookies = res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie") ?? ""];
     const joined = setCookies.join(";");
-    expect(joined).toContain("zw_admin_state=");
-    expect(joined).toContain("zw_admin_nonce=");
+    expect(joined).toContain("zw_state=");
+    expect(joined).toContain("zw_nonce=");
   });
 
-  it("/admin/login/api-token mints a session for a valid key", async () => {
+  it("/login/api-token mints a session for a valid key", async () => {
     const env = adminEnv();
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
-    const req = new Request("https://x/admin/login/api-token", {
+    const req = new Request("https://x/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: form.toString(),
@@ -239,13 +247,13 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/admin");
     const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("zw_admin=");
+    expect(setCookie).toContain("zw_session=");
   });
 
-  it("/admin/login/api-token rejects an invalid key", async () => {
+  it("/login/api-token rejects an invalid key", async () => {
     const env = adminEnv();
     const form = new URLSearchParams({ apiKey: "wrong" });
-    const req = new Request("https://x/admin/login/api-token", {
+    const req = new Request("https://x/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: form.toString(),
@@ -254,9 +262,9 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("/admin/login/api-token rejects oversized form bodies", async () => {
+  it("/login/api-token rejects oversized form bodies", async () => {
     const env = adminEnv();
-    const req = new Request("https://x/admin/login/api-token", {
+    const req = new Request("https://x/login/api-token", {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
@@ -269,9 +277,9 @@ describe("admin routes (no Apple call required)", () => {
     expect(await res.text()).toContain("form body is too large");
   });
 
-  it("/admin/auth/apple/callback rejects oversized form bodies", async () => {
+  it("/auth/apple/callback rejects oversized form bodies", async () => {
     const env = adminEnv();
-    const req = new Request("https://x/admin/auth/apple/callback", {
+    const req = new Request("https://x/auth/apple/callback", {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
@@ -284,9 +292,9 @@ describe("admin routes (no Apple call required)", () => {
     expect(await res.text()).toContain("form body is too large");
   });
 
-  it("/admin/login/api-token refuses weak bootstrap configuration", async () => {
+  it("/login/api-token refuses weak bootstrap configuration", async () => {
     const env = adminEnv({ API_KEYS: "dev-key-1" });
-    const req = new Request("https://x/admin/login/api-token", {
+    const req = new Request("https://x/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ apiKey: "dev-key-1" }).toString(),
@@ -298,10 +306,10 @@ describe("admin routes (no Apple call required)", () => {
     expect(body).not.toContain("API_KEYS");
   });
 
-  it("/admin/login/api-token returns 403 when not explicitly enabled", async () => {
+  it("/login/api-token returns 403 when not explicitly enabled", async () => {
     const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "" });
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
-    const req = new Request("https://x/admin/login/api-token", {
+    const req = new Request("https://x/login/api-token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: form.toString(),
@@ -310,11 +318,11 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.status).toBe(403);
   });
 
-  it("/admin/login/api-token rate-limits repeated attempts by client IP", async () => {
+  it("/login/api-token rate-limits repeated attempts by client IP", async () => {
     const env = adminEnv();
     for (let i = 0; i < 10; i++) {
       const res = await (handler.fetch as any)(
-        new Request("https://x/admin/login/api-token", {
+        new Request("https://x/login/api-token", {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
@@ -329,7 +337,7 @@ describe("admin routes (no Apple call required)", () => {
     }
 
     const limited = await (handler.fetch as any)(
-      new Request("https://x/admin/login/api-token", {
+      new Request("https://x/login/api-token", {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
@@ -344,16 +352,16 @@ describe("admin routes (no Apple call required)", () => {
     expect(await limited.text()).toContain("Too many API-token login attempts");
   });
 
-  it("/admin/auth/apple/callback rate-limits repeated attempts by client IP", async () => {
+  it("/auth/apple/callback rate-limits repeated attempts by client IP", async () => {
     const env = adminEnv();
     for (let i = 0; i < 60; i++) {
       const res = await (handler.fetch as any)(
-        new Request("https://x/admin/auth/apple/callback", {
+        new Request("https://x/auth/apple/callback", {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             "cf-connecting-ip": "203.0.113.12",
-            cookie: "zw_admin_state=expected; zw_admin_nonce=nonce",
+            cookie: "zw_state=expected; zw_nonce=nonce",
           },
           body: new URLSearchParams({ state: "wrong", id_token: "invalid" }).toString(),
         }),
@@ -364,12 +372,12 @@ describe("admin routes (no Apple call required)", () => {
     }
 
     const limited = await (handler.fetch as any)(
-      new Request("https://x/admin/auth/apple/callback", {
+      new Request("https://x/auth/apple/callback", {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
           "cf-connecting-ip": "203.0.113.12",
-          cookie: "zw_admin_state=expected; zw_admin_nonce=nonce",
+          cookie: "zw_state=expected; zw_nonce=nonce",
         },
         body: new URLSearchParams({ state: "wrong", id_token: "invalid" }).toString(),
       }),
@@ -385,7 +393,7 @@ describe("admin routes (no Apple call required)", () => {
     // Mint a cookie via the api-token login...
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
-      new Request("https://x/admin/login/api-token", {
+      new Request("https://x/login/api-token", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: form.toString(),
@@ -412,7 +420,7 @@ describe("admin routes (no Apple call required)", () => {
     const enabled = adminEnv();
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
-      new Request("https://x/admin/login/api-token", {
+      new Request("https://x/login/api-token", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: form.toString(),
@@ -429,14 +437,14 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     expect(dashRes.status).toBe(302);
-    expect(dashRes.headers.get("location")).toBe("/admin/login");
+    expect(dashRes.headers.get("location")).toBe("/login?next=%2Fadmin");
   });
 
   it("api-token cookie stops working after API_KEYS rotation removes its bootstrap token", async () => {
     const env = adminEnv({ API_KEYS: `${TEST_ADMIN_TOKEN},${OTHER_ADMIN_TOKEN}` });
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
-      new Request("https://x/admin/login/api-token", {
+      new Request("https://x/login/api-token", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: form.toString(),
@@ -453,14 +461,14 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     expect(dashRes.status).toBe(302);
-    expect(dashRes.headers.get("location")).toBe("/admin/login");
+    expect(dashRes.headers.get("location")).toBe("/login?next=%2Fadmin");
   });
 
   it("api-token cookie remains valid when API_KEYS rotation keeps its bootstrap token", async () => {
     const env = adminEnv({ API_KEYS: `${OTHER_ADMIN_TOKEN},${TEST_ADMIN_TOKEN}` });
     const form = new URLSearchParams({ apiKey: TEST_ADMIN_TOKEN });
     const loginRes = await (handler.fetch as any)(
-      new Request("https://x/admin/login/api-token", {
+      new Request("https://x/login/api-token", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: form.toString(),
@@ -544,7 +552,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     expect(res.status).toBe(403);
-    expect(await res.text()).toContain("Invalid admin CSRF token");
+    expect(await res.text()).toContain("Invalid CSRF token");
   });
 
   it("/admin mutation rejects a request carrying neither Origin nor Referer", async () => {
@@ -560,7 +568,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     expect(res.status).toBe(403);
-    expect(await res.text()).toContain("Invalid admin request origin");
+    expect(await res.text()).toContain("Invalid request origin");
   });
 
   it("/admin mutation accepts a header-borne CSRF token without Origin", async () => {
@@ -604,7 +612,7 @@ describe("admin routes (no Apple call required)", () => {
       ctx,
     );
     expect(res.status).toBe(403);
-    expect(await res.text()).toContain("Invalid admin request origin");
+    expect(await res.text()).toContain("Invalid request origin");
   });
 
   it("/admin/api-keys form creates tenants from the global dashboard and tokens from selected tenants", async () => {
@@ -927,26 +935,26 @@ describe("admin routes (no Apple call required)", () => {
     ).toBe(401);
   });
 
-  it("/admin/logout clears the session and redirects to login", async () => {
+  it("/logout clears the session and redirects to login", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(
-      new Request("https://x/admin/logout"),
+      new Request("https://x/logout"),
       env,
       ctx,
     );
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/admin/login");
+    expect(res.headers.get("location")).toBe("/login");
     expect((res.headers.get("set-cookie") ?? "")).toContain("Max-Age=0");
   });
 
-  it("/admin/auth/apple/callback rejects state mismatch", async () => {
+  it("/auth/apple/callback rejects state mismatch", async () => {
     const env = adminEnv();
     const form = new URLSearchParams({ state: "wrong", id_token: "x.y.z" });
-    const req = new Request("https://x/admin/auth/apple/callback", {
+    const req = new Request("https://x/auth/apple/callback", {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
-        cookie: "zw_admin_state=actual; zw_admin_nonce=actual",
+        cookie: "zw_state=actual; zw_nonce=actual",
       },
       body: form.toString(),
     });
@@ -955,7 +963,7 @@ describe("admin routes (no Apple call required)", () => {
     expect(await res.text()).toContain("state mismatch");
   });
 
-  it("/admin/auth/apple/callback rejects an unverified Apple email", async () => {
+  it("/auth/apple/callback rejects an unverified Apple email", async () => {
     const env = adminEnv();
     const nonce = "expected-nonce";
     const { token, jwk } = await makeAppleIdToken({
@@ -969,12 +977,12 @@ describe("admin routes (no Apple call required)", () => {
       vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
     );
 
-    const req = new Request("https://x/admin/auth/apple/callback", {
+    const req = new Request("https://x/auth/apple/callback", {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         "cf-connecting-ip": "203.0.113.14",
-        cookie: `zw_admin_state=expected; zw_admin_nonce=${nonce}`,
+        cookie: `zw_state=expected; zw_nonce=${nonce}`,
       },
       body: new URLSearchParams({ state: "expected", id_token: token }).toString(),
     });
@@ -985,54 +993,5 @@ describe("admin routes (no Apple call required)", () => {
   });
 });
 
-async function makeAppleIdToken(input: {
-  aud: string;
-  email: string;
-  emailVerified: boolean | string;
-  nonce: string;
-}): Promise<{ token: string; jwk: JsonWebKey }> {
-  const pair = (await crypto.subtle.generateKey(
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: "SHA-256",
-    },
-    true,
-    ["sign", "verify"],
-  )) as CryptoKeyPair;
-  const jwk = (await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey & {
-    kid?: string;
-    alg?: string;
-    use?: string;
-  };
-  jwk.kid = "admin-test-kid";
-  jwk.alg = "RS256";
-  jwk.use = "sig";
 
-  const now = Math.floor(Date.now() / 1000);
-  const header = b64urlJson({ alg: "RS256", kid: jwk.kid });
-  const payload = b64urlJson({
-    iss: "https://appleid.apple.com",
-    aud: input.aud,
-    exp: now + 300,
-    iat: now,
-    sub: "admin-apple-user",
-    nonce: input.nonce,
-    email: input.email,
-    email_verified: input.emailVerified,
-  });
-  const data = new TextEncoder().encode(`${header}.${payload}`);
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, data);
-  return { token: `${header}.${payload}.${b64urlBytes(new Uint8Array(signature))}`, jwk };
-}
 
-function b64urlJson(value: unknown): string {
-  return b64urlBytes(new TextEncoder().encode(JSON.stringify(value)));
-}
-
-function b64urlBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}

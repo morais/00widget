@@ -5,6 +5,7 @@ import {
 } from "./appleAuth";
 import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
 import { parseJson } from "./cards";
+import { getAppleAccount, getTenantByOwnerEmail, putAppleAccount } from "./identity";
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
@@ -164,58 +165,7 @@ function appleLoginIpKey(req: Request): string {
   return `apple-login:${ip || "unknown"}`;
 }
 
-interface AppleAccountRecord {
-  appleSub: string;
-  tenantId: string;
-  email: string;
-}
 
-interface TenantEmailRecord {
-  id: string;
-  email: string;
-}
 
-async function getAppleAccount(env: Env, appleSub: string): Promise<AppleAccountRecord | null> {
-  const row = await env.ZW_DB.prepare(
-    `SELECT apple_sub, tenant_id, email
-     FROM apple_accounts
-     WHERE apple_sub = ?`,
-  )
-    .bind(appleSub)
-    .first<{ apple_sub: string; tenant_id: string; email: string }>();
-  return row
-    ? { appleSub: row.apple_sub, tenantId: row.tenant_id, email: row.email }
-    : null;
-}
 
-async function getTenantByOwnerEmail(
-  env: Env,
-  email: string | undefined,
-): Promise<TenantEmailRecord | null> {
-  if (!email) return null;
-  const row = await env.ZW_DB.prepare(
-    `SELECT id, owner_email
-     FROM tenants
-     WHERE lower(owner_email) = ?
-       AND disabled_at IS NULL
-     ORDER BY created_at ASC
-     LIMIT 1`,
-  )
-    .bind(email)
-    .first<{ id: string; owner_email: string }>();
-  return row ? { id: row.id, email: row.owner_email } : null;
-}
 
-async function putAppleAccount(env: Env, record: AppleAccountRecord): Promise<void> {
-  const now = new Date().toISOString();
-  await env.ZW_DB.prepare(
-    `INSERT INTO apple_accounts (apple_sub, tenant_id, email, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(apple_sub) DO UPDATE SET
-       tenant_id = excluded.tenant_id,
-       email = excluded.email,
-       updated_at = excluded.updated_at`,
-  )
-    .bind(record.appleSub, record.tenantId, record.email, now, now)
-    .run();
-}

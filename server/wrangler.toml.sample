@@ -24,6 +24,28 @@ APNS_ENV = "sandbox"
 # which is correct for a deployment with no app attached to it.
 # APPLE_APP_ID = "ABCDE12345.com.example.zerozerowidget"
 # APPLE_APP_CLIP_ID = "ABCDE12345.com.example.zerozerowidget.Clip"
+# Whether signing in on the web can also *create* an account. Off unless "true":
+# accounts are created in the iOS app, and someone who comes across this
+# deployment without having used the app is turned away rather than provisioned.
+# Web sign-in itself still works for everyone who already has an account —
+# ADMIN_EMAILS names who additionally holds admin capabilities, it does not gate
+# authenticating.
+WEB_SIGNUP_ENABLED = "false"
+
+# Master kill switch for the MCP endpoint (/mcp) and the OAuth authorization
+# server that fronts it, which together let an MCP client — a ChatGPT
+# connector, Claude, an editor — publish without anyone writing code. Anything
+# other than "true" makes /mcp, /mcp.json, /oauth/* and the two OAuth
+# .well-known documents return 404.
+#
+# Off by default because enabling it puts a browser sign-in flow that mints API
+# tokens on the public internet. It also needs a strong SESSION_SECRET: MCP
+# OAuth signs its client ids and authorization codes with it, and identifies the
+# operator through the same admin session cookie the dashboard uses. Approving a
+# connector is therefore an ADMIN_EMAILS action, and the credential it mints is
+# an ordinary tenant API token, revocable from /admin like any other.
+MCP_ENABLED = "false"
+
 # Master kill switch for the cross-tenant sharing feature. Anything other
 # than "true" disables every /v1/shares/* route and recipient push fanout.
 # Off by default: sharing by activity_kind is coarse-grained — accepting a

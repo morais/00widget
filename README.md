@@ -96,21 +96,47 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - **LiveActivitySession** — a Lock Screen / Dynamic Island activity.
 - **ActionDefinition** — a button that runs a backend-defined action via `POST /v1/actions/:id/run`.
 
-## Admin dashboard
+## MCP endpoint
 
-An authenticated administrative console at `/admin` lists cards, devices, push tokens, Live Activities, pending activities, and push-to-start tokens across every tenant. It can also create and revoke tenant credentials and delete tenant data, so access grants full administrative control rather than read-only visibility. Two sign-in methods (either is sufficient):
+Hosts that speak the Model Context Protocol — ChatGPT connectors, Claude,
+editors — can publish to 00Widget with no integration code: add
+`<BASE_URL>/mcp` as a custom connector, sign in, and pick a tenant. The tools
+wrap the same handlers as the REST routes, so the two cannot drift.
 
-- **Sign in with Apple** — restricted to emails in `ADMIN_EMAILS`.
-- **API-token fallback** — paste any bootstrap value from `API_KEYS` into the form. Disabled by default; set `ADMIN_API_TOKEN_LOGIN=true` only when you need the bootstrap fallback.
+It is off by default (`MCP_ENABLED` in `wrangler.toml`) because it puts a
+browser flow that mints API tokens on the public internet. Approving a connector
+requires signing in, and the credential it issues is a normal tenant token
+scoped to the approver's own account, revocable from `/admin`.
+
+Details: `server/README.md` → "MCP".
+
+## Web sign-in and admin
+
+`/login` signs a person in with the same Apple ID they use in the iOS app.
+Signing in establishes identity, not authority: `ADMIN_EMAILS` names the
+addresses whose sessions additionally carry admin capabilities, and every route
+under `/admin` asserts that capability rather than assuming it.
+
+**Signing in does not sign you up.** The callback resolves the Apple identity
+against the account the app created and turns away one it does not recognise, so
+finding this endpoint is not a way to become a tenant. `WEB_SIGNUP_ENABLED`
+(off by default) opts a deployment into web account creation.
+
+The admin dashboard at `/admin` lists cards, devices, push tokens, Live
+Activities, pending activities, and push-to-start tokens across every tenant. It
+can also create and revoke tenant credentials and delete tenant data, so access
+grants full administrative control rather than read-only visibility. An
+`API_KEYS` bootstrap login (`ADMIN_API_TOKEN_LOGIN=true`, off by default) covers
+a deployment that has no accounts yet.
 
 Create least-privilege tenant API tokens from `/admin` using the tenant owner email and a permission preset; those generated credentials are what apps and agents use for `/v1/*`.
 
-Setup walkthrough: `server/README.md` → "Admin dashboard".
+Setup walkthrough: `server/README.md` → "Web sign-in".
 
 ## Documentation
 
 - `ios/README.md` — Xcode setup, entitlements, signing.
-- `server/README.md` — Worker deploy, D1 binding, APNs secrets, admin dashboard.
+- `server/README.md` — Worker deploy, D1 binding, APNs secrets, web sign-in and admin.
 - `examples/README.md` — publishing state from any shell or agent.
 - `docs/llms.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.

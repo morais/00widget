@@ -29,6 +29,11 @@ export const RateLimitPolicies = {
   appleLoginSubHour: { label: "Apple login token exchange", limit: 30, windowSeconds: HOUR },
   adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
   adminAppleCallbackIpHour: { label: "Admin Apple callback attempts", limit: 60, windowSeconds: HOUR },
+  // OAuth for the MCP endpoint. Both are keyed on the caller IP because
+  // neither request carries a tenant yet: registration invents a client and
+  // the token exchange is what mints the credential.
+  mcpClientRegisterIpDay: { label: "MCP client registrations", limit: 20, windowSeconds: DAY },
+  mcpTokenIpHour: { label: "MCP token exchanges", limit: 30, windowSeconds: HOUR },
 } as const;
 
 type RateLimitPolicyName = keyof typeof RateLimitPolicies;

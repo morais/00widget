@@ -220,6 +220,27 @@ export function isValidApiKey(env: Env, provided: string): boolean {
   return allowed.some((k) => constantTimeEqual(k, trimmed));
 }
 
+/// Creates a tenant and nothing else — no credential, no session.
+///
+/// `createApiKey` also brings a tenant into existence as a side effect of
+/// minting a key, which is right for the iOS app (it needs both) and wrong for
+/// a web sign-up, where an account should exist before anything is issued
+/// against it. Callers are responsible for deciding that signing up is
+/// permitted; this function does not ask.
+export async function createTenantForOwner(env: Env, ownerEmail: string): Promise<TenantRecord> {
+  const email = normalizeEmail(ownerEmail);
+  if (!email) throw new Error("ownerEmail is required");
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  await env.ZW_DB.prepare(
+    `INSERT OR IGNORE INTO tenants (id, name, owner_email, created_at)
+     VALUES (?, ?, ?, ?)`,
+  )
+    .bind(id, email, email, now)
+    .run();
+  return { id, ownerEmail: email, createdAt: now };
+}
+
 export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Promise<CreatedApiKey> {
   const now = new Date().toISOString();
   const tenantId = input.tenantId?.trim() || crypto.randomUUID();
