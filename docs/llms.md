@@ -506,8 +506,8 @@ Live Activity rendering fields:
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `progress`: optional `0.0`–`1.0` progress bar.
-- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen and expanded Dynamic Island in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible.
-- `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. Drawn on the Lock Screen banner and in the expanded Dynamic Island when the activity has **no** item rows — those already fill the banner, and iOS gives you no room for both — and in the app's Activities card either way. When both `chart` and `progress` are sent, the chart wins the space.
+- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen and expanded Dynamic Island in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
+- `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. When both `chart` and `progress` are sent, the chart wins the space. When `items` are also sent, the chart loses it — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space) before sending both.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
 - `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.
 - `relevanceScore`: optional non-negative number. Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins, no fixed ceiling). Send a low score early in a long-running activity and ramp it up as the activity gets more urgent or interesting; spike it on the finishing update so the wrist surfaces it. Accepted on both `start` and `update`.
@@ -547,6 +547,49 @@ thing, not a different value — `end` the activity and `start` a new one with a
 new `externalActivityId`. That is a visible restart to the user (the old
 activity dismisses, the new one animates in), so don't do it per tick.
 
+#### `items` and `chart` compete for the same space
+
+**Sending both `items` and `chart` silently hides the chart on the Lock Screen
+and in the Dynamic Island.** There is no error and no warning — the start or
+update returns `200`, `GET /v1/live-activities` reports the chart back to you,
+and the 00Widget app's Activities tab draws it. Only the surfaces the activity
+exists for drop it, which is why this is normally discovered on a device, late.
+
+The rule iOS forces, surface by surface:
+
+| Surface | With `items` | Without `items` |
+| --- | --- | --- |
+| Lock Screen banner | item rows, **no chart** | chart (and it outranks `progress`) |
+| Dynamic Island, expanded | item rows, **no chart** | chart, else `progress` |
+| Apple Watch (Smart Stack) | item rows | **never a chart** |
+| 00Widget app, Activities | item rows **and** chart | chart |
+
+Item rows already fill the banner and iOS gives you no room for both. The Watch
+family is smaller still and never draws a chart at all, with or without items.
+
+Two consequences worth planning around:
+
+- **It is the *active* items that count**, not the array. Items with
+  `status: "finished"` or `"offline"` are hidden, so an activity whose items
+  have all finished falls back to the no-items layout and the chart *reappears*
+  mid-run. A producer that sends both gets a banner that changes shape when the
+  last item completes.
+- **`items` is snapshot semantics**, so an update carrying `"items": []` returns
+  the activity to the chart layout, and an update that omits `items` keeps
+  whatever rows are already there — including their suppression of the chart.
+
+So pick one per activity, and pick it from what the activity *is*:
+
+- Several things each with their own state — three chargers, a queue of jobs, a
+  set of checks — is `items`. A chart of one of those numbers is a second story
+  the banner has no room to tell.
+- One number moving over time — watts, queue depth, download rate — is `chart`,
+  with `value` + `unit` for the headline. Don't decompose it into one item per
+  reading.
+
+If you genuinely need both views, they are two activities with two
+`externalActivityId`s, and the user sees two banners — usually the wrong trade.
+
 ### Update
 
 ```sh
@@ -578,14 +621,46 @@ items, sending a new array replaces the complete list, and sending `"items": []`
 returns the activity to its top-level fallback fields. Producers should send one
 coalesced snapshot rather than updating individual items independently.
 
-To inspect the tenant's currently ongoing activities, call `GET /v1/live-activities`.
-The response is `{ "activities": [...] }` using the same session fields as the
-start/update payloads plus a server-issued `activityInstanceId`. Producers
-continue addressing their own activity by `externalActivityId`; the opaque
-instance ID binds device registrations and shared deliveries to one exact
-owner activity. This allows a recipient to receive same-named activities from
-multiple owners without update or cleanup collisions. Ended activities are
-omitted.
+### List
+
+To inspect the tenant's currently ongoing activities, call
+`GET /v1/live-activities`.
+
+```sh
+curl "$00WIDGET_BASE_URL/v1/live-activities" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY"
+```
+
+The response is always a JSON object with a single `activities` key holding an
+array — never a bare array, and never any other key. An empty result is
+`{"activities":[]}` with status 200, so there is no shape to fall back to and
+no need for defensive parsing:
+
+```json
+{
+  "activities": [
+    {
+      "activityInstanceId": "lai_9f3c1d7a2b",
+      "externalActivityId": "ci-build-2026-04-26-1234",
+      "kind": "progress",
+      "title": "Deploying api-gateway",
+      "subtitle": "running tests",
+      "state": "running",
+      "progress": 0.62,
+      "startedAt": "2026-04-26T10:00:00Z",
+      "updatedAt": "2026-04-26T10:02:30Z"
+    }
+  ]
+}
+```
+
+Each entry uses the same session fields as the start/update payloads, plus a
+server-issued `activityInstanceId`. Optional fields are omitted rather than sent
+as `null`. Producers continue addressing their own activity by
+`externalActivityId`; the opaque instance ID binds device registrations and
+shared deliveries to one exact owner activity. This allows a recipient to
+receive same-named activities from multiple owners without update or cleanup
+collisions. Ended activities are omitted.
 
 ### End
 
@@ -808,6 +883,7 @@ struct WidgetClient {
 
 - **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
+- **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
 - **Don't** send a `chart` series longer than 10 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.

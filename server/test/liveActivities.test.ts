@@ -154,6 +154,47 @@ describe("live activities", () => {
     expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
   });
 
+  // Pinned because a client that cannot rely on one envelope writes speculative
+  // fallback parsing for a bare array or a differently named key.
+  it("always answers GET /v1/live-activities with exactly one `activities` key", async () => {
+    const env = makeEnv();
+
+    const empty = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(empty.status).toBe(200);
+    const emptyBody = (await empty.json()) as Record<string, unknown>;
+    expect(Object.keys(emptyBody)).toEqual(["activities"]);
+    expect(emptyBody.activities).toEqual([]);
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "envelope-1",
+          kind: "appliance",
+          title: "Washer",
+          state: "running",
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const populated = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(populated.status).toBe(200);
+    const body = (await populated.json()) as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(["activities"]);
+    expect(Array.isArray(body.activities)).toBe(true);
+    expect((body.activities as unknown[]).length).toBe(1);
+  });
+
   it("rejects composite content that exceeds ActivityKit's combined 4 KB limit", async () => {
     const env = makeEnv();
     const response = await (handler.fetch as any)(
