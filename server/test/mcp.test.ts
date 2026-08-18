@@ -79,14 +79,53 @@ describe("MCP endpoint gating", () => {
 });
 
 describe("MCP authentication", () => {
-  it("challenges an anonymous request with the metadata pointer that starts OAuth", async () => {
-    const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method: "tools/list" }, null);
+  it("challenges an anonymous tools/call with the metadata pointer that starts OAuth", async () => {
+    const res = await rpc(
+      mcpEnv(),
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_cards", arguments: {} } },
+      null,
+    );
     expect(res.status).toBe(401);
     const challenge = res.headers.get("www-authenticate") ?? "";
     expect(challenge).toContain("Bearer");
     expect(challenge).toContain(
       'resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"',
     );
+  });
+
+  it("lets an anonymous caller read the tool list, which is the same for everyone", async () => {
+    // ChatGPT fetches the list with no credential; refusing it leaves the
+    // connector with no tools to offer. The list is generated from static
+    // schemas and describes only what /llms.md already publishes.
+    const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method: "tools/list" }, null);
+    expect(res.status).toBe(200);
+    const tools = ((await res.json()) as JsonRpcResult).result?.tools as { name: string }[];
+    expect(tools.map((tool) => tool.name)).toContain("upsert_card");
+  });
+
+  it("lets an anonymous caller initialize and discover", async () => {
+    for (const method of ["initialize", "server/discover", "ping"]) {
+      const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method }, null);
+      expect(res.status, method).toBe(200);
+      expect(((await res.json()) as JsonRpcResult).error, method).toBeUndefined();
+    }
+  });
+
+  it("never runs a tool for an anonymous caller", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(
+      env,
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "upsert_card", arguments: { id: "sneak", template: "summary", title: "X" } },
+      },
+      null,
+    );
+    expect(res.status).toBe(401);
+    expect(await storage.getCard(env, "test-tenant", "sneak")).toBeNull();
   });
 
   it("challenges an invalid token the same way", async () => {

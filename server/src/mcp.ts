@@ -76,12 +76,19 @@ interface JsonRpcRequest {
 
 interface ToolContext {
   env: Env;
-  auth: AuthContext;
+  /// Null for an anonymous caller, which the discovery methods allow.
+  auth: AuthContext | null;
   ctx: ExecutionContext;
   origin: string;
   /// What the client says it speaks, from the MCP-Protocol-Version header or
   /// an initialize request. Decides whether results carry 2026-07-28 fields.
   protocolVersion: string;
+}
+
+/// A tool always runs with a credential; `handleMcp` refuses `tools/call`
+/// without one before dispatch ever reaches here.
+interface AuthedToolContext extends Omit<ToolContext, "auth"> {
+  auth: AuthContext;
 }
 
 interface McpTool {
@@ -91,7 +98,7 @@ interface McpTool {
   schema: z.ZodType;
   scope: ApiScope;
   readOnly: boolean;
-  invoke(args: Record<string, unknown>, tools: ToolContext): Promise<Response>;
+  invoke(args: Record<string, unknown>, tools: AuthedToolContext): Promise<Response>;
 }
 
 const NoArguments = z.object({});
@@ -315,32 +322,36 @@ export async function handleMcpMethodNotAllowed(_req: Request, env: Env): Promis
 export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
 
-  // Authenticate before reading the body. The 401 carries the pointer a client
-  // needs to find the authorization server, so it must survive a body we cannot
-  // parse — otherwise a client probing the endpoint with an empty or malformed
-  // POST gets a bare 400, learns nothing about how to authenticate, and has no
-  // way forward. Parsing first also made that case invisible in the logs: it
-  // returned before anything was written.
-  let auth: AuthContext;
-  try {
-    auth = await requireAuth(req, env);
-  } catch (err) {
-    if (err instanceof AuthRateLimitError) {
-      return json({ error: err.message }, 429, { "retry-after": "60" });
-    }
-    if (err instanceof AuthError) {
-      // A rejected MCP request is close to undiagnosable from the outside: the
-      // client retries discovery and reports its own generic failure, so the
-      // only place the distinction between "sent no credential" and "sent one
-      // we refused" exists is here. No token material is logged.
+  // Authentication is per-method, not per-request.
+  //
+  // ChatGPT fetches the tool list with no Authorization header at all — both
+  // from the connector settings and before it will offer the tools in a chat —
+  // and a 401 there leaves it with no tools to call, which is what "Talked to
+  // App" with nothing exposed looks like. Requiring a credential to *read the
+  // menu* also buys nothing: the list is generated from static schemas, is byte
+  // for byte identical for every tenant, and describes exactly what /llms.md
+  // already publishes to anyone who asks.
+  //
+  // So an anonymous caller may discover; only `tools/call` needs a credential,
+  // and that is where the 401 challenge still fires to start the OAuth flow.
+  // A credential that is *present but bad* is always an error — ignoring it and
+  // serving anonymously would turn a broken token into silent degradation.
+  let auth: AuthContext | null = null;
+  if (req.headers.has("authorization")) {
+    try {
+      auth = await requireAuth(req, env);
+    } catch (err) {
+      if (err instanceof AuthRateLimitError) {
+        return json({ error: err.message }, 429, { "retry-after": "60" });
+      }
+      if (!(err instanceof AuthError)) throw err;
       console.warn("mcp request rejected", {
-        hasAuthorizationHeader: req.headers.has("authorization"),
-        protocolVersion: declaredProtocolVersion(req, null) || "(unstated)",
+        userAgent: req.headers.get("user-agent") ?? "(none)",
+        hasAuthorizationHeader: true,
         reason: err.message,
       });
       return mcpUnauthorized(req, err.message);
     }
-    throw err;
   }
 
   let payload: unknown;
@@ -348,10 +359,24 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     payload = JSON.parse(await readBodyUpTo(req, RequestBodyLimits.mcpRpc));
   } catch {
     console.warn("mcp body rejected", {
+      userAgent: req.headers.get("user-agent") ?? "(none)",
       contentType: req.headers.get("content-type") ?? "(none)",
       contentLength: req.headers.get("content-length") ?? "(none)",
     });
+    // An anonymous caller gets the challenge rather than a bare parse error:
+    // it may simply not know yet that this endpoint wants a credential, and a
+    // 400 gives it nothing to act on.
+    if (!auth) return mcpUnauthorized(req, "authentication required");
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
+  }
+
+  if (!auth && needsCredential(payload)) {
+    console.warn("mcp request rejected", {
+      userAgent: req.headers.get("user-agent") ?? "(none)",
+      hasAuthorizationHeader: false,
+      reason: "tools/call requires a credential",
+    });
+    return mcpUnauthorized(req, "missing or malformed Authorization header");
   }
 
   const origin = new URL(req.url).origin;
@@ -457,6 +482,11 @@ async function callTool(
   if (!tool) {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, `unknown tool '${call.name}'`);
   }
+  // Belt and braces: the transport already refused an anonymous tools/call.
+  if (!tools.auth) {
+    return errorResponse(id, JSON_RPC_INVALID_REQUEST, "authentication required");
+  }
+  const authed: AuthedToolContext = { ...tools, auth: tools.auth };
   const args = (call.arguments ?? {}) as Record<string, unknown>;
   if (typeof args !== "object" || Array.isArray(args)) {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.arguments must be an object");
@@ -465,7 +495,7 @@ async function callTool(
   // A scope failure is a protocol-level error, not a tool result: the model
   // cannot fix it by trying different arguments, and the operator has to issue
   // a different credential.
-  if (!hasScope(tools.auth, tool.scope)) {
+  if (!hasScope(authed.auth, tool.scope)) {
     return errorResponse(id, JSON_RPC_INVALID_REQUEST, `API scope '${tool.scope}' required`);
   }
 
@@ -478,7 +508,7 @@ async function callTool(
 
   let response: Response;
   try {
-    response = await tool.invoke(args, tools);
+    response = await tool.invoke(args, authed);
   } catch (err) {
     console.error("mcp tool failed", { tool: tool.name, error: String(err) });
     return errorResponse(id, JSON_RPC_INTERNAL_ERROR, "internal error");
@@ -535,6 +565,12 @@ function successResponse(
     ? { resultType: "complete", ...result }
     : result;
   return { jsonrpc: "2.0", id, result: body };
+}
+
+/// Only running a tool needs a credential. Discovery does not.
+function needsCredential(payload: unknown): boolean {
+  const entries = Array.isArray(payload) ? payload : [payload];
+  return entries.some((entry) => (entry as JsonRpcRequest | undefined)?.method === "tools/call");
 }
 
 /// The revision the client claims, from the transport header the 2026-07-28
