@@ -102,6 +102,9 @@ interface McpTool {
   schema: z.ZodType;
   scope: ApiScope;
   readOnly: boolean;
+  /// Irreversible from the caller's side, in a way a person would want to
+  /// confirm. Not merely "writes something" — see the note on TOOL_DESCRIPTORS.
+  destructive: boolean;
   invoke(args: Record<string, unknown>, tools: AuthedToolContext): Promise<Response>;
 }
 
@@ -122,6 +125,7 @@ const TOOLS: McpTool[] = [
     }),
     scope: "tenant:read",
     readOnly: true,
+    destructive: false,
     invoke: (args, tools) =>
       cards.listCards(
         getRequest(tools.origin, args.includeShared ? "/v1/cards?include=shared" : "/v1/cards"),
@@ -136,6 +140,7 @@ const TOOLS: McpTool[] = [
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
     scope: "tenant:read",
     readOnly: true,
+    destructive: false,
     invoke: (args, tools) =>
       cards.getCard(getRequest(tools.origin, "/v1/cards"), tools.env, tools.auth, String(args.id)),
   },
@@ -149,6 +154,7 @@ const TOOLS: McpTool[] = [
     schema: DashboardCardInputSchema,
     scope: "publish",
     readOnly: false,
+    destructive: false,
     invoke: (args, tools) =>
       cards.upsertCard(postRequest(tools.origin, "/v1/cards/upsert", args), tools.env, tools.auth, tools.ctx),
   },
@@ -162,6 +168,7 @@ const TOOLS: McpTool[] = [
     schema: BatchUpsertCardsSchema,
     scope: "publish",
     readOnly: false,
+    destructive: false,
     invoke: (args, tools) =>
       cards.upsertCardsBatch(
         postRequest(tools.origin, "/v1/cards/upsert-batch", args),
@@ -177,6 +184,7 @@ const TOOLS: McpTool[] = [
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
     scope: "publish",
     readOnly: false,
+    destructive: true,
     invoke: (args, tools) =>
       cards.deleteCard(
         getRequest(tools.origin, "/v1/cards"),
@@ -193,6 +201,7 @@ const TOOLS: McpTool[] = [
     schema: NoArguments,
     scope: "tenant:read",
     readOnly: true,
+    destructive: false,
     invoke: (_args, tools) =>
       liveActivities.activeActivities(getRequest(tools.origin, "/v1/live-activities"), tools.env, tools.auth),
   },
@@ -207,6 +216,7 @@ const TOOLS: McpTool[] = [
     schema: StartLiveActivitySchema,
     scope: "publish",
     readOnly: false,
+    destructive: false,
     invoke: (args, tools) =>
       liveActivities.startLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/start", args),
@@ -223,6 +233,7 @@ const TOOLS: McpTool[] = [
     schema: UpdateLiveActivitySchema,
     scope: "publish",
     readOnly: false,
+    destructive: false,
     invoke: (args, tools) =>
       liveActivities.updateLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/update", args),
@@ -233,10 +244,15 @@ const TOOLS: McpTool[] = [
   {
     name: "end_live_activity",
     title: "End a Live Activity",
-    description: "End a running Live Activity with a final frame. Always end what you start.",
+    description:
+      "End a running Live Activity with a final frame. Always end what you start. This cannot be "
+      + "undone: an ended activity cannot be resumed, only replaced by starting a new one with a "
+      + "new externalActivityId, which the user sees as the old one dismissing and a new one "
+      + "animating in.",
     schema: EndLiveActivitySchema,
     scope: "publish",
     readOnly: false,
+    destructive: true,
     invoke: (args, tools) =>
       liveActivities.endLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/end", args),
@@ -254,6 +270,7 @@ const TOOLS: McpTool[] = [
     schema: NoArguments,
     scope: "tenant:read",
     readOnly: true,
+    destructive: false,
     invoke: async (_args, tools) =>
       new Response(renderHostedLlmsMarkdown(tools.origin), {
         headers: { "content-type": "text/markdown; charset=utf-8" },
@@ -272,8 +289,19 @@ const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
   annotations: {
     title: tool.title,
     readOnlyHint: tool.readOnly,
-    destructiveHint: tool.name === "delete_card",
-    idempotentHint: !tool.readOnly,
+    // `destructiveHint` drives whether a client asks a person before going
+    // ahead, so it marks what is irreversible rather than merely what writes.
+    // Deleting a card and ending a Live Activity qualify: the content is gone,
+    // and an ended activity cannot be resumed. Publishing does not, even though
+    // an upsert replaces a card wholesale rather than merging into it — that
+    // replacement is the entire point of the integration, and flagging it would
+    // put a confirmation in front of every routine publish and teach people to
+    // click through the two that matter.
+    destructiveHint: tool.destructive,
+    // Every tool here is idempotent: republishing the same card, re-ending an
+    // ended activity, or deleting an absent one all converge on the same state.
+    idempotentHint: true,
+    // Nothing reaches outside the operator's own 00Widget account.
     openWorldHint: false,
   },
 }));

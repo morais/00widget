@@ -283,6 +283,35 @@ describe("tools/list", () => {
     );
   });
 
+  it("flags exactly the irreversible tools as destructive", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as {
+      name: string;
+      annotations: { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean };
+    }[];
+
+    const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name).sort();
+    // Ending a Live Activity cannot be undone — it belongs here as much as a
+    // delete does, and was previously mislabelled as safe.
+    expect(destructive).toEqual(["delete_card", "end_live_activity"]);
+
+    const readOnly = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name).sort();
+    expect(readOnly).toEqual([
+      "get_card",
+      "get_integration_guide",
+      "list_cards",
+      "list_live_activities",
+    ]);
+    // A read-only tool must never claim to be destructive.
+    for (const tool of tools) {
+      if (tool.annotations.readOnlyHint) expect(tool.annotations.destructiveHint, tool.name).toBe(false);
+      expect(tool.annotations.idempotentHint, tool.name).toBe(true);
+    }
+  });
+
   it("carries the card fields through from the shared zod schema", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
