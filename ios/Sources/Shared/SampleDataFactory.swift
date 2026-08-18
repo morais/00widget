@@ -108,6 +108,24 @@ public enum SampleDataFactory {
                     DashboardItem(id: "10", title: "#482", value: "4m 12s", status: .good),
                 ]
             )
+            ,
+            DashboardCard(
+                id: sampleId("spending"),
+                template: .breakdown,
+                title: "Spending",
+                subtitle: "This month",
+                value: "394",
+                unit: "€",
+                status: .good,
+                icon: "eurosign.circle",
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "groceries", title: "Groceries", value: "182", unit: "€", amount: 182.4),
+                    DashboardItem(id: "transport", title: "Transport", value: "96", unit: "€", amount: 96.2),
+                    DashboardItem(id: "utilities", title: "Utilities", value: "74", unit: "€", amount: 74.1),
+                    DashboardItem(id: "other", title: "Other", value: "41", unit: "€", amount: 41.3),
+                ]
+            )
         ]
     }
 

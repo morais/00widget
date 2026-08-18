@@ -113,6 +113,29 @@ describe("DashboardCardSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a breakdown card with item amounts", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "disk",
+      template: "breakdown",
+      title: "Disk",
+      items: [
+        { id: "media", title: "Media", value: "512 GB", amount: 512 },
+        { id: "free", title: "Free", amount: 112, status: "warning" },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.items?.[0].amount).toBe(512);
+    // amount is numeric, never the display string it sits beside.
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "disk",
+        template: "breakdown",
+        title: "Disk",
+        items: [{ id: "media", title: "Media", amount: "512 GB" }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a history card whose items carry statuses", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "ci",

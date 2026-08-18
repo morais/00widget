@@ -35,6 +35,12 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .pip.w{background:#ff9f0a;opacity:1}
 .pip.c{background:#ff3b30;opacity:1}
 .pip.r{background:#0a84ff;opacity:1}
+.bar{display:block;width:100%;height:16px;margin:.75rem 0}
+.bar rect{fill:var(--accent);rx:4px}
+.bar rect.g{fill:#34c759}
+.bar rect.w{fill:#ff9f0a}
+.bar rect.c{fill:#ff3b30}
+.bar rect.r{fill:#0a84ff}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
@@ -95,6 +101,25 @@ const GUEST_SCRIPT = `
     for(var i=0;i<items.length;i++){out+='<span class="pip '+(PIP[items[i].status]||'')+'"></span>'}
     return '<div class="pips">'+out+'</div>';
   };
+  // SVG rather than flex-with-inline-widths: the page's CSP allows one hashed
+  // stylesheet and no inline styles, so per-segment sizing has to be an
+  // attribute. Presentation attributes are not styles as far as CSP is
+  // concerned; a style="" would simply be dropped and every segment would come
+  // out the same width.
+  var breakdown=function(items){
+    var total=0,i;
+    for(i=0;i<items.length;i++){total+=Math.max(0,items[i].amount||0)}
+    if(!(total>0)){return ''}
+    var w=100,ht=16,gap=0.8,n=items.length,avail=w-gap*(n-1),x=0,out='';
+    for(i=0;i<n;i++){
+      var sw=Math.max(0.8,avail*Math.max(0,items[i].amount||0)/total);
+      var cls=PIP[items[i].status]||'';
+      var op=cls?1:Math.max(0.22,Math.pow(0.72,i));
+      out+='<rect class="'+cls+'" x="'+x.toFixed(2)+'" y="0" width="'+sw.toFixed(2)+'" height="'+ht+'" fill-opacity="'+op.toFixed(2)+'"/>';
+      x+=sw+gap;
+    }
+    return '<svg class="bar" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+out+'</svg>';
+  };
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
@@ -110,6 +135,7 @@ const GUEST_SCRIPT = `
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
       if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
+      if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
       (c.items||[]).forEach(function(i){
         h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>'
       });

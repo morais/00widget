@@ -9,6 +9,8 @@ public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
     /// A run of outcomes rather than numbers: `items` drawn as status pips,
     /// oldest first.
     case history
+    /// One bar split into proportional segments: `items` with an `amount`.
+    case breakdown
 }
 
 public struct SharedByInfo: Codable, Hashable, Sendable {

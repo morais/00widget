@@ -105,6 +105,7 @@ export const DashboardTemplateSchema = z.enum([
   "action",
   "chart",
   "history",
+  "breakdown",
 ]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
@@ -146,6 +147,10 @@ export const DashboardItemSchema = z.object({
   value: OptionalValueString,
   unit: OptionalUnitString,
   status: DashboardStatusSchema.optional(),
+  // The row's magnitude, for templates that draw items rather than list them.
+  // `value` cannot serve: it is a display string ("12.40", "3m 51s", "Rinse")
+  // and parsing it back into a number would guess at locale and format.
+  amount: z.number().optional(),
 });
 
 // "delta" is "bar" anchored at zero rather than at the bottom of the range:

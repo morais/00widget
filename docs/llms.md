@@ -10,7 +10,7 @@ This document is the entire contract you need. You do **not** need to read the r
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`, `breakdown`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -71,7 +71,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "summary | progress | list | action | chart | history",
+  "template": "summary | progress | list | action | chart | history | breakdown",
   "title": "string",
   "subtitle": "string?",
   "value": "string?",
@@ -82,7 +82,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "updatedAt": "ISO-8601 string? (server fills in if omitted)",
   "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
-  "items": "DashboardItem[]? (template=list rows, template=history pips)",
+  "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
   "chart": "DashboardChart? (only for template=chart)",
   "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
 }
@@ -97,9 +97,15 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "subtitle": "string?",
   "value": "string?",
   "unit": "string?",
-  "status": "DashboardStatus?"
+  "status": "DashboardStatus?",
+  "amount": "number? (magnitude, for templates that draw items)"
 }
 ```
+
+`amount` is the row's magnitude, and it is deliberately not `value`: `value` is
+a display string (`"12.40"`, `"3m 51s"`, `"Rinse"`) and parsing it back into a
+number would have to guess at your locale and formatting. Send both — `amount`
+for the drawing, `value` for the label.
 
 A `history` card reuses `items` rather than adding a field of its own: each
 item is one past outcome, **oldest first**, and its `status` is what gets drawn
@@ -113,6 +119,18 @@ the last 10 and the Lock Screen accessory the last 12; a history longer than
 that loses its oldest entries first. Give each item a `title` (`"#482"`,
 `"Tue"`) and optionally a `value` (`"4m 12s"`) — the app lists them under the
 strip, and the widget uses only the statuses.
+
+A `breakdown` card draws `items` as one bar split into proportional segments —
+where the month's spend went, what is filling the disk, how a vote split. Each
+item needs an `amount`; the shares are computed from their sum, so you never
+send percentages. Negative amounts count as zero rather than being dropped,
+which keeps every other segment measured against the same total.
+
+Segments step down in opacity from the card's tint, so a breakdown reads as one
+quantity divided up rather than as unrelated categories. An item that sets its
+own `status` takes that color instead — that is how you mark the slice that is
+the problem. This is a bar and not a pie on purpose: a pie needs a legend, and a
+legend does not fit a small widget.
 
 **DashboardChart** (the series behind a `chart` card):
 
@@ -265,6 +283,7 @@ Pick one based on the *shape* of the data, not the domain:
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
+| A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
 
@@ -317,6 +336,30 @@ To remove a card:
 ```sh
 curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
+```
+
+### Publishing a breakdown
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "id": "disk-usage",
+    "template": "breakdown",
+    "title": "Disk",
+    "subtitle": "912 GB used of 1 TB",
+    "value": "89",
+    "unit": "%",
+    "status": "warning",
+    "icon": "internaldrive",
+    "items": [
+      {"id": "media", "title": "Media", "value": "512 GB", "amount": 512},
+      {"id": "backups", "title": "Backups", "value": "280 GB", "amount": 280},
+      {"id": "system", "title": "System", "value": "120 GB", "amount": 120},
+      {"id": "free", "title": "Free", "value": "112 GB", "amount": 112, "status": "warning"}
+    ]
+  }'
 ```
 
 ### Publishing a run history

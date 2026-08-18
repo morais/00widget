@@ -378,7 +378,7 @@ private struct TVDashboardCardView: View {
                         }
                     case .chart:
                         chartContent
-                    case .history:
+                    case .history, .breakdown:
                         chartContent
                     case .summary, .action:
                         valueContent
@@ -437,7 +437,7 @@ private struct TVDashboardCardView: View {
     }
 
     /// Value and subtitle above a plot — a sparkline for `chart`, status pips
-    /// for `history`. The tvOS card is a fixed 220pt tall and the plot needs a
+    /// for `history`, a segmented bar for `breakdown`. The tvOS card is a fixed 220pt tall and the plot needs a
     /// real share of it, so the headline is smaller here than `valueContent`
     /// draws it.
     @ViewBuilder
@@ -461,6 +461,9 @@ private struct TVDashboardCardView: View {
         }
         if card.template == .history, let items = card.items, !items.isEmpty {
             StatusStripView(items: items, limit: 14, height: 20)
+        }
+        if card.template == .breakdown, let items = card.items, !items.isEmpty {
+            CompositionBarView(items: items, tint: card.status.tint, height: 22)
         }
     }
 

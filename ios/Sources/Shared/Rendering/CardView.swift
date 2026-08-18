@@ -158,6 +158,9 @@ public struct CardView: View {
             case .history:
                 chartHeadline
                 statusStrip(limit: 10, height: 12)
+            case .breakdown:
+                chartHeadline
+                compositionBar(height: 12)
             case .summary:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -194,6 +197,10 @@ public struct CardView: View {
             case .history:
                 chartHeadline
                 statusStrip(limit: density == .compact ? 12 : 14, height: 14)
+            case .breakdown:
+                chartHeadline
+                compositionBar(height: 14)
+                breakdownLegend(max: density == .compact ? 0 : 2)
             case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -236,6 +243,10 @@ public struct CardView: View {
                 chartHeadline
                 statusStrip(limit: 20, height: 16)
                 listRows(max: density == .compact ? 2 : 4)
+            case .breakdown:
+                chartHeadline
+                compositionBar(height: 16)
+                breakdownLegend(max: density == .compact ? 3 : 5)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -274,7 +285,9 @@ public struct CardView: View {
             }
             Text(card.value ?? card.status.label)
                 .font(.headline)
-            if card.template == .history, let items = card.items, !items.isEmpty {
+            if card.template == .breakdown, let items = card.items, !items.isEmpty {
+                CompositionBarView(items: items, tint: .primary, height: 8)
+            } else if card.template == .history, let items = card.items, !items.isEmpty {
                 StatusStripView(items: items, limit: 12, height: 8)
             } else if card.template == .chart, let chart = card.chart, chart.isRenderable {
                 // The accessory families render monochrome, so the tint would
@@ -400,6 +413,15 @@ public struct CardView: View {
             if density != .compact {
                 appListRows
             }
+        case .breakdown:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+            compositionBar(height: 20)
+            if density != .compact {
+                appBreakdownRows
+            }
         case .summary, .action:
             appValue
             if let subtitle = card.subtitle {
@@ -518,6 +540,70 @@ public struct CardView: View {
                     .lineLimit(1)
             }
         }
+    }
+
+    @ViewBuilder
+    private func compositionBar(height: CGFloat) -> some View {
+        if let items = card.items, !items.isEmpty {
+            CompositionBarView(items: items, tint: card.status.tint, height: height)
+        }
+    }
+
+    /// A key for the bar, in the bar's own order. Each row shows the item's own
+    /// `value` when it has one and the computed share otherwise, so a publisher
+    /// can label segments in its own units without restating the percentages.
+    @ViewBuilder
+    private func breakdownLegend(max limit: Int) -> some View {
+        let shares = CompositionBarView.shares(of: card.items ?? [])
+        if limit > 0 && !shares.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(shares.prefix(limit).enumerated()), id: \.element.item.id) { index, entry in
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint))
+                            .frame(width: 6, height: 6)
+                        Text(entry.item.title)
+                            .font(.caption2)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(legendValue(entry.item, share: entry.share))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var appBreakdownRows: some View {
+        let shares = CompositionBarView.shares(of: card.items ?? [])
+        if shares.isEmpty {
+            Text("No items")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        } else {
+            VStack(spacing: 10) {
+                ForEach(Array(shares.enumerated()), id: \.element.item.id) { index, entry in
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint))
+                            .frame(width: 8, height: 8)
+                        Text(entry.item.title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(legendValue(entry.item, share: entry.share))
+                            .font(.subheadline.weight(.semibold))
+                    }
+                }
+            }
+        }
+    }
+
+    private func legendValue(_ item: DashboardItem, share: Double) -> String {
+        if let value = item.value { return "\(value)\(item.unit ?? "")" }
+        return "\(Int((share * 100).rounded()))%"
     }
 
     /// Nothing is drawn without items, the way `chart` draws nothing without a
