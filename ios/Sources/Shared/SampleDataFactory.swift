@@ -69,6 +69,20 @@ public enum SampleDataFactory {
                 status: .running,
                 icon: "washer",
                 updatedAt: now
+            ),
+            DashboardCard(
+                id: sampleId("energy-trend"),
+                template: .chart,
+                title: "Energy",
+                subtitle: "Last 10 days",
+                value: "18.4",
+                unit: "kWh",
+                status: .good,
+                icon: "chart.xyaxis.line",
+                updatedAt: now,
+                chart: DashboardChart(
+                    points: [22.1, 19.8, 24.3, 20.6, 17.2, 15.9, 18.7, 21.4, 19.1, 18.4]
+                )
             )
         ]
     }

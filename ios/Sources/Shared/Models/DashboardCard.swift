@@ -5,6 +5,7 @@ public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
     case progress
     case list
     case action
+    case chart
 }
 
 public struct SharedByInfo: Codable, Hashable, Sendable {
@@ -31,6 +32,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var staleAfter: Date?
     public private(set) var deepLink: URL?
     public var items: [DashboardItem]?
+    public var chart: DashboardChart?
     public var actions: [ActionDefinition]?
     public var sharedBy: SharedByInfo?
 
@@ -48,6 +50,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         staleAfter: Date? = nil,
         deepLink: URL? = nil,
         items: [DashboardItem]? = nil,
+        chart: DashboardChart? = nil,
         actions: [ActionDefinition]? = nil,
         sharedBy: SharedByInfo? = nil
     ) {
@@ -64,6 +67,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.staleAfter = staleAfter
         self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
         self.items = items
+        self.chart = chart
         self.actions = actions
         self.sharedBy = sharedBy
     }
@@ -71,7 +75,11 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        template = try c.decode(DashboardTemplate.self, forKey: .template)
+        // Falls back like `status` does rather than failing: an unknown value
+        // means the server grew a template this build predates, and one such
+        // card must not take the whole cached list down with it.
+        let rawTemplate = try c.decode(String.self, forKey: .template)
+        template = DashboardTemplate(rawValue: rawTemplate) ?? .summary
         title = try c.decode(String.self, forKey: .title)
         subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
         value = try c.decodeIfPresent(String.self, forKey: .value)
@@ -86,13 +94,14 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
             try c.decodeIfPresent(URL.self, forKey: .deepLink)
         )
         items = try c.decodeIfPresent([DashboardItem].self, forKey: .items)
+        chart = try c.decodeIfPresent(DashboardChart.self, forKey: .chart)
         actions = try c.decodeIfPresent([ActionDefinition].self, forKey: .actions)
         sharedBy = try c.decodeIfPresent(SharedByInfo.self, forKey: .sharedBy)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon, statusIcon
-        case updatedAt, staleAfter, deepLink, items, actions, sharedBy
+        case updatedAt, staleAfter, deepLink, items, chart, actions, sharedBy
     }
 
     public var isStale: Bool {

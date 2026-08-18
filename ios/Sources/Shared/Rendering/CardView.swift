@@ -152,6 +152,9 @@ public struct CardView: View {
                 actionButtons(max: 1)
             case .list:
                 listRows(max: 3)
+            case .chart:
+                chartHeadline
+                sparkline(height: 30, lineWidth: 1.8)
             case .summary:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -182,6 +185,9 @@ public struct CardView: View {
                     ProgressRow(progress: p, label: card.subtitle)
                 }
                 bigValue
+            case .chart:
+                chartHeadline
+                sparkline(height: density == .compact ? 32 : 46)
             case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -217,6 +223,9 @@ public struct CardView: View {
             case .action:
                 actionSummary
                 actionButtons(max: density == .compact ? 2 : 4)
+            case .chart:
+                chartHeadline
+                sparkline(height: density == .compact ? 60 : 90)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -255,7 +264,12 @@ public struct CardView: View {
             }
             Text(card.value ?? card.status.label)
                 .font(.headline)
-            if let subtitle = card.subtitle {
+            if card.template == .chart, let chart = card.chart, chart.isRenderable {
+                // The accessory families render monochrome, so the tint would
+                // be flattened anyway; an unfilled line stays legible.
+                SparklineView(chart: chart, tint: .primary, lineWidth: 1.5, showsArea: false)
+                    .frame(height: 14)
+            } else if let subtitle = card.subtitle {
                 Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
         }
@@ -359,6 +373,12 @@ public struct CardView: View {
             if let subtitle = card.subtitle {
                 appSubtitle(subtitle)
             }
+        case .chart:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+            sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
         case .summary, .action:
             appValue
             if let subtitle = card.subtitle {
@@ -464,6 +484,32 @@ public struct CardView: View {
         action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
     }
 
+    /// Value plus subtitle above a plot. The subtitle carries what the missing
+    /// axis labels would have said ("last 10 days"), so it stays on chart cards
+    /// even where `summary` drops it for space.
+    private var chartHeadline: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            bigValue
+            if let subtitle = card.subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    /// Nothing is drawn when the series is missing or too short to be a trend;
+    /// the card's headline value carries it instead.
+    @ViewBuilder
+    private func sparkline(height: CGFloat, lineWidth: CGFloat = 2) -> some View {
+        if let chart = card.chart, chart.isRenderable {
+            SparklineView(chart: chart, tint: card.status.tint, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+        }
+    }
+
     private var actionSummary: some View {
         VStack(alignment: .leading, spacing: 2) {
             bigValue
@@ -534,10 +580,18 @@ public struct CardView: View {
 
 extension DashboardCard {
     var progressValue: Double? {
-        if template == .progress, let v = value, let d = Double(v) {
+        switch template {
+        case .progress:
+            guard let v = value, let d = Double(v) else { return nil }
             return d > 1 ? d / 100 : d
+        case .chart:
+            // The circular accessory is a gauge and has no room for a plot. The
+            // latest point, placed in the series' own range, is the only needle
+            // position that means anything for a chart card.
+            return chart?.normalizedPoints.last
+        default:
+            return nil
         }
-        return nil
     }
 }
 

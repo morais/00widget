@@ -10,7 +10,7 @@ This document is the entire contract you need. You do **not** need to read the r
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`summary`, `progress`, `list`, `action`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -71,7 +71,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "summary | progress | list | action",
+  "template": "summary | progress | list | action | chart",
   "title": "string",
   "subtitle": "string?",
   "value": "string?",
@@ -83,6 +83,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (only for template=list)",
+  "chart": "DashboardChart? (only for template=chart)",
   "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
 }
 ```
@@ -99,6 +100,31 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "DashboardStatus?"
 }
 ```
+
+**DashboardChart** (the series behind a `chart` card):
+
+```json
+{
+  "points": "number[] (2-10 values, oldest first)",
+  "min": "number? (pins the bottom of the plot)",
+  "max": "number? (pins the top of the plot)",
+  "style": "line | bar (default: line)"
+}
+```
+
+Points are plotted evenly spaced in the order given — there are no timestamps,
+because a widget-sized plot has no room for an x axis. Send a fixed-length
+rolling window (the last 10 hours, days, builds) and say which in `subtitle`;
+that subtitle is the only axis label the card gets.
+
+Without `min`/`max` the plot scales to the series, so it always fills the card
+and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` —
+whenever the absolute scale is the point, such as a percentage or a 0-100
+score. Values outside an explicit range are clamped, not dropped.
+
+Keep publishing the card's `value` too: it is the headline number every widget
+size shows above the plot, and the only thing the inline Lock Screen accessory
+can render.
 
 **ActionDefinition** (buttons on an `action` card):
 
@@ -144,6 +170,7 @@ Card field limits:
 | `statusIcon` | 64 chars |
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
+| `chart.points` | 2–10 finite numbers |
 | `actions` | 8 buttons |
 
 Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars.
@@ -205,6 +232,7 @@ Pick one based on the *shape* of the data, not the domain:
 | Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
+| One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
 
@@ -257,6 +285,31 @@ To remove a card:
 ```sh
 curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
+```
+
+### Publishing a chart
+
+Republish the whole window on every update — there is no append endpoint, and a
+`chart` card holds only what you last sent.
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "id": "deploy-duration",
+    "template": "chart",
+    "title": "Deploys",
+    "subtitle": "Last 10 runs",
+    "value": "4m 12s",
+    "status": "good",
+    "icon": "chart.xyaxis.line",
+    "chart": {
+      "points": [386, 402, 351, 498, 441, 370, 362, 415, 288, 252],
+      "min": 0,
+      "style": "line"
+    }
+  }'
 ```
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
@@ -614,6 +667,7 @@ struct WidgetClient {
 
 - **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
+- **Don't** send a `chart` series longer than 10 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
 - **Don't** put a counter, a countdown, or any other moving value in a Live Activity `title`. iOS freezes the title (along with `kind` and `deepLink`) when the activity starts, and no update can change it. Use `value`, `progress`, `subtitle`, `items`, or `endsAt`.

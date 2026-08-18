@@ -376,6 +376,8 @@ private struct TVDashboardCardView: View {
                             ProgressView(value: progress)
                                 .tint(card.status.tint)
                         }
+                    case .chart:
+                        chartContent
                     case .summary, .action:
                         valueContent
                     }
@@ -429,6 +431,29 @@ private struct TVDashboardCardView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
+        }
+    }
+
+    /// The tvOS card is a fixed 220pt tall and the plot needs a real share of
+    /// it, so the headline is smaller here than `valueContent` draws it.
+    @ViewBuilder
+    private var chartContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(card.value ?? "—")\(card.unit ?? "")")
+                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            if let subtitle = card.subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        if let chart = card.chart, chart.isRenderable {
+            SparklineView(chart: chart, tint: card.status.tint, lineWidth: 3)
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
         }
     }
 

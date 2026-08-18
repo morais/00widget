@@ -81,6 +81,57 @@ describe("DashboardCardSchema", () => {
     ).toBe(false);
   });
 
+  it("accepts a chart card and defaults its style", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "requests",
+      template: "chart",
+      title: "Requests",
+      value: "412",
+      chart: { points: [1, 2, 3, 4, 5, 4, 3, 2, 1, 0] },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.chart?.style).toBe("line");
+  });
+
+  it("rejects chart series outside the published point range", () => {
+    const card = (points: number[]) => ({
+      id: "a",
+      template: "chart" as const,
+      title: "x",
+      chart: { points },
+    });
+    expect(DashboardCardSchema.safeParse(card([1])).success).toBe(false);
+    expect(
+      DashboardCardSchema.safeParse(
+        card(Array.from({ length: FieldLimits.chartPointCount + 1 }, (_, i) => i)),
+      ).success,
+    ).toBe(false);
+    expect(
+      DashboardCardSchema.safeParse(
+        card(Array.from({ length: FieldLimits.chartPointCount }, (_, i) => i)),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("rejects non-finite chart points and an inverted range", () => {
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "chart",
+        title: "x",
+        chart: { points: [1, Number.POSITIVE_INFINITY] },
+      }).success,
+    ).toBe(false);
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "chart",
+        title: "x",
+        chart: { points: [1, 2], min: 10, max: 0 },
+      }).success,
+    ).toBe(false);
+  });
+
   it("strips write-only payloads from the public card schema", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "a",
@@ -187,6 +238,35 @@ describe("cards endpoints", () => {
     );
     const data2 = (await list2.json()) as { cards: unknown[] };
     expect(data2.cards).toHaveLength(0);
+  });
+
+  it("round-trips a chart series through storage", async () => {
+    const env = makeEnv();
+    const body = {
+      id: "cpu-load",
+      template: "chart",
+      title: "CPU",
+      value: "38",
+      unit: "%",
+      chart: { points: [12, 18, 22, 41, 37, 29, 33, 45, 40, 38], min: 0, max: 100, style: "bar" },
+    };
+    const upsert = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", { method: "POST", body: JSON.stringify(body) }),
+      env,
+      executionCtx,
+    );
+    expect(upsert.status).toBe(200);
+
+    const read = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/cpu-load", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(read.status).toBe(200);
+    const card = (await read.json()) as { chart?: { points: number[]; min?: number; style: string } };
+    expect(card.chart?.points).toEqual(body.chart.points);
+    expect(card.chart?.min).toBe(0);
+    expect(card.chart?.style).toBe("bar");
   });
 
   it("extracts action payloads before cards reach any read response", async () => {

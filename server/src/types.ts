@@ -25,6 +25,7 @@ export const FieldLimits = {
   icon: 64,
   deepLink: 2048,
   itemCount: 20,
+  chartPointCount: 10,
   actionCount: 8,
   actionLabel: 80,
   actionPayloadKeys: 16,
@@ -97,7 +98,7 @@ export const DashboardStatusSchema = z
   ])
   .catch("unknown");
 
-export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "action"]);
+export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "action", "chart"]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
 
@@ -140,6 +141,27 @@ export const DashboardItemSchema = z.object({
   status: DashboardStatusSchema.optional(),
 });
 
+export const ChartStyleSchema = z.enum(["line", "bar"]);
+
+// The numeric series behind a `chart` card. Points are plotted evenly spaced in
+// the order given, oldest first; there are no timestamps, because a widget this
+// small has no room for an x axis and the renderer would ignore them.
+//
+// `min`/`max` pin the y range. Without them the renderer scales to the series,
+// which makes every card use its full height but also makes a flat-but-noisy
+// series look dramatic. Publish an explicit range whenever the absolute scale
+// is the point (a percentage, a 0-100 score).
+export const DashboardChartSchema = z
+  .object({
+    points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    style: ChartStyleSchema.default("line"),
+  })
+  .refine((chart) => chart.min === undefined || chart.max === undefined || chart.min < chart.max, {
+    message: "min must be less than max",
+  });
+
 const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "must be an ISO-8601 date",
 });
@@ -178,6 +200,7 @@ const DashboardCardFields = {
   staleAfter: IsoDate.optional(),
   deepLink: OptionalDeepLink,
   items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional(),
+  chart: DashboardChartSchema.optional(),
 };
 
 export const DashboardCardSchema = z.object({
@@ -581,6 +604,8 @@ export type DashboardCard = z.infer<typeof DashboardCardSchema>;
 export type DashboardCardInput = z.infer<typeof DashboardCardInputSchema>;
 export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
+export type DashboardChart = z.infer<typeof DashboardChartSchema>;
+export type ChartStyle = z.infer<typeof ChartStyleSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
 export type ActionDefinitionInput = z.infer<typeof ActionDefinitionInputSchema>;
 export type ActionPayload = z.infer<typeof ActionPayloadSchema>;

@@ -357,7 +357,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 - **New widget kind:** add a `*.swift` in `ios/Sources/Widgets/`, register it in `WidgetBundle.swift`, and (if it should appear in the bundle from `WidgetCenter.reloadTimelines`) add its kind string to `Constants.WidgetKinds.all`.
 - **New endpoint:** add the handler module in `server/src/`, wire a route in `server/src/index.ts`, add a zod schema in `types.ts`, add a test file in `server/test/`. If iOS needs to call it, add a method to `ios/Sources/App/Services/APIClient.swift`.
-- **New template type:** extend `DashboardTemplate` in **both** `DashboardCard.swift` and `types.ts`, add a render path in `CardView.swift`, and update `docs/llms.md`.
+- **New template type:** extend `DashboardTemplate` in **both** `DashboardCard.swift` and `types.ts`, then add a render path in *every* renderer — `CardView.swift` (app, all widget families, and the Lock Screen accessories), `TVDashboardView.swift`, and the inline script in `server/src/guestPage.ts`, which is what a shared link shows in a browser. The Swift `switch`es fail the build when you miss one; the guest page silently renders an empty card. Update `docs/llms.md`.
 - **New Live Activity kind:** extend `LiveActivityKind` in both languages, and update the icon mapping inside `LiveActivityWidget.swift`.
 
 ## Quality bar

@@ -23,6 +23,9 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .unit{font-size:1rem;color:var(--muted);margin-left:.25rem}
 .row{display:flex;justify-content:space-between;padding:.5rem 0;border-top:1px solid var(--line)}
 .row .k{color:var(--muted)}
+.spark{display:block;width:100%;height:64px;margin:.75rem 0}
+.spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.spark rect{fill:var(--accent)}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
@@ -33,6 +36,31 @@ const GUEST_SCRIPT = `
   var el=function(id){return document.getElementById(id)};
   var out=el('out');
   var token=location.hash.slice(1);
+  // Same scaling rule as the iOS renderer: an explicit min/max pins the axis
+  // and out-of-range points clamp; otherwise the series scales to itself.
+  var spark=function(ch){
+    var p=ch.points,n=p.length,w=100,ht=32;
+    var lo=ch.min!=null?ch.min:Math.min.apply(null,p);
+    var hi=ch.max!=null?ch.max:Math.max.apply(null,p);
+    var y=function(v){
+      if(!(hi>lo)){return ht/2}
+      var t=(v-lo)/(hi-lo);
+      return ht-Math.max(0,Math.min(1,t))*ht;
+    };
+    var body='';
+    if(ch.style==='bar'){
+      var bw=w/n*0.7;
+      for(var i=0;i<n;i++){
+        var top=y(p[i]);
+        body+='<rect x="'+(i*w/n+(w/n-bw)/2).toFixed(2)+'" y="'+top.toFixed(2)+'" width="'+bw.toFixed(2)+'" height="'+Math.max(0.6,ht-top).toFixed(2)+'"/>';
+      }
+    }else{
+      var pts=[];
+      for(var j=0;j<n;j++){pts.push((j*w/(n-1)).toFixed(2)+','+y(p[j]).toFixed(2))}
+      body='<polyline points="'+pts.join(' ')+'" vector-effect="non-scaling-stroke"/>';
+    }
+    return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+body+'</svg>';
+  };
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
@@ -46,6 +74,7 @@ const GUEST_SCRIPT = `
       h+='<p class="title">'+esc(c.title)+'</p>';
       if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
+      if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
       (c.items||[]).forEach(function(i){
         h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>'
       });
