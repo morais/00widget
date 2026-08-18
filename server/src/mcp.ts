@@ -326,20 +326,13 @@ export async function handleMcpMethodNotAllowed(_req: Request, env: Env): Promis
 export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
 
-  // Authentication is per-method, not per-request.
+  // Every JSON-RPC message needs a credential. The one thing that does not is
+  // the empty probe below, which carries no message at all.
   //
-  // ChatGPT fetches the tool list with no Authorization header at all — both
-  // from the connector settings and before it will offer the tools in a chat —
-  // and a 401 there leaves it with no tools to call, which is what "Talked to
-  // App" with nothing exposed looks like. Requiring a credential to *read the
-  // menu* also buys nothing: the list is generated from static schemas, is byte
-  // for byte identical for every tenant, and describes exactly what /llms.md
-  // already publishes to anyone who asks.
-  //
-  // So an anonymous caller may discover; only `tools/call` needs a credential,
-  // and that is where the 401 challenge still fires to start the OAuth flow.
-  // A credential that is *present but bad* is always an error — ignoring it and
-  // serving anonymously would turn a broken token into silent degradation.
+  // ChatGPT authenticates server/discover, tools/list and tools/call alike, so
+  // there is nothing to gain by opening the tool list up — an earlier version
+  // did, on the mistaken reading that the unauthenticated requests in the logs
+  // were tool listings. They were the probe.
   let auth: AuthContext | null = null;
   if (req.headers.has("authorization")) {
     try {
@@ -391,11 +384,11 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
-  if (!auth && needsCredential(payload)) {
+  if (!auth) {
     console.warn("mcp request rejected", {
       userAgent: req.headers.get("user-agent") ?? "(none)",
       hasAuthorizationHeader: false,
-      reason: "tools/call requires a credential",
+      reason: "missing or malformed Authorization header",
     });
     return mcpUnauthorized(req, "missing or malformed Authorization header");
   }
@@ -597,12 +590,6 @@ function successResponse(
     ? { resultType: "complete", ...result }
     : result;
   return { jsonrpc: "2.0", id, result: body };
-}
-
-/// Only running a tool needs a credential. Discovery does not.
-function needsCredential(payload: unknown): boolean {
-  const entries = Array.isArray(payload) ? payload : [payload];
-  return entries.some((entry) => (entry as JsonRpcRequest | undefined)?.method === "tools/call");
 }
 
 /// The revision the client claims, from the transport header the 2026-07-28

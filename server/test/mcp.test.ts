@@ -93,21 +93,13 @@ describe("MCP authentication", () => {
     );
   });
 
-  it("lets an anonymous caller read the tool list, which is the same for everyone", async () => {
-    // ChatGPT fetches the list with no credential; refusing it leaves the
-    // connector with no tools to offer. The list is generated from static
-    // schemas and describes only what /llms.md already publishes.
-    const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method: "tools/list" }, null);
-    expect(res.status).toBe(200);
-    const tools = ((await res.json()) as JsonRpcResult).result?.tools as { name: string }[];
-    expect(tools.map((tool) => tool.name)).toContain("upsert_card");
-  });
-
-  it("lets an anonymous caller initialize and discover", async () => {
-    for (const method of ["initialize", "server/discover", "ping"]) {
+  it("requires a credential for every method, discovery included", async () => {
+    // ChatGPT authenticates server/discover, tools/list and tools/call alike,
+    // so none of them is served anonymously. Only the empty probe is.
+    for (const method of ["initialize", "server/discover", "ping", "tools/list"]) {
       const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method }, null);
-      expect(res.status, method).toBe(200);
-      expect(((await res.json()) as JsonRpcResult).error, method).toBeUndefined();
+      expect(res.status, method).toBe(401);
+      expect(res.headers.get("www-authenticate"), method).toContain("resource_metadata=");
     }
   });
 
