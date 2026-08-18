@@ -108,6 +108,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "points": "number[] (2-10 values, oldest first)",
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
+  "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
   "style": "line | bar (default: line)"
 }
 ```
@@ -121,6 +122,13 @@ Without `min`/`max` the plot scales to the series, so it always fills the card
 and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` —
 whenever the absolute scale is the point, such as a percentage or a 0-100
 score. Values outside an explicit range are clamped, not dropped.
+
+`reference` draws a dashed rule across the plot: a target, a budget, an SLO, a
+"same week last year". It is usually the difference between a trend you can read
+and a trend you can act on, because "above or below the line" needs no axis
+labels. An unpinned edge stretches to keep the rule visible; if you pin both
+`min` and `max` and the reference falls outside them, it is not drawn at all
+rather than being clamped to an edge it does not belong on.
 
 Keep publishing the card's `value` too: it is the headline number every widget
 size shows above the plot, and the only thing the inline Lock Screen accessory
@@ -171,6 +179,7 @@ Card field limits:
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
 | `chart.points` | 2–10 finite numbers |
+| `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
 
 Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars.
@@ -307,6 +316,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
     "chart": {
       "points": [386, 402, 351, 498, 441, 370, 362, 415, 288, 252],
       "min": 0,
+      "reference": 300,
       "style": "line"
     }
   }'

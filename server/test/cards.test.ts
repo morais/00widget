@@ -113,6 +113,25 @@ describe("DashboardCardSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a chart reference value", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "a",
+      template: "chart",
+      title: "x",
+      chart: { points: [1, 2, 3], reference: 2.5 },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.chart?.reference).toBe(2.5);
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "a",
+        template: "chart",
+        title: "x",
+        chart: { points: [1, 2, 3], reference: Number.NaN },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects non-finite chart points and an inverted range", () => {
     expect(
       DashboardCardSchema.safeParse({

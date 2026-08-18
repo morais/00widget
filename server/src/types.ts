@@ -156,6 +156,11 @@ export const DashboardChartSchema = z
     points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount),
     min: z.number().optional(),
     max: z.number().optional(),
+    // A target, budget, or threshold, drawn as a dashed rule across the plot.
+    // When the axis is not pinned it widens to keep the rule visible; when it
+    // is pinned and the rule falls outside, the renderer omits it rather than
+    // clamping it to an edge and stating something the data does not.
+    reference: z.number().optional(),
     style: ChartStyleSchema.default("line"),
   })
   .refine((chart) => chart.min === undefined || chart.max === undefined || chart.min < chart.max, {

@@ -28,6 +28,13 @@ public struct SparklineView: View {
     public var body: some View {
         let values = chart.normalizedPoints
         ZStack {
+            if let reference = chart.normalizedReference {
+                ReferenceRuleShape(position: reference)
+                    .stroke(
+                        .secondary,
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                    )
+            }
             switch chart.style {
             case .line:
                 if showsArea {
@@ -66,6 +73,19 @@ private func sparklinePoints(_ values: [Double], in rect: CGRect) -> [CGPoint] {
             x: rect.minX + step * CGFloat(index),
             y: rect.maxY - rect.height * CGFloat(value)
         )
+    }
+}
+
+/// A horizontal rule at a normalized height, for the chart's reference value.
+struct ReferenceRuleShape: Shape {
+    let position: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let y = rect.maxY - rect.height * CGFloat(position)
+        path.move(to: CGPoint(x: rect.minX, y: y))
+        path.addLine(to: CGPoint(x: rect.maxX, y: y))
+        return path
     }
 }
 
