@@ -496,7 +496,9 @@ function consentResponse(html: string, redirectUri: string): Response {
         "object-src 'none'",
         "style-src 'unsafe-inline'",
       ].join("; "),
-      "referrer-policy": "no-referrer",
+      // See the note in html.ts: no-referrer nulls the Origin header on the
+      // form POST this page makes, which the CSRF check then rejects.
+      "referrer-policy": "same-origin",
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
     },

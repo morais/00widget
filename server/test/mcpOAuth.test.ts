@@ -249,6 +249,9 @@ describe("authorization", () => {
     // The redirect target has to be listed, or the browser may refuse the
     // 303 the approval answers with.
     expect(res.headers.get("content-security-policy")).toContain("form-action 'self' https://chatgpt.com");
+    // The Approve button is a form POST, and "no-referrer" would null its
+    // Origin header and drop Referer, so the CSRF check would reject it.
+    expect(res.headers.get("referrer-policy")).toBe("same-origin");
   });
 
   it("refuses a redirect_uri the client never registered", async () => {

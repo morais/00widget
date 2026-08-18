@@ -12,7 +12,17 @@ export const WEB_HTML_SECURITY_HEADERS = {
     "object-src 'none'",
     "style-src 'unsafe-inline'",
   ].join("; "),
-  "referrer-policy": "no-referrer",
+  // "same-origin", not "no-referrer". A referrer policy of no-referrer makes the
+  // browser send `Origin: null` on a form POST — form submissions are
+  // navigate-mode requests, and the Fetch standard folds the referrer policy
+  // into how the Origin header is serialized for those — while also suppressing
+  // Referer. Both signals the CSRF origin check reads therefore vanish, and
+  // every form on these pages 403s with "Invalid request origin". `fetch()` is
+  // immune (it defaults to CORS mode), which is why unit tests never saw it.
+  // same-origin keeps Referer off every cross-origin navigation, so nothing
+  // leaks to Apple or to an OAuth client, and preserves the Origin header we
+  // actually depend on.
+  "referrer-policy": "same-origin",
   "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
 } as const;

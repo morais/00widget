@@ -178,7 +178,13 @@ describe("admin routes (no Apple call required)", () => {
     );
 
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    // Not "no-referrer": that policy makes a browser send `Origin: null` on a
+    // form POST and suppress Referer, so the CSRF origin check rejects every
+    // form on the page. It shipped that way once and broke every admin
+    // mutation in a browser while every test still passed, because `fetch()`
+    // defaults to CORS mode and keeps its Origin. "same-origin" still strips
+    // the referrer from cross-origin navigations.
+    expect(res.headers.get("referrer-policy")).toBe("same-origin");
     const csp = res.headers.get("content-security-policy") ?? "";
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");

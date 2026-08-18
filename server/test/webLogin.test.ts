@@ -249,6 +249,17 @@ describe("web sign-in surface", () => {
     expect(cookies).toContain("zw_nonce=");
   });
 
+  it("never sends a referrer policy that would null out its own form POSTs", async () => {
+    const env = webEnv();
+    // Every page carrying a form the CSRF origin check guards. "no-referrer"
+    // strips both Origin and Referer from a navigate-mode POST, which is
+    // exactly the pair `sameOriginRequest` reads.
+    for (const path of ["/login", "/admin"]) {
+      const res = await fetchWorker(new Request(`${ORIGIN}${path}`), env, ctx);
+      expect(res.headers.get("referrer-policy"), path).not.toBe("no-referrer");
+    }
+  });
+
   it("clears the session at /logout", async () => {
     const res = await fetchWorker(new Request(`${ORIGIN}/logout`), webEnv(), ctx);
     expect(res.status).toBe(302);
