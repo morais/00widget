@@ -391,19 +391,6 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
-  // Every MCP request, not just the failures. Which methods a client calls —
-  // and whether it ever reaches tools/list — is the thing that cannot be
-  // inferred from status codes, and a connector that fails while every response
-  // is a 200 leaves nothing else to go on.
-  console.log("mcp request", {
-    userAgent: req.headers.get("user-agent") ?? "(none)",
-    methods: (Array.isArray(payload) ? payload : [payload])
-      .map((entry) => (entry as JsonRpcRequest | undefined)?.method ?? "(none)")
-      .join(","),
-    authenticated: auth !== null,
-    protocolVersion: declaredProtocolVersion(req, payload) || "(unstated)",
-  });
-
   if (!auth && needsCredential(payload)) {
     console.warn("mcp request rejected", {
       userAgent: req.headers.get("user-agent") ?? "(none)",

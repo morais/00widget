@@ -326,6 +326,27 @@ producer scopes, listed and revocable in `/admin` like any other. A caller that
 *already* holds a `zw_` token can skip all of this and send it to `/mcp`
 directly.
 
+### What ChatGPT actually calls
+
+Its client is `openai-mcp/1.0.0`, speaking the **2026-07-28** revision. In order:
+an empty `POST /mcp` probe (answered 202), `server/discover`, `tools/list`, then
+`tools/call`. Only the last carries a credential requirement; the discovery
+methods answer anonymously, because ChatGPT fetches the tool list without a
+token and a 401 there leaves the connector with nothing to offer. The tool list
+is generated from static schemas and is identical for every tenant.
+
+`server/discover` must return `supportedVersions` as a list, `capabilities`, and
+`serverInfo` under `_meta["io.modelcontextprotocol/serverInfo"]`. The legacy
+`initialize` shape — a single `protocolVersion` string and a top-level
+`serverInfo` — is silently rejected: the client stops after discovery and the
+connector reports itself installed while exposing no callable function.
+
+Two `console.warn` lines on the endpoint (`mcp request rejected`,
+`mcp body rejected`) carry the user agent and the reason. They exist because a
+failing connector is otherwise undiagnosable from outside: the client retries
+discovery and surfaces its own generic error, and nothing about which request
+failed, or whether it carried a credential, is visible in status codes alone.
+
 Registered clients and authorization codes are signed values rather than rows —
 no table, no migration, no sweep. A code lives 60 seconds and is bound to its
 PKCE challenge; see the header comment in `src/mcpOAuth.ts` for what that does
