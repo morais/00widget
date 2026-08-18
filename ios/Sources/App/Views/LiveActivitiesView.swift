@@ -212,9 +212,35 @@ private struct ActivityCard: View {
             .foregroundStyle(.blue)
     }
 
+    /// An explicit `value` outranks the countdown, matching the Lock Screen,
+    /// where the header shows the producer's value and the countdowns live on
+    /// the item rows. Ranking the countdown first dropped the value entirely —
+    /// on a queue activity the ticket now being served vanished, leaving only
+    /// an estimate of when yours comes up. Both fit here, so both are drawn.
     @ViewBuilder
     private var trailingValue: some View {
-        if let endsAt = session.endsAt {
+        if hasExplicitValue, let value = session.value {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(value).font(.title3.weight(.semibold))
+                if let unit = session.unit {
+                    Text(unit)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
+                }
+                if let endsAt = session.endsAt {
+                    LiveActivityCountdownText(
+                        endsAt: endsAt,
+                        granularity: session.countdownGranularity
+                    )
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        } else if let endsAt = session.endsAt {
             LiveActivityCountdownText(
                 endsAt: endsAt,
                 granularity: session.countdownGranularity
@@ -222,13 +248,6 @@ private struct ActivityCard: View {
                 .font(.headline)
                 .monospacedDigit()
                 .lineLimit(1)
-        } else if let value = session.value {
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(value).font(.title3.weight(.semibold))
-                if let unit = session.unit {
-                    Text(unit).font(.caption2).foregroundStyle(.secondary)
-                }
-            }
         } else {
             Text(session.state.capitalized)
                 .font(.caption.weight(.medium))
