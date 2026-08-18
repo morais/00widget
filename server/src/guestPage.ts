@@ -152,6 +152,7 @@ const GUEST_SCRIPT = `
       var a=d.activity;
       h+='<p class="title">'+esc(a.title)+'</p>';
       h+='<p class="sub">'+esc(a.state)+'</p>';
+      if(a.chart&&a.chart.points&&a.chart.points.length>1){h+=spark(a.chart)}
     }
     h+='<p class="meta">Shared with you. Read-only, and this link stops working on '+esc(new Date(d.expiresAt).toLocaleString())+'.</p>';
     out.innerHTML='<div class="card">'+h+'</div>';

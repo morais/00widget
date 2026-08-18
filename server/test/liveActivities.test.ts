@@ -186,6 +186,50 @@ describe("live activities", () => {
     });
   });
 
+  it("carries a chart through start, update, and the stored session", async () => {
+    const env = makeEnv();
+    const start = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "queue-a",
+          kind: "generic",
+          title: "Queue",
+          state: "waiting",
+          value: "A61",
+          chart: { points: [22, 20, 17, 15, 12, 9, 8, 6], reference: 10, style: "bar" },
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(start.status).toBe(200);
+
+    // An update that says nothing about the chart keeps the published one,
+    // the way it keeps items.
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "queue-a", value: "A62" }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const list = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await list.json()) as {
+      activities: { value?: string; chart?: { points: number[]; reference?: number; style: string } }[];
+    };
+    const session = body.activities.find((a) => a.value === "A62");
+    expect(session?.chart?.points).toEqual([22, 20, 17, 15, 12, 9, 8, 6]);
+    expect(session?.chart?.reference).toBe(10);
+    expect(session?.chart?.style).toBe("bar");
+  });
+
   it("registers and lists pending", async () => {
     const env = makeEnv();
 

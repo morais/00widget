@@ -261,7 +261,8 @@ Live Activity limits:
 Live Activity item limits match the corresponding top-level text limits: `id`
 96 chars, `title` 120 chars, `subtitle` 240 chars, `icon` 64 chars, `value` 80
 chars, and `unit` 24 chars. Each item may also include `progress` (`0.0`–`1.0`)
-and `status`. Item ids must be unique within the activity. ActivityKit limits
+and `status`. Item ids must be unique within the activity. A `chart` on an activity costs roughly 100 bytes
+of that budget at ten points. ActivityKit limits
 the combined encoded static attributes and dynamic content state to 4 KiB;
 00Widget rejects a start or update that would exceed it.
 
@@ -479,6 +480,7 @@ Live Activity rendering fields:
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `progress`: optional `0.0`–`1.0` progress bar.
 - `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen and expanded Dynamic Island in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible.
+- `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. Drawn on the Lock Screen banner and in the expanded Dynamic Island when the activity has **no** item rows — those already fill the banner, and iOS gives you no room for both — and in the app's Activities card either way. When both `chart` and `progress` are sent, the chart wins the space.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
 - `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.
 - `relevanceScore`: optional non-negative number. Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins, no fixed ceiling). Send a low score early in a long-running activity and ramp it up as the activity gets more urgent or interesting; spike it on the finishing update so the wrist surfaces it. Accepted on both `start` and `update`.
@@ -502,7 +504,7 @@ after `start`**:
 - `deepLink`
 
 Everything else is content state and updates normally: `subtitle`, `state`,
-`icon`, `value`, `unit`, `progress`, `items`, `endsAt`,
+`icon`, `value`, `unit`, `progress`, `items`, `chart`, `endsAt`,
 `countdownGranularity`, `staleAt`, `relevanceScore`.
 
 So `title` must be the stable *name of the thing*, never a value that moves.

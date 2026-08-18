@@ -181,9 +181,16 @@ private struct ActivityCard: View {
                         ActivityItemRow(item: item)
                     }
                 }
-            } else if let progress = session.progress, session.endsAt == nil {
+            } else if let progress = session.progress, session.endsAt == nil, session.chart == nil {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
+            }
+
+            // Unlike the Lock Screen banner, the app card can afford the plot
+            // alongside item rows, so it is drawn whenever one was published.
+            if let chart = session.chart, chart.isRenderable {
+                SparklineView(chart: chart, tint: .accentColor, lineWidth: 2)
+                    .frame(height: 44)
             }
 
         }

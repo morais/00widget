@@ -47,6 +47,7 @@ function initialContentState(
     unit?: string;
     progress?: number;
     items?: LiveActivitySession["items"];
+    chart?: LiveActivitySession["chart"];
     endsAt?: string;
     countdownGranularity?: CountdownGranularity;
     staleAt?: string;
@@ -60,6 +61,7 @@ function initialContentState(
   if (activity.unit !== undefined) state.unit = activity.unit;
   if (activity.progress !== undefined) state.progress = activity.progress;
   if (activity.items !== undefined) state.items = activity.items;
+  if (activity.chart !== undefined) state.chart = activity.chart;
   if (activity.endsAt !== undefined) {
     state.endsAt = activity.endsAt;
     state.countdownGranularity = activity.countdownGranularity ?? "second";
@@ -315,6 +317,7 @@ export async function startLiveActivity(
     unit: d.unit,
     progress: d.progress,
     items: d.items,
+    chart: d.chart,
     endsAt: d.endsAt,
     countdownGranularity,
     startedAt: existing?.startedAt ?? now,
@@ -496,6 +499,7 @@ export async function updateLiveActivity(
     unit: d.unit ?? instance.unit,
     progress: d.progress ?? instance.progress,
     items: d.items ?? instance.items,
+    chart: d.chart ?? instance.chart,
     endsAt,
     countdownGranularity,
     staleAt: d.staleAt ?? instance.staleAt,

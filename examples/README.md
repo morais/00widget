@@ -36,6 +36,7 @@ If one producer run emits multiple related cards, use `/v1/cards/upsert-batch` w
 - `update-washer-finished.sh` — pushes an update + alert through APNs.
 - `start-car-charge.sh` / `update-car-charge.sh` — same shape for a car charging example.
 - `start-solar-surplus.sh` — a composite activity with independently rendered sub-items.
+- `update-queue-chart.sh` — an activity update carrying a `chart`, drawn as a sparkline on the Lock Screen.
 
 These also illustrate `relevanceScore`: the Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins). Send a low score for "started, plenty of time", ramp it up as urgency grows, and a high score on the finishing alert so it bubbles to the top of the wrist.
 

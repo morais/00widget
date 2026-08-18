@@ -313,6 +313,7 @@ public final class LiveActivityController: ObservableObject {
                 unit: state.unit,
                 progress: state.progress,
                 items: state.items,
+                chart: state.chart,
                 endsAt: state.endsAt,
                 countdownGranularity: state.countdownGranularity,
                 updatedAt: state.updatedAt,

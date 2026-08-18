@@ -378,6 +378,10 @@ export const StartLiveActivitySchema = z.object({
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   items: LiveActivityItemsSchema.optional(),
+  // Content state, so unlike a card's chart this one may change on every
+  // update. It is the field that makes a Live Activity worth watching rather
+  // than glancing at: the number is moving, and the plot says which way.
+  chart: DashboardChartSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
@@ -404,6 +408,7 @@ export const UpdateLiveActivitySchema = z.object({
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   items: LiveActivityItemsSchema.optional(),
+  chart: DashboardChartSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   staleAt: IsoDate.optional(),
@@ -428,6 +433,7 @@ export const LiveActivitySessionSchema = z.object({
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),
   items: LiveActivityItemsSchema.optional(),
+  chart: DashboardChartSchema.optional(),
   endsAt: IsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
   startedAt: IsoDate.optional(),

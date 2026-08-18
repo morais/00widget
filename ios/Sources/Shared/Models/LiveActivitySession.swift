@@ -36,6 +36,9 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var unit: String?
     public var progress: Double?
     public var items: [LiveActivityItem]?
+    /// Content state, so unlike a card's chart this one may change on every
+    /// update.
+    public var chart: DashboardChart?
     public var endsAt: Date?
     public var countdownGranularity: CountdownGranularity?
     public var startedAt: Date?
@@ -69,6 +72,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         unit: String? = nil,
         progress: Double? = nil,
         items: [LiveActivityItem]? = nil,
+        chart: DashboardChart? = nil,
         endsAt: Date? = nil,
         countdownGranularity: CountdownGranularity? = nil,
         startedAt: Date? = nil,
@@ -89,6 +93,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.progress = progress
         self.items = items
+        self.chart = chart
         self.endsAt = endsAt
         self.countdownGranularity = countdownGranularity
         self.startedAt = startedAt
@@ -112,6 +117,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         unit = try container.decodeIfPresent(String.self, forKey: .unit)
         progress = try container.decodeIfPresent(Double.self, forKey: .progress)
         items = try container.decodeIfPresent([LiveActivityItem].self, forKey: .items)
+        chart = try container.decodeIfPresent(DashboardChart.self, forKey: .chart)
         endsAt = try container.decodeIfPresent(Date.self, forKey: .endsAt)
         countdownGranularity = try container.decodeIfPresent(
             CountdownGranularity.self,
@@ -129,7 +135,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, value, unit
-        case progress, items, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
+        case progress, items, chart, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
         case relevanceScore, deepLink, actions
     }
 }

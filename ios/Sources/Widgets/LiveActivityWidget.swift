@@ -61,6 +61,14 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         }
                         .padding(.horizontal, 8)
                         .padding(.bottom, 4)
+                    } else if let chart = context.state.chart, chart.isRenderable {
+                        // Ranked above progress: a producer sending both has a
+                        // number that moves, and the plot says which way while
+                        // a bar only says how far.
+                        SparklineView(chart: chart, tint: .primary, lineWidth: 1.5)
+                            .frame(height: 26)
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 4)
                     } else if let p = context.state.progress, context.state.endsAt == nil {
                         ProgressView(value: max(0, min(p, 1)))
                             .progressViewStyle(.linear)
@@ -217,9 +225,15 @@ private struct LockScreenView: View {
                         .font(.title3.weight(.semibold))
                         .monospacedDigit()
                         .lineLimit(1)
-                } else if let p = state.progress {
+                } else if let p = state.progress, state.chart == nil {
                     ProgressView(value: max(0, min(p, 1)))
                         .progressViewStyle(.linear)
+                }
+                // Only on the non-composite banner: item rows already fill a
+                // composite one, and the Lock Screen has no room for both.
+                if let chart = state.chart, chart.isRenderable {
+                    SparklineView(chart: chart, tint: .primary, lineWidth: 1.5)
+                        .frame(height: 24)
                 }
                 Text("Updated \(state.updatedAt, style: .relative)")
                     .font(.caption2)
