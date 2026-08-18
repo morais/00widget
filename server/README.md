@@ -330,10 +330,9 @@ directly.
 
 Its client is `openai-mcp/1.0.0`, speaking the **2026-07-28** revision. In order:
 an empty `POST /mcp` probe (answered 202), `server/discover`, `tools/list`, then
-`tools/call`. Only the last carries a credential requirement; the discovery
-methods answer anonymously, because ChatGPT fetches the tool list without a
-token and a 401 there leaves the connector with nothing to offer. The tool list
-is generated from static schemas and is identical for every tenant.
+`tools/call`. All three JSON-RPC calls carry a credential, so all three require
+one. The probe carries no message at all, which is why it is answered rather
+than challenged.
 
 `server/discover` must return `supportedVersions` as a list, `capabilities`, and
 `serverInfo` under `_meta["io.modelcontextprotocol/serverInfo"]`. The legacy
