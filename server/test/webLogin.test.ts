@@ -254,10 +254,8 @@ describe("web sign-in surface", () => {
     // Every page carrying a form the CSRF origin check guards. "no-referrer"
     // strips both Origin and Referer from a navigate-mode POST, which is
     // exactly the pair `sameOriginRequest` reads.
-    for (const path of ["/login", "/admin"]) {
-      const res = await fetchWorker(new Request(`${ORIGIN}${path}`), env, ctx);
-      expect(res.headers.get("referrer-policy"), path).not.toBe("no-referrer");
-    }
+    const res = await fetchWorker(new Request(`${ORIGIN}/login`), env, ctx);
+    expect(res.headers.get("referrer-policy")).not.toBe("no-referrer");
   });
 
   it("clears the session at /logout", async () => {

@@ -684,6 +684,19 @@ describe("admin routes (no Apple call required)", () => {
     expect(await res.text()).toContain("Select a tenant before creating an API token");
   });
 
+  it("renders the dashboard with a referrer policy that keeps its forms working", async () => {
+    const env = adminEnv();
+    const { cookie } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    // The dashboard is nothing but forms; "no-referrer" nulls their Origin.
+    expect(res.headers.get("referrer-policy")).toBe("same-origin");
+  });
+
   it("/admin scopes operational rows to the selected tenant", async () => {
     const env = adminEnv();
     await seedApiKey(env, "tenant-a-key", "tenant-a");
