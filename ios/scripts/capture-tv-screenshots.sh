@@ -51,6 +51,7 @@ if [[ "$ONLY" == "activities" ]]; then
 else
   TEST_FILTERS=(
     -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureActivitiesScreenshot
+    -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureInsightsScreenshot
     -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureWidgetsScreenshot
   )
 fi

@@ -161,6 +161,11 @@ public enum SampleDataFactory {
                     status: .paused
                 ),
             ],
+            chart: DashboardChart(
+                points: [42, 38, 35, 31, 29, 26, 24, 22, 20, 18],
+                min: 0,
+                reference: 20
+            ),
             startedAt: Date(),
             updatedAt: Date(),
             staleAt: Date().addingTimeInterval(3600)

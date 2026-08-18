@@ -77,4 +77,34 @@ struct ScreenshotBoilerWidget: Widget {
         )
     }
 }
+
+struct ScreenshotEnergyWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.energy",
+            sampleSuffix: "energy-trend",
+            displayName: "Screenshot Energy"
+        )
+    }
+}
+
+struct ScreenshotDeploysWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.deploys",
+            sampleSuffix: "deploys",
+            displayName: "Screenshot Deploys"
+        )
+    }
+}
+
+struct ScreenshotSpendingWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.spending",
+            sampleSuffix: "spending",
+            displayName: "Screenshot Spending"
+        )
+    }
+}
 #endif

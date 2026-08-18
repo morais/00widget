@@ -130,8 +130,8 @@ survive it. Use `xcrun simctl erase` for a genuinely clean device.
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
 (`ios/UITests/ScreenshotTests.swift`) and writes PNGs to
-`ios/build/screenshots/`. To publish the three canonical homepage images, pass
-the destination asset directory explicitly; the repository location is never
+`ios/build/screenshots/`. To publish the canonical iPhone set, pass the
+destination asset directory explicitly; the repository location is never
 assumed:
 
 ```
@@ -151,8 +151,10 @@ Apple TV uses `ios/scripts/capture-tv-screenshots.sh`, which builds a private
 `ZW_SCREENSHOTS` sample dashboard through the dedicated
 `ZeroZeroWidgetTVScreenshots` scheme and writes native 1920×1080 PNGs to
 `ios/build/screenshots/tvos/`. The screenshot-only state and UI-test target are
-not compiled into the shipping tvOS scheme. Pass `--only activities` for a
-quick Activities-only refresh.
+not compiled into the shipping tvOS scheme. A full run captures the general
+dashboard, the Energy/Deploys/Spending insights dashboard, and the Live
+Activity dashboard. Pass `--only activities` for a quick Activities-only
+refresh.
 
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
@@ -187,17 +189,21 @@ and fails closed on anything else.
 XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 "com.apple.springboard")`), which is how the expanded Dynamic Island is
 captured — a long-press on the island after backgrounding the app. The same test
-also rebuilds the dedicated marketing Home Screen page on every run: Solar and
-Washer small widgets on the first row, Boiler below. It removes any previous
-00Widget layout, adds the three current samples through SpringBoard's widget
+also rebuilds the dedicated marketing Home Screen page twice on every run. The
+classic capture has Solar and Washer on the first row with Boiler below; the
+insights capture uses Energy, Deploys, and Spending in the same layout. It
+removes any previous 00Widget layout, adds each set through SpringBoard's widget
 gallery, and asserts all three exist before capturing
-`screenshot-home-widgets.png`.
+`screenshot-home-widgets.png` and `screenshot-home-insights.png`.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `ios/build/screenshots/ipad/`. It produces native 2064×2752 images, uses the
-same three-widget layout on a clean regular Home Screen page, and captures the
-Widgets and Activities tabs. It intentionally omits the compact and expanded
-Dynamic Island variants, because iPad has no Dynamic Island.
+same two three-widget layouts on a clean regular Home Screen page, and captures
+the Widgets, insights, breakdown, and Activities app surfaces. The run turns
+off both optional iPad dock sections through Settings; otherwise the App
+Library button previews the installed UI-test runner as an apparent extra
+00Widget icon. It intentionally omits the compact and expanded Dynamic Island
+variants, because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
 condition. It adds static, small-only widget kinds that feed Solar, Washer,

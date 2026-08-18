@@ -28,8 +28,15 @@ final class TVEnvironment: ObservableObject {
             .drop(while: { $0 != "--screenshot-section" })
             .dropFirst()
             .first
-        self.cards = screenshotSection == "activities" ? [] : SampleDataFactory.makeCards()
-        self.liveActivities = screenshotSection == "widgets"
+        let samples = SampleDataFactory.makeCards()
+        if screenshotSection == "activities" {
+            self.cards = []
+        } else if screenshotSection == "insights" {
+            self.cards = Array(samples.suffix(3))
+        } else {
+            self.cards = samples
+        }
+        self.liveActivities = screenshotSection == "widgets" || screenshotSection == "insights"
             ? []
             : [SampleDataFactory.makeLiveActivitySession()]
         SharedSettings.setHideSampleIndicators(true)

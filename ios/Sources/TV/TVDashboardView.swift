@@ -260,7 +260,10 @@ private struct TVLiveActivityCardView: View {
                         trailingValue
                     }
 
-                    if let progress = activity.progress, activity.endsAt == nil {
+                    if let chart = activity.chart, chart.isRenderable {
+                        SparklineView(chart: chart, tint: .accentColor, lineWidth: 3)
+                            .frame(height: 46)
+                    } else if let progress = activity.progress, activity.endsAt == nil {
                         ProgressView(value: max(0, min(progress, 1)))
                             .tint(.accentColor)
                     }

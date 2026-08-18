@@ -11,6 +11,9 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotSolarWidget()
         ScreenshotWasherWidget()
         ScreenshotBoilerWidget()
+        ScreenshotEnergyWidget()
+        ScreenshotDeploysWidget()
+        ScreenshotSpendingWidget()
 #endif
     }
 }

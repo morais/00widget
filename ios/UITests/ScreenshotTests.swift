@@ -26,6 +26,7 @@ final class ScreenshotTests: XCTestCase {
             widgetsTab.waitForExistence(timeout: 30),
             "Tab bar never appeared — the app may have failed to launch."
         )
+        prepareIPadMarketingDock(in: app)
 
         hideSampleIndicators(in: app)
 
@@ -44,8 +45,9 @@ final class ScreenshotTests: XCTestCase {
             "Sample cards did not render on the Widgets tab."
         )
         capture(named: "screenshot-widgets")
+        captureInsights(in: app)
 
-        prepareHomeScreenWidgets()
+        prepareHomeScreenWidgets(displayNames: classicWidgetNames)
         app.activate()
 
         if captureActivities(in: app) {
@@ -90,6 +92,15 @@ final class ScreenshotTests: XCTestCase {
                 Thread.sleep(forTimeInterval: 2)
                 capture(named: "screenshot-home-widgets")
             }
+
+            app.activate()
+            prepareHomeScreenWidgets(displayNames: insightWidgetNames)
+            XCTAssertEqual(
+                marketingWidgets(in: springboard).filter { isSmallWidget($0) }.count,
+                3,
+                "The insights page must contain exactly three small 00Widget widgets."
+            )
+            capture(named: "screenshot-home-insights")
         }
     }
 
@@ -133,6 +144,7 @@ final class ScreenshotTests: XCTestCase {
             "Sample cards did not render on the Widgets tab."
         )
         capture(named: "screenshot-widgets")
+        captureInsights(in: app)
         XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
     }
 
@@ -157,10 +169,34 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
+    private func captureInsights(in app: XCUIApplication) {
+        let energy = app.staticTexts["Energy"].firstMatch
+        XCTAssertTrue(scrollTo(energy, in: app, swipes: 10), "Energy sample card not found.")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            )
+        XCTAssertTrue(app.staticTexts["Deploys"].firstMatch.waitForExistence(timeout: 5))
+        capture(named: "screenshot-insights")
+
+        let spending = app.staticTexts["Spending"].firstMatch
+        XCTAssertTrue(scrollTo(spending, in: app, swipes: 4), "Spending sample card not found.")
+        capture(named: "screenshot-breakdown")
+    }
+
+    private var classicWidgetNames: [String] {
+        ["Screenshot Solar", "Screenshot Washer", "Screenshot Boiler"]
+    }
+
+    private var insightWidgetNames: [String] {
+        ["Screenshot Energy", "Screenshot Deploys", "Screenshot Spending"]
+    }
+
     /// Replaces the retained layout with three screenshot-only small widgets.
     /// One existing widget stays until all three are added so SpringBoard does
     /// not delete the otherwise-empty dedicated page.
-    private func prepareHomeScreenWidgets() {
+    private func prepareHomeScreenWidgets(displayNames: [String]) {
         XCUIDevice.shared.press(.home)
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         for _ in 0..<5 { springboard.swipeRight() }
@@ -184,16 +220,9 @@ final class ScreenshotTests: XCTestCase {
             removeWidget(in: springboard, matching: isSmallWidget)
         }
 
-        if isIPad(springboard) {
-            // iPad preserves insertion order.
-            addWidget(named: "Screenshot Solar", in: springboard)
-            addWidget(named: "Screenshot Washer", in: springboard)
-            addWidget(named: "Screenshot Boiler", in: springboard)
-        } else {
-            // iPhone inserts each addition at the front, so add in reverse.
-            addWidget(named: "Screenshot Boiler", in: springboard)
-            addWidget(named: "Screenshot Washer", in: springboard)
-            addWidget(named: "Screenshot Solar", in: springboard)
+        let insertionOrder = isIPad(springboard) ? displayNames : Array(displayNames.reversed())
+        for name in insertionOrder {
+            addWidget(named: name, in: springboard)
         }
 
         if keepSmallAnchor {
@@ -266,6 +295,29 @@ final class ScreenshotTests: XCTestCase {
         application.frame.width > 600
     }
 
+    /// The iPad dock's App Library button previews recently hidden apps, which
+    /// makes the installed UI-test runner look like an extra 00Widget icon.
+    /// Turn off both optional dock sections through Settings so every fresh
+    /// simulator produces the same clean Home Screen without private defaults.
+    private func prepareIPadMarketingDock(in app: XCUIApplication) {
+        guard isIPad(app) else { return }
+
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+
+        let destination = settings.staticTexts["Home Screen & App Library"].firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 10))
+        destination.tap()
+
+        for label in ["Show App Library in Dock", "Show Suggested and Recent Apps in Dock"] {
+            let toggle = settings.switches[label].firstMatch
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10), "Settings toggle '\(label)' not found.")
+            XCTAssertTrue(switchOff(toggle), "Settings toggle '\(label)' did not switch off.")
+        }
+
+        app.activate()
+    }
+
     private func marketingPageIndex(in springboard: XCUIApplication) -> Int {
         // The leftmost position is Today View on both devices. The iPad's
         // second regular page avoids the large preinstalled Apple widgets.
@@ -301,7 +353,7 @@ final class ScreenshotTests: XCTestCase {
         result.tap()
 
         let targetTitle = springboard.staticTexts[name]
-        for _ in 0..<16 where !targetTitle.exists {
+        for _ in 0..<24 where !targetTitle.exists {
             let preview = springboard.buttons.matching(
                 NSPredicate(format: "value CONTAINS 'Widget'")
             ).firstMatch
@@ -373,6 +425,25 @@ final class ScreenshotTests: XCTestCase {
             }
         }
         return isOn()
+    }
+
+    private func switchOff(_ toggle: XCUIElement, timeout: TimeInterval = 3) -> Bool {
+        func isOff() -> Bool { (toggle.value as? String) == "0" }
+        if isOff() { return true }
+
+        for attempt in 0..<2 {
+            if attempt == 0 {
+                toggle.tap()
+            } else {
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                if isOff() { return true }
+                usleep(100_000)
+            }
+        }
+        return isOff()
     }
 
     /// Swipes until `element` is hittable. Form rows below the fold are present
