@@ -188,9 +188,20 @@ private struct ActivityCard: View {
 
             // Unlike the Lock Screen banner, the app card can afford the plot
             // alongside item rows, so it is drawn whenever one was published.
+            //
+            // It takes an item row's surface rather than sitting bare on the
+            // card. An area fill ends in a hard horizontal edge by
+            // construction, and against the card's own background — white on
+            // white in light mode — that edge reads as the plot bleeding out
+            // of a clipped container rather than as the bottom of a chart.
             if let chart = session.chart, chart.isRenderable {
                 SparklineView(chart: chart, tint: .accentColor, lineWidth: 2)
-                    .frame(height: 44)
+                    .frame(height: 56)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.secondary.opacity(0.08))
+                    )
             }
 
         }
