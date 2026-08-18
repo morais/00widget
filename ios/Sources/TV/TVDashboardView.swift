@@ -378,6 +378,8 @@ private struct TVDashboardCardView: View {
                         }
                     case .chart:
                         chartContent
+                    case .history:
+                        chartContent
                     case .summary, .action:
                         valueContent
                     }
@@ -434,8 +436,10 @@ private struct TVDashboardCardView: View {
         }
     }
 
-    /// The tvOS card is a fixed 220pt tall and the plot needs a real share of
-    /// it, so the headline is smaller here than `valueContent` draws it.
+    /// Value and subtitle above a plot — a sparkline for `chart`, status pips
+    /// for `history`. The tvOS card is a fixed 220pt tall and the plot needs a
+    /// real share of it, so the headline is smaller here than `valueContent`
+    /// draws it.
     @ViewBuilder
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -454,6 +458,9 @@ private struct TVDashboardCardView: View {
             SparklineView(chart: chart, tint: card.status.tint, lineWidth: 3)
                 .frame(maxWidth: .infinity)
                 .frame(height: 46)
+        }
+        if card.template == .history, let items = card.items, !items.isEmpty {
+            StatusStripView(items: items, limit: 14, height: 20)
         }
     }
 

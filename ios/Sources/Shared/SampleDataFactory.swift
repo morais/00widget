@@ -85,6 +85,29 @@ public enum SampleDataFactory {
                     reference: 20
                 )
             )
+            ,
+            DashboardCard(
+                id: sampleId("deploys"),
+                template: .history,
+                title: "Deploys",
+                subtitle: "Last 10 runs",
+                value: "9/10",
+                status: .warning,
+                icon: "arrow.triangle.2.circlepath",
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "1", title: "#473", value: "3m 51s", status: .good),
+                    DashboardItem(id: "2", title: "#474", value: "4m 02s", status: .good),
+                    DashboardItem(id: "3", title: "#475", value: "3m 12s", status: .good),
+                    DashboardItem(id: "4", title: "#476", value: "5m 18s", status: .good),
+                    DashboardItem(id: "5", title: "#477", value: "1m 04s", status: .critical),
+                    DashboardItem(id: "6", title: "#478", value: "4m 41s", status: .good),
+                    DashboardItem(id: "7", title: "#479", value: "3m 55s", status: .good),
+                    DashboardItem(id: "8", title: "#480", value: "4m 22s", status: .good),
+                    DashboardItem(id: "9", title: "#481", value: "2m 48s", status: .good),
+                    DashboardItem(id: "10", title: "#482", value: "4m 12s", status: .good),
+                ]
+            )
         ]
     }
 

@@ -155,6 +155,9 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(height: 30, lineWidth: 1.8)
+            case .history:
+                chartHeadline
+                statusStrip(limit: 10, height: 12)
             case .summary:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -188,6 +191,9 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(height: density == .compact ? 32 : 46)
+            case .history:
+                chartHeadline
+                statusStrip(limit: density == .compact ? 12 : 14, height: 14)
             case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -226,6 +232,10 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(height: density == .compact ? 60 : 90)
+            case .history:
+                chartHeadline
+                statusStrip(limit: 20, height: 16)
+                listRows(max: density == .compact ? 2 : 4)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -264,7 +274,9 @@ public struct CardView: View {
             }
             Text(card.value ?? card.status.label)
                 .font(.headline)
-            if card.template == .chart, let chart = card.chart, chart.isRenderable {
+            if card.template == .history, let items = card.items, !items.isEmpty {
+                StatusStripView(items: items, limit: 12, height: 8)
+            } else if card.template == .chart, let chart = card.chart, chart.isRenderable {
                 // The accessory families render monochrome, so the tint would
                 // be flattened anyway; an unfilled line stays legible.
                 SparklineView(chart: chart, tint: .primary, lineWidth: 1.5, showsArea: false)
@@ -379,6 +391,15 @@ public struct CardView: View {
                 appSubtitle(subtitle)
             }
             sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
+        case .history:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+            statusStrip(limit: 20, height: 18)
+            if density != .compact {
+                appListRows
+            }
         case .summary, .action:
             appValue
             if let subtitle = card.subtitle {
@@ -496,6 +517,15 @@ public struct CardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+        }
+    }
+
+    /// Nothing is drawn without items, the way `chart` draws nothing without a
+    /// series — the headline value carries the card on its own.
+    @ViewBuilder
+    private func statusStrip(limit: Int, height: CGFloat) -> some View {
+        if let items = card.items, !items.isEmpty {
+            StatusStripView(items: items, limit: limit, height: height)
         }
     }
 

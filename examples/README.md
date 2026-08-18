@@ -21,6 +21,7 @@ chmod +x *.sh
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
 - `upsert-energy-chart.sh` — a `chart` card plotting a 10-point series as a sparkline, with a dashed `reference` target.
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
+- `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 
 Each call:
 1. Stores the latest state on the backend.

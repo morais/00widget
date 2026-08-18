@@ -29,6 +29,12 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
+.pips{display:flex;gap:3px;margin:.75rem 0}
+.pip{flex:1;height:12px;border-radius:4px;background:var(--muted);opacity:.35}
+.pip.g{background:#34c759;opacity:1}
+.pip.w{background:#ff9f0a;opacity:1}
+.pip.c{background:#ff3b30;opacity:1}
+.pip.r{background:#0a84ff;opacity:1}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
@@ -81,6 +87,14 @@ const GUEST_SCRIPT = `
     }
     return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+ref+body+'</svg>';
   };
+  // Status names are mapped to fixed class names rather than interpolated:
+  // esc() escapes text, not attribute values, and this lands in a class.
+  var PIP={good:'g',finished:'g',warning:'w',paused:'w',critical:'c',running:'r'};
+  var pips=function(items){
+    var out='';
+    for(var i=0;i<items.length;i++){out+='<span class="pip '+(PIP[items[i].status]||'')+'"></span>'}
+    return '<div class="pips">'+out+'</div>';
+  };
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
@@ -95,6 +109,7 @@ const GUEST_SCRIPT = `
       if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
+      if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
       (c.items||[]).forEach(function(i){
         h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>'
       });

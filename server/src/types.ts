@@ -98,7 +98,14 @@ export const DashboardStatusSchema = z
   ])
   .catch("unknown");
 
-export const DashboardTemplateSchema = z.enum(["summary", "progress", "list", "action", "chart"]);
+export const DashboardTemplateSchema = z.enum([
+  "summary",
+  "progress",
+  "list",
+  "action",
+  "chart",
+  "history",
+]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
 

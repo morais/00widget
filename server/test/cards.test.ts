@@ -113,6 +113,34 @@ describe("DashboardCardSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a history card whose items carry statuses", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "ci",
+      template: "history",
+      title: "CI",
+      value: "9/10",
+      items: [
+        { id: "1", title: "#481", status: "good" },
+        { id: "2", title: "#482", status: "critical" },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.items?.[1].status).toBe("critical");
+    // The pips share the card-wide item cap; nothing about history relaxes it.
+    expect(
+      DashboardCardSchema.safeParse({
+        id: "ci",
+        template: "history",
+        title: "CI",
+        items: Array.from({ length: FieldLimits.itemCount + 1 }, (_, i) => ({
+          id: `${i}`,
+          title: `#${i}`,
+          status: "good",
+        })),
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts the delta chart style and rejects unknown styles", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "a",

@@ -10,7 +10,7 @@ This document is the entire contract you need. You do **not** need to read the r
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -71,7 +71,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "summary | progress | list | action | chart",
+  "template": "summary | progress | list | action | chart | history",
   "title": "string",
   "subtitle": "string?",
   "value": "string?",
@@ -82,7 +82,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "updatedAt": "ISO-8601 string? (server fills in if omitted)",
   "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
-  "items": "DashboardItem[]? (only for template=list)",
+  "items": "DashboardItem[]? (template=list rows, template=history pips)",
   "chart": "DashboardChart? (only for template=chart)",
   "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
 }
@@ -100,6 +100,19 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "DashboardStatus?"
 }
 ```
+
+A `history` card reuses `items` rather than adding a field of its own: each
+item is one past outcome, **oldest first**, and its `status` is what gets drawn
+— a row of colored pips, most recent on the right. Nothing numeric is involved,
+which is the point: builds, backups, uptime checks, and doses taken have
+outcomes, not values, and flattening pass/fail into 1/0 draws a plot that reads
+like a trend when it is really a tally.
+
+Send around 10. The limit is the 20-item card limit, but a small widget shows
+the last 10 and the Lock Screen accessory the last 12; a history longer than
+that loses its oldest entries first. Give each item a `title` (`"#482"`,
+`"Tue"`) and optionally a `value` (`"4m 12s"`) — the app lists them under the
+strip, and the widget uses only the statuses.
 
 **DashboardChart** (the series behind a `chart` card):
 
@@ -251,6 +264,7 @@ Pick one based on the *shape* of the data, not the domain:
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
+| A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
 
@@ -304,6 +318,33 @@ To remove a card:
 curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
 ```
+
+### Publishing a run history
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "id": "ci-history",
+    "template": "history",
+    "title": "CI",
+    "subtitle": "Last 10 runs on main",
+    "value": "9/10",
+    "status": "warning",
+    "icon": "arrow.triangle.2.circlepath",
+    "items": [
+      {"id": "473", "title": "#473", "value": "3m 51s", "status": "good"},
+      {"id": "477", "title": "#477", "value": "1m 04s", "status": "critical"},
+      {"id": "482", "title": "#482", "value": "4m 12s", "status": "good"}
+    ]
+  }'
+```
+
+Republish the whole window each time, oldest first, the same way a `chart`
+does. The card's own `status` should summarize the strip — `warning` when a
+recent run failed, `good` when the window is clean — because that is what the
+badge and the tint on every widget size read from.
 
 ### Publishing a chart
 
