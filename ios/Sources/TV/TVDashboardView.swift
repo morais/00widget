@@ -470,6 +470,7 @@ private struct TVDashboardCardView: View {
     @ViewBuilder
     private var listContent: some View {
         if let items = card.items, !items.isEmpty {
+            let fractions = RankedRows.fractions(for: items)
             VStack(spacing: 8) {
                 ForEach(items.prefix(3)) { item in
                     HStack {
@@ -483,6 +484,12 @@ private struct TVDashboardCardView: View {
                         }
                     }
                     .font(.headline)
+                    .padding(.horizontal, 6)
+                    .background(alignment: .leading) {
+                        if let fraction = fractions?[item.id] {
+                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                        }
+                    }
                 }
             }
         } else {

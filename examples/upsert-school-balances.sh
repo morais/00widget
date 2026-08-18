@@ -13,8 +13,8 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
     "status": "good",
     "icon": "creditcard",
     "items": [
-      { "id": "child-1", "title": "Child 1", "value": "12.40", "unit": "€", "status": "good" },
-      { "id": "child-2", "title": "Child 2", "value": "8.10",  "unit": "€", "status": "warning" }
+      { "id": "child-1", "title": "Child 1", "value": "12.40", "unit": "€", "status": "good", "amount": 12.4 },
+      { "id": "child-2", "title": "Child 2", "value": "8.10",  "unit": "€", "status": "warning", "amount": 8.1 }
     ]
   }'
 echo

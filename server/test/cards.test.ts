@@ -113,6 +113,20 @@ describe("DashboardCardSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts amounts on list items, which rank the rows", () => {
+    const parsed = DashboardCardSchema.safeParse({
+      id: "top-processes",
+      template: "list",
+      title: "Memory",
+      items: [
+        { id: "node", title: "node", value: "1.2 GB", amount: 1200 },
+        { id: "swift", title: "swift-frontend", value: "740 MB", amount: 740 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.items?.map((i) => i.amount)).toEqual([1200, 740]);
+  });
+
   it("accepts a breakdown card with item amounts", () => {
     const parsed = DashboardCardSchema.safeParse({
       id: "disk",

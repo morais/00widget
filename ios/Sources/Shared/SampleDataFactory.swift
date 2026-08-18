@@ -30,8 +30,8 @@ public enum SampleDataFactory {
                 icon: "creditcard",
                 updatedAt: now,
                 items: [
-                    DashboardItem(id: "child-1", title: "Child 1", value: "12.40", unit: "€", status: .good),
-                    DashboardItem(id: "child-2", title: "Child 2", value: "8.10", unit: "€", status: .warning)
+                    DashboardItem(id: "child-1", title: "Child 1", value: "12.40", unit: "€", status: .good, amount: 12.4),
+                    DashboardItem(id: "child-2", title: "Child 2", value: "8.10", unit: "€", status: .warning, amount: 8.1)
                 ]
             ),
             DashboardCard(

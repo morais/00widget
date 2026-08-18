@@ -454,6 +454,7 @@ public struct CardView: View {
     @ViewBuilder
     private var appListRows: some View {
         if let items = card.items, !items.isEmpty {
+            let fractions = RankedRows.fractions(for: items)
             VStack(spacing: 10) {
                 ForEach(items.prefix(density == .compact ? 3 : 10)) { item in
                     HStack(spacing: 12) {
@@ -465,6 +466,13 @@ public struct CardView: View {
                             Text("\(value)\(item.unit ?? "")")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(item.status?.tint ?? .primary)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 6)
+                    .background(alignment: .leading) {
+                        if let fraction = fractions?[item.id] {
+                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
                         }
                     }
                 }
@@ -641,6 +649,7 @@ public struct CardView: View {
     @ViewBuilder
     private func listRows(max: Int) -> some View {
         if let items = card.items, !items.isEmpty {
+            let fractions = RankedRows.fractions(for: items)
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(items.prefix(max)) { item in
                     HStack {
@@ -650,6 +659,12 @@ public struct CardView: View {
                             Text("\(v)\(item.unit ?? "")")
                                 .font(.caption)
                                 .foregroundStyle(item.status?.tint ?? .primary)
+                        }
+                    }
+                    .padding(.horizontal, 3)
+                    .background(alignment: .leading) {
+                        if let fraction = fractions?[item.id] {
+                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
                         }
                     }
                 }

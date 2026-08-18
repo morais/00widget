@@ -107,6 +107,14 @@ a display string (`"12.40"`, `"3m 51s"`, `"Rinse"`) and parsing it back into a
 number would have to guess at your locale and formatting. Send both — `amount`
 for the drawing, `value` for the label.
 
+In a `list`, giving items an `amount` turns the rows into ranked bars: each row
+gets a bar behind it, measured against the largest amount in the card, so five
+rows can be compared at a glance instead of read one number at a time. Top
+processes by memory, spend by category, points by player. It is the same field
+`breakdown` uses, measured differently — against the widest row rather than
+against the total — because a list ranks things against each other where a
+breakdown divides a whole. Leave `amount` off and a `list` stays a plain list.
+
 A `history` card reuses `items` rather than adding a field of its own: each
 item is one past outcome, **oldest first**, and its `status` is what gets drawn
 — a row of colored pips, most recent on the right. Nothing numeric is involved,
@@ -279,6 +287,7 @@ Pick one based on the *shape* of the data, not the domain:
 | One headline number or short state    | `summary`  | `title`, usually `value`, `unit`, `status` |
 | Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
+| …the same, ranked against each other  | `list`     | as above, plus an `amount` per item        |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |

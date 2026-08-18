@@ -41,6 +41,8 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .bar rect.w{fill:#ff9f0a}
 .bar rect.c{fill:#ff3b30}
 .bar rect.r{fill:#0a84ff}
+.rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
+.rank rect{fill:var(--accent);fill-opacity:.5;rx:2px}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
@@ -136,8 +138,15 @@ const GUEST_SCRIPT = `
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
       if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
       if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
+      var widest=0;
+      (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
       (c.items||[]).forEach(function(i){
-        h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>'
+        h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+        // Ranked against the widest row, matching the app. Width has to be an
+        // attribute rather than a style — see the note on breakdown() above.
+        if(widest>0&&i.amount!=null){
+          h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(Math.max(0,i.amount)/widest*100).toFixed(2)+'"/></svg>';
+        }
       });
     } else {
       var a=d.activity;
