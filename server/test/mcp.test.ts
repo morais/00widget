@@ -410,12 +410,30 @@ describe("JSON-RPC framing", () => {
     expect(((await res.json()) as JsonRpcResult).error?.code).toBe(-32700);
   });
 
+  it("treats an empty POST as a reachability probe, not a failure", async () => {
+    // ChatGPT opens the connection this way: content-length 0, no credential.
+    // There is no request in it, so there is nothing to refuse.
+    for (const contentType of ["application/octet-stream", "application/json"]) {
+      const res = await fetchWorker(
+        new Request("https://api.example.com/mcp", {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body: "",
+        }),
+        mcpEnv(),
+        ctx,
+      );
+      expect(res.status, contentType).toBe(202);
+      expect(await res.text()).toBe("");
+    }
+  });
+
   it("still answers an unparseable anonymous request with the auth challenge", async () => {
     // A client probing the endpoint with an empty or malformed POST has to
     // learn where to authorize. Answering 400 tells it nothing and leaves it
     // with nowhere to go, which is how a connector ends up retrying discovery
     // forever.
-    for (const body of ["", "{oops"]) {
+    for (const body of ["{oops", "not json at all"]) {
       const res = await fetchWorker(
         new Request("https://api.example.com/mcp", {
           method: "POST",

@@ -354,9 +354,26 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     }
   }
 
+  let body: string;
+  try {
+    body = await readBodyUpTo(req, RequestBodyLimits.mcpRpc);
+  } catch {
+    return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "request body is too large"), 413);
+  }
+
+  // ChatGPT opens with `POST /mcp` carrying content-length 0, content-type
+  // application/octet-stream and no Authorization header — a reachability
+  // probe, not a message. There is no JSON-RPC request in it to answer, to
+  // authenticate, or to fail on, and 202 is what the spec prescribes for a POST
+  // the server has nothing to respond to. It previously drew a 401, which reads
+  // as "authenticate first" to a client holding no credential at that point in
+  // its flow, sending it back around discovery without ever asking for the tool
+  // list.
+  if (body.trim() === "") return new Response(null, { status: 202 });
+
   let payload: unknown;
   try {
-    payload = JSON.parse(await readBodyUpTo(req, RequestBodyLimits.mcpRpc));
+    payload = JSON.parse(body);
   } catch {
     console.warn("mcp body rejected", {
       userAgent: req.headers.get("user-agent") ?? "(none)",
