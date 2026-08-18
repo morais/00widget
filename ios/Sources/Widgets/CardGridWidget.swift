@@ -67,26 +67,25 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
 
 public struct CardGridEntry: TimelineEntry {
     public let date: Date
-    public let slots: [DashboardCard?]
-    public let allUnconfigured: Bool
-    public let allFiltered: Bool
+    /// The cards to draw, in order, with nothing missing between them: the grid
+    /// lays out as many cells as there are cards rather than padding to four.
+    public let cards: [DashboardCard]
+    public let reason: CardFallbackView.Reason?
     public let compactTapTarget: CardGridTapTarget
     public let density: WidgetCardDensity
     public let statusFilter: WidgetStatusFilter
 
     public init(
         date: Date,
-        slots: [DashboardCard?],
-        allUnconfigured: Bool,
-        allFiltered: Bool,
+        cards: [DashboardCard],
+        reason: CardFallbackView.Reason? = nil,
         compactTapTarget: CardGridTapTarget,
         density: WidgetCardDensity,
         statusFilter: WidgetStatusFilter
     ) {
         self.date = date
-        self.slots = slots
-        self.allUnconfigured = allUnconfigured
-        self.allFiltered = allFiltered
+        self.cards = cards
+        self.reason = reason
         self.compactTapTarget = compactTapTarget
         self.density = density
         self.statusFilter = statusFilter
@@ -102,13 +101,9 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public init() {}
 
     public func placeholder(in context: Context) -> CardGridEntry {
-        let cards = SampleDataFactory.makeCards()
-        let slots: [DashboardCard?] = (0..<4).map { i in i < cards.count ? cards[i] : nil }
         return CardGridEntry(
             date: Date(),
-            slots: slots,
-            allUnconfigured: false,
-            allFiltered: false,
+            cards: Array(SampleDataFactory.makeCards().prefix(4)),
             compactTapTarget: .app,
             density: .automatic,
             statusFilter: .all
@@ -142,24 +137,33 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     }
 
     private func entry(for configuration: SelectFourCardsIntent) -> CardGridEntry {
-        let rawIds = [configuration.card1?.id, configuration.card2?.id, configuration.card3?.id, configuration.card4?.id]
-        let ids: [String?] = rawIds.map { id in
-            guard let id, id != CardEntityQuery.noneId else { return nil }
-            return id
-        }
-        let allUnconfigured = ids.allSatisfy { $0 == nil }
+        let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
-        let slots: [DashboardCard?] = ids.map { id in
-            guard let id else { return nil }
-            guard let card = cached.first(where: { $0.id == id }) else { return nil }
-            return configuration.statusFilter.includes(card.status) ? card : nil
+        let selections = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
+        let isConfigured = selections.contains { $0 != nil }
+        let ids = selections.compactMap { $0?.id }.filter { $0 != CardEntityQuery.noneId }
+
+        // Nothing configured means a placement nobody has opened the sheet for.
+        // Fill it with the first cards there are — as many as exist, each one
+        // once — rather than showing four "Pick a card" cells.
+        let candidates = isConfigured ? ids.compactMap { id in cached.first(where: { $0.id == id }) } : cached
+        let cards = Array(candidates.filter { filter.includes($0.status) }.prefix(4))
+
+        let reason: CardFallbackView.Reason?
+        if !cards.isEmpty {
+            reason = nil
+        } else if isConfigured && ids.isEmpty {
+            reason = .noCardSelected            // every slot deliberately set to None
+        } else if candidates.isEmpty {
+            reason = .noCachedData
+        } else {
+            reason = .filtered(filter.fallbackLabel)
         }
-        let allFiltered = !allUnconfigured && slots.allSatisfy { $0 == nil }
+
         return CardGridEntry(
             date: Date(),
-            slots: slots,
-            allUnconfigured: allUnconfigured,
-            allFiltered: allFiltered,
+            cards: cards,
+            reason: reason,
             compactTapTarget: configuration.compactTapTarget,
             density: configuration.density,
             statusFilter: configuration.statusFilter
@@ -196,10 +200,8 @@ struct CardGridWidgetView: View {
 
     @ViewBuilder
     private var content: some View {
-        if entry.allUnconfigured {
-            CardFallbackView(reason: .noCardSelected)
-        } else if entry.allFiltered {
-            CardFallbackView(reason: .filtered(entry.statusFilter.fallbackLabel))
+        if let reason = entry.reason {
+            CardFallbackView(reason: reason)
         } else {
             grid
         }
@@ -214,7 +216,7 @@ struct CardGridWidgetView: View {
         case .bottomLeft: index = 2
         case .bottomRight: index = 3
         }
-        return (entry.slots[safe: index] ?? nil)?.deepLink
+        return entry.cards[safe: index]?.deepLink
     }
 
     private var cellStyle: CardGridCell.Style {
@@ -234,29 +236,52 @@ struct CardGridWidgetView: View {
         }
     }
 
+    /// Lays out one cell per card instead of a fixed 2x2. Fewer than four cards
+    /// is the common case — three followed cards should read as three tiles, not
+    /// as three tiles and a dashed hole — and a lone card gets the whole widget.
+    @ViewBuilder
     private var grid: some View {
         let spacing: CGFloat = family == .systemSmall ? 6 : 8
         let linkable = family != .systemSmall
-        return Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
-            GridRow {
-                cell(at: 0, linkable: linkable)
-                cell(at: 1, linkable: linkable)
-            }
-            GridRow {
-                cell(at: 2, linkable: linkable)
-                cell(at: 3, linkable: linkable)
+        Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
+            switch entry.cards.count {
+            case 1:
+                GridRow { cell(at: 0, linkable: linkable) }
+            case 2:
+                GridRow {
+                    cell(at: 0, linkable: linkable)
+                    cell(at: 1, linkable: linkable)
+                }
+            case 3:
+                GridRow {
+                    cell(at: 0, linkable: linkable)
+                    cell(at: 1, linkable: linkable)
+                }
+                GridRow {
+                    cell(at: 2, linkable: linkable).gridCellColumns(2)
+                }
+            default:
+                GridRow {
+                    cell(at: 0, linkable: linkable)
+                    cell(at: 1, linkable: linkable)
+                }
+                GridRow {
+                    cell(at: 2, linkable: linkable)
+                    cell(at: 3, linkable: linkable)
+                }
             }
         }
     }
 
     @ViewBuilder
     private func cell(at index: Int, linkable: Bool) -> some View {
-        let card = entry.slots[safe: index] ?? nil
-        let view = CardGridCell(card: card, style: cellStyle)
-        if linkable, let url = card?.deepLink {
-            Link(destination: url) { view }
-        } else {
-            view
+        if let card = entry.cards[safe: index] {
+            let view = CardGridCell(card: card, style: cellStyle)
+            if linkable, let url = card.deepLink {
+                Link(destination: url) { view }
+            } else {
+                view
+            }
         }
     }
 }
@@ -264,7 +289,7 @@ struct CardGridWidgetView: View {
 struct CardGridCell: View {
     enum Style { case compact, standard, roomy }
 
-    let card: DashboardCard?
+    let card: DashboardCard
     let style: Style
     @Environment(\.widgetRenderingMode) private var renderingMode
 
@@ -281,21 +306,11 @@ struct CardGridCell: View {
 
     @ViewBuilder
     private var content: some View {
-        if let card {
-            switch style {
-            case .compact: compactCell(card)
-            case .standard: standardCell(card)
-            case .roomy: roomyCell(card)
-            }
-        } else {
-            emptyCell
+        switch style {
+        case .compact: compactCell(card)
+        case .standard: standardCell(card)
+        case .roomy: roomyCell(card)
         }
-    }
-
-    private var emptyCell: some View {
-        Image(systemName: "square.dashed")
-            .font(.title3)
-            .foregroundStyle(.tertiary)
     }
 
     private func compactCell(_ card: DashboardCard) -> some View {

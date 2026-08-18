@@ -60,23 +60,15 @@ public struct CardEntityQuery: EntityQuery {
         card.isFromGuestLink ? "\(card.title) (shared)" : card.title
     }
 
-    /// Defaults a freshly added widget to the first cached card, so it renders
-    /// something instead of "Pick a card".
+    /// Deliberately no `defaultResult()`.
     ///
-    /// This is only safe because `entities(for:)` above never drops an
-    /// identifier. When it did, a stored card AppIntents could not resolve left
-    /// the parameter empty, this default filled it in, and a widget set to Car
-    /// rendered Solar while looking perfectly correct. With the id kept alive,
-    /// a configured widget always has a value here and this is consulted only
-    /// where there is genuinely nothing to override — a new placement.
-    ///
-    /// Picking "None" in the configuration sheet is still how you get an
-    /// unconfigured widget back; `CardTimelineProvider` renders that as
-    /// "Pick a card".
-    public func defaultResult() async -> CardEntity? {
-        guard let first = CardCache.cardsForWidgets().first else { return nil }
-        return CardEntity(id: first.id, title: Self.pickerTitle(for: first))
-    }
+    /// A freshly placed widget should render a card rather than "Pick a card",
+    /// but this query cannot be where that is decided: it backs all four slots
+    /// of the grid widget as well, so one default for every slot is the same
+    /// card four times. The default is a property of the widget, not of the
+    /// card list, so each timeline provider picks its own — one card for
+    /// `CardTimelineProvider`, four distinct ones for
+    /// `CardGridTimelineProvider`.
 }
 
 public struct SelectCardIntent: WidgetConfigurationIntent {

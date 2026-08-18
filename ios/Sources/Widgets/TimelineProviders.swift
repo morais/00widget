@@ -60,21 +60,27 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
         let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
 
-        // "None" is a real pick in the card list, and now that a fresh widget
-        // defaults to the first card it is the only way back to an
-        // unconfigured one — so it has to read as "no card", not as a card id
-        // the cache has lost.
-        guard let cardId = configuration.card?.id, cardId != CardEntityQuery.noneId else {
-            if filter == .all {
-                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCardSelected)
-            }
+        // A widget nobody has configured yet renders the first card that passes
+        // its filter, so a placement made from the gallery shows something
+        // instead of "Pick a card". This lives here rather than in
+        // CardEntityQuery.defaultResult() because that query also backs the
+        // grid widget's four slots, where a single default is the same card
+        // four times.
+        guard let selection = configuration.card?.id else {
             guard let card = cached.first(where: { filter.includes($0.status) }) else {
-                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .filtered(filter.fallbackLabel))
+                let reason: CardFallbackView.Reason = cached.isEmpty ? .noCachedData : .filtered(filter.fallbackLabel)
+                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: reason)
             }
             return CardTimelineEntry(date: Date(), card: card, density: density, reason: card.isStale ? .stale(card.updatedAt) : nil)
         }
 
-        guard let card = cached.first(where: { $0.id == cardId }) else {
+        // "None" is a real pick in the card list, and the only way to ask for an
+        // empty widget now that an unconfigured one defaults to a card. Honour
+        // it instead of treating it as a card id the cache has lost.
+        guard selection != CardEntityQuery.noneId else {
+            return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCardSelected)
+        }
+        guard let card = cached.first(where: { $0.id == selection }) else {
             return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCachedData)
         }
         guard filter.includes(card.status) else {
