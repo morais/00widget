@@ -60,23 +60,22 @@ public struct CardEntityQuery: EntityQuery {
         card.isFromGuestLink ? "\(card.title) (shared)" : card.title
     }
 
-    /// Defaults a fresh widget to the only card there is, and never guesses
-    /// beyond that.
+    /// Defaults a freshly added widget to the first cached card, so it renders
+    /// something instead of "Pick a card".
     ///
-    /// This used to return the first cached card unconditionally, which meant
-    /// any parameter AppIntents could not resolve silently became "whatever
-    /// card happens to be first" — a widget set to Car rendering Solar, and
-    /// looking perfectly correct while doing it. That is the failure this
-    /// deliberately does not reintroduce.
+    /// This is only safe because `entities(for:)` above never drops an
+    /// identifier. When it did, a stored card AppIntents could not resolve left
+    /// the parameter empty, this default filled it in, and a widget set to Car
+    /// rendered Solar while looking perfectly correct. With the id kept alive,
+    /// a configured widget always has a value here and this is consulted only
+    /// where there is genuinely nothing to override — a new placement.
     ///
-    /// One candidate is a different situation: there is nothing to pick wrongly,
-    /// so "the only card" and "the first card" are the same answer. Anything
-    /// else still resolves to nothing, and the widget says "Pick a card"
-    /// rather than choosing on the user's behalf.
+    /// Picking "None" in the configuration sheet is still how you get an
+    /// unconfigured widget back; `CardTimelineProvider` renders that as
+    /// "Pick a card".
     public func defaultResult() async -> CardEntity? {
-        let cards = CardCache.cardsForWidgets()
-        guard cards.count == 1, let only = cards.first else { return nil }
-        return CardEntity(id: only.id, title: Self.pickerTitle(for: only))
+        guard let first = CardCache.cardsForWidgets().first else { return nil }
+        return CardEntity(id: first.id, title: Self.pickerTitle(for: first))
     }
 }
 

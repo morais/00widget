@@ -60,7 +60,11 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
         let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
 
-        guard let cardId = configuration.card?.id else {
+        // "None" is a real pick in the card list, and now that a fresh widget
+        // defaults to the first card it is the only way back to an
+        // unconfigured one — so it has to read as "no card", not as a card id
+        // the cache has lost.
+        guard let cardId = configuration.card?.id, cardId != CardEntityQuery.noneId else {
             if filter == .all {
                 return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCardSelected)
             }
