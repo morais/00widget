@@ -57,6 +57,10 @@ const SUPPORTED_PROTOCOL_VERSIONS = [
 ] as const;
 const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 
+const SERVER_INSTRUCTIONS =
+  "Publish project state to the operator's iOS widgets and Live Activities. Call "
+  + "get_integration_guide first to learn the card templates and their fields.";
+
 // tools/list is a pure function of this file, so clients may cache it. The
 // 2026-07-28 revision reads these fields; older ones ignore them.
 const TOOL_LIST_TTL_MS = 60 * 60 * 1000;
@@ -387,6 +391,19 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
+  // Every MCP request, not just the failures. Which methods a client calls —
+  // and whether it ever reaches tools/list — is the thing that cannot be
+  // inferred from status codes, and a connector that fails while every response
+  // is a 200 leaves nothing else to go on.
+  console.log("mcp request", {
+    userAgent: req.headers.get("user-agent") ?? "(none)",
+    methods: (Array.isArray(payload) ? payload : [payload])
+      .map((entry) => (entry as JsonRpcRequest | undefined)?.method ?? "(none)")
+      .join(","),
+    authenticated: auth !== null,
+    protocolVersion: declaredProtocolVersion(req, payload) || "(unstated)",
+  });
+
   if (!auth && needsCredential(payload)) {
     console.warn("mcp request rejected", {
       userAgent: req.headers.get("user-agent") ?? "(none)",
@@ -443,16 +460,27 @@ async function dispatch(
         protocolVersion: negotiatedProtocolVersion(request.params),
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
-        instructions:
-          "Publish project state to the operator's iOS widgets and Live Activities. Call "
-          + "get_integration_guide first to learn the card templates and their fields.",
+        instructions: SERVER_INSTRUCTIONS,
       });
-    // 2026-07-28 replacement for the handshake.
+    // 2026-07-28 replacement for the handshake. The shape is exact and worth
+    // keeping that way: `supportedVersions` (a list, not the single
+    // `protocolVersion` the legacy handshake returns), capabilities, and
+    // serverInfo under its namespaced `_meta` key rather than at the top level.
+    // A client that cannot parse this learns nothing about the server and has
+    // no reason to go on and ask for the tools.
     case "server/discover":
       return ok({
-        protocolVersion: LATEST_PROTOCOL_VERSION,
-        capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+        supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+        capabilities: { tools: {} },
+        instructions: SERVER_INSTRUCTIONS,
+        ttlMs: TOOL_LIST_TTL_MS,
+        cacheScope: "public",
+        _meta: {
+          "io.modelcontextprotocol/serverInfo": {
+            name: SERVER_NAME,
+            version: SERVER_VERSION,
+          },
+        },
       });
     case "notifications/initialized":
     case "notifications/cancelled":
@@ -600,8 +628,12 @@ function declaredProtocolVersion(req: Request, payload: unknown): string {
   const entries = Array.isArray(payload) ? payload : [payload];
   for (const entry of entries) {
     const params = (entry as JsonRpcRequest | undefined)?.params as
-      | { protocolVersion?: unknown }
+      | { protocolVersion?: unknown; _meta?: Record<string, unknown> }
       | undefined;
+    // Modern revisions put it in namespaced request metadata; the legacy
+    // handshake put it in params directly.
+    const fromMeta = params?._meta?.["io.modelcontextprotocol/protocolVersion"];
+    if (typeof fromMeta === "string") return fromMeta;
     if (typeof params?.protocolVersion === "string") return params.protocolVersion;
   }
   return "";

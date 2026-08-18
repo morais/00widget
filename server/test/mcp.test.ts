@@ -170,14 +170,36 @@ describe("MCP handshake", () => {
     expect(body.result?.protocolVersion).toBe("2026-07-28");
   });
 
-  it("answers the post-handshake server/discover of the 2026-07-28 revision", async () => {
+  it("answers server/discover in the exact shape the 2026-07-28 revision defines", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const res = await rpc(env, { jsonrpc: "2.0", id: 7, method: "server/discover" });
     const body = (await res.json()) as JsonRpcResult;
     expect(body.id).toBe(7);
-    expect(body.result?.protocolVersion).toBe("2026-07-28");
-    expect(body.result?.capabilities).toMatchObject({ tools: {} });
+    // A list of versions, not the single `protocolVersion` the legacy
+    // handshake returns. Getting this wrong makes the whole result
+    // unparseable to a client, which then never asks for the tools.
+    expect(body.result?.supportedVersions).toContain("2026-07-28");
+    expect(body.result?.protocolVersion).toBeUndefined();
+    expect(body.result?.capabilities).toEqual({ tools: {} });
+    // serverInfo lives under its namespaced _meta key, not at the top level.
+    expect(body.result?.serverInfo).toBeUndefined();
+    const meta = body.result?._meta as Record<string, unknown>;
+    expect(meta["io.modelcontextprotocol/serverInfo"]).toMatchObject({ name: "00widget" });
+  });
+
+  it("reads the protocol version from namespaced request metadata", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/list",
+      params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" } },
+    });
+    // Recognising the revision is what decides whether 2026-only fields are
+    // emitted, so it has to be read from where that revision puts it.
+    expect(((await res.json()) as JsonRpcResult).result?.resultType).toBe("complete");
   });
 
   it("returns no body for a notification", async () => {
