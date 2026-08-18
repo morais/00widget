@@ -153,4 +153,5 @@ Working end-to-end. Cards publish, Live Activities start/update/end, push-to-sta
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+Source code is MIT licensed. The 00Widget name and brand assets are excluded;
+see [LICENSE](./LICENSE) and [docs/brand/LICENSE](./docs/brand/LICENSE).

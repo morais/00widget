@@ -12,8 +12,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BRAND_DIR = REPO_ROOT / "docs" / "brand"
 SOURCE = BRAND_DIR / "branding-sheet.png"
-MARK_MASTER = BRAND_DIR / "u2-mark-transparent-master.png"
-APP_ICON_MASTER = BRAND_DIR / "u2-app-icon-master.png"
+MARK_MASTER = BRAND_DIR / "mark-transparent-master.png"
+APP_ICON_MASTER = BRAND_DIR / "app-icon-master.png"
 
 NAVY = "#06152A"
 MID_NAVY = "#4C607D"
@@ -112,6 +112,14 @@ def save(image: Image.Image, path: Path, *, opaque: bool = False) -> None:
     image.save(path, optimize=True)
 
 
+def save_chatgpt_icon(image: Image.Image, path: Path) -> None:
+    """Write the 256 px GPT icon while enforcing its 10 KB asset budget."""
+    icon = image.convert("RGB").resize((256, 256), Image.Resampling.LANCZOS)
+    icon.save(path, format="JPEG", quality=90, optimize=True, progressive=True)
+    if path.stat().st_size >= 10_000:
+        raise SystemExit(f"Generated ChatGPT icon exceeds 10 KB: {path}")
+
+
 def exact_wordmark(*, transparent: bool) -> Image.Image:
     source = crop(WORDMARK_BOX)
     if transparent:
@@ -200,6 +208,7 @@ def generate() -> None:
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
+    save_chatgpt_icon(app_icon, BRAND_DIR / "chatgpt-icon-256.jpg")
 
     save(app_icon, REPO_ROOT / "ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
 
