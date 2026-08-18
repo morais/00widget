@@ -362,6 +362,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 ## Quality bar
 
+- **Samples, examples, and docs are written in English.** This repo is public and the sample deck ships inside the app, so a demo string in the author's own language reads as a bug to every other reader. Applies to `examples/*.sh`, `SampleDataFactory`, `docs/`, and any placeholder text a screenshot will capture. Real producer data is whatever language its producer speaks — this is about what we ship as demonstration.
 - Code under both `ios/` and `server/` should compile/typecheck without warnings on Xcode 16 / TypeScript 5.6.
 - Backend: every endpoint has a zod schema and at least one test (positive and negative path).
 - iOS: prefer extending `Sources/Shared/` over duplicating models or rendering between the app and widget targets.

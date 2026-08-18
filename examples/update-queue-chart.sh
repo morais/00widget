@@ -11,11 +11,11 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/update" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   --data '{
-    "externalActivityId": "queue-irn-odivelas",
+    "externalActivityId": "queue-service-desk",
     "state": "waiting",
-    "subtitle": "6 senhas à frente",
+    "subtitle": "6 ahead of you",
     "value": "A61",
-    "unit": "em atendimento",
+    "unit": "now serving",
     "chart": {
       "points": [22, 21, 19, 17, 16, 14, 11, 9, 7, 6],
       "min": 0,
