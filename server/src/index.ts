@@ -242,7 +242,7 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
   async scheduled(_event, env, _ctx) {
     await sweepExpiredRateLimitBuckets(env);
   },
-  async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env) {
+  async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env, ctx) {
     for (const message of batch.messages) {
       try {
         if (!message.body || typeof message.body.tenantId !== "string") {
@@ -264,8 +264,31 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
         message.retry({ delaySeconds: 5 * 60 });
       }
     }
+    maybeSweepRateLimitBuckets(env, ctx);
   },
 };
+
+// Reclaims rate limit buckets whose keys will never be touched again — a
+// finished Live Activity's per-activity counter, a retired card's. Counters for
+// live keys are collected in their own write batch; only the orphans need this.
+//
+// It rides the queue consumer because the account has no spare cron trigger
+// (Workers Free allows 5). Two properties keep that from coupling maintenance to
+// delivery: it runs after every message has been settled, and `waitUntil` keeps
+// it off the path that returns the batch — a slow sweep must never hold acks
+// long enough for messages to pass their visibility timeout and be redelivered,
+// which would resend widget pushes. `sweepExpiredRateLimitBuckets` also
+// swallows its own failures, so it cannot fail a batch.
+//
+// Sampled rather than run every time: buckets carry an `expires_at` two windows
+// past their own, so reclaiming is never urgent, and a handful of sweeps a day
+// is plenty at any volume this queue sees.
+const RATE_LIMIT_SWEEP_PROBABILITY = 0.05;
+
+function maybeSweepRateLimitBuckets(env: Env, ctx: ExecutionContext): void {
+  if (Math.random() >= RATE_LIMIT_SWEEP_PROBABILITY) return;
+  ctx.waitUntil(sweepExpiredRateLimitBuckets(env));
+}
 
 function preventSensitiveResponseCaching(pathname: string, response: Response): Response {
   const sensitive = pathname === "/v1"

@@ -95,8 +95,8 @@ export async function enforceRateLimits(
 // this request already touches, which the primary key answers with a seek
 // (`SEARCH ... USING INDEX sqlite_autoindex_rate_limit_buckets_1`) and which
 // writes nothing at all unless a window has actually rolled over. A key that
-// goes permanently silent keeps its last row or two until the scheduled sweep
-// runs — see `sweepExpiredRateLimitBuckets`.
+// goes permanently silent keeps its last row or two until the sampled sweep on
+// the queue consumer reclaims it — see `sweepExpiredRateLimitBuckets`.
 export async function incrementRateLimitBuckets(
   env: Env,
   buckets: RateLimitBucketInput[],
@@ -230,7 +230,8 @@ function bucketRowToView(row: BucketRow, now: number): RateLimitBucketView | nul
   };
 }
 
-// Called from the scheduled handler. The table carries no index on
+// Called from the queue consumer (sampled, under `waitUntil`) and from the
+// `scheduled` handler if a cron trigger is ever wired up. The table carries no index on
 // `expires_at` — one would double the cost of every counter increment, which is
 // the hottest write in the system, to speed up a sweep that runs once a minute
 // over a table holding only live windows.

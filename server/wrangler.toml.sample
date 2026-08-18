@@ -76,13 +76,12 @@ namespace_id = "10002"
 [observability]
 enabled = true
 
-# The `scheduled` handler sweeps expired rate limit counters, but the trigger is
-# NOT enabled here: the Workers Free plan allows 5 cron triggers per account and
-# this account has none spare, so `wrangler deploy` fails the trigger update
-# while still shipping the code. It is not load-bearing — incrementRateLimitBuckets
-# garbage-collects the keys it touches in its own batch, so the sweep only
-# reclaims keys that have gone permanently silent. Uncomment on Workers Paid or
-# once a slot frees up.
+# No cron trigger: the Workers Free plan allows 5 per account and this one has
+# none spare, so `wrangler deploy` fails the trigger update while still shipping
+# the code. The expiry sweep instead rides the widget-reload queue consumer,
+# sampled and under `waitUntil` (see maybeSweepRateLimitBuckets in index.ts).
+# The `scheduled` handler stays wired to the same function, so uncommenting this
+# on Workers Paid is all it takes to move the sweep onto a cron.
 #
 # [triggers]
 # crons = ["0 * * * *"]

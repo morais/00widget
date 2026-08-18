@@ -134,7 +134,7 @@ describe("listTenantRateLimitBuckets", () => {
   });
 });
 
-describe("the scheduled sweep", () => {
+describe("sweepExpiredRateLimitBuckets", () => {
   it("deletes buckets past their expiry and leaves live ones alone", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
@@ -157,7 +157,9 @@ describe("the scheduled sweep", () => {
     expect(await listTenantRateLimitBuckets(env, "t1")).toHaveLength(0);
   });
 
-  it("is what the cron trigger runs", async () => {
+  // No cron trigger is registered today, but the handler stays wired so
+  // enabling one on Workers Paid is a config change and nothing else.
+  it("is what the scheduled handler runs", async () => {
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
       { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
@@ -168,11 +170,76 @@ describe("the scheduled sweep", () => {
     expect(prepare.mock.calls[0][0]).toContain("DELETE FROM rate_limit_buckets");
   });
 
-  it("survives a failing sweep rather than failing the cron run", async () => {
+  it("survives a failing sweep rather than failing its caller", async () => {
     const env = makeEnv();
     vi.spyOn(env.ZW_DB, "prepare").mockImplementation(() => {
       throw new Error("D1 unavailable");
     });
     await expect(handler.scheduled!(scheduledEvent, env, executionCtx)).resolves.toBeUndefined();
+  });
+});
+
+describe("the queue consumer sweep", () => {
+  function makeBatch(tenantIds: string[], settled: string[]) {
+    return {
+      queue: "zerozerowidget-widget-reloads",
+      messages: tenantIds.map((tenantId, index) => ({
+        id: `m${index}`,
+        timestamp: new Date(),
+        attempts: 1,
+        body: { tenantId },
+        ack() { settled.push(`ack:${tenantId}`); },
+        retry() { settled.push(`retry:${tenantId}`); },
+      })),
+      ackAll() {},
+      retryAll() {},
+    } as unknown as MessageBatch<{ tenantId: string }>;
+  }
+
+  it("sweeps under waitUntil, and only after every message is settled", async () => {
+    const env = makeEnv();
+    await incrementRateLimitBuckets(env, [
+      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+    ]);
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+
+    const settled: string[] = [];
+    const pending: Promise<unknown>[] = [];
+    let settledWhenSwept = -1;
+    const ctx = {
+      waitUntil(task: Promise<unknown>) {
+        settledWhenSwept = settled.length;
+        pending.push(task);
+      },
+    } as unknown as ExecutionContext;
+
+    await handler.queue!(makeBatch(["t1", "t2"], settled) as never, env, ctx);
+    await Promise.all(pending);
+
+    expect(settled).toEqual(["ack:t1", "ack:t2"]);
+    // The sweep must not hold acks: by the time it is handed to waitUntil,
+    // every message in the batch is already settled.
+    expect(settledWhenSwept).toBe(2);
+    expect(pending).toHaveLength(1);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("expires_at < ?"))).toHaveLength(1);
+  });
+
+  it("leaves the table alone when the sample misses", async () => {
+    const env = makeEnv();
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+
+    const settled: string[] = [];
+    const pending: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(task: Promise<unknown>) { pending.push(task); },
+    } as unknown as ExecutionContext;
+
+    await handler.queue!(makeBatch(["t1"], settled) as never, env, ctx);
+
+    expect(settled).toEqual(["ack:t1"]);
+    expect(pending).toHaveLength(0);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("expires_at < ?"))).toHaveLength(0);
   });
 });
