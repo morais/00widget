@@ -79,6 +79,9 @@ interface ToolContext {
   auth: AuthContext;
   ctx: ExecutionContext;
   origin: string;
+  /// What the client says it speaks, from the MCP-Protocol-Version header or
+  /// an initialize request. Decides whether results carry 2026-07-28 fields.
+  protocolVersion: string;
 }
 
 interface McpTool {
@@ -334,7 +337,13 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
   }
 
   const origin = new URL(req.url).origin;
-  const tools: ToolContext = { env, auth, ctx, origin };
+  const tools: ToolContext = {
+    env,
+    auth,
+    ctx,
+    origin,
+    protocolVersion: declaredProtocolVersion(req, payload),
+  };
 
   if (Array.isArray(payload)) {
     if (payload.length === 0) {
@@ -364,11 +373,13 @@ async function dispatch(
   }
   const id = request.id ?? null;
   const isNotification = request.id === undefined || request.id === null;
+  const ok = (result: Record<string, unknown>) =>
+    successResponse(id, result, tools.protocolVersion);
 
   switch (request.method) {
     // Pre-2026-07-28 handshake. Answered for compatibility; nothing is stored.
     case "initialize":
-      return successResponse(id, {
+      return ok({
         protocolVersion: negotiatedProtocolVersion(request.params),
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -378,7 +389,7 @@ async function dispatch(
       });
     // 2026-07-28 replacement for the handshake.
     case "server/discover":
-      return successResponse(id, {
+      return ok({
         protocolVersion: LATEST_PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -387,9 +398,20 @@ async function dispatch(
     case "notifications/cancelled":
       return null;
     case "ping":
-      return isNotification ? null : successResponse(id, {});
+      return isNotification ? null : ok({});
+    // Answered with empty lists rather than -32601. `initialize` advertises only
+    // `tools`, so a client that respects capabilities never asks — but clients
+    // probe anyway, and a JSON-RPC error reads as a broken server where "there
+    // are none of those here" is both true and harmless. Cheap interop
+    // insurance on a method that cannot do anything.
+    case "resources/list":
+      return ok(emptyList("resources"));
+    case "resources/templates/list":
+      return ok(emptyList("resourceTemplates"));
+    case "prompts/list":
+      return ok(emptyList("prompts"));
     case "tools/list":
-      return successResponse(id, {
+      return ok({
         tools: TOOL_DESCRIPTORS,
         ttlMs: TOOL_LIST_TTL_MS,
         cacheScope: "public",
@@ -407,6 +429,8 @@ async function callTool(
   params: unknown,
   tools: ToolContext,
 ): Promise<Record<string, unknown>> {
+  const ok = (result: Record<string, unknown>) =>
+    successResponse(id, result, tools.protocolVersion);
   const call = (params ?? {}) as { name?: unknown; arguments?: unknown };
   if (typeof call.name !== "string") {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.name is required");
@@ -431,7 +455,7 @@ async function callTool(
   // back as a tool error the model can act on, rather than as a bare 400.
   const parsed = tool.schema.safeParse(args);
   if (!parsed.success) {
-    return successResponse(id, toolError(`validation failed: ${parsed.error.message}`));
+    return ok(toolError(`validation failed: ${parsed.error.message}`));
   }
 
   let response: Response;
@@ -445,21 +469,25 @@ async function callTool(
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
   if (!response.ok) {
-    return successResponse(id, toolError(text || `request failed with ${response.status}`));
+    return ok(toolError(text || `request failed with ${response.status}`));
   }
   if (!contentType.includes("application/json")) {
-    return successResponse(id, { content: [{ type: "text", text }] });
+    return ok({ content: [{ type: "text", text }] });
   }
   let structured: unknown;
   try {
     structured = JSON.parse(text);
   } catch {
-    return successResponse(id, { content: [{ type: "text", text }] });
+    return ok({ content: [{ type: "text", text }] });
   }
-  return successResponse(id, {
+  return ok({
     content: [{ type: "text", text }],
     structuredContent: structured,
   });
+}
+
+function emptyList(key: string): Record<string, unknown> {
+  return { [key]: [], ttlMs: TOOL_LIST_TTL_MS, cacheScope: "public" };
 }
 
 function toolError(message: string): Record<string, unknown> {
@@ -474,10 +502,38 @@ function negotiatedProtocolVersion(params: unknown): string {
   return LATEST_PROTOCOL_VERSION;
 }
 
-function successResponse(id: string | number | null, result: Record<string, unknown>) {
-  // `resultType` is required from 2026-07-28 and ignored before it. This server
-  // never asks the client for input mid-call, so every result is complete.
-  return { jsonrpc: "2.0", id, result: { resultType: "complete", ...result } };
+function successResponse(
+  id: string | number | null,
+  result: Record<string, unknown>,
+  protocolVersion: string,
+) {
+  // `resultType` arrived in 2026-07-28. Sending it to a client that negotiated
+  // an earlier revision means putting a field in the response that the schema
+  // it validates against does not define — harmless to a lenient client, fatal
+  // to a strict one, and gaining nothing either way. Emit it only for clients
+  // that speak the revision requiring it. This server never asks the client for
+  // input mid-call, so every result it does emit is complete.
+  const body = protocolVersion === LATEST_PROTOCOL_VERSION
+    ? { resultType: "complete", ...result }
+    : result;
+  return { jsonrpc: "2.0", id, result: body };
+}
+
+/// The revision the client claims, from the transport header the 2026-07-28
+/// revision defines or from an `initialize` still using the old handshake.
+/// Absent both, assume a pre-2026 client, which is the safe assumption: it
+/// means withholding a field rather than inventing one.
+function declaredProtocolVersion(req: Request, payload: unknown): string {
+  const header = req.headers.get("mcp-protocol-version")?.trim();
+  if (header) return header;
+  const entries = Array.isArray(payload) ? payload : [payload];
+  for (const entry of entries) {
+    const params = (entry as JsonRpcRequest | undefined)?.params as
+      | { protocolVersion?: unknown }
+      | undefined;
+    if (typeof params?.protocolVersion === "string") return params.protocolVersion;
+  }
+  return "";
 }
 
 function errorResponse(id: string | number | null, code: number, message: string) {

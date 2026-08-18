@@ -149,10 +149,62 @@ describe("MCP handshake", () => {
     expect(await res.text()).toBe("");
   });
 
+  it("sends 2026-07-28 result fields only to clients that speak it", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+
+    const older = await rpc(env, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-06-18" },
+    });
+    // `resultType` is not in that revision's schema; a strict client validating
+    // against it should not be handed a field it has never heard of.
+    expect(((await older.json()) as JsonRpcResult).result?.resultType).toBeUndefined();
+
+    const newer = await rpc(env, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2026-07-28" },
+    });
+    expect(((await newer.json()) as JsonRpcResult).result?.resultType).toBe("complete");
+  });
+
+  it("reads the negotiated revision from the transport header too", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const req = authedRequest("https://api.example.com/mcp", {
+      method: "POST",
+      headers: { "mcp-protocol-version": "2026-07-28" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    const body = (await (await fetchWorker(req, env, ctx)).json()) as JsonRpcResult;
+    expect(body.result?.resultType).toBe("complete");
+  });
+
+  it("answers the list methods it does not implement with empty lists, not errors", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    for (const [method, key] of [
+      ["resources/list", "resources"],
+      ["resources/templates/list", "resourceTemplates"],
+      ["prompts/list", "prompts"],
+    ]) {
+      const res = await rpc(env, { jsonrpc: "2.0", id: 3, method });
+      const body = (await res.json()) as JsonRpcResult;
+      // A client that probes these should learn there are none, not that the
+      // server is broken.
+      expect(body.error, method).toBeUndefined();
+      expect(body.result?.[key], method).toEqual([]);
+    }
+  });
+
   it("rejects an unknown method with -32601", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
-    const res = await rpc(env, { jsonrpc: "2.0", id: 2, method: "resources/list" });
+    const res = await rpc(env, { jsonrpc: "2.0", id: 2, method: "sampling/createMessage" });
     const body = (await res.json()) as JsonRpcResult;
     expect(body.error?.code).toBe(-32601);
   });
