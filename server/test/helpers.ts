@@ -166,6 +166,19 @@ export class FakeD1 {
     return [...this.apiKeys.values()].find((candidate) => candidate.id === id);
   }
 
+  private deleteExpiredRateLimitBuckets(values: unknown[]): number {
+    const [now, limit] = values.map(Number);
+    let count = 0;
+    for (const [key, row] of this.rateLimitBuckets.entries()) {
+      if (count >= limit) break;
+      if (Number(row.expires_at) < now) {
+        this.rateLimitBuckets.delete(key);
+        count++;
+      }
+    }
+    return count;
+  }
+
   private upsertRateLimitBucket(values: unknown[]): number {
     const [bucket_key, window_start, expires_at] = [
       String(values[0]),
@@ -688,16 +701,8 @@ export class FakeD1 {
       }
       return count;
     }
-    if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE expires_at < ?")) {
-      const [now] = values.map(Number);
-      let count = 0;
-      for (const [key, row] of this.rateLimitBuckets.entries()) {
-        if (Number(row.expires_at) < now) {
-          this.rateLimitBuckets.delete(key);
-          count++;
-        }
-      }
-      return count;
+    if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE rowid IN")) {
+      return this.deleteExpiredRateLimitBuckets(values);
     }
     if (normalized.startsWith("INSERT INTO rate_limit_buckets")) {
       this.upsertRateLimitBucket(values);
@@ -812,6 +817,10 @@ export class FakeD1 {
     if (normalized === "SELECT apple_sub, tenant_id, email FROM apple_accounts WHERE apple_sub = ?") {
       const [apple_sub] = values.map(String);
       return pick(this.appleAccounts.get(apple_sub), ["apple_sub", "tenant_id", "email"]);
+    }
+    if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE rowid IN")) {
+      const removed = this.deleteExpiredRateLimitBuckets(values);
+      return Array.from({ length: removed }, (_, index) => ({ rowid: index + 1 }));
     }
     if (normalized.startsWith("INSERT INTO rate_limit_buckets") && normalized.endsWith("RETURNING count")) {
       return [{ count: this.upsertRateLimitBucket(values) } as unknown as FakeApiKeyRow];

@@ -230,21 +230,51 @@ function bucketRowToView(row: BucketRow, now: number): RateLimitBucketView | nul
   };
 }
 
+// Reclaims buckets no request will touch again — the counter of a Live Activity
+// that has ended, of a card that was deleted. Live keys collect themselves in
+// `incrementRateLimitBuckets`; these are the orphans, and their key space grows
+// with events rather than with tenants.
+//
 // Called from the queue consumer (sampled, under `waitUntil`) and from the
-// `scheduled` handler if a cron trigger is ever wired up. The table carries no index on
-// `expires_at` — one would double the cost of every counter increment, which is
-// the hottest write in the system, to speed up a sweep that runs once a minute
-// over a table holding only live windows.
-export async function sweepExpiredRateLimitBuckets(env: Env): Promise<void> {
+// `scheduled` handler if a cron trigger is ever wired up.
+//
+// The work is bounded on purpose. There is no index on `expires_at` — one would
+// double the cost of every counter increment, the hottest write in the system —
+// so an unqualified `DELETE ... WHERE expires_at < ?` scans the table, and it
+// would do so most expensively in exactly the situation that makes the sweep
+// worth running. Deleting by `rowid` from a `LIMIT`ed subquery costs a rowid
+// seek per row and a scan that stops at the first full chunk, so one call is
+// bounded no matter how far behind the table has fallen. Chunks repeat up to a
+// ceiling and stop early on a short one, which is what lets a single call still
+// make real progress against a backlog.
+const SWEEP_CHUNK_SIZE = 500;
+const SWEEP_MAX_CHUNKS = 10;
+
+export async function sweepExpiredRateLimitBuckets(env: Env): Promise<number> {
+  let deleted = 0;
   try {
-    await env.ZW_DB.prepare(`DELETE FROM rate_limit_buckets WHERE expires_at < ?`)
-      .bind(nowSeconds())
-      .run();
+    for (let chunk = 0; chunk < SWEEP_MAX_CHUNKS; chunk += 1) {
+      const result = await env.ZW_DB.prepare(
+        `DELETE FROM rate_limit_buckets WHERE rowid IN (
+           SELECT rowid FROM rate_limit_buckets WHERE expires_at < ? LIMIT ?
+         ) RETURNING rowid`,
+      )
+        .bind(nowSeconds(), SWEEP_CHUNK_SIZE)
+        .all<{ rowid: number }>();
+      // Counted from RETURNING rather than `meta.changes`: the rows deleted are
+      // the loop's exit condition, and this way the count comes from the same
+      // statement that did the work instead of a metadata field whose presence
+      // is not part of any contract we can check.
+      const removed = result.results.length;
+      deleted += removed;
+      if (removed < SWEEP_CHUNK_SIZE) break;
+    }
   } catch (err) {
     console.warn("rate_limit.cleanup_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+  return deleted;
 }
 
 function nowSeconds(): number {

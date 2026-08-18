@@ -170,6 +170,47 @@ describe("sweepExpiredRateLimitBuckets", () => {
     expect(prepare.mock.calls[0][0]).toContain("DELETE FROM rate_limit_buckets");
   });
 
+  // Seeds distinct keys so the sweep has a backlog to chew through. Each key is
+  // its own bucket row, which is exactly the shape orphaned per-resource
+  // counters take in production.
+  async function seedExpiredBuckets(env: Awaited<ReturnType<typeof makeEnv>>, count: number) {
+    vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
+    for (let index = 0; index < count; index += 1) {
+      await incrementRateLimitBuckets(env, [
+        { policy: "cardUpsertCardHour", key: `tenant:t1:card:c${index}` },
+      ]);
+    }
+    // Past the two-window expires_at, so every row above is now collectable.
+    vi.setSystemTime(new Date("2026-08-17T13:00:00Z"));
+  }
+
+  it("drains a backlog in chunks and stops on a short one", async () => {
+    vi.useFakeTimers();
+    const env = makeEnv();
+    await seedExpiredBuckets(env, 1200);
+
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    expect(await sweepExpiredRateLimitBuckets(env)).toBe(1200);
+    // 500 + 500 + 200, and the short chunk ends the loop.
+    expect(prepare).toHaveBeenCalledTimes(3);
+  });
+
+  // The property that matters is the ceiling, not the throughput: one call must
+  // cost a bounded amount of work however far behind the table has fallen,
+  // because the sweep is at its most expensive exactly when it matters most.
+  it("stops at its chunk ceiling instead of draining the whole table", async () => {
+    vi.useFakeTimers();
+    const env = makeEnv();
+    await seedExpiredBuckets(env, 5100);
+
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    expect(await sweepExpiredRateLimitBuckets(env)).toBe(5000);
+    expect(prepare).toHaveBeenCalledTimes(10);
+
+    // The remainder is still there, and the next sweep takes it.
+    expect(await sweepExpiredRateLimitBuckets(env)).toBe(100);
+  });
+
   it("survives a failing sweep rather than failing its caller", async () => {
     const env = makeEnv();
     vi.spyOn(env.ZW_DB, "prepare").mockImplementation(() => {
