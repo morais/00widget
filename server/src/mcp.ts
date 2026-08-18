@@ -315,16 +315,12 @@ export async function handleMcpMethodNotAllowed(_req: Request, env: Env): Promis
 export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
 
-  let payload: unknown;
-  try {
-    payload = JSON.parse(await readBodyUpTo(req, RequestBodyLimits.mcpRpc));
-  } catch {
-    return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
-  }
-
-  // A batch of notifications alone gets an empty 202, so authenticate first
-  // only when the batch actually asks for something. Every method this server
-  // implements needs a tenant, including tools/list.
+  // Authenticate before reading the body. The 401 carries the pointer a client
+  // needs to find the authorization server, so it must survive a body we cannot
+  // parse — otherwise a client probing the endpoint with an empty or malformed
+  // POST gets a bare 400, learns nothing about how to authenticate, and has no
+  // way forward. Parsing first also made that case invisible in the logs: it
+  // returned before anything was written.
   let auth: AuthContext;
   try {
     auth = await requireAuth(req, env);
@@ -332,8 +328,30 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     if (err instanceof AuthRateLimitError) {
       return json({ error: err.message }, 429, { "retry-after": "60" });
     }
-    if (err instanceof AuthError) return mcpUnauthorized(req, err.message);
+    if (err instanceof AuthError) {
+      // A rejected MCP request is close to undiagnosable from the outside: the
+      // client retries discovery and reports its own generic failure, so the
+      // only place the distinction between "sent no credential" and "sent one
+      // we refused" exists is here. No token material is logged.
+      console.warn("mcp request rejected", {
+        hasAuthorizationHeader: req.headers.has("authorization"),
+        protocolVersion: declaredProtocolVersion(req, null) || "(unstated)",
+        reason: err.message,
+      });
+      return mcpUnauthorized(req, err.message);
+    }
     throw err;
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(await readBodyUpTo(req, RequestBodyLimits.mcpRpc));
+  } catch {
+    console.warn("mcp body rejected", {
+      contentType: req.headers.get("content-type") ?? "(none)",
+      contentLength: req.headers.get("content-length") ?? "(none)",
+    });
+    return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
   const origin = new URL(req.url).origin;

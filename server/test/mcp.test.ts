@@ -362,12 +362,33 @@ describe("JSON-RPC framing", () => {
     expect(body[0].id).toBe(1);
   });
 
-  it("rejects a malformed body with -32700 before authenticating", async () => {
+  it("rejects a malformed body with -32700 once the caller is authenticated", async () => {
     const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const req = authedRequest("https://api.example.com/mcp", { method: "POST", body: "{oops" });
     const res = await fetchWorker(req, env, ctx);
     expect(res.status).toBe(400);
     expect(((await res.json()) as JsonRpcResult).error?.code).toBe(-32700);
+  });
+
+  it("still answers an unparseable anonymous request with the auth challenge", async () => {
+    // A client probing the endpoint with an empty or malformed POST has to
+    // learn where to authorize. Answering 400 tells it nothing and leaves it
+    // with nowhere to go, which is how a connector ends up retrying discovery
+    // forever.
+    for (const body of ["", "{oops"]) {
+      const res = await fetchWorker(
+        new Request("https://api.example.com/mcp", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+        mcpEnv(),
+        ctx,
+      );
+      expect(res.status, JSON.stringify(body)).toBe(401);
+      expect(res.headers.get("www-authenticate"), JSON.stringify(body)).toContain("resource_metadata=");
+    }
   });
 });
 
