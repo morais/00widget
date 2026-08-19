@@ -427,6 +427,21 @@ export const DashboardCardInputSchema = z.object({
 
 export const BatchUpsertCardsSchema = z
   .object({
+    // Deleting what a snapshot no longer contains, scoped to a prefix the
+    // producer owns. Without it there is no way to shrink: a producer that
+    // stops reporting something, or renames its ids, leaves the old cards on
+    // the operator's Home Screen forever, and only the operator can remove
+    // them. Scoped rather than global because an account may carry cards from
+    // several producers, and none of them may sweep the others away.
+    replacePrefix: CardIdInputString
+      .describe(
+        "Delete this tenant's cards whose id starts with this prefix and that "
+        + "are absent from `cards`. Use the namespace you already publish under "
+        + "(\"myapp-\"), so one producer's snapshot can never remove another's "
+        + "cards. Every card in the batch must start with it, which is what "
+        + "stops a typo from deleting everything.",
+      )
+      .optional(),
     cards: z
       .array(DashboardCardInputSchema)
       .min(1)
@@ -449,6 +464,17 @@ export const BatchUpsertCardsSchema = z
         });
       }
       seen.add(card.id);
+      // A batch that deletes by prefix must be entirely inside that prefix.
+      // Otherwise a mistyped `replacePrefix` still publishes every card and
+      // then deletes a namespace nothing in the request belongs to — a
+      // destructive no-op that looks like success.
+      if (value.replacePrefix !== undefined && !card.id.startsWith(value.replacePrefix)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cards", index, "id"],
+          message: `must start with replacePrefix "${value.replacePrefix}"`,
+        });
+      }
     }
   });
 

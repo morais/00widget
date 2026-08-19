@@ -802,6 +802,67 @@ describe("cards endpoints", () => {
   });
 });
 
+describe("batch replacePrefix", () => {
+  const batch = (env: ReturnType<typeof makeEnv>, body: unknown) =>
+    (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert-batch", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+      env,
+      executionCtx,
+    );
+  const ids = async (env: ReturnType<typeof makeEnv>) => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    return ((await res.json()) as { cards: Array<{ id: string }> }).cards.map((c) => c.id);
+  };
+
+  it("deletes what the snapshot no longer contains, inside the prefix only", async () => {
+    const env = makeEnv();
+    await batch(env, {
+      cards: [
+        { id: "myapp-api", template: "summary", title: "API" },
+        { id: "myapp-queue", template: "summary", title: "Queue" },
+        { id: "myapp-database", template: "summary", title: "DB" },
+      ],
+    });
+    // Another producer on the same account. It must survive.
+    await batch(env, { cards: [{ id: "other-solar", template: "summary", title: "Solar" }] });
+
+    const res = await batch(env, {
+      replacePrefix: "myapp-",
+      cards: [
+        { id: "myapp-api", template: "summary", title: "API" },
+        { id: "myapp-queue", template: "summary", title: "Queue" },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()) as any).toMatchObject({ removed: ["myapp-database"] });
+    expect(await ids(env)).toEqual(["myapp-api", "myapp-queue", "other-solar"]);
+  });
+
+  it("refuses a batch carrying a card outside the prefix it would clear", async () => {
+    // The guard that makes this safe: a mistyped prefix would otherwise publish
+    // everything and clear a namespace nothing in the request belongs to.
+    const res = await batch(makeEnv(), {
+      replacePrefix: "myapp-",
+      cards: [{ id: "typo-api", template: "summary", title: "API" }],
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("replacePrefix");
+  });
+
+  it("says nothing about removals when the prefix is absent", async () => {
+    const env = makeEnv();
+    const res = await batch(env, { cards: [{ id: "a", template: "summary", title: "A" }] });
+    expect(await res.json()).not.toHaveProperty("removed");
+  });
+});
+
 describe("card ordering", () => {
   const seed = async (env: ReturnType<typeof makeEnv>, cards: Array<Record<string, unknown>>) => {
     for (const card of cards) {

@@ -85,13 +85,32 @@ export async function upsertCardsBatch(
     updatedAt: card.updatedAt ?? receivedAt,
   }));
   const cards = await storage.putCards(env, auth.tenantId, auth.apiKeyHash, inputCards);
+
+  // Anything under the prefix that this snapshot no longer contains. Computed
+  // after the write, so a card that is both stored and absent cannot exist for
+  // a moment in between; and one at a time through `deleteCardForTenant`, so a
+  // removed card still revokes its shares and reaches the devices showing it.
+  const removed: string[] = [];
+  if (parsed.data.replacePrefix !== undefined) {
+    const keep = new Set(cards.map((card) => card.id));
+    const existing = await storage.listCards(env, auth.tenantId);
+    for (const card of existing) {
+      if (!card.id.startsWith(parsed.data.replacePrefix) || keep.has(card.id)) continue;
+      await deleteCardForTenant(env, auth.tenantId, card.id, ctx);
+      removed.push(card.id);
+    }
+  }
+
   scheduleWidgetReloadForCards(
     ctx,
     env,
     auth.tenantId,
     cards.map((card) => card.id),
   );
-  return json({ cards }, 200);
+  return json(
+    parsed.data.replacePrefix === undefined ? { cards } : { cards, removed },
+    200,
+  );
 }
 
 export async function listCards(req: Request, env: Env, auth: AuthContext): Promise<Response> {

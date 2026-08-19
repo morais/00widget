@@ -334,9 +334,17 @@ const TOOLS: McpTool[] = [
     description:
       "Create or replace up to 32 cards in one call. Always prefer this over repeated upsert_card "
       + "when one snapshot produces several related cards: it makes a single widget-reload decision "
-      + "instead of burning WidgetKit's daily reload budget once per card.",
+      + "instead of burning WidgetKit's daily reload budget once per card. Set `replacePrefix` to "
+      + "your own id namespace and the snapshot also deletes what it no longer contains, which is "
+      + "the only way to stop reporting something without leaving a dead card behind.",
     schema: BatchUpsertCardsSchema,
-    outputSchema: z.object({ cards: z.array(DashboardCardSchema) }),
+    outputSchema: z.object({
+      cards: z.array(DashboardCardSchema),
+      removed: z.array(z.string()).optional().describe(
+        "Ids deleted because they were under `replacePrefix` and absent from this snapshot. "
+        + "Present only when `replacePrefix` was sent.",
+      ),
+    }),
     scope: "publish",
     readOnly: false,
     destructive: false,

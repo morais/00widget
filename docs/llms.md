@@ -456,6 +456,41 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert-batch" \
 
 Card ids must be unique within the batch. The per-card schema and stable-id rules are identical to the single-card endpoint. Keep the single-card endpoint for genuinely independent updates; never implement a multi-card snapshot as `Promise.all(cards.map(upsert))`.
 
+#### Letting a snapshot shrink
+
+Publishing only ever adds. A producer that stops reporting something, or
+renames its ids, leaves the old cards on the operator's Home Screen forever —
+and only the operator can remove them.
+
+Send `replacePrefix` with your own id namespace and the batch becomes the whole
+truth for that namespace: anything under the prefix that the snapshot does not
+contain is deleted.
+
+```json
+{
+  "replacePrefix": "myapp-",
+  "cards": [
+    {"id": "myapp-api", "template": "summary", "title": "API", "value": "Healthy"},
+    {"id": "myapp-queue", "template": "summary", "title": "Queue", "value": "12"}
+  ]
+}
+```
+
+If `myapp-database` existed before that call, it is gone after it, and the
+response says so:
+
+```json
+{ "cards": [ ... ], "removed": ["myapp-database"] }
+```
+
+Two rules keep it from being dangerous. **Every card in the batch must start
+with the prefix** — otherwise a mistyped `replacePrefix` would publish
+everything and then clear a namespace nothing in the request belongs to, which
+looks exactly like success. And the prefix scopes the deletion, so one
+producer's snapshot can never sweep away another's cards on the same account.
+Use the namespace you already publish under; if you have not been namespacing
+your ids, start before you use this.
+
 To verify the stored card, including `deepLink`, call:
 
 ```sh

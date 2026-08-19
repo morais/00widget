@@ -24,7 +24,7 @@ chmod +x *.sh
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.
-- `upsert-batch-snapshot.sh` — three related cards from one snapshot through `/v1/cards/upsert-batch`, which is the preferred integration whenever a producer run emits more than one card.
+- `upsert-batch-snapshot.sh` — three related cards from one snapshot through `/v1/cards/upsert-batch`, which is the preferred integration whenever a producer run emits more than one card. It also shows `replacePrefix`, which lets the snapshot delete what it no longer contains inside one id namespace.
 
 Each call:
 1. Stores the latest state on the backend.
