@@ -17,18 +17,20 @@ chmod +x *.sh
 ### Dashboard cards (`/v1/cards/upsert`)
 
 - `upsert-solar.sh` — a `summary` card for solar export.
+- `upsert-progress.sh` — a `progress` card: `progress` draws the bar, `value` is the label beside it, and `deadline` counts down on the device.
 - `upsert-school-balances.sh` — a `list` card with sub-items, ranked by their `amount`.
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
 - `upsert-energy-chart.sh` — a `chart` card plotting a 10-point series as a sparkline, with a dashed `reference` target.
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.
+- `upsert-batch-snapshot.sh` — three related cards from one snapshot through `/v1/cards/upsert-batch`, which is the preferred integration whenever a producer run emits more than one card.
 
 Each call:
 1. Stores the latest state on the backend.
 2. Makes a budget-aware WidgetKit reload decision for devices whose configured widgets can display that card.
 
-If one producer run emits multiple related cards, use `/v1/cards/upsert-batch` with `{ "cards": [...] }`. The Worker stores the batch efficiently and makes one reload decision instead of one per card.
+If one producer run emits multiple related cards, use `/v1/cards/upsert-batch` with `{ "cards": [...] }` — `upsert-batch-snapshot.sh` shows the shape. The Worker stores the batch efficiently and makes one reload decision instead of one per card, where a loop over the single-card endpoint spends the account's reload budget once per card and can leave widgets showing a half-updated picture in between.
 
 ### Live Activities (`/v1/live-activities/*`)
 
