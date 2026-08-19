@@ -1237,7 +1237,7 @@ If you're integrating from Vercel, Lambda, a Cloudflare Pages static site (no fu
 
 ## Where to look for more
 
-- The full public API surface is documented in [`server/README.md`](../server/README.md).
+- The endpoints an integration calls are listed in [`server/README.md`](../server/README.md), which also says which routes it deliberately leaves out and why.
 - The data model in TypeScript (zod) lives at [`server/src/types.ts`](../server/src/types.ts).
 - The same model in Swift (for reference) lives at [`ios/Sources/Shared/Models/`](../ios/Sources/Shared/Models/).
 - The static-attributes / dynamic-content-state split that freezes a Live Activity's `title` is Apple's, described in [`ActivityAttributes`](https://developer.apple.com/documentation/activitykit/activityattributes) and [Displaying live data with Live Activities](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).

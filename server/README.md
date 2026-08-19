@@ -227,6 +227,26 @@ The Worker never stores the `.p8` to disk; it's kept only as a secret.
 
 ## Endpoints
 
+The routes a producer, an agent, or the iOS app calls. Deliberately not the
+whole router — these are excluded, and adding them here would suggest they are
+something to integrate against:
+
+- `/v1/shares/*` and `/v1/guest/*`. Sharing between accounts and read-only guest
+  links are driven from the iOS app, on credentials it holds itself. A guest
+  token reaches exactly two routes and no others, which is the enforcement; see
+  the note on guest links in `AGENTS.md`.
+- `/v1/subscription`, `/v1/subscription/verify`, and
+  `/v1/apple/subscription-notifications`. The first two are the app's StoreKit
+  handshake; the third is Apple's, authenticated by the JWS signature on its
+  body rather than by a credential. No integration calls any of them.
+- `/v1/actions/:id/run-confirmed`. The app-only counterpart of `run`, requiring
+  an app credential *and* the `actions:confirm` scope. It exists so a
+  destructive or confirmed action can never be triggered from a widget.
+- `/llms.md`, `/llms.txt`, `/app/g`, and
+  `/.well-known/apple-app-site-association`. Documentation, the browser
+  fallback page for a guest link, and Apple's associated-domains file. All are
+  fetched by tools and by iOS, never by an integration.
+
 | Method | Path                                         | Purpose                                |
 | ------ | -------------------------------------------- | -------------------------------------- |
 | GET    | `/health`                                    | Health check, no auth.                 |
