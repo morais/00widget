@@ -152,10 +152,7 @@ public final class SubscriptionController: ObservableObject {
     private func loadProducts() async {
         guard !productIds.isEmpty else { return }
         do {
-            let requested = productIds.joined(separator: ",")
-            Self.log.error("ZWDIAG requesting products: \(requested, privacy: .public)")
             let loaded = try await Product.products(for: productIds)
-            Self.log.error("ZWDIAG loaded \(loaded.count, privacy: .public) products")
             // Cheapest first so monthly leads and the yearly saving reads as an
             // upgrade rather than as the default.
             products = loaded.sorted { $0.price < $1.price }
@@ -163,7 +160,7 @@ public final class SubscriptionController: ObservableObject {
                 isEligibleForIntroOffer = await group.isEligibleForIntroOffer
             }
         } catch {
-            Self.log.error("ZWDIAG product load failed: \(String(describing: error), privacy: .public)")
+            Self.log.error("product load failed: \(String(describing: error), privacy: .public)")
         }
     }
 
