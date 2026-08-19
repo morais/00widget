@@ -89,9 +89,9 @@ const routes: Route[] = [
   authed("GET", /^\/v1\/dashboard\/?$/, "tenant:read", (req, env, auth) =>
     dashboard.getDashboard(req, env, auth),
   ),
-  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "tenant:read", (req, env, auth, m) => cards.getCard(req, env, auth, m[1])),
+  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "tenant:read", (req, env, auth, m) => cards.getCard(req, env, auth, pathParam(m[1]))),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, "publish", (req, env, auth, m, ctx) =>
-    cards.deleteCard(req, env, auth, m[1], ctx)),
+    cards.deleteCard(req, env, auth, pathParam(m[1]), ctx)),
   authed("POST", /^\/v1\/devices\/register\/?$/, "device:register", (req, env, auth) => devices.registerDevice(req, env, auth)),
   authed("POST", /^\/v1\/widgets\/register-push-token\/?$/, "device:register", (req, env, auth) =>
     widgets.registerWidgetPushToken(req, env, auth),
@@ -130,10 +130,10 @@ const routes: Route[] = [
     actions.deleteWebhookIntegration(req, env, auth),
   ),
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, "actions:run", (req, env, auth, m, ctx) =>
-    actions.runAction(req, env, auth, m[1], ctx),
+    actions.runAction(req, env, auth, pathParam(m[1]), ctx),
   ),
   authed("POST", /^\/v1\/actions\/([^/]+)\/run-confirmed\/?$/, "actions:confirm", (req, env, auth, m, ctx) =>
-    actions.runConfirmedAction(req, env, auth, m[1], ctx), { credentialKind: "app" },
+    actions.runConfirmedAction(req, env, auth, pathParam(m[1]), ctx), { credentialKind: "app" },
   ),
   authed("POST", /^\/v1\/shares\/?$/, "shares:manage", (req, env, auth) => shares.createShare(req, env, auth)),
   authed("GET", /^\/v1\/shares\/outgoing\/?$/, "shares:manage", (req, env, auth) => shares.listOutgoing(req, env, auth)),
@@ -149,7 +149,7 @@ const routes: Route[] = [
     guestLinks.listGuestLinks(req, env, auth),
   ),
   authed("DELETE", /^\/v1\/shares\/guest\/([^/]+)\/?$/, "shares:manage", (req, env, auth, m) =>
-    guestLinks.revokeGuestLink(req, env, auth, m[1]),
+    guestLinks.revokeGuestLink(req, env, auth, pathParam(m[1])),
   ),
   authed("GET", /^\/v1\/guest\/resource\/?$/, "guest:read", (req, env, auth) =>
     guestLinks.getGuestResource(req, env, auth), { credentialKind: "guest" },
@@ -158,13 +158,13 @@ const routes: Route[] = [
     guestLinks.registerGuestActivity(req, env, auth), { credentialKind: "guest" },
   ),
   authed("POST", /^\/v1\/shares\/([^/]+)\/accept\/?$/, "shares:manage", (req, env, auth, m) =>
-    shares.acceptShare(req, env, auth, m[1]),
+    shares.acceptShare(req, env, auth, pathParam(m[1])),
   ),
   authed("POST", /^\/v1\/shares\/([^/]+)\/decline\/?$/, "shares:manage", (req, env, auth, m) =>
-    shares.declineShare(req, env, auth, m[1]),
+    shares.declineShare(req, env, auth, pathParam(m[1])),
   ),
   authed("DELETE", /^\/v1\/shares\/([^/]+)\/?$/, "shares:manage", (req, env, auth, m) =>
-    shares.revokeShare(req, env, auth, m[1]),
+    shares.revokeShare(req, env, auth, pathParam(m[1])),
   ),
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
@@ -191,22 +191,22 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/logout\/?$/, handler: (req, env) => webLogin.handleLogout(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/?$/, handler: (req, env) => admin.handleAdminCreateApiKey(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
-    admin.handleAdminRevokeApiKey(req, env, match[1]),
+    admin.handleAdminRevokeApiKey(req, env, pathParam(match[1])),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/cards\/([^/]+)\/delete\/?$/, handler: (req, env, match, ctx) =>
-    admin.handleAdminDeleteCard(req, env, match[1], match[2], ctx),
+    admin.handleAdminDeleteCard(req, env, pathParam(match[1]), pathParam(match[2]), ctx),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/widget-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
-    admin.handleAdminDeleteWidgetToken(req, env, match[1], match[2], match[3]),
+    admin.handleAdminDeleteWidgetToken(req, env, pathParam(match[1]), pathParam(match[2]), pathParam(match[3])),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/live-activities\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
-    admin.handleAdminDeleteLiveActivity(req, env, match[1], match[2]),
+    admin.handleAdminDeleteLiveActivity(req, env, pathParam(match[1]), pathParam(match[2])),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/pending-live-activities\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
-    admin.handleAdminDeletePendingLiveActivity(req, env, match[1], match[2]),
+    admin.handleAdminDeletePendingLiveActivity(req, env, pathParam(match[1]), pathParam(match[2])),
   },
   { method: "POST", pattern: /^\/admin\/tenants\/([^/]+)\/start-tokens\/([^/]+)\/([^/]+)\/delete\/?$/, handler: (req, env, match) =>
-    admin.handleAdminDeleteStartToken(req, env, match[1], match[2], match[3]),
+    admin.handleAdminDeleteStartToken(req, env, pathParam(match[1]), pathParam(match[2]), pathParam(match[3])),
   },
   // Any signed-in person may connect a client to their own account, so this is
   // not an /admin route.
@@ -216,6 +216,19 @@ const routes: Route[] = [
   },
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
+
+/// A captured path segment, decoded. Route patterns capture the raw text, so
+/// an id carrying anything that needs escaping used to be looked up in its
+/// still-encoded form and never found: `GET /v1/cards/my%20card` searched for
+/// the literal `my%20card`. A malformed escape is passed through rather than
+/// throwing — the lookup 404s either way, and a 500 would be the wrong answer.
+function pathParam(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
 
 type AuthedHandler = (
   req: Request,

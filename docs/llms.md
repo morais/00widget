@@ -243,7 +243,7 @@ Card field limits:
 
 | Field | Limit |
 | ----- | ----: |
-| `id` | 96 chars |
+| `id` | 96 chars, `[A-Za-z0-9._:-]` only |
 | `title` | 120 chars |
 | `subtitle` | 240 chars |
 | `value` | 80 chars |
@@ -262,7 +262,7 @@ Action payload limits:
 
 | Field | Limit |
 | ----- | ----: |
-| `id` | 96 chars |
+| `id` | 96 chars, `[A-Za-z0-9._:-]` only |
 | `label` | 80 chars |
 | `payload` keys | 16 keys |
 | payload key | 64 chars |
@@ -474,7 +474,9 @@ produce the right thing.
 
 ### Stable ids
 
-The `id` field is the dedupe key. Pick a slug that's stable across runs of your code:
+The `id` field is the dedupe key, and it is also a URL path segment
+(`/v1/cards/<id>`), so it may contain only letters, digits, and `.` `_` `:` `-`.
+Anything else is a `400`. Pick a slug that's stable across runs of your code:
 
 - `solar-home`, `washer-cycle`, `car-charge`, `school-balance-<child>`, `build-status-<repo>`
 - **Don't** put timestamps or run ids in there — every publish would create a new card.

@@ -64,6 +64,21 @@ export const FieldLimits = {
 
 const IdString = z.string().min(1).max(FieldLimits.id);
 const CardIdString = z.string().min(1).max(FieldLimits.cardId);
+
+// Card and action ids are addressed as URL path segments — `/v1/cards/<id>`,
+// `/v1/actions/<id>/run` — so they have to survive that round trip. They did
+// not: any id was accepted, and one containing a `/` produced a card that
+// could be created and then never read or deleted through the API, because the
+// route pattern is `([^/]+)`. A space was enough to strand one too.
+//
+// Constrained on the way in only. Stored rows keep the permissive shape so a
+// card written before this rule still loads, and the path decoding added
+// alongside it means a percent-encoded id can now reach one to delete it.
+const URL_SAFE_ID = /^[A-Za-z0-9._:-]+$/;
+const URL_SAFE_ID_MESSAGE =
+  "must contain only letters, digits, and . _ : - (it is used as a URL path segment)";
+const CardIdInputString = CardIdString.regex(URL_SAFE_ID, URL_SAFE_ID_MESSAGE);
+const ActionIdInputString = IdString.regex(URL_SAFE_ID, URL_SAFE_ID_MESSAGE);
 const TitleString = z.string().min(1).max(FieldLimits.title);
 const OptionalSubtitleString = z.string().max(FieldLimits.subtitle).optional();
 const OptionalValueString = z.string().max(FieldLimits.value).optional();
@@ -144,6 +159,7 @@ export const ActionDefinitionSchema = z.object(ActionDefinitionFields);
 // payload before persisting the public card JSON.
 export const ActionDefinitionInputSchema = z.object({
   ...ActionDefinitionFields,
+  id: ActionIdInputString,
   payload: ActionPayloadSchema.optional(),
 });
 
@@ -266,6 +282,7 @@ export const DashboardCardSchema = z.object({
 
 export const DashboardCardInputSchema = z.object({
   ...DashboardCardFields,
+  id: CardIdInputString,
   actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional(),
 });
 

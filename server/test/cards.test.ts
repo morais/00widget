@@ -74,6 +74,35 @@ describe("DashboardCardSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("rejects ids that cannot survive a URL path segment", () => {
+    const card = (id: string) => ({ id, template: "summary" as const, title: "x" });
+    for (const good of ["solar-home", "myapp.build_status", "school-balance:child-1", "473"]) {
+      expect(DashboardCardInputSchema.safeParse(card(good)).success, good).toBe(true);
+    }
+    // Each of these used to publish successfully and then be unreachable by
+    // `GET`/`DELETE /v1/cards/<id>`, because the route pattern is `([^/]+)`
+    // and the segment was never decoded.
+    for (const bad of ["a/b", "my card", "a?b", "a#b", "a%2Fb"]) {
+      expect(DashboardCardInputSchema.safeParse(card(bad)).success, bad).toBe(false);
+    }
+  });
+
+  it("rejects action ids that cannot survive a URL path segment", () => {
+    const withAction = (id: string) => ({
+      id: "boiler",
+      template: "action" as const,
+      title: "Boiler",
+      actions: [{ id, label: "Boost" }],
+    });
+    expect(DashboardCardInputSchema.safeParse(withAction("boost-1h")).success).toBe(true);
+    expect(DashboardCardInputSchema.safeParse(withAction("boost 1h")).success).toBe(false);
+  });
+
+  it("still reads a stored card whose id predates that rule", () => {
+    const parsed = DashboardCardSchema.safeParse({ id: "a/b", template: "summary", title: "x" });
+    expect(parsed.success).toBe(true);
+  });
+
   it("rejects unknown template values", () => {
     expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });
@@ -719,5 +748,44 @@ describe("cards endpoints", () => {
     await expect(
       storage.listWidgetTokensForKind(env, "tenant-a", "ZeroZeroWidgetCardWidget"),
     ).resolves.toEqual(["card-a"]);
+  });
+});
+
+describe("path parameter decoding", () => {
+  it("reaches a stored card whose id needs percent-encoding", async () => {
+    const env = makeEnv();
+    // The schema refuses this id now, so write it the way a card stored before
+    // that rule exists: straight into storage.
+    await storage.putCard(env, "test-tenant", await sha256Hex(TEST_API_KEY), {
+      id: "legacy/card",
+      template: "summary",
+      title: "Legacy",
+      status: "unknown",
+    });
+
+    const get = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/legacy%2Fcard", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(get.status).toBe(200);
+
+    const del = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/legacy%2Fcard", { method: "DELETE" }),
+      env,
+      executionCtx,
+    );
+    expect(del.status).toBe(200);
+
+    expect(await storage.getCard(env, "test-tenant", "legacy/card")).toBeNull();
+  });
+
+  it("does not 500 on a malformed escape", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/%E0%A4%A", { method: "GET" }),
+      makeEnv(),
+      executionCtx,
+    );
+    expect(res.status).toBe(404);
   });
 });
