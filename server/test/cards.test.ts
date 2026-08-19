@@ -789,6 +789,21 @@ describe("cards endpoints", () => {
   });
 });
 
+describe("documented idempotency", () => {
+  // The error list says 404 covers a card id that does not exist, and DELETE
+  // deliberately does not follow it. Pinned so the documented promise and the
+  // behaviour cannot drift apart.
+  it("answers 200 when deleting a card that is not there", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/never-existed", { method: "DELETE" }),
+      makeEnv(),
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+});
+
 describe("GET /v1/cards/:id", () => {
   it("answers with a { card } envelope, like every other read", async () => {
     const env = makeEnv();

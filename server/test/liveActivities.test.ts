@@ -154,6 +154,18 @@ describe("live activities", () => {
     expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
   });
 
+  it("answers 200 when ending an activity that is not running", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/end", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "never-started" }),
+      }),
+      makeEnv(),
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("clears a content-state field when an update sends null", async () => {
     const env = makeEnv();
     const post = (path: string, body: unknown) =>

@@ -916,14 +916,37 @@ Agents should coalesce state changes and avoid hot loops. Publish one batch per 
 - `401 {"error":"..."}` — bad or missing bearer token. Don't retry with the same key.
 - `403 {"error":"API scope '...' required"}` — the token is valid but lacks that capability. Ask the operator for the appropriate scoped credential.
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
-- `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist.
+- `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist. Note the two deliberate exceptions under "Retrying is safe" below.
 - `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
+- `409 {"error":"an active instance already uses this externalActivityId with another kind"}` — a Live Activity is already running under that id with a different `kind`. `kind` is frozen at start, so end that activity or pick a new id.
 - `402 {"error":"...","code":"subscription_required","subscription":{...}}` — the operator's account has no active subscription, on a deployment that requires one. Only publishing and action runs return this; reads keep working. Retrying will not help and neither will a different credential: tell the operator to renew in the 00Widget iOS app, and relay the `error` string, which is written to be repeated to a person.
 - `429 {"error":"rate limit exceeded", ...}` — wait for `Retry-After` seconds before retrying that operation.
 - `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.
 - `5xx {"error":"internal error"}` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
 
 Error bodies are simple JSON with at least an `error` string; some endpoints add fields like `detail`, `status`, `attempts`, or `deliveryId`. The API never returns secrets in errors and is safe to log.
+
+### Retrying is safe
+
+Every write here converges on the same state when repeated, so a retry after a
+timeout or a `5xx` never needs a "did it land?" read first.
+
+- **Upsert** replaces the whole card. Sending it twice leaves exactly one card.
+- **`DELETE /v1/cards/<id>`** answers `200 {"ok":true}` whether or not the card
+  was there. Deleting something already gone is not an error, so it does not
+  `404` the way the list above would suggest.
+- **`POST /v1/live-activities/end`** answers `200` for an activity that is not
+  running, for the same reason — including one you already ended.
+- **`POST /v1/live-activities/update`** is addressed by `externalActivityId`,
+  so a repeat re-sends the same content state rather than accumulating.
+
+Two writes that are *not* idempotent, and where a retry does something:
+
+- **`POST /v1/live-activities/start`** on an id that is already running re-sends
+  the push that starts it, rather than erroring. Use it to recover an activity
+  that failed to appear; don't call it on a tick.
+- **`POST /v1/actions/<id>/run`** delivers to your webhook every time. That is
+  the point — dedupe on `deliveryId` at your end.
 
 ## Snippets
 
