@@ -23,6 +23,7 @@ On Home Screen widgets, iOS first launches the containing 00Widget app with the 
 ## Operator checklist for agents
 
 - Verify `00WIDGET_BASE_URL` with `/health` and `00WIDGET_API_KEY` with `GET /v1/cards`.
+- If you start a Live Activity, check `pushToStartAttempted` in the response. `0` means no device can receive it, and nothing else will tell you.
 - Pick one stable `id` per logical card.
 - If the project has a dashboard, consider setting `deepLink`.
 - Prefer common card fields: `id`, `template`, `title`, `status`, `icon`, `updatedAt`, `staleAfter`, `deepLink`.
@@ -633,6 +634,30 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
 
 The Worker sends an ActivityKit push-to-start notification to every registered device. iOS returns a per-activity APNs push token, which the app registers with the backend for subsequent updates and end events. `alert` is optional in this public request; when omitted, the Worker creates the required APNs alert from `title` and `subtitle`. The pending endpoint remains temporarily available as a compatibility fallback for older app builds.
 
+The response:
+
+```json
+{
+  "ok": true,
+  "activityInstanceId": "lai_9f3c1d7a2b",
+  "restarted": false,
+  "pending": true,
+  "pushToStartAttempted": 1,
+  "apnsResults": [{ "status": 200, "apnsId": "…" }]
+}
+```
+
+**Check `pushToStartAttempted` on your first start.** It counts the devices that
+were sent the push, and `0` means no device has ever registered a push-to-start
+token — the operator has not installed the app, or has not allowed
+notifications. Nothing you publish will be seen, and no later call will tell you
+so any more clearly. Say that to the operator instead of continuing to publish
+into nothing.
+
+`restarted` is `true` when an activity was already running under this id, so
+this call replaced it. `apnsResults` carries one entry per device;
+`status: 200` is delivered.
+
 #### Starting an id that is already running restarts it
 
 `start` on an `externalActivityId` with a live activity behind it is a restart,
@@ -766,6 +791,25 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/update" \
 
 Add an `alert: { title, body }` for state changes worth notifying the user about (finished, failed). Use sparingly. The `alert` title is the banner text for that one notification; it does not rename the activity.
 
+The response:
+
+```json
+{
+  "ok": true,
+  "activityInstanceId": "lai_9f3c1d7a2b",
+  "apnsResult": { "status": 200, "apnsId": "…" },
+  "recipientResults": [],
+  "pendingUpdated": false
+}
+```
+
+`pendingUpdated: true` means the new content state was stored but pushed
+nowhere: no device holds a token for this activity yet. Right after a `start`
+that is normal and resolves within seconds, as the device registers the token
+iOS hands it. Still true minutes later, it means the activity never appeared —
+check `pushToStartAttempted` from the start. `recipientResults` is non-empty
+only when the activity has been shared with another account.
+
 An update accepts a `title`, and it does change what `GET /v1/live-activities`
 reports, but **it does not change the running Live Activity** on the Lock
 Screen, in the Dynamic Island, or on a paired Watch — see
@@ -867,6 +911,9 @@ cannot be rewritten, not even on the last frame. Say what happened in
 `finalSubtitle`.
 
 When `dismissalDate` is omitted, 00Widget dismisses the ended Live Activity immediately. To keep the final state visible briefly, set `dismissalDate` to an ISO-8601 time within Apple's four-hour dismissal window. The free-form `state` field does not end an activity by itself, even when its value is `finished`.
+
+The response is `{ "ok": true, "apnsResult": {...}, "recipientResults": [] }`,
+with the same shape of APNs result as an update.
 
 An end is acknowledged with `200` only after APNs accepts the end event (or reports that the device token is permanently gone). If APNs delivery fails, 00Widget returns `502` and retains the activity record. Retry the same end request; do not discard your `externalActivityId` until a `2xx` response is received.
 
