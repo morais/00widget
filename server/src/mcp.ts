@@ -8,7 +8,9 @@ import {
   type AuthContext,
 } from "./auth";
 import * as cards from "./cards";
+import * as dashboard from "./dashboard";
 import * as liveActivities from "./liveActivities";
+import * as status from "./status";
 import { json } from "./http";
 import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
@@ -219,6 +221,10 @@ const CardsOutput = z.object({
   ),
 });
 const OkOutput = z.object({ ok: z.boolean() });
+const DashboardOutput = z.object({
+  cards: z.array(DashboardCardSchema),
+  activities: z.array(LiveActivitySessionSchema),
+});
 const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchema) });
 const StartActivityOutput = z.object({
   ok: z.boolean(),
@@ -429,6 +435,78 @@ const TOOLS: McpTool[] = [
         tools.env,
         tools.auth,
       ),
+  },
+  {
+    name: "get_dashboard",
+    title: "Read everything at once",
+    description:
+      "Every published card and every running Live Activity in one call. Prefer it over list_cards "
+      + "plus list_live_activities when you want the whole picture — it is one request instead of two "
+      + "and the two halves are read together.",
+    schema: NoArguments,
+    outputSchema: DashboardOutput,
+    scope: "read",
+    readOnly: true,
+    destructive: false,
+    invoke: (_args, tools) =>
+      dashboard.getDashboard(getRequest(tools.origin, "/v1/dashboard"), tools.env, tools.auth),
+  },
+  {
+    name: "get_status",
+    title: "Check what this connection can reach",
+    description:
+      "Whether anything will actually see what you publish, what this credential may do, how much "
+      + "rate budget is left, and what this deployment has enabled. Worth one call before publishing "
+      + "for the first time: if `delivery.canPushWidgets` is false, nothing you publish will be seen "
+      + "by anyone, and the operator needs to install the app and allow notifications rather than "
+      + "you trying again.",
+    schema: NoArguments,
+    // Shaped by hand rather than from a zod schema: the route builds its
+    // response literally, and inventing a schema module for one read would put
+    // the description further from the thing it describes.
+    outputSchema: z.object({
+      account: z.object({
+        tenantId: z.string(),
+        credentialKind: z.string(),
+        scopes: z.array(z.string()).describe("What this credential may do."),
+        credentialExpiresAt: z.string(),
+      }),
+      delivery: z.object({
+        devices: z.number(),
+        widgetPushTokens: z.number(),
+        liveActivityStartTokens: z.number(),
+        canPushWidgets: z.boolean().describe(
+          "False means no device can receive a widget reload: what you publish is stored and seen "
+          + "by nobody.",
+        ),
+        canStartLiveActivities: z.boolean().describe(
+          "False means a Live Activity cannot appear on any device.",
+        ),
+        widgetReloadIntervalSeconds: z.number().describe(
+          "A Home Screen widget redraws at most this often per account. Publishes in between are "
+          + "stored immediately and coalesced into the next one.",
+        ),
+        secondsUntilNextWidgetReload: z.number(),
+      }),
+      published: z.object({ cards: z.number(), liveActivities: z.number() }),
+      features: z.object({ sharing: z.boolean(), mcp: z.boolean() }),
+      subscription: z.object({
+        enabled: z.boolean(),
+        required: z.boolean().describe("Whether writes are refused without an active subscription."),
+        state: z.unknown().optional(),
+      }),
+      rateLimits: z.array(z.object({
+        label: z.string(),
+        limit: z.number(),
+        remaining: z.number(),
+        resetAt: z.string(),
+      })).describe("Only windows this account has touched; anything absent has its full allowance."),
+    }),
+    scope: "read",
+    readOnly: true,
+    destructive: false,
+    invoke: (_args, tools) =>
+      status.getStatus(getRequest(tools.origin, "/v1/status"), tools.env, tools.auth),
   },
   {
     name: "get_integration_guide",

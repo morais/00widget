@@ -302,7 +302,9 @@ describe("tools/list", () => {
     const readOnly = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name).sort();
     expect(readOnly).toEqual([
       "get_card",
+      "get_dashboard",
       "get_integration_guide",
+      "get_status",
       "list_cards",
       "list_live_activities",
     ]);
@@ -325,6 +327,33 @@ describe("tools/list", () => {
       expect.arrayContaining(["id", "template", "title", "status", "items", "chart", "deepLink"]),
     );
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
+  });
+});
+
+describe("get_dashboard and get_status", () => {
+  it("returns cards and activities together", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    await call(env, "upsert_card", { id: "solar", template: "summary", title: "Solar" });
+    const result = await call(env, "get_dashboard");
+    const body = result.result?.structuredContent as { cards: unknown[]; activities: unknown[] };
+    expect(body.cards).toHaveLength(1);
+    expect(body.activities).toEqual([]);
+  });
+
+  it("tells a connector that nothing can receive what it publishes", async () => {
+    // The reason this tool exists. Publishing succeeds either way; only this
+    // says whether anyone is on the other end.
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const result = await call(env, "get_status");
+    const body = result.result?.structuredContent as {
+      delivery: { canPushWidgets: boolean; canStartLiveActivities: boolean };
+      account: { scopes: string[] };
+    };
+    expect(body.delivery.canPushWidgets).toBe(false);
+    expect(body.delivery.canStartLiveActivities).toBe(false);
+    expect(body.account.scopes).toContain("read");
   });
 });
 

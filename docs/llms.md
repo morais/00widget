@@ -74,11 +74,15 @@ credential — say so rather than trying to publish with it.
 00Widget also exposes a Model Context Protocol server at `<BASE_URL>/mcp`, when
 the operator has enabled it. It wraps the same endpoints as tools —
 `upsert_card`, `upsert_cards_batch`, `list_cards`, `get_card`, `delete_card`,
-`start_live_activity`, `update_live_activity`, `end_live_activity`,
-`list_live_activities`, and `get_integration_guide`. Everything below still
+`get_dashboard`, `get_status`, `start_live_activity`, `update_live_activity`,
+`end_live_activity`, `list_live_activities`, and `get_integration_guide`. Everything below still
 applies: the tool arguments *are* the JSON bodies documented here, validated by
 the same schemas, and every field carries its description into the tool's JSON
 Schema.
+
+Call `get_status` once before publishing for the first time: if
+`delivery.canPushWidgets` is false, nothing you publish will be seen by anyone,
+and the operator has to install the app and allow notifications.
 
 `get_integration_guide` returns this document trimmed for a tool caller — the
 rules the argument schemas cannot carry, without the credential setup, curl
