@@ -12,6 +12,7 @@ import * as liveActivities from "./liveActivities";
 import { json } from "./http";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
+import { subscriptionGate, subscriptionRequiredMessage } from "./subscription";
 import {
   BatchUpsertCardsSchema,
   DashboardCardInputSchema,
@@ -551,6 +552,14 @@ async function callTool(
   if (!hasScope(authed.auth, tool.scope)) {
     return errorResponse(id, JSON_RPC_INVALID_REQUEST, `API scope '${tool.scope}' required`);
   }
+
+  // A lapsed subscription is a tool error rather than a protocol error, unlike
+  // the scope failure above. Both are for the operator to fix, but this one is
+  // fixed by renewing rather than by reissuing a credential, and a tool error
+  // is what reaches the model's context — so the agent can tell its human what
+  // happened instead of the connector merely looking broken.
+  const lapsed = await subscriptionGate(authed.env, authed.auth, tool.scope);
+  if (lapsed) return ok(toolError(subscriptionRequiredMessage(lapsed)));
 
   // Validated here as well as inside the handler so an argument mistake comes
   // back as a tool error the model can act on, rather than as a bare 400.

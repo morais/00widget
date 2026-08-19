@@ -44,8 +44,12 @@ export function subscriptionsDisabledResponse(): Response {
 const DEFAULT_GRACE_DAYS = 3;
 
 function graceMs(env: Env): number {
-  const raw = Number((env.SUBSCRIPTION_GRACE_DAYS ?? "").trim());
-  const days = Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_GRACE_DAYS;
+  // The empty check is load-bearing: Number("") is 0, not NaN, so folding an
+  // unset variable into the isFinite test silently gives every deployment a
+  // zero-day grace window instead of the default.
+  const raw = (env.SUBSCRIPTION_GRACE_DAYS ?? "").trim();
+  const parsed = raw === "" ? DEFAULT_GRACE_DAYS : Number(raw);
+  const days = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_GRACE_DAYS;
   return days * 24 * 60 * 60 * 1000;
 }
 
@@ -332,6 +336,65 @@ export async function claimTransactionForTenant(
   )
     .bind(tenantId, new Date().toISOString(), originalTransactionId)
     .run();
+}
+
+// ---------------------------------------------------------------------------
+// Enforcement
+// ---------------------------------------------------------------------------
+
+/// The scopes an entitlement is required for.
+///
+/// Writes, not reads. This is a product decision rather than a deployment one,
+/// so it lives here rather than in an env var, and the reasoning is worth
+/// keeping: a lapsed subscriber whose widgets go blank has a broken Lock Screen
+/// and no explanation, while one whose widgets freeze at their last state and
+/// whose app says why understands what happened. It also keeps the server out
+/// of the business of deciding whether the Lock Screen renders at all.
+///
+/// Deliberately absent:
+///   tenant:read      — reading your own state always works.
+///   guest:read       — a guest is not the subscriber and cannot fix a lapse.
+///   device:register  — registering must work while lapsed, or renewing lands
+///                      on a device the server cannot push to.
+///   shares:manage,
+///   webhook:manage   — plumbing and cleanup, not the value being sold.
+const SUBSCRIPTION_GATED_SCOPES: ReadonlySet<string> = new Set(["publish", "actions:run"]);
+
+/// Whether `scope` may proceed. Returns the blocking state, or null to allow.
+///
+/// Called from both places that check scopes — the `authed` wrapper in
+/// index.ts and the MCP tool dispatcher. MCP does not route through `authed`,
+/// so a gate in only one of them leaves the agent-facing half of the product
+/// ungated, which is the half that publishes.
+export async function subscriptionGate(
+  env: Env,
+  auth: Pick<AuthContext, "tenantId">,
+  scope: string | null,
+): Promise<SubscriptionState | null> {
+  if (!scope || !SUBSCRIPTION_GATED_SCOPES.has(scope)) return null;
+  if (!isSubscriptionRequired(env)) return null;
+  const state = evaluateSubscription(await readSubscriptionRow(env, auth.tenantId), env);
+  return state.active ? null : state;
+}
+
+/// 402, with enough structure for a producer to act on. The thing hitting this
+/// is usually an agent, and what has to happen next is a human renewing in the
+/// app — so the message is written to be relayed, not just logged.
+export function subscriptionRequiredResponse(state: SubscriptionState): Response {
+  return json(
+    {
+      error: subscriptionRequiredMessage(state),
+      code: "subscription_required",
+      subscription: state,
+    },
+    402,
+  );
+}
+
+export function subscriptionRequiredMessage(state: SubscriptionState): string {
+  return state.status === "none"
+    ? "this account has no active 00Widget subscription — subscribe in the iOS app to publish"
+    : `this account's 00Widget subscription is ${state.status} — renew in the iOS app to publish`;
 }
 
 // ---------------------------------------------------------------------------

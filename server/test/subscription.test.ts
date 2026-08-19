@@ -483,6 +483,16 @@ describe("entitlement expiry", () => {
     expect(state.active).toBe(true);
   });
 
+  it("applies the default grace window when none is configured", async () => {
+    // Number("") is 0, so an unset variable must not be allowed to fold into
+    // the numeric check — that gives every deployment a zero-day window.
+    env = subscriptionEnv();
+    db = env.ZW_DB as unknown as FakeD1;
+    db.seedSubscription({ expiresAtMs: Date.now() - DAY_MS });
+
+    expect((await status()).status).toBe("grace");
+  });
+
   it("expires once the grace window has passed", async () => {
     db.seedSubscription({ expiresAtMs: Date.now() - 10 * DAY_MS });
 
@@ -514,5 +524,152 @@ describe("entitlement expiry", () => {
     db.seedSubscription({ tenantId: "somebody-else" });
 
     expect((await status()).status).toBe("none");
+  });
+});
+
+describe("SUBSCRIPTION_REQUIRED enforcement", () => {
+  function gatedEnv(overrides: Partial<Env> = {}): Env {
+    return subscriptionEnv({ SUBSCRIPTION_REQUIRED: "true", ...overrides });
+  }
+
+  function upsert(env: Env): Promise<Response> {
+    return (handler.fetch as any)(
+      authedRequest("https://api.test/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({ id: "solar", template: "summary", title: "Solar", value: "3.2" }),
+      }),
+      env,
+      executionCtx,
+    );
+  }
+
+  function listCards(env: Env): Promise<Response> {
+    return (handler.fetch as any)(
+      authedRequest("https://api.test/v1/cards"),
+      env,
+      executionCtx,
+    );
+  }
+
+  it("refuses a publish from a tenant with no entitlement", async () => {
+    const env = gatedEnv();
+
+    const res = await upsert(env);
+
+    expect(res.status).toBe(402);
+    const body = await res.json() as any;
+    expect(body.code).toBe("subscription_required");
+    expect(body.subscription.status).toBe("none");
+    // Written to be relayed by an agent to the person who can fix it.
+    expect(body.error).toMatch(/subscribe in the iOS app/);
+  });
+
+  it("allows a publish from an entitled tenant", async () => {
+    const env = gatedEnv();
+    (env.ZW_DB as unknown as FakeD1).seedSubscription();
+
+    expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("allows a publish during the grace window", async () => {
+    const env = gatedEnv();
+    (env.ZW_DB as unknown as FakeD1).seedSubscription({ expiresAtMs: Date.now() - DAY_MS });
+
+    expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("refuses a publish once the entitlement is revoked", async () => {
+    const env = gatedEnv();
+    (env.ZW_DB as unknown as FakeD1).seedSubscription({ revokedAtMs: Date.now() - 1_000 });
+
+    const res = await upsert(env);
+
+    expect(res.status).toBe(402);
+    expect((await res.json() as any).subscription.status).toBe("revoked");
+  });
+
+  it("leaves reads working for a lapsed tenant", async () => {
+    const env = gatedEnv();
+
+    // Widgets freezing at their last state is the intended failure mode. A
+    // blank Lock Screen with no explanation is not.
+    expect((await listCards(env)).status).toBe(200);
+  });
+
+  it("publishes normally when subscriptions are enabled but not required", async () => {
+    const env = subscriptionEnv();
+
+    expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("fails open when REQUIRED is set without ENABLED", async () => {
+    // A monetization kill switch that locks out every paying customer on a
+    // typo is worse than one that bills nobody.
+    const env = makeEnv({ SUBSCRIPTION_REQUIRED: "true" });
+
+    expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("changes nothing for a deployment that sets no flags at all", async () => {
+    expect((await upsert(makeEnv())).status).toBe(200);
+  });
+
+  it("gates the MCP publish path, which does not route through authed()", async () => {
+    // MCP re-implements its own scope check and calls handlers directly, so a
+    // gate in `authed` alone would leave the agent-facing half of the product
+    // ungated — the half that publishes.
+    const env = gatedEnv({ MCP_ENABLED: "true", SESSION_SECRET: "test-session-secret-0123456789abcdef" });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/mcp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "upsert_card",
+            arguments: { id: "solar", template: "summary", title: "Solar", value: "3.2" },
+          },
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const body = await res.json() as any;
+    const text = (body.result?.content ?? []).map((entry: any) => entry.text).join("");
+    expect(body.result?.isError).toBe(true);
+    expect(text).toMatch(/subscription/i);
+  });
+
+  it("leaves the MCP read path working for a lapsed tenant", async () => {
+    const env = gatedEnv({ MCP_ENABLED: "true", SESSION_SECRET: "test-session-secret-0123456789abcdef" });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/mcp", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "list_cards", arguments: {} },
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    expect(((await res.json()) as any).result?.isError).toBeFalsy();
+  });
+
+  it("still lets a lapsed tenant prove they have renewed", async () => {
+    const env = gatedEnv();
+
+    // Gating the subscription routes themselves would make renewing impossible.
+    const res = await verify(env, [await signedTransaction()]);
+
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).subscription.active).toBe(true);
   });
 });

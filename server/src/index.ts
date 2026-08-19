@@ -244,6 +244,10 @@ function authed(
         if (requiredScope && !hasScope(auth, requiredScope)) {
           return json({ error: `API scope '${requiredScope}' required` }, 403);
         }
+        // Costs nothing unless SUBSCRIPTION_REQUIRED is on and the scope is one
+        // that is gated — no extra query on any other request.
+        const lapsed = await subscription.subscriptionGate(env, auth, requiredScope);
+        if (lapsed) return subscription.subscriptionRequiredResponse(lapsed);
         return await handler(req, env, auth, match, ctx);
       } catch (err) {
         if (err instanceof AuthRateLimitError) {
