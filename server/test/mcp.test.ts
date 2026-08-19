@@ -332,6 +332,47 @@ describe("tool input schemas", () => {
   // module load. A field added without a `.describe()` reaches every MCP client
   // as a bare `{"type":"string"}` — the model then has to guess whether `icon`
   // is a URL or an SF Symbol, and whether `amount` or `value` draws the bar.
+  it("declares an output schema for every tool that answers with JSON", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as Array<{ name: string; outputSchema?: unknown }>;
+
+    const missing = tools.filter((tool) => !tool.outputSchema).map((tool) => tool.name);
+    // The guide answers with markdown, so it has no structured content to
+    // describe — and declaring a schema it does not fill would be worse than
+    // declaring none.
+    expect(missing).toEqual(["get_integration_guide"]);
+  });
+
+  it("returns structured content matching what it declared", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const listed = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const tools = ((await listed.json()) as JsonRpcResult).result?.tools as Array<{
+      name: string;
+      outputSchema?: { required?: string[] };
+    }>;
+    const requiredKeys = (name: string) =>
+      tools.find((tool) => tool.name === name)?.outputSchema?.required ?? [];
+
+    const checks: Array<[string, Record<string, unknown>]> = [
+      ["upsert_card", { id: "solar", template: "summary", title: "Solar" }],
+      ["get_card", { id: "solar" }],
+      ["list_cards", {}],
+      ["delete_card", { id: "solar" }],
+    ];
+    for (const [name, args] of checks) {
+      const result = await call(env, name, args);
+      const structured = result.result?.structuredContent as Record<string, unknown>;
+      expect(structured, name).toBeTruthy();
+      for (const key of requiredKeys(name)) {
+        expect(structured, `${name}.${key}`).toHaveProperty(key);
+      }
+    }
+  });
+
   it("describes every argument a tool accepts", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");

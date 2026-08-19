@@ -16,7 +16,9 @@ import { subscriptionGate, subscriptionRequiredMessage } from "./subscription";
 import {
   BatchUpsertCardsSchema,
   DashboardCardInputSchema,
+  DashboardCardSchema,
   EndLiveActivitySchema,
+  LiveActivitySessionSchema,
   RequestBodyLimits,
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
@@ -96,11 +98,63 @@ interface AuthedToolContext extends Omit<ToolContext, "auth"> {
   auth: AuthContext;
 }
 
+// What each tool puts in `structuredContent`, which is the response its route
+// already returns. Declaring it is not decoration: a tool that emits structured
+// content is expected to say what shape it is, and a strict client validates
+// against this. `get_integration_guide` deliberately has none — it answers with
+// markdown, so there is no structured content to describe.
+const ApnsResultSchema = z.object({
+  status: z.number().describe("The HTTP status APNs answered with; 200 is delivered."),
+  reason: z.string().optional().describe("APNs failure reason, when it failed."),
+  apnsId: z.string().nullable().optional().describe("APNs' own id for the push."),
+  retryAfterSeconds: z.number().optional(),
+});
+
+const CardOutput = z.object({ card: DashboardCardSchema });
+const CardsOutput = z.object({
+  cards: z.array(DashboardCardSchema),
+  shared: z.array(DashboardCardSchema).optional().describe(
+    "Cards other tenants have shared with this one. Only present when asked for.",
+  ),
+});
+const OkOutput = z.object({ ok: z.boolean() });
+const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchema) });
+const StartActivityOutput = z.object({
+  ok: z.boolean(),
+  activityInstanceId: z.string().describe("The server's id for this exact activity."),
+  pending: z.boolean(),
+  pushToStartAttempted: z.number().describe(
+    "How many devices were sent the push that starts the activity. ZERO means "
+    + "nobody will see this one, or anything else you publish: the operator has "
+    + "no device registered, so tell them to open the 00Widget app and allow "
+    + "notifications rather than continuing to publish.",
+  ),
+  apnsResults: z.array(ApnsResultSchema),
+});
+const UpdateActivityOutput = z.object({
+  ok: z.boolean(),
+  activityInstanceId: z.string(),
+  apnsResult: ApnsResultSchema.nullable(),
+  recipientResults: z.array(ApnsResultSchema),
+  pendingUpdated: z.boolean().describe(
+    "True when the new state was stored but no device holds a token for this "
+    + "activity yet, so nothing was pushed.",
+  ),
+});
+const EndActivityOutput = z.object({
+  ok: z.boolean(),
+  apnsResult: ApnsResultSchema.nullable(),
+  recipientResults: z.array(ApnsResultSchema),
+});
+
 interface McpTool {
   name: string;
   title: string;
   description: string;
   schema: z.ZodType;
+  /// The shape of `structuredContent`. Omitted only by tools that do not
+  /// answer with JSON.
+  outputSchema?: z.ZodType;
   scope: ApiScope;
   readOnly: boolean;
   /// Irreversible from the caller's side, in a way a person would want to
@@ -124,6 +178,7 @@ const TOOLS: McpTool[] = [
         .optional()
         .describe("Also return cards other tenants have shared with this one, when sharing is enabled."),
     }),
+    outputSchema: CardsOutput,
     scope: "tenant:read",
     readOnly: true,
     destructive: false,
@@ -139,6 +194,7 @@ const TOOLS: McpTool[] = [
     title: "Get a card",
     description: "Read one published card by its stable id. Returns `{ card }`, the same envelope every other read on this API uses.",
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
+    outputSchema: CardOutput,
     scope: "tenant:read",
     readOnly: true,
     destructive: false,
@@ -153,6 +209,7 @@ const TOOLS: McpTool[] = [
       + "reuse it on every publish — never embed a timestamp or run id, or each update becomes a new "
       + "card. Publishing several cards from one snapshot? Use upsert_cards_batch instead.",
     schema: DashboardCardInputSchema,
+    outputSchema: CardOutput,
     scope: "publish",
     readOnly: false,
     destructive: false,
@@ -167,6 +224,7 @@ const TOOLS: McpTool[] = [
       + "when one snapshot produces several related cards: it makes a single widget-reload decision "
       + "instead of burning WidgetKit's daily reload budget once per card.",
     schema: BatchUpsertCardsSchema,
+    outputSchema: z.object({ cards: z.array(DashboardCardSchema) }),
     scope: "publish",
     readOnly: false,
     destructive: false,
@@ -183,6 +241,7 @@ const TOOLS: McpTool[] = [
     title: "Delete a card",
     description: "Remove a published card. Widgets showing it stop showing it.",
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
+    outputSchema: OkOutput,
     scope: "publish",
     readOnly: false,
     destructive: true,
@@ -200,6 +259,7 @@ const TOOLS: McpTool[] = [
     title: "List running Live Activities",
     description: "List the Live Activities this tenant currently has running, with their content state.",
     schema: NoArguments,
+    outputSchema: ActivitiesOutput,
     scope: "tenant:read",
     readOnly: true,
     destructive: false,
@@ -215,6 +275,7 @@ const TOOLS: McpTool[] = [
       + "it. `title`, `kind` and `deepLink` are frozen when it starts and cannot be changed by an "
       + "update, so anything that must move belongs in the content state fields.",
     schema: StartLiveActivitySchema,
+    outputSchema: StartActivityOutput,
     scope: "publish",
     readOnly: false,
     destructive: false,
@@ -232,6 +293,7 @@ const TOOLS: McpTool[] = [
       "Push new content state to a running Live Activity. A new `title` is stored and returned by "
       + "list_live_activities but the Lock Screen keeps the original — it is frozen at start.",
     schema: UpdateLiveActivitySchema,
+    outputSchema: UpdateActivityOutput,
     scope: "publish",
     readOnly: false,
     destructive: false,
@@ -251,6 +313,7 @@ const TOOLS: McpTool[] = [
       + "new externalActivityId, which the user sees as the old one dismissing and a new one "
       + "animating in.",
     schema: EndLiveActivitySchema,
+    outputSchema: EndActivityOutput,
     scope: "publish",
     readOnly: false,
     destructive: true,
@@ -287,6 +350,10 @@ const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
   title: tool.title,
   description: tool.description,
   inputSchema: toolInputSchema(tool.schema),
+  // Only when there is one: declaring an outputSchema is a promise that the
+  // tool returns matching structuredContent, and the guide tool answers with
+  // markdown.
+  ...(tool.outputSchema ? { outputSchema: toolOutputSchema(tool.outputSchema) } : {}),
   annotations: {
     title: tool.title,
     readOnlyHint: tool.readOnly,
@@ -311,6 +378,15 @@ function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "input" }) as Record<string, unknown>;
   // MCP wants a bare JSON Schema object; the $schema declaration is noise that
   // some clients reject outright.
+  delete converted.$schema;
+  return converted;
+}
+
+/// `io: "output"` rather than "input": a field carrying a zod default is
+/// optional to send and always present in what comes back, and the two schemas
+/// have to say so differently.
+function toolOutputSchema(schema: z.ZodType): Record<string, unknown> {
+  const converted = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
   delete converted.$schema;
   return converted;
 }
