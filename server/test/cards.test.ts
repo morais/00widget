@@ -789,6 +789,32 @@ describe("cards endpoints", () => {
   });
 });
 
+describe("documented compatibility promises", () => {
+  it("ignores request fields it does not recognise", async () => {
+    // So an integration written against a newer deployment does not break when
+    // it meets an older one, and nobody has to feature-detect before publishing.
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "solar-home",
+      template: "summary",
+      title: "Solar",
+      somethingFromTheFuture: { nested: true },
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).not.toHaveProperty("somethingFromTheFuture");
+  });
+
+  it("degrades an unknown status rather than rejecting the card", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "a",
+      template: "summary",
+      title: "x",
+      status: "brand-new-status",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.status).toBe("unknown");
+  });
+});
+
 describe("documented idempotency", () => {
   // The error list says 404 covers a card id that does not exist, and DELETE
   // deliberately does not follow it. Pinned so the documented promise and the

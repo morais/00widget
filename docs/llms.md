@@ -886,6 +886,41 @@ Any `2xx` from your webhook is an ack. An empty body is fine. If you return JSON
 
 Only `role: "normal"` + `confirm: false` actions run through `/v1/actions/:id/run`. The server derives `source: "widget"`; callers cannot override it. Actions marked `confirm: true` or `role: "destructive"` are run by the iOS app after the user confirms, on a credential it holds itself — you define them the same way and receive the same webhook delivery.
 
+## Compatibility
+
+`/v1` is the only version there has ever been, and these are the rules it
+follows. They exist so you can write an integration once and leave it running.
+
+**Unknown request fields are ignored.** Every body is validated against a schema
+that drops what it does not recognise, so sending a field this deployment
+predates is not an error. You never need to feature-detect before publishing.
+
+**Responses may gain fields.** Parse the keys you need and ignore the rest.
+Every read answers with a single-key object — `{"card":…}`, `{"cards":[…]}`,
+`{"activities":[…]}` — and that envelope will not change under `/v1`.
+
+**Unknown enum values degrade rather than fail.** A `status` or a Live Activity
+`kind` this deployment does not know falls back to `unknown` and `generic`. On
+the device, a card whose `template` a build predates renders as a `summary`
+rather than disappearing — so a new template added later shows up as a plain
+card on an old app instead of taking the whole cached list down with it.
+
+**New fields are additive and optional.** Anything added to a card or an
+activity has a defined meaning when absent. `progress` and `deadline` are the
+recent examples: cards published before either existed keep rendering exactly
+as they did.
+
+**Ids and dates are validated on the way in, not on the way out.** Tightening
+either rule rejects new bad values without breaking anything already stored, so
+a card written under an older, looser rule keeps being served.
+
+What is *not* promised: the exact wording of an `error` string (match on the
+status code and, where present, `code`), the ordering of `apnsResults`, and the
+contents of any field documented as a rendering hint.
+
+If something incompatible ever has to happen, it happens at `/v2` and `/v1`
+keeps working. Nothing is deprecated by silently changing under you.
+
 ## Rate limits
 
 00Widget enforces fixed-window rate limits per tenant and, for hot resources, per card/action/activity id. If you receive `429`, stop sending that operation and retry after the `Retry-After` header.
