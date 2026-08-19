@@ -340,6 +340,41 @@ says the bundle version must be higher than a previous upload, the archive still
 holds the wrong `CFBundleVersion` — fix the generated plist inputs and
 re-archive rather than retrying the same archive.
 
+## Turning subscriptions on
+
+Everything below is off in every committed configuration. Enabling it is four
+separate steps and partially doing it is worse than not starting: a build with
+`ZW_SUBSCRIPTIONS_ENABLED` and a server that sells nothing shows an empty
+paywall, and a server with `SUBSCRIPTION_REQUIRED` and no way to buy locks every
+producer out.
+
+1. **App Store Connect.** Create one subscription group with two products,
+   monthly and yearly. Same group, or upgrading and downgrading will not
+   prorate. Add the free trial as an *introductory offer on the group* — the
+   server needs no trial special case, because a trial is an entitlement with an
+   expiry like any other. Turn on the billing grace period while you are there;
+   it arrives in the renewal info and is honoured.
+2. **Notifications.** Point App Store Server Notifications V2 at
+   `https://<host>/v1/apple/subscription-notifications`, production *and*
+   sandbox. Skipping this leaves the stored entitlement wrong for everything
+   that happens while the app is closed.
+3. **Server.** Set `SUBSCRIPTIONS_ENABLED`, `SUBSCRIPTION_PRODUCT_IDS`, and
+   `SUBSCRIPTION_ENVIRONMENT`. Leave `SUBSCRIPTION_REQUIRED` off until the
+   entitlement data looks right — that is what the two flags are for. Before
+   turning it on, decide about existing tenants; grandfathering is a one-off
+   insert of non-expiring rows and is easiest while nothing is enforced.
+4. **App.** Add `ZW_SUBSCRIPTIONS_ENABLED` to
+   `SWIFT_ACTIVE_COMPILATION_CONDITIONS` in your `project.yml` and rerun
+   `xcodegen`. Test purchases against `ios/Resources/ZeroZeroWidget.storekit` in
+   the Simulator and the real trial and renewal flows with a Sandbox account on
+   a device.
+
+Two things not built, in case they look missing rather than declined. There is
+no App Store Server API polling — it needs a second `.p8` and reconciles what
+notifications plus client verification already cover. And Family Sharing is off:
+enabling it on the products breaks the one-purchase-one-tenant rule by design,
+so decide what that should mean before turning it on.
+
 ## Branding
 
 Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Tagline string is **"Widgets for all your agents."** — used verbatim, no rephrasing. The identity is raster-first: `branding-sheet.png` is the authoritative sheet and the generator's source image, and the committed transparent-mark and app-icon masters drive the generated platform assets. Install the generator dependency from `scripts/requirements.txt`, then run `python3.12 scripts/generate-brand-assets.py` from the repository root — Pillow no longer ships wheels for the Python 3.9 that macOS bundles, so bare `python3` cannot install it. The iOS app icon is wired through to `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. Keep the palette constants in the generator and the values documented in `docs/brand/README.md` in lockstep.
@@ -367,6 +402,12 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **Every MCP method requires a credential; only the empty probe does not.** ChatGPT authenticates `server/discover`, `tools/list` and `tools/call` alike. An earlier version served the tool list anonymously, on the mistaken reading that the unauthenticated requests in the logs were tool listings — they were the probe. Before loosening this again, log the *method*: `hasAuthorizationHeader` alone cannot tell you which request was unauthenticated.
 - **An empty `POST /mcp` is a probe, not a request.** Answer 202. It carries no JSON-RPC message to authenticate or fail, and a 401 there tells a client to authenticate at a point in its flow where it holds no credential, sending it back around discovery forever.
 - **MCP authorization is OAuth only because ChatGPT allows nothing else.** Its connectors can present an OAuth token or no credential at all — never a custom API key or header. Everything that flow produces is an ordinary `api_keys` row with the producer preset, so `requireAuth` has no MCP special case; keep it that way. Registered clients and authorization codes are HMAC-signed values, not rows, which is why there is no OAuth migration or sweep. A token in the URL path was ruled out for the same reason guest tokens live in the fragment: Cloudflare logs request paths.
+- **Subscriptions are two flags, and both default off.** `SUBSCRIPTIONS_ENABLED` turns on verification and the App Store Server Notifications endpoint; `SUBSCRIPTION_REQUIRED` additionally gates writes. The middle state is the point — selling before enforcing, to grandfather existing tenants. `REQUIRED` without `ENABLED` fails **open** on purpose: a monetization switch that locks out paying customers on a typo is worse than one that bills nobody. On iOS the whole feature is behind `ZW_SUBSCRIPTIONS_ENABLED`, which no committed configuration sets, so the guarded code is not exercised by an ordinary build — **build both states before trusting a change to it**, and use a deliberate error inside the guard to confirm the flag is actually taking effect.
+- **The subscription gate has two call sites because MCP does not use `authed`.** `server/src/mcp.ts` re-implements its own scope check and calls route handlers directly, so a gate placed only in the `authed` wrapper leaves the agent-facing half of the product — the half that publishes — completely ungated. Both call sites share `subscriptionGate`. Anything else added to `authed` as a cross-cutting rule inherits this trap.
+- **Entitlement gates writes, never reads.** `publish` and `actions:run` only. A lapsed subscriber whose widgets go blank has a broken Lock Screen and no explanation; one whose widgets freeze at their last state understands. `device:register` stays open too, or renewing lands on a device the server cannot push to, and the `/v1/subscription/*` routes stay open or renewing is impossible.
+- **`originalTransactionId` is an App Store account; `tenant_id` is a Sign in with Apple identity.** They usually coincide and are not required to, which is why `subscriptions` is keyed by the former with a nullable latter. A notification carries no identity, so it lands unclaimed and is adopted when the app next verifies; a purchase is never moved between tenants, or replaying one receipt under a second sign-in would entitle both.
+- **Apple's signing chain is mixed-curve.** The leaf that signs a JWS is P-256/ES256, but the WWDR G6 intermediate and Apple Root CA - G3 above it are P-384 signing with `ecdsa-with-SHA384`. `appleJws.ts` reads curve and hash from each certificate; hardcoding P-256 makes every real payload fail with "Named curve mismatch" while every locally minted fixture still passes. Any test chain should reproduce the mixed shape.
+- **Without the notification endpoint the stored entitlement is wrong.** Client-side verification only runs when the app is open. Cancellations, billing failures, and refunds all happen while it is closed, and for a renewal that failed the app may never open again. Both paths funnel into `recordTransaction`, whose `ON CONFLICT` never clears an existing `tenant_id` and never lets an older payload overwrite a newer one — Apple does not guarantee notification ordering.
 - **Multi-card producers use batch upsert.** A producer snapshot that yields multiple related cards must call `POST /v1/cards/upsert-batch` once with `{ "cards": [...] }`, not loop over `/v1/cards/upsert`. This preserves one reload decision per snapshot and avoids burning WidgetKit’s daily reload budget.
 
 ## Adding things
@@ -374,6 +415,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **New widget kind:** add a `*.swift` in `ios/Sources/Widgets/`, register it in `WidgetBundle.swift`, and (if it should appear in the bundle from `WidgetCenter.reloadTimelines`) add its kind string to `Constants.WidgetKinds.all`.
 - **New endpoint:** add the handler module in `server/src/`, wire a route in `server/src/index.ts`, add a zod schema in `types.ts`, add a test file in `server/test/`. If iOS needs to call it, add a method to `ios/Sources/App/Services/APIClient.swift`.
 - **New template type:** extend `DashboardTemplate` in **both** `DashboardCard.swift` and `types.ts`, then add a render path in *every* renderer — `CardView.swift` (app, all widget families, and the Lock Screen accessories), `TVDashboardView.swift`, and the inline script in `server/src/guestPage.ts`, which is what a shared link shows in a browser. The Swift `switch`es fail the build when you miss one; the guest page silently renders an empty card. Update `docs/llms.md`.
+- **New cross-cutting request rule:** wire it into **both** the `authed` wrapper in `server/src/index.ts` and the tool dispatcher in `server/src/mcp.ts`. MCP calls handlers directly and inherits nothing from `authed`.
 - **New MCP tool:** add an entry to `TOOLS` in `server/src/mcp.ts` — name, description, the zod schema the equivalent route validates with, its required scope, and an `invoke` that calls that route's handler. Nothing else: `tools/list` and the JSON Schema come from the entry. Mention it in the MCP section of `docs/llms.md`.
 - **New Live Activity kind:** extend `LiveActivityKind` in both languages, and update the icon mapping inside `LiveActivityWidget.swift`.
 

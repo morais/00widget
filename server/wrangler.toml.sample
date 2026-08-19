@@ -53,6 +53,38 @@ MCP_ENABLED = "false"
 # future* "progress" Live Activities to the recipient. Opt in deliberately.
 SHARING_ENABLED = "false"
 
+# App Store subscriptions. Two flags rather than one, because the useful middle
+# state is selling subscriptions without yet enforcing them — grandfathering
+# existing tenants, or letting verification run for a while before it is allowed
+# to reject anything.
+#
+# SUBSCRIPTIONS_ENABLED turns on /v1/subscription/* and the App Store Server
+# Notifications endpoint. SUBSCRIPTION_REQUIRED additionally makes publish and
+# actions:run return 402 without an active entitlement; reads are never gated,
+# so a lapsed account's widgets keep showing what they last received rather than
+# going blank with no explanation.
+#
+# Setting REQUIRED without ENABLED fails open, deliberately: a monetization
+# switch that locks out every paying customer on a typo is worse than one that
+# bills nobody.
+SUBSCRIPTIONS_ENABLED = "false"
+SUBSCRIPTION_REQUIRED = "false"
+
+# Products this deployment sells, comma-separated, matching App Store Connect.
+# Empty accepts any product signed for the right bundle id, which is only
+# sensible in development.
+# SUBSCRIPTION_PRODUCT_IDS = "com.example.zerozerowidget.pro.monthly,com.example.zerozerowidget.pro.yearly"
+
+# "Production" (default) or "Sandbox". A sandbox purchase is free and unlimited,
+# so one must never entitle a production tenant. Point a staging deployment at
+# "Sandbox" and register the sandbox notification URL in App Store Connect.
+# SUBSCRIPTION_ENVIRONMENT = "Production"
+
+# Days past expiry an entitlement still counts. Covers a late notification, not
+# a lapsed payment; Apple's own billing grace period arrives in the payload and
+# is honoured separately, with whichever window reaches further winning.
+# SUBSCRIPTION_GRACE_DAYS = "3"
+
 # Optional: email the operator when self-service signup creates a new tenant.
 # Commented out because it requires Cloudflare Email Routing on a domain in
 # your account, and an uncommented binding would fail `wrangler deploy` for

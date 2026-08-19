@@ -791,6 +791,7 @@ Agents should coalesce state changes and avoid hot loops. Publish one batch per 
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
 - `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist.
 - `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
+- `402 {"error":"...","code":"subscription_required","subscription":{...}}` — the operator's account has no active subscription, on a deployment that requires one. Only publishing and action runs return this; reads keep working. Retrying will not help and neither will a different credential: tell the operator to renew in the 00Widget iOS app, and relay the `error` string, which is written to be repeated to a person.
 - `429 {"error":"rate limit exceeded", ...}` — wait for `Retry-After` seconds before retrying that operation.
 - `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.
 - `5xx {"error":"internal error"}` — backend issue. Retry with exponential backoff if the operation is idempotent (cards are; live-activity updates are by `externalActivityId`).
