@@ -48,6 +48,8 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .prog rect.fill.w{fill:#ff9f0a}
 .prog rect.fill.c{fill:#ff3b30}
 .prog rect.fill.r{fill:#0a84ff}
+.state{color:var(--fg);font-weight:600;margin:0 0 .35rem}
+.rowsub{color:var(--muted);font-size:.85rem;margin:-.35rem 0 .35rem}
 .rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
 .rank rect{fill:var(--accent);fill-opacity:.5;rx:2px}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
@@ -147,7 +149,7 @@ const GUEST_SCRIPT = `
   // Width has to be an attribute rather than a style — see the note on
   // breakdown() above.
   var progressBar=function(f,status){
-    var cls=PIP[status]||'';
+    var cls=status?(PIP[status]||''):'';
     return '<svg class="prog" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">'
       +'<rect class="track" x="0" y="0" width="100" height="10"/>'
       +'<rect class="fill '+cls+'" x="0" y="0" width="'+(f*100).toFixed(2)+'" height="10"/></svg>';
@@ -183,8 +185,25 @@ const GUEST_SCRIPT = `
     } else {
       var a=d.activity;
       h+='<p class="title">'+esc(a.title)+'</p>';
-      h+='<p class="sub">'+esc(a.state)+'</p>';
-      if(a.chart&&a.chart.points&&a.chart.points.length>1){h+=spark(a.chart)}
+      h+='<p class="state">'+esc(a.state)+'</p>';
+      if(a.subtitle){h+='<p class="sub">'+esc(a.subtitle)+'</p>'}
+      if(a.value){h+='<div class="value">'+esc(a.value)+(a.unit?'<span class="unit">'+esc(a.unit)+'</span>':'')+'</div>'}
+      if(typeof a.progress==='number'){h+=progressBar(clamp01(a.progress))}
+      // Items suppress the chart here for the same reason they do on the Lock
+      // Screen: rows and a plot are two stories and this is one card.
+      var rows=(a.items||[]).filter(function(i){return i.status!=='finished'&&i.status!=='offline'});
+      if(rows.length){
+        rows.forEach(function(i){
+          h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+          if(i.subtitle){h+='<p class="rowsub">'+esc(i.subtitle)+'</p>'}
+          if(typeof i.progress==='number'){
+            h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(clamp01(i.progress)*100).toFixed(2)+'"/></svg>';
+          }
+        });
+      } else if(a.chart&&a.chart.points&&a.chart.points.length>1){
+        h+=spark(a.chart);
+      }
+      if(a.endsAt){h+='<p class="sub">Ends '+esc(new Date(a.endsAt).toLocaleString())+'</p>'}
     }
     h+='<p class="meta">Shared with you. Read-only, and this link stops working on '+esc(new Date(d.expiresAt).toLocaleString())+'.</p>';
     out.innerHTML='<div class="card">'+h+'</div>';

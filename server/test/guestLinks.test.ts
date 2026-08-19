@@ -435,6 +435,21 @@ describe("guest link browser page", () => {
     expect(fraction({ template: "summary", value: "3.2" })).toBeNull();
   });
 
+  it("renders a shared Live Activity's state, not just its title", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+
+    // Everything a shared activity carries has to reach the page, or the
+    // person holding the link sees a title and nothing that moves.
+    for (const field of ["a.subtitle", "a.value", "a.progress", "a.items", "a.endsAt"]) {
+      expect(script, field).toContain(field);
+    }
+    // Items suppress the chart here the way they do on the Lock Screen.
+    expect(script).toContain("rows.length");
+    expect(body).toContain(".rowsub{");
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');
