@@ -34,6 +34,46 @@ describe("DashboardCardSchema", () => {
     ).toBe(false);
   });
 
+  it("requires input dates to be full ISO-8601 instants", () => {
+    const card = (staleAfter: string) => ({
+      id: "a",
+      template: "summary" as const,
+      title: "x",
+      staleAfter,
+    });
+    for (const good of [
+      "2026-04-26T18:45:00Z",
+      "2026-04-26T18:45:00.123Z",
+      "2026-04-26T19:45:00+01:00",
+    ]) {
+      expect(DashboardCardInputSchema.safeParse(card(good)).success, good).toBe(true);
+    }
+    // Every one of these was accepted before, stored, echoed back on read, and
+    // then decoded to nil by ISO8601DateFormatter on the device.
+    for (const bad of [
+      "2026-04-26",
+      "2026-04-26T18:45:00",
+      "April 26 2026",
+      "2026-04-26 18:45:00Z",
+      "2026-13-45T99:99:99Z",
+    ]) {
+      expect(DashboardCardInputSchema.safeParse(card(bad)).success, bad).toBe(false);
+    }
+  });
+
+  it("still reads a stored card whose dates predate that rule", () => {
+    // storage.getCard re-validates every row it loads. One legacy date must not
+    // fail the read and take the whole list down with it.
+    const parsed = DashboardCardSchema.safeParse({
+      id: "a",
+      template: "summary",
+      title: "x",
+      updatedAt: "2026-04-26",
+      staleAfter: "2026-04-26",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
   it("rejects unknown template values", () => {
     expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });

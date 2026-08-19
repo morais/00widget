@@ -189,7 +189,29 @@ export const DashboardChartSchema = z
     message: "min must be less than max",
   });
 
-const IsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
+// Exactly what every consumer of these values can parse, which is narrower
+// than what `Date.parse` accepts. iOS reads dates with `ISO8601DateFormatter`
+// under `[.withInternetDateTime]` (plus optional fractional seconds), so
+// seconds and a UTC offset are both mandatory there. Validating with
+// `Date.parse` alone accepted `"2026-04-26"` and `"April 26 2026"`, stored
+// them, echoed them back on read, and then decoded them to nil on the device —
+// a card that simply never went stale, with a 200 at every step.
+const ISO_8601_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+
+const IsoDate = z
+  .string()
+  .regex(
+    ISO_8601_INSTANT,
+    "must be an ISO-8601 timestamp with seconds and a UTC offset, e.g. 2026-04-26T18:45:00Z",
+  )
+  // The pattern admits 2026-13-45T99:99:99Z; this rejects what it cannot mean.
+  .refine((s) => !Number.isNaN(Date.parse(s)), { message: "must be a real date" });
+
+// The permissive shape, for values read back out of storage rather than
+// accepted from a caller. Cards are re-validated on every read, so a row
+// written before the rule above tightened must still load: one legacy date
+// must not 500 the whole list. Nothing writes through this.
+const StoredIsoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "must be an ISO-8601 date",
 });
 
@@ -230,8 +252,13 @@ const DashboardCardFields = {
   chart: DashboardChartSchema.optional(),
 };
 
+// The stored/read shape. Dates are the permissive variant here: `storage.ts`
+// re-validates every card it loads, and a row written under the old rule has
+// to keep rendering rather than failing the read.
 export const DashboardCardSchema = z.object({
   ...DashboardCardFields,
+  updatedAt: StoredIsoDate.optional(),
+  staleAfter: StoredIsoDate.optional(),
   actions: z.array(ActionDefinitionSchema).max(FieldLimits.actionCount).optional(),
   // Set only on cards returned via ?include=shared.
   sharedBy: SharedByInfoSchema.optional(),
@@ -428,6 +455,9 @@ export const UpdateLiveActivitySchema = z.object({
     .optional(),
 });
 
+// Also a stored shape: `updateLiveActivity` re-parses the instance it loaded
+// from D1 before writing the next one, so this takes the permissive dates for
+// the same reason `DashboardCardSchema` does.
 export const LiveActivitySessionSchema = z.object({
   activityInstanceId: z.string().min(1).max(FieldLimits.activityInstanceId),
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
@@ -441,11 +471,11 @@ export const LiveActivitySessionSchema = z.object({
   progress: z.number().min(0).max(1).optional(),
   items: LiveActivityItemsSchema.optional(),
   chart: DashboardChartSchema.optional(),
-  endsAt: IsoDate.optional(),
+  endsAt: StoredIsoDate.optional(),
   countdownGranularity: CountdownGranularitySchema.optional(),
-  startedAt: IsoDate.optional(),
-  updatedAt: IsoDate,
-  staleAt: IsoDate.optional(),
+  startedAt: StoredIsoDate.optional(),
+  updatedAt: StoredIsoDate,
+  staleAt: StoredIsoDate.optional(),
   relevanceScore: z.number().min(0).optional(),
   deepLink: OptionalDeepLink,
 });

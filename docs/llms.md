@@ -106,8 +106,8 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
-  "updatedAt": "ISO-8601 string? (server fills in if omitted)",
-  "staleAfter": "ISO-8601 string? (after this, widget shows a 'stale' state)",
+  "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
+  "staleAfter": "ISO-8601 timestamp? (after this, widget shows a 'stale' state)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
   "chart": "DashboardChart? (only for template=chart)",
@@ -451,6 +451,24 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
     }
   }'
 ```
+
+#### Every date is a full timestamp
+
+`updatedAt`, `staleAfter`, and the Live Activity `endsAt`, `staleAt`, and
+`dismissalDate` all take an ISO-8601 instant with **seconds and an offset**:
+
+```
+2026-04-26T18:45:00Z          ✅
+2026-04-26T18:45:00.123Z      ✅  fractional seconds are fine
+2026-04-26T19:45:00+01:00     ✅  any offset, not just Z
+2026-04-26T18:45:00           ❌  no offset
+2026-04-26                    ❌  no time
+```
+
+A shorter form is rejected with `400 validation failed` rather than accepted
+and quietly discarded later. `new Date().toISOString()`, Python's
+`datetime.now(timezone.utc).isoformat()`, and `date -u +%Y-%m-%dT%H:%M:%SZ` all
+produce the right thing.
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
 
