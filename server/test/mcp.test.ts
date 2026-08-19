@@ -327,6 +327,32 @@ describe("tools/list", () => {
   });
 });
 
+describe("tool input schemas", () => {
+  // The schemas are the zod objects the REST routes validate with, converted at
+  // module load. A field added without a `.describe()` reaches every MCP client
+  // as a bare `{"type":"string"}` — the model then has to guess whether `icon`
+  // is a URL or an SF Symbol, and whether `amount` or `value` draws the bar.
+  it("describes every argument a tool accepts", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as Array<{
+      name: string;
+      inputSchema: { properties?: Record<string, { description?: string }> };
+    }>;
+    expect(tools.length).toBeGreaterThan(0);
+
+    const undescribed: string[] = [];
+    for (const tool of tools) {
+      for (const [field, schema] of Object.entries(tool.inputSchema.properties ?? {})) {
+        if (!schema.description) undescribed.push(`${tool.name}.${field}`);
+      }
+    }
+    expect(undescribed).toEqual([]);
+  });
+});
+
 describe("tools/call", () => {
   it("publishes a card through the same handler the REST route uses", async () => {
     const env = mcpEnv();

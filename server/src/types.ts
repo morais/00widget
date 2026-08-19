@@ -145,10 +145,21 @@ const ActionPayloadSchema = z
   });
 
 const ActionDefinitionFields = {
-  id: IdString,
-  label: z.string().min(1).max(FieldLimits.actionLabel),
-  role: ActionRoleSchema.default("normal"),
-  confirm: z.boolean().default(false),
+  id: IdString.describe(
+    "Stable id for the button. It is the `/v1/actions/<id>/run` path segment "
+    + "and is echoed back in the webhook delivery.",
+  ),
+  label: z.string().min(1).max(FieldLimits.actionLabel).describe(
+    "What the button says. Short enough for a widget: \"Boost 1h\", \"Retry\".",
+  ),
+  role: ActionRoleSchema.default("normal").describe(
+    "`destructive` marks the button as dangerous and stops it running from a "
+    + "widget; it routes through the iOS app for confirmation instead.",
+  ),
+  confirm: z.boolean().default(false).describe(
+    "Ask the person before running. Also stops the button running from a "
+    + "widget, for the same reason `role: destructive` does.",
+  ),
 };
 
 // Public action shape returned to apps, widgets, and share recipients. Runtime
@@ -160,20 +171,34 @@ export const ActionDefinitionSchema = z.object(ActionDefinitionFields);
 export const ActionDefinitionInputSchema = z.object({
   ...ActionDefinitionFields,
   id: ActionIdInputString,
-  payload: ActionPayloadSchema.optional(),
+  payload: ActionPayloadSchema.optional().describe(
+    "Private context delivered to your webhook when the button is pressed. "
+    + "Write-only: it is stripped from the stored card and never returned by "
+    + "any read, shared card, or device cache.",
+  ),
 });
 
 export const DashboardItemSchema = z.object({
-  id: IdString,
-  title: TitleString,
-  subtitle: OptionalSubtitleString,
-  value: OptionalValueString,
-  unit: OptionalUnitString,
-  status: DashboardStatusSchema.optional(),
+  id: IdString.describe("Stable id for this row, unique within the card."),
+  title: TitleString.describe("The row's label."),
+  subtitle: OptionalSubtitleString.describe("A second line under the row's title."),
+  value: OptionalValueString.describe(
+    "The row's reading, as a display string already formatted for a person.",
+  ),
+  unit: OptionalUnitString.describe("Unit shown after `value`."),
+  status: DashboardStatusSchema.optional().describe(
+    "Colours the row. In a `history` card it is the entire content: each item is "
+    + "one past outcome and only its status is drawn.",
+  ),
   // The row's magnitude, for templates that draw items rather than list them.
   // `value` cannot serve: it is a display string ("12.40", "3m 51s", "Rinse")
   // and parsing it back into a number would guess at locale and format.
-  amount: z.number().optional(),
+  amount: z.number().optional().describe(
+    "The row's magnitude, used to draw it: ranked bars in a `list` (measured "
+    + "against the largest row) or proportional segments in a `breakdown` "
+    + "(measured against the total, so never send percentages). Send it "
+    + "alongside `value`, not instead of it — `value` is the label.",
+  ),
 });
 
 // "delta" is "bar" anchored at zero rather than at the bottom of the range:
@@ -191,15 +216,31 @@ export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
 // is the point (a percentage, a 0-100 score).
 export const DashboardChartSchema = z
   .object({
-    points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount),
-    min: z.number().optional(),
-    max: z.number().optional(),
+    points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount).describe(
+      "2-10 values, oldest first, plotted evenly spaced. There are no "
+      + "timestamps: send a fixed rolling window and say which one in the "
+      + "card's `subtitle`, which is the only axis label the plot gets.",
+    ),
+    min: z.number().optional().describe(
+      "Pins the bottom of the plot. Without a range the plot scales to the "
+      + "series, so a flat-but-noisy one looks dramatic. Send at least `min: 0` "
+      + "whenever the absolute scale is the point.",
+    ),
+    max: z.number().optional().describe("Pins the top of the plot."),
     // A target, budget, or threshold, drawn as a dashed rule across the plot.
     // When the axis is not pinned it widens to keep the rule visible; when it
     // is pinned and the rule falls outside, the renderer omits it rather than
     // clamping it to an edge and stating something the data does not.
-    reference: z.number().optional(),
-    style: ChartStyleSchema.default("line"),
+    reference: z.number().optional().describe(
+      "A target, budget, SLO or threshold, drawn as a dashed rule across the "
+      + "plot. Usually the difference between a trend you can read and one you "
+      + "can act on, because above-or-below needs no axis labels.",
+    ),
+    style: ChartStyleSchema.default("line").describe(
+      "`line` is a sparkline with a soft area fill; `bar` grows every bar from "
+      + "the bottom of the range; `delta` anchors at zero instead, so signed "
+      + "values grow up or down from a zero rule.",
+    ),
   })
   .refine((chart) => chart.min === undefined || chart.max === undefined || chart.min < chart.max, {
     message: "min must be less than max",
@@ -252,31 +293,87 @@ export const SharedByInfoSchema = z.object({
 });
 
 const DashboardCardFields = {
-  id: CardIdString,
-  template: DashboardTemplateSchema,
-  title: TitleString,
-  subtitle: OptionalSubtitleString,
-  value: OptionalValueString,
-  unit: OptionalUnitString,
-  status: DashboardStatusSchema.default("unknown"),
-  icon: OptionalIconString,
-  statusIcon: OptionalIconString,
+  id: CardIdString.describe(
+    "Stable identity of the thing being shown, reused on every publish so the "
+    + "card updates rather than duplicating. Never embed a timestamp or run id. "
+    + "Namespace it if another integration might pick the same name.",
+  ),
+  template: DashboardTemplateSchema.describe(
+    "How the card is drawn. Pick by the shape of the data, not the domain: "
+    + "`summary` for one headline number or short state; `progress` for "
+    + "something filling up; `list` for 2-6 things with their own values; "
+    + "`action` for buttons; `chart` for one number moving over time; "
+    + "`history` for a run of pass/fail outcomes; `breakdown` for a whole split "
+    + "into parts. When unsure, `summary` degrades best at every widget size.",
+  ),
+  title: TitleString.describe(
+    "The name of the thing. It renders on one line at caption size, so keep it "
+    + "short and stable — a value that moves belongs in `value`.",
+  ),
+  subtitle: OptionalSubtitleString.describe(
+    "One line of context under the title or value. On a `chart` card this is "
+    + "the only axis label there is, so say what the window covers.",
+  ),
+  value: OptionalValueString.describe(
+    "The headline, as a display string already formatted for a person: "
+    + "\"3.2\", \"4m 12s\", \"Healthy\". It is never parsed back into a number.",
+  ),
+  unit: OptionalUnitString.describe("Unit shown after `value`: kW, %, jobs."),
+  status: DashboardStatusSchema.default("unknown").describe(
+    "Drives the card's tint and badge on every surface. `good`/`warning`/"
+    + "`critical` for health, `running`/`finished`/`paused`/`offline` for "
+    + "lifecycle.",
+  ),
+  icon: OptionalIconString.describe(
+    "SF Symbol name for the card: sun.max, bolt.car, flame, washer, creditcard.",
+  ),
+  statusIcon: OptionalIconString.describe(
+    "A second SF Symbol for a runtime state that changes independently of what "
+    + "the card is — bolt.fill while boosting, arrow.up while charging. Drawn "
+    + "at every widget size, including grid cells.",
+  ),
   // How full the thing is, 0-1. The `progress` template used to carry this in
   // `value`, parsed back out as a Double with anything above 1 read as a
   // percentage — so a progress card could draw a bar or show a headline number
   // but never both, and "3 of 12" could not be said at all. This is the field a
   // Live Activity has always had. `value` stays the display string.
-  progress: z.number().min(0).max(1).optional(),
-  updatedAt: IsoDate.optional(),
-  staleAfter: IsoDate.optional(),
+  progress: z.number().min(0).max(1).optional().describe(
+    "How full the thing is, 0-1, drawn as a bar. Required in practice by "
+    + "`template: progress`, ignored where there is nowhere to draw it. Keep "
+    + "`value` as the label, so the card can show both: \"184 of 240\".",
+  ),
+  updatedAt: IsoDate.optional().describe(
+    "When this state was true, as an ISO-8601 instant with seconds and an "
+    + "offset (2026-04-26T18:45:00Z). Omit it and the server stamps the time "
+    + "the publish arrived.",
+  ),
+  staleAfter: IsoDate.optional().describe(
+    "After this the widget dims the card into a 'stale' state so the reading "
+    + "is visibly old. A hint only: nothing hides or deletes the card.",
+  ),
   // When the thing this card is about is due. Rendered as a countdown the
   // device ticks on its own, which is the only way a card can hold a correct
   // relative time: a widget reloads at most once every 30 minutes, so a
   // republished "12 min left" is wrong for most of the time it is on screen.
-  deadline: IsoDate.optional(),
-  deepLink: OptionalDeepLink,
-  items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional(),
-  chart: DashboardChartSchema.optional(),
+  deadline: IsoDate.optional().describe(
+    "When the thing this card is about is due, drawn as a countdown the device "
+    + "ticks locally. Publish a date here rather than writing the remaining "
+    + "time into `value`: a widget reloads at most twice an hour, so a "
+    + "republished string is wrong for most of the time it is on screen.",
+  ),
+  deepLink: OptionalDeepLink.describe(
+    "HTTPS URL opened when the card is tapped. Point it at the dashboard or "
+    + "detail page this card summarises.",
+  ),
+  items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional().describe(
+    "Rows. A `list` shows them as rows, ranked as bars when they carry an "
+    + "`amount`; a `history` draws their `status` as pips, oldest first; a "
+    + "`breakdown` splits one bar by their `amount`.",
+  ),
+  chart: DashboardChartSchema.optional().describe(
+    "The series behind a `chart` card. Republish the whole window every time — "
+    + "nothing is appended and no history is kept.",
+  ),
 };
 
 // The stored/read shape. Dates are the permissive variant here: `storage.ts`
@@ -294,8 +391,17 @@ export const DashboardCardSchema = z.object({
 
 export const DashboardCardInputSchema = z.object({
   ...DashboardCardFields,
-  id: CardIdInputString,
-  actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional(),
+  id: CardIdInputString.describe(
+    "Stable identity of the thing being shown, reused on every publish so the "
+    + "card updates rather than duplicating. Never embed a timestamp or run id. "
+    + "Letters, digits and . _ : - only, because it is also a URL path segment.",
+  ),
+  actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional().describe(
+    "Buttons, for `template: action`. Only `role: normal` with `confirm: false` "
+    + "can run straight from a widget; anything else routes through the iOS app "
+    + "for confirmation. Requires a webhook registered at "
+    + "PUT /v1/integrations/webhook, or every press fails with a 409.",
+  ),
 });
 
 export const BatchUpsertCardsSchema = z
@@ -303,7 +409,13 @@ export const BatchUpsertCardsSchema = z
     cards: z
       .array(DashboardCardInputSchema)
       .min(1)
-      .max(FieldLimits.cardBatchCount),
+      .max(FieldLimits.cardBatchCount)
+      .describe(
+        "Every card from one producer snapshot, sent together. Ids must be "
+        + "unique within the batch. This is one coalesced widget-reload "
+        + "decision instead of one per card, which is why it is preferred over "
+        + "looping the single-card endpoint.",
+      ),
   })
   .superRefine((value, ctx) => {
     const seen = new Set<string>();
@@ -326,14 +438,17 @@ export const LiveActivityKindSchema = z
 export const CountdownGranularitySchema = z.enum(["second", "minute"]);
 
 export const LiveActivityItemSchema = z.object({
-  id: IdString,
-  title: TitleString,
-  subtitle: OptionalSubtitleString,
-  icon: OptionalIconString,
-  value: OptionalValueString,
-  unit: OptionalUnitString,
-  progress: z.number().min(0).max(1).optional(),
-  status: DashboardStatusSchema.optional(),
+  id: IdString.describe("Stable id for this row, unique within the activity."),
+  title: TitleString.describe("The row's label."),
+  subtitle: OptionalSubtitleString.describe("A second line under the row's title."),
+  icon: OptionalIconString.describe("SF Symbol name for this row."),
+  value: OptionalValueString.describe("The row's reading, as a display string."),
+  unit: OptionalUnitString.describe("Unit shown after the row's `value`."),
+  progress: z.number().min(0).max(1).optional().describe("This row's own progress, 0-1."),
+  status: DashboardStatusSchema.optional().describe(
+    "Rows with `finished` or `offline` are hidden, and the activity counts the "
+    + "rest as its active total.",
+  ),
 });
 
 const LiveActivityItemsSchema = z
@@ -431,34 +546,89 @@ export const RecoverLiveActivitiesSchema = z.object({
 });
 
 export const StartLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
-  kind: LiveActivityKindSchema,
-  title: TitleString,
-  subtitle: OptionalSubtitleString,
-  state: z.string().min(1).max(FieldLimits.activityState),
-  icon: OptionalIconString,
-  value: OptionalValueString,
-  unit: OptionalUnitString,
-  progress: z.number().min(0).max(1).optional(),
-  items: LiveActivityItemsSchema.optional(),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId).describe(
+    "Your own id for this run. It addresses the activity on every later update "
+    + "and on the end call, so keep it until the end returns 2xx. Unlike a card "
+    + "id this one *should* be unique per run.",
+  ),
+  kind: LiveActivityKindSchema.describe(
+    "Picks the default glyph when no `icon` is set: generic, progress, "
+    + "charging, appliance, job, timer. Frozen once the activity starts.",
+  ),
+  title: TitleString.describe(
+    "The name of the thing. FROZEN when the activity starts — no update can "
+    + "change what the Lock Screen shows. So it must never carry a value that "
+    + "moves: \"CI build #1234\" and \"Dishwasher\" are titles, \"42 min left\" "
+    + "and \"64% charged\" are not. Put those in `value`, `progress` or `endsAt`.",
+  ),
+  subtitle: OptionalSubtitleString.describe("A line of prose under the title. Updatable."),
+  state: z.string().min(1).max(FieldLimits.activityState).describe(
+    "Free-form short text for where the run is up to — \"running\", \"Rinse\", "
+    + "\"waiting for approval\". Rendered as text; no value has special meaning, "
+    + "and setting it to \"finished\" does not end the activity.",
+  ),
+  icon: OptionalIconString.describe("SF Symbol name, overriding the one `kind` implies."),
+  value: OptionalValueString.describe(
+    "The headline, as a display string. With `items`, an explicit value "
+    + "outranks the derived active-item count.",
+  ),
+  unit: OptionalUnitString.describe("Unit shown after `value`."),
+  progress: z.number().min(0).max(1).optional().describe(
+    "Progress bar, 0-1. A `chart` outranks it for the space, and `items` "
+    + "replace it entirely.",
+  ),
+  items: LiveActivityItemsSchema.optional().describe(
+    "Up to 6 rows, for an activity that is several things at once — three "
+    + "chargers, a queue of jobs, a set of checks. Rows REPLACE the progress "
+    + "bar and SUPPRESS any `chart` on the Lock Screen and Dynamic Island, "
+    + "silently and with no error, so send items or a chart but not both.",
+  ),
   // Content state, so unlike a card's chart this one may change on every
   // update. It is the field that makes a Live Activity worth watching rather
   // than glancing at: the number is moving, and the plot says which way.
-  chart: DashboardChartSchema.optional(),
-  endsAt: IsoDate.optional(),
-  countdownGranularity: CountdownGranularitySchema.optional(),
-  staleAt: IsoDate.optional(),
+  chart: DashboardChartSchema.optional().describe(
+    "A plot of the number this activity is about — watts climbing, queue depth "
+    + "dropping. Send the whole window on every update. It outranks `progress` "
+    + "for the space, and `items` suppress it entirely on the Lock Screen and "
+    + "Dynamic Island.",
+  ),
+  endsAt: IsoDate.optional().describe(
+    "When the run is expected to finish. iOS then renders a countdown from the "
+    + "device clock, so you do not need to publish updates just to tick time "
+    + "forward. Prefer this over server-ticked percentages.",
+  ),
+  countdownGranularity: CountdownGranularitySchema.optional().describe(
+    "How the `endsAt` countdown reads. `second` (default) keeps the native "
+    + "ticking clock; `minute` renders a rounded estimate like ~12 min and "
+    + "updates locally at minute boundaries. Ignored without `endsAt`.",
+  ),
+  staleAt: IsoDate.optional().describe(
+    "After this iOS renders the activity as out of date, so a run whose "
+    + "producer has gone quiet says so instead of looking current.",
+  ),
   // Surfaced as aps.relevance-score on the APNs payload — Smart Stack on
   // iPhone and Apple Watch ranks Live Activities by this. Range is 0+;
   // larger wins. ActivityKit clamps/normalizes; we just pass through.
-  relevanceScore: z.number().min(0).optional(),
-  deepLink: OptionalDeepLink,
+  relevanceScore: z.number().min(0).optional().describe(
+    "How this activity ranks against others in Smart Stack on the Lock Screen "
+    + "and Apple Watch; higher wins, with no fixed ceiling. Start low on a long "
+    + "run and raise it as the activity becomes urgent.",
+  ),
+  deepLink: OptionalDeepLink.describe(
+    "HTTPS URL opened when the activity is tapped. FROZEN at start, like "
+    + "`title` and `kind`.",
+  ),
   alert: z
     .object({
-      title: z.string().min(1).max(FieldLimits.alertTitle),
-      body: z.string().max(FieldLimits.alertBody).optional(),
+      title: z.string().min(1).max(FieldLimits.alertTitle).describe("Banner headline."),
+      body: z.string().max(FieldLimits.alertBody).optional().describe("Banner body."),
     })
-    .optional(),
+    .optional()
+    .describe(
+      "Sends this one push as a visible notification. For state changes worth "
+      + "interrupting someone for — finished, failed — and nothing else; it does "
+      + "not rename the activity.",
+    ),
 });
 
 // An update merges into the running activity's content state, so an omitted
@@ -471,26 +641,60 @@ export const StartLiveActivitySchema = z.object({
 // `null` clears. Omitted still keeps. `items` accepts `null` alongside the `[]`
 // that already worked, so one rule covers every content-state field.
 export const UpdateLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
-  state: z.string().min(1).max(FieldLimits.activityState).optional(),
-  title: z.string().min(1).max(FieldLimits.title).optional(),
-  subtitle: z.string().max(FieldLimits.subtitle).nullish(),
-  icon: z.string().max(FieldLimits.icon).nullish(),
-  value: z.string().max(FieldLimits.value).nullish(),
-  unit: z.string().max(FieldLimits.unit).nullish(),
-  progress: z.number().min(0).max(1).nullish(),
-  items: LiveActivityItemsSchema.nullish(),
-  chart: DashboardChartSchema.nullish(),
-  endsAt: IsoDate.nullish(),
-  countdownGranularity: CountdownGranularitySchema.nullish(),
-  staleAt: IsoDate.nullish(),
-  relevanceScore: z.number().min(0).nullish(),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId).describe(
+    "The id you started the activity with.",
+  ),
+  state: z.string().min(1).max(FieldLimits.activityState).describe(
+    "Where the run is up to now.",
+  ).optional(),
+  title: z.string().min(1).max(FieldLimits.title).optional().describe(
+    "Accepted and stored, but it does NOT change the running activity: the "
+    + "title is frozen when it starts. Leave it out of updates.",
+  ),
+  subtitle: z.string().max(FieldLimits.subtitle).nullish().describe(
+    "New prose under the title. `null` removes it.",
+  ),
+  icon: z.string().max(FieldLimits.icon).nullish().describe(
+    "New SF Symbol name. `null` falls back to the one `kind` implies.",
+  ),
+  value: z.string().max(FieldLimits.value).nullish().describe(
+    "New headline display string. `null` removes it.",
+  ),
+  unit: z.string().max(FieldLimits.unit).nullish().describe("New unit. `null` removes it."),
+  progress: z.number().min(0).max(1).nullish().describe(
+    "New progress, 0-1. `null` removes the bar — which is what a run that has "
+    + "finished should send.",
+  ),
+  items: LiveActivityItemsSchema.nullish().describe(
+    "The complete row list, replacing what is there. `[]` or `null` returns the "
+    + "activity to its top-level fields and lets a `chart` show again.",
+  ),
+  chart: DashboardChartSchema.nullish().describe(
+    "The whole current window, replacing the last one. `null` removes the plot.",
+  ),
+  endsAt: IsoDate.nullish().describe(
+    "A new expected finish. `null` removes the countdown, and takes "
+    + "`countdownGranularity` with it.",
+  ),
+  countdownGranularity: CountdownGranularitySchema.nullish().describe(
+    "How the countdown reads. Omitted, the activity keeps its current setting.",
+  ),
+  staleAt: IsoDate.nullish().describe("New stale time. `null` removes it."),
+  relevanceScore: z.number().min(0).nullish().describe(
+    "New Smart Stack ranking. Spike it on the finishing update so the wrist "
+    + "surfaces it.",
+  ),
   alert: z
     .object({
-      title: z.string().min(1).max(FieldLimits.alertTitle),
-      body: z.string().max(FieldLimits.alertBody).optional(),
+      title: z.string().min(1).max(FieldLimits.alertTitle).describe("Banner headline."),
+      body: z.string().max(FieldLimits.alertBody).optional().describe("Banner body."),
     })
-    .optional(),
+    .optional()
+    .describe(
+      "Sends this one push as a visible notification. For state changes worth "
+      + "interrupting someone for — finished, failed — and nothing else; it does "
+      + "not rename the activity.",
+    ),
 });
 
 // Also a stored shape: `updateLiveActivity` re-parses the instance it loaded
@@ -522,10 +726,20 @@ export const LiveActivitySessionSchema = z.object({
 // activity starts, so nothing on the end push could apply it. The final frame is
 // content state only.
 export const EndLiveActivitySchema = z.object({
-  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
-  finalSubtitle: OptionalSubtitleString,
-  finalState: z.string().max(FieldLimits.activityState).optional(),
-  dismissalDate: IsoDate.optional(),
+  externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId).describe(
+    "The id you started the activity with.",
+  ),
+  finalSubtitle: OptionalSubtitleString.describe(
+    "What happened, on the last frame — \"passed in 4m 12s\". There is no "
+    + "`finalTitle`, because the title is frozen, so say it here.",
+  ),
+  finalState: z.string().max(FieldLimits.activityState).optional().describe(
+    "The last state text. Defaults to \"finished\".",
+  ),
+  dismissalDate: IsoDate.optional().describe(
+    "Keeps the final frame on the Lock Screen until this time, within Apple's "
+    + "four-hour window. Omitted, the activity is dismissed immediately.",
+  ),
 });
 
 export const RunActionSchema = z.object({
