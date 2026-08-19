@@ -368,7 +368,7 @@ describe("tools/call", () => {
     const listed = await call(env, "list_cards");
     expect(toolText(listed)).toContain("solar");
     const one = await call(env, "get_card", { id: "solar" });
-    expect(one.result?.structuredContent).toMatchObject({ id: "solar" });
+    expect(one.result?.structuredContent).toMatchObject({ card: { id: "solar" } });
   });
 
   it("deletes a card", async () => {

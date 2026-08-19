@@ -122,7 +122,11 @@ export async function getCard(
 ): Promise<Response> {
   const card = await storage.getCard(env, auth.tenantId, id);
   if (!card) return json({ error: "not found" }, 404);
-  return json(card, 200);
+  // `{ card }`, not the bare object. Every other read on this API answers with
+  // a single-key envelope, and the argument the Live Activity list makes for it
+  // — there is no shape to fall back to and nothing to parse defensively — is
+  // not weaker for one card than for a list of them.
+  return json({ card }, 200);
 }
 
 export async function deleteCard(

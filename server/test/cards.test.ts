@@ -435,7 +435,9 @@ describe("cards endpoints", () => {
       executionCtx,
     );
     expect(read.status).toBe(200);
-    const card = (await read.json()) as { chart?: { points: number[]; min?: number; style: string } };
+    const { card } = (await read.json()) as {
+      card: { chart?: { points: number[]; min?: number; style: string } };
+    };
     expect(card.chart?.points).toEqual(body.chart.points);
     expect(card.chart?.min).toBe(0);
     expect(card.chart?.style).toBe("bar");
@@ -748,6 +750,40 @@ describe("cards endpoints", () => {
     await expect(
       storage.listWidgetTokensForKind(env, "tenant-a", "ZeroZeroWidgetCardWidget"),
     ).resolves.toEqual(["card-a"]);
+  });
+});
+
+describe("GET /v1/cards/:id", () => {
+  it("answers with a { card } envelope, like every other read", async () => {
+    const env = makeEnv();
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({ id: "solar-home", template: "summary", title: "Solar" }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/solar-home", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { card: { id: string; title: string } };
+    expect(body.card.id).toBe("solar-home");
+    expect(body.card.title).toBe("Solar");
+  });
+
+  it("still 404s a card that is not there", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/nope", { method: "GET" }),
+      makeEnv(),
+      executionCtx,
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not found" });
   });
 });
 

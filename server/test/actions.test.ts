@@ -362,11 +362,10 @@ describe("webhook integrations and actions", () => {
       executionCtx,
     );
     const cardBody = (await card.json()) as {
-      value: string;
-      actions: Array<Record<string, unknown>>;
+      card: { value: string; actions: Array<Record<string, unknown>> };
     };
-    expect(cardBody.value).toBe("Boosting");
-    expect(cardBody.actions[0]).not.toHaveProperty("payload");
+    expect(cardBody.card.value).toBe("Boosting");
+    expect(cardBody.card.actions[0]).not.toHaveProperty("payload");
     await expect(
       storage.getActionPayload(
         env,

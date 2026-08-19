@@ -366,7 +366,12 @@ To verify the stored card, including `deepLink`, call:
 
 ```sh
 curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/cards/build-status"
+# → {"card":{"id":"build-status", ...}}
 ```
+
+Every read on this API answers with a single-key object — `{"card":{...}}`,
+`{"cards":[...]}`, `{"activities":[...]}` — never a bare object or a bare
+array, so there is no shape to fall back to and nothing to parse defensively.
 
 To remove a card:
 

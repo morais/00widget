@@ -137,7 +137,7 @@ const TOOLS: McpTool[] = [
   {
     name: "get_card",
     title: "Get a card",
-    description: "Read one published card by its stable id.",
+    description: "Read one published card by its stable id. Returns `{ card }`, the same envelope every other read on this API uses.",
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
     scope: "tenant:read",
     readOnly: true,
