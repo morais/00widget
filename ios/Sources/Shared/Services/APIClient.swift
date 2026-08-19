@@ -97,6 +97,14 @@ public struct AppleTokenResponse: Codable {
 
 public struct EmptyBody: Codable {}
 
+public struct SubscriptionVerifyResponse: Codable, Sendable {
+    public let subscription: SubscriptionState
+    public let accepted: Int
+    /// Transactions the server declined — routinely non-empty and not an
+    /// error, since StoreKit hands over entitlements from other products too.
+    public let rejected: [String]?
+}
+
 /// What a guest link unlocks. Exactly one of `card` / `activity` is present,
 /// matching `resourceKind`.
 public struct GuestResourceResponse: Codable {
@@ -193,6 +201,28 @@ public final class APIClient {
             path: "/v1/guest/live-activities/register",
             body: Body(deviceId: deviceId, localActivityId: localActivityId, pushToken: pushToken)
         )
+    }
+
+    /// Forwards signed StoreKit transactions for the server to verify.
+    ///
+    /// Every entitlement StoreKit holds, not a filtered set: the server owns
+    /// the list of products this deployment sells and reports what it
+    /// discarded, so the product list is encoded in exactly one place.
+    public func verifySubscription(
+        signedTransactions: [String]
+    ) async throws -> SubscriptionVerifyResponse {
+        struct Body: Codable {
+            let signedTransactions: [String]
+        }
+        return try await request(
+            "POST",
+            path: "/v1/subscription/verify",
+            body: Body(signedTransactions: signedTransactions)
+        )
+    }
+
+    public func subscriptionStatus() async throws -> SubscriptionStatusResponse {
+        try await request("GET", path: "/v1/subscription")
     }
 
     public func health() async throws -> Bool {

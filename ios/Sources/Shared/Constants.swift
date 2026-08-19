@@ -80,6 +80,9 @@ public enum ZeroZeroWidgetConstants {
         public static let lastSyncError = "zw.lastSyncError"
         public static let appleLoginEmail = "zw.appleLoginEmail"
         public static let hideSampleIndicators = "zw.hideSampleIndicators"
+        /// Written by the app, read by the widget extension. See
+        /// `SharedSettings.subscriptionActive` for why it defaults to true.
+        public static let subscriptionActive = "zw.subscriptionActive"
     }
 
     public enum KeychainKeys {

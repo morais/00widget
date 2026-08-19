@@ -88,6 +88,13 @@ struct DashboardView: View {
                         guestLinkBanner(banner)
                     }
 
+                    #if ZW_SUBSCRIPTIONS_ENABLED
+                    // A banner rather than a modal: the cards below are the
+                    // last state every widget received, which is exactly what
+                    // someone opening the app during a lapse wants to see.
+                    SubscriptionNotice()
+                    #endif
+
                     if env.shouldShowWidgetSetupHint {
                         widgetSetupHint
                     }

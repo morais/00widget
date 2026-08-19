@@ -5,24 +5,46 @@ import UIKit
 struct ZeroZeroWidgetApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var env = AppEnvironment()
+    #if ZW_SUBSCRIPTIONS_ENABLED
+    // App-level rather than per-screen: renewals, refunds, and purchases
+    // completed in the App Store app all arrive through Transaction.updates
+    // whenever they happen, with no paywall on screen.
+    @StateObject private var subscriptions = SubscriptionController()
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(env)
-                .onAppear {
-                    delegate.env = env
-                    Task { await env.startupSync() }
-                }
+            rootView
                 .onOpenURL { url in
                     handleIncomingURL(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task { await env.syncAfterForeground() }
+                    #if ZW_SUBSCRIPTIONS_ENABLED
+                    Task { await subscriptions.refresh() }
+                    #endif
                 }
         }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        let base = RootView()
+            .environmentObject(env)
+            .onAppear {
+                delegate.env = env
+                Task { await env.startupSync() }
+                #if ZW_SUBSCRIPTIONS_ENABLED
+                subscriptions.start()
+                #endif
+            }
+        #if ZW_SUBSCRIPTIONS_ENABLED
+        base.environmentObject(subscriptions)
+        #else
+        base
+        #endif
     }
 
     /// `onOpenURL` sees two unrelated kinds of URL: card and Live Activity deep

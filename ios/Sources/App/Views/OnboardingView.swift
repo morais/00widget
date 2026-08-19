@@ -6,6 +6,9 @@ import UniformTypeIdentifiers
 
 struct OnboardingView: View {
     @EnvironmentObject var env: AppEnvironment
+    #if ZW_SUBSCRIPTIONS_ENABLED
+    @EnvironmentObject var subscriptions: SubscriptionController
+    #endif
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedAgentConfig = false
     @State private var copyResetTask: Task<Void, Never>?
@@ -151,6 +154,21 @@ struct OnboardingView: View {
                         Text("Swipe to remove. Removing a link only affects this device.")
                     }
                 }
+
+                #if ZW_SUBSCRIPTIONS_ENABLED
+                Section("Subscription") {
+                    NavigationLink {
+                        SubscriptionView()
+                    } label: {
+                        HStack {
+                            Text("Subscription")
+                            Spacer()
+                            Text(subscriptions.state.active ? "Active" : "Not subscribed")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                #endif
 
                 #if ZW_SHARING_ENABLED
                 Section("Sharing") {

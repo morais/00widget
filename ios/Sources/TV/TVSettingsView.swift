@@ -3,6 +3,9 @@ import SwiftUI
 struct TVSettingsView: View {
     @EnvironmentObject var env: TVEnvironment
     @Environment(\.dismiss) private var dismiss
+    #if ZW_SUBSCRIPTIONS_ENABLED
+    @State private var subscription: SubscriptionState?
+    #endif
 
     var body: some View {
         ZStack {
@@ -22,6 +25,11 @@ struct TVSettingsView: View {
                     if let error = env.lastSyncError {
                         row("Last error", value: error, valueColor: .red)
                     }
+                    #if ZW_SUBSCRIPTIONS_ENABLED
+                    if let subscription {
+                        row("Subscription", value: subscriptionLabel(subscription))
+                    }
+                    #endif
                 }
                 .frame(maxWidth: 900, alignment: .leading)
                 .padding(36)
@@ -52,7 +60,32 @@ struct TVSettingsView: View {
             }
             .padding(60)
         }
+        #if ZW_SUBSCRIPTIONS_ENABLED
+        .task { await loadSubscription() }
+        #endif
     }
+
+    #if ZW_SUBSCRIPTIONS_ENABLED
+    /// Read-only on purpose. The tvOS app shares the iOS app's bundle
+    /// identifier and App Store record, so a subscription bought on iPhone
+    /// already entitles this device through the same Apple Account — and a
+    /// purchase flow driven by a remote control is a worse way to sell one.
+    private func loadSubscription() async {
+        guard let config = APIClientConfig.fromSettings() else { return }
+        subscription = try? await APIClient(config: config).subscriptionStatus().subscription
+    }
+
+    private func subscriptionLabel(_ state: SubscriptionState) -> String {
+        switch state.status {
+        case .active: return "Active"
+        case .trial: return "Free trial"
+        case .grace: return "Payment issue"
+        case .expired: return "Expired — renew on your iPhone"
+        case .revoked: return "Refunded"
+        case .none: return "Not subscribed — subscribe on your iPhone"
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func row(_ key: String, value: String, valueColor: Color = .primary) -> some View {

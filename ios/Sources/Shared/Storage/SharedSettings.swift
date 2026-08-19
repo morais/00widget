@@ -29,6 +29,25 @@ public enum SharedSettings {
             .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.hideSampleIndicators)
     }
 
+    /// Whether the account holds an active subscription.
+    ///
+    /// Cached here because the widget extension is a separate process that must
+    /// not run StoreKit or make network calls of its own, and because widgets
+    /// render long after the app last ran. Defaults to true when never written:
+    /// a deployment that does not sell subscriptions, or an app that has not
+    /// yet asked, must not have its widgets act as though the account lapsed.
+    public static var subscriptionActive: Bool {
+        let store = defaults ?? .standard
+        let key = ZeroZeroWidgetConstants.UserDefaultsKeys.subscriptionActive
+        guard store.object(forKey: key) != nil else { return true }
+        return store.bool(forKey: key)
+    }
+
+    public static func setSubscriptionActive(_ value: Bool) {
+        (defaults ?? .standard)
+            .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.subscriptionActive)
+    }
+
     public static var serverBaseURL: String? {
         defaults?.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
     }

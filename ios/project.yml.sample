@@ -16,8 +16,17 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-    # Compile-time gate for the cross-tenant sharing feature. Remove the flag
-    # to strip every Sharing UI and API call out of the build.
+    # Compile-time gates. Each flag listed here compiles a feature in; removing
+    # one strips its UI and API calls out of the build entirely.
+    #
+    #   ZW_SHARING_ENABLED        cross-tenant sharing
+    #   ZW_SUBSCRIPTIONS_ENABLED  App Store subscriptions (StoreKit, paywall)
+    #
+    # ZW_SUBSCRIPTIONS_ENABLED is deliberately NOT set, here or in any
+    # committed configuration. Turning it on also requires SUBSCRIPTIONS_ENABLED
+    # and SUBSCRIPTION_PRODUCT_IDS on the server, which is where the app reads
+    # the product list from — a build with the flag and a server that sells
+    # nothing shows an empty paywall.
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: ZW_SHARING_ENABLED
     # Settings -> Developer. NO for anything shippable; the screenshot
     # run overrides it with `xcodebuild test ZW_DEBUG_TOOLS=YES`.
