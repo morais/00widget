@@ -106,6 +106,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
+  "progress": "number? 0.0-1.0 (draws a bar; required by template=progress)",
   "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
   "staleAfter": "ISO-8601 timestamp? (after this, widget shows a 'stale' state)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
@@ -252,6 +253,7 @@ Card field limits:
 | `statusIcon` | 64 chars |
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
+| `progress` | number, 0.0–1.0 |
 | `chart.points` | 2–10 finite numbers |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
@@ -313,7 +315,7 @@ Pick one based on the *shape* of the data, not the domain:
 | Source feels like…                    | Template   | Required fields                            |
 | ------------------------------------- | ---------- | ------------------------------------------ |
 | One headline number or short state    | `summary`  | `title`, usually `value`, `unit`, `status` |
-| Something filling up over time        | `progress` | `title`, `value` as `0.0–1.0`              |
+| Something filling up over time        | `progress` | `title`, `progress` as `0.0–1.0`           |
 | 2–6 things with their own values      | `list`     | `title`, `items[]`                         |
 | …the same, ranked against each other  | `list`     | as above, plus an `amount` per item        |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
@@ -379,6 +381,36 @@ To remove a card:
 curl -X DELETE "$00WIDGET_BASE_URL/v1/cards/build-status" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
 ```
+
+### Publishing progress
+
+`progress` is the fraction, `0.0`–`1.0`. `value` is the label shown above the
+bar, so a progress card says how far along it is *and* what that means:
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "id": "test-suite",
+    "template": "progress",
+    "title": "Test suite",
+    "subtitle": "integration",
+    "value": "184 of 240",
+    "progress": 0.767,
+    "status": "running",
+    "icon": "checklist"
+  }'
+```
+
+Older integrations put the fraction in `value` itself, and that still works —
+a `progress` card with no `progress` field parses `value` as a number, reading
+anything above `1` as a percentage. Don't write new code that way: it means the
+card can show a bar or a headline number, never both, and `"1"` and `"1%"` are
+indistinguishable.
+
+`progress` is accepted on any template, not only this one. It is ignored where
+there is nowhere to draw it.
 
 ### Publishing a breakdown
 

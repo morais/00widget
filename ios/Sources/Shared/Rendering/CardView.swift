@@ -142,7 +142,8 @@ public struct CardView: View {
             Spacer(minLength: 0)
             switch card.template {
             case .progress:
-                if let p = Double(card.value ?? "") ?? card.progressValue {
+                if let p = card.progressValue {
+                    if card.progressValueIsLabel { bigValue }
                     ProgressRow(progress: p, label: card.subtitle)
                 } else {
                     bigValue
@@ -711,8 +712,15 @@ public struct CardView: View {
 
 extension DashboardCard {
     var progressValue: Double? {
+        // An explicit `progress` wins on every template, and frees `value` to be
+        // the display string it is everywhere else on the card.
+        if let progress { return min(max(progress, 0), 1) }
         switch template {
         case .progress:
+            // How a progress card said it before `progress` existed: the
+            // fraction parsed out of `value`, with anything above 1 read as a
+            // percentage. Kept so cards from producers that predate the field
+            // keep drawing their bar.
             guard let v = value, let d = Double(v) else { return nil }
             return d > 1 ? d / 100 : d
         case .chart:
@@ -723,6 +731,13 @@ extension DashboardCard {
         default:
             return nil
         }
+    }
+
+    /// Whether `value` is a label rather than the fraction itself. Only true
+    /// once a card sends `progress`, which is what lets a progress card show a
+    /// bar and a headline number at the same time.
+    var progressValueIsLabel: Bool {
+        progress != nil && value != nil
     }
 }
 

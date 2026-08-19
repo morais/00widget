@@ -261,6 +261,12 @@ const DashboardCardFields = {
   status: DashboardStatusSchema.default("unknown"),
   icon: OptionalIconString,
   statusIcon: OptionalIconString,
+  // How full the thing is, 0-1. The `progress` template used to carry this in
+  // `value`, parsed back out as a Double with anything above 1 read as a
+  // percentage — so a progress card could draw a bar or show a headline number
+  // but never both, and "3 of 12" could not be said at all. This is the field a
+  // Live Activity has always had. `value` stays the display string.
+  progress: z.number().min(0).max(1).optional(),
   updatedAt: IsoDate.optional(),
   staleAfter: IsoDate.optional(),
   deepLink: OptionalDeepLink,

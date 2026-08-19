@@ -33,6 +33,11 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var status: DashboardStatus
     public var icon: String?
     public var statusIcon: String?
+    /// How full the thing is, 0...1. The `progress` template used to carry this
+    /// in `value`, which meant a progress card could show a bar or a headline
+    /// number but never both — "3 of 12" was inexpressible. This is the same
+    /// field a Live Activity has always had.
+    public var progress: Double?
     public var updatedAt: Date
     public var staleAfter: Date?
     public private(set) var deepLink: URL?
@@ -51,6 +56,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status: DashboardStatus = .unknown,
         icon: String? = nil,
         statusIcon: String? = nil,
+        progress: Double? = nil,
         updatedAt: Date = Date(),
         staleAfter: Date? = nil,
         deepLink: URL? = nil,
@@ -68,6 +74,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.status = status
         self.icon = icon
         self.statusIcon = statusIcon
+        self.progress = progress
         self.updatedAt = updatedAt
         self.staleAfter = staleAfter
         self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
@@ -93,6 +100,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status = DashboardStatus(rawValue: rawStatus) ?? .unknown
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
+        progress = try c.decodeIfPresent(Double.self, forKey: .progress)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
         staleAfter = try DashboardCard.decodeDate(c, forKey: .staleAfter)
         deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
@@ -106,7 +114,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon, statusIcon
-        case updatedAt, staleAfter, deepLink, items, chart, actions, sharedBy
+        case progress, updatedAt, staleAfter, deepLink, items, chart, actions, sharedBy
     }
 
     public var isStale: Bool {

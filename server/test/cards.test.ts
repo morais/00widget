@@ -103,6 +103,31 @@ describe("DashboardCardSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts a numeric progress alongside a display value", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "test-suite",
+      template: "progress",
+      title: "Test suite",
+      value: "184 of 240",
+      progress: 0.767,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.progress).toBe(0.767);
+  });
+
+  it("rejects a progress outside 0-1", () => {
+    const card = (progress: number) => ({
+      id: "a",
+      template: "progress" as const,
+      title: "x",
+      progress,
+    });
+    expect(DashboardCardInputSchema.safeParse(card(-0.1)).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse(card(42)).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse(card(0)).success).toBe(true);
+    expect(DashboardCardInputSchema.safeParse(card(1)).success).toBe(true);
+  });
+
   it("rejects unknown template values", () => {
     expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });
