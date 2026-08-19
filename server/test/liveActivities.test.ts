@@ -154,6 +154,60 @@ describe("live activities", () => {
     expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
   });
 
+  it("restarts an activity when started again under the same id", async () => {
+    const env = makeEnv();
+    const start = (body: unknown) =>
+      (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/start", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionCtx,
+      );
+
+    const first = await start({
+      externalActivityId: "build-1",
+      kind: "job",
+      title: "CI build #1",
+      state: "running",
+      progress: 0.5,
+    });
+    expect(first.status).toBe(200);
+    const firstBody = (await first.json()) as { activityInstanceId: string; restarted: boolean };
+    expect(firstBody.restarted).toBe(false);
+
+    // A different title and a different kind: both are frozen attributes, so
+    // this can only mean replace the activity.
+    const second = await start({
+      externalActivityId: "build-1",
+      kind: "timer",
+      title: "CI build #2",
+      state: "running",
+    });
+    expect(second.status).toBe(200);
+    const secondBody = (await second.json()) as { activityInstanceId: string; restarted: boolean };
+    expect(secondBody.restarted).toBe(true);
+    // A new instance, or the device would keep rendering the old attributes.
+    expect(secondBody.activityInstanceId).not.toBe(firstBody.activityInstanceId);
+
+    // Exactly one activity, carrying the new attributes and none of the old
+    // content state.
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await res.json()) as { activities: Array<Record<string, unknown>> };
+    expect(body.activities).toHaveLength(1);
+    expect(body.activities[0]).toMatchObject({
+      activityInstanceId: secondBody.activityInstanceId,
+      title: "CI build #2",
+      kind: "timer",
+    });
+    expect(body.activities[0]).not.toHaveProperty("progress");
+  });
+
   it("answers 200 when ending an activity that is not running", async () => {
     const res = await (handler.fetch as any)(
       authedRequest("https://x/v1/live-activities/end", {

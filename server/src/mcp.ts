@@ -223,6 +223,11 @@ const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchem
 const StartActivityOutput = z.object({
   ok: z.boolean(),
   activityInstanceId: z.string().describe("The server's id for this exact activity."),
+  restarted: z.boolean().describe(
+    "True when an activity was already running under this id, so it was ended "
+    + "and replaced rather than started fresh. The user saw one dismiss and "
+    + "another animate in.",
+  ),
   pending: z.boolean(),
   pushToStartAttempted: z.number().describe(
     "How many devices were sent the push that starts the activity. ZERO means "
@@ -374,7 +379,8 @@ const TOOLS: McpTool[] = [
       "Start a Live Activity on the Lock Screen and Dynamic Island. Use this only for something "
       + "time-bounded with a clear end — a build, a wash cycle, a charge, a delivery — and always end "
       + "it. `title`, `kind` and `deepLink` are frozen when it starts and cannot be changed by an "
-      + "update, so anything that must move belongs in the content state fields.",
+      + "update, so anything that must move belongs in the content state fields. Calling this again "
+      + "with an id that is already running restarts it, which is visible to the user.",
     schema: StartLiveActivitySchema,
     outputSchema: StartActivityOutput,
     scope: "publish",
@@ -410,9 +416,8 @@ const TOOLS: McpTool[] = [
     title: "End a Live Activity",
     description:
       "End a running Live Activity with a final frame. Always end what you start. This cannot be "
-      + "undone: an ended activity cannot be resumed, only replaced by starting a new one with a "
-      + "new externalActivityId, which the user sees as the old one dismissing and a new one "
-      + "animating in.",
+      + "undone: an ended activity cannot be resumed, only replaced by starting a new one, which "
+      + "the user sees as the old one dismissing and a new one animating in.",
     schema: EndLiveActivitySchema,
     outputSchema: EndActivityOutput,
     scope: "publish",

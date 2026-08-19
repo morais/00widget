@@ -306,15 +306,38 @@ export async function startLiveActivity(
     ? undefined
     : d.countdownGranularity ?? "second";
 
+  // A start on an id that is already running is a restart, and a real one: the
+  // running activity is ended first and a fresh instance takes its place.
+  //
+  // Reusing the instance instead would be a lie. `title`, `kind` and `deepLink`
+  // are ActivityAttributes, frozen on the device when the activity begins, so
+  // re-pushing under the old instance left the stored record and the Lock
+  // Screen disagreeing about all three — the exact failure the docs spend a
+  // section warning about for `update`, arriving through a different door. And
+  // a push-to-start always starts a new activity on the device, so not ending
+  // the old one left two on screen.
+  //
+  // The user sees the old dismiss and the new animate in. That is what a
+  // restart looks like, which is why it belongs to a deliberate act and not to
+  // a tick.
   const existing = await storage.getActivityInstanceByOwnerExternal(
     env,
     auth.tenantId,
     d.externalActivityId,
   );
-  if (existing && existing.kind !== d.kind) {
-    return json({ error: "an active instance already uses this externalActivityId with another kind" }, 409);
+  if (existing) {
+    // Deleted even if the end push fails: the caller asked for a new activity,
+    // and refusing to give them one because the old one could not be dismissed
+    // would strand them. An undismissed activity expires on its own.
+    await endAndDeleteActivity(
+      env,
+      auth.tenantId,
+      d.externalActivityId,
+      { finalContentState: { state: "restarted" } },
+      { deleteOnDeliveryFailure: true },
+    );
   }
-  const activityInstanceId = existing?.activityInstanceId ?? crypto.randomUUID();
+  const activityInstanceId = crypto.randomUUID();
   const session = LiveActivitySessionSchema.parse({
     activityInstanceId,
     externalActivityId: d.externalActivityId,
@@ -330,7 +353,7 @@ export async function startLiveActivity(
     chart: d.chart,
     endsAt: d.endsAt,
     countdownGranularity,
-    startedAt: existing?.startedAt ?? now,
+    startedAt: now,
     updatedAt: now,
     staleAt: d.staleAt,
     relevanceScore: d.relevanceScore,
@@ -424,6 +447,7 @@ export async function startLiveActivity(
   return json({
     ok: true,
     activityInstanceId,
+    restarted: existing !== null,
     pending: true,
     pushToStartAttempted: startTokens.length,
     apnsResults,

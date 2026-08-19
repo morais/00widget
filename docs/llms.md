@@ -633,6 +633,27 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
 
 The Worker sends an ActivityKit push-to-start notification to every registered device. iOS returns a per-activity APNs push token, which the app registers with the backend for subsequent updates and end events. `alert` is optional in this public request; when omitted, the Worker creates the required APNs alert from `title` and `subtitle`. The pending endpoint remains temporarily available as a compatibility fallback for older app builds.
 
+#### Starting an id that is already running restarts it
+
+`start` on an `externalActivityId` with a live activity behind it is a restart,
+not an error and not an update. 00Widget ends the running activity and replaces
+it with a new one, and the response says so:
+
+```json
+{ "ok": true, "activityInstanceId": "…", "restarted": true, "pending": true,
+  "pushToStartAttempted": 1, "apnsResults": [ … ] }
+```
+
+This is the only way to change `title`, `kind` or `deepLink`, which are frozen
+for the life of an activity. It costs the user a visible transition — the old
+banner dismisses, the new one animates in — so it belongs to a deliberate
+change of subject, never to a routine update. Everything that merely *moves*
+goes through `/v1/live-activities/update` instead.
+
+The restart is complete: a new `activityInstanceId`, a new `startedAt`, and no
+content state carried over from the old one. Send the full state you want, the
+way you would for any other start.
+
 `state` is free-form text for your domain. The current iOS renderer displays it as text and does not reserve special rendering behavior for values like `paused` or `finished`; use `progress`, `value`, `unit`, `endsAt`, `icon`, and `kind` for visual structure.
 
 Live Activity rendering fields:
@@ -677,9 +698,11 @@ the same activity is current. Put counters in `value` + `unit`, progress in
 in `endsAt`.
 
 If a title genuinely has to change — the activity is now about a different
-thing, not a different value — `end` the activity and `start` a new one with a
-new `externalActivityId`. That is a visible restart to the user (the old
-activity dismisses, the new one animates in), so don't do it per tick.
+thing, not a different value — `start` again with the **same**
+`externalActivityId`. That restarts it: 00Widget ends the running activity and
+puts a fresh one in its place with the new attributes. It is a visible restart
+to the user (the old activity dismisses, the new one animates in), so don't do
+it per tick.
 
 #### `items` and `chart` compete for the same space
 
@@ -992,7 +1015,6 @@ Agents should coalesce state changes and avoid hot loops. Publish one batch per 
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
 - `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist. Note the two deliberate exceptions under "Retrying is safe" below.
 - `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
-- `409 {"error":"an active instance already uses this externalActivityId with another kind"}` — a Live Activity is already running under that id with a different `kind`. `kind` is frozen at start, so end that activity or pick a new id.
 - `402 {"error":"...","code":"subscription_required","subscription":{...}}` — the operator's account has no active subscription, on a deployment that requires one. Only publishing and action runs return this; reads keep working. Retrying will not help and neither will a different credential: tell the operator to renew in the 00Widget iOS app, and relay the `error` string, which is written to be repeated to a person.
 - `429 {"error":"rate limit exceeded", ...}` — wait for `Retry-After` seconds before retrying that operation.
 - `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.
@@ -1016,9 +1038,10 @@ timeout or a `5xx` never needs a "did it land?" read first.
 
 Two writes that are *not* idempotent, and where a retry does something:
 
-- **`POST /v1/live-activities/start`** on an id that is already running re-sends
-  the push that starts it, rather than erroring. Use it to recover an activity
-  that failed to appear; don't call it on a tick.
+- **`POST /v1/live-activities/start`** on an id that is already running ends it
+  and replaces it — a restart, visible to the user. Retrying a start you are
+  unsure landed will therefore restart it if it did. Read
+  `GET /v1/live-activities` first if that matters.
 - **`POST /v1/actions/<id>/run`** delivers to your webhook every time. That is
   the point — dedupe on `deliveryId` at your end.
 

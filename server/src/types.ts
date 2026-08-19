@@ -563,18 +563,22 @@ export const RecoverLiveActivitiesSchema = z.object({
 export const StartLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId).describe(
     "Your own id for this run. It addresses the activity on every later update "
-    + "and on the end call, so keep it until the end returns 2xx. Unlike a card "
-    + "id this one *should* be unique per run.",
+    + "and on the end call, so keep it until the end returns 2xx. Starting on an "
+    + "id that is already running RESTARTS it: the running activity is ended and "
+    + "a new one replaces it, which the user sees as one dismissing and another "
+    + "animating in. That is how to change a frozen `title`, `kind` or "
+    + "`deepLink`, and it is not something to do on a tick.",
   ),
   kind: LiveActivityKindSchema.describe(
     "Picks the default glyph when no `icon` is set: generic, progress, "
     + "charging, appliance, job, timer. Frozen once the activity starts.",
   ),
   title: TitleString.describe(
-    "The name of the thing. FROZEN when the activity starts — no update can "
-    + "change what the Lock Screen shows. So it must never carry a value that "
-    + "moves: \"CI build #1234\" and \"Dishwasher\" are titles, \"42 min left\" "
-    + "and \"64% charged\" are not. Put those in `value`, `progress` or `endsAt`.",
+    "The name of the thing. FROZEN for the life of the activity — no update can "
+    + "change what the Lock Screen shows, only a restart can. So it must never "
+    + "carry a value that moves: \"CI build #1234\" and \"Dishwasher\" are titles, "
+    + "\"42 min left\" and \"64% charged\" are not. Put those in `value`, "
+    + "`progress` or `endsAt`.",
   ),
   subtitle: OptionalSubtitleString.describe("A line of prose under the title. Updatable."),
   state: z.string().min(1).max(FieldLimits.activityState).describe(
