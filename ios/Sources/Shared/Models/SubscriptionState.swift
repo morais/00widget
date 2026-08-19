@@ -65,6 +65,23 @@ public struct SubscriptionState: Codable, Equatable, Sendable {
         case .none, .active, .trial: return false
         }
     }
+
+    /// One label for every surface that names the status.
+    ///
+    /// Lives on the model rather than in a view because the two callers had
+    /// drifted: the settings row rendered `active ? "Active" : "Not subscribed"`,
+    /// which told a lapsed subscriber they had never subscribed. Five statuses
+    /// do not collapse into two.
+    public var displayLabel: String {
+        switch status {
+        case .none: return "Not subscribed"
+        case .active: return "Active"
+        case .trial: return "Free trial"
+        case .grace: return "Payment issue"
+        case .expired: return "Expired"
+        case .revoked: return "Refunded"
+        }
+    }
 }
 
 /// The server's answer to `GET /v1/subscription`.

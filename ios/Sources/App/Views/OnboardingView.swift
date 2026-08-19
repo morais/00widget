@@ -161,10 +161,12 @@ struct OnboardingView: View {
                         SubscriptionView()
                     } label: {
                         HStack {
-                            Text("Subscription")
+                            Text("Status")
                             Spacer()
-                            Text(subscriptions.state.active ? "Active" : "Not subscribed")
-                                .foregroundStyle(.secondary)
+                            Text(subscriptions.state.displayLabel)
+                                .foregroundStyle(
+                                    subscriptions.state.needsAttention ? .orange : .secondary
+                                )
                         }
                     }
                 }

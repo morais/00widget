@@ -476,11 +476,12 @@ final class ScreenshotTests: XCTestCase {
             )
             settingsTab.tap()
 
-            // The row's accessibility label is compound — "Subscription, Active"
-            // — because the NavigationLink wraps a label and a status together,
-            // so an exact match never finds it.
+            // The row's accessibility label is compound — "Status, Expired" —
+            // because the NavigationLink wraps a label and a status together,
+            // so an exact match never finds it. It sits under the section
+            // headed "Subscription".
             let row = app.buttons
-                .containing(NSPredicate(format: "label BEGINSWITH 'Subscription'"))
+                .containing(NSPredicate(format: "label BEGINSWITH 'Status'"))
                 .firstMatch
             XCTAssertTrue(scrollTo(row, in: app, swipes: 10), "Subscription row not found.")
             capture(named: "screenshot-subscription-settings-\(state)")
@@ -503,18 +504,31 @@ final class ScreenshotTests: XCTestCase {
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
         XCTAssertTrue(widgetsTab.waitForExistence(timeout: 30), "Navigation never appeared.")
-        hideSampleIndicators(in: app)
         widgetsTab.tap()
 
-        // The notice sits above the cards, so the dashboard needs content.
-        let generate = app.buttons["Generate sample widgets"]
-        if generate.waitForExistence(timeout: 5) {
-            generate.tap()
-        }
+        // The empty dashboard first, and before `hideSampleIndicators` — that
+        // helper generates sample cards, so calling it first would mean this
+        // branch was never actually exercised. Someone who has never subscribed
+        // usually has nothing published, so the empty dashboard is the branch
+        // the notice most needs to appear in, and the one it was missing from.
         XCTAssertTrue(
             app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15),
-            "Subscription notice did not appear on the dashboard."
+            "Subscription notice is missing from the empty dashboard."
         )
+        XCTAssertTrue(
+            app.buttons["Generate sample widgets"].exists,
+            "Dashboard was not empty, so the empty-state branch went untested."
+        )
+        capture(named: "screenshot-subscription-notice-empty")
+
+        // Then again with cards, where it has to sit above them.
+        hideSampleIndicators(in: app)
+        widgetsTab.tap()
+        XCTAssertTrue(
+            app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15),
+            "Subscription notice did not appear on the populated dashboard."
+        )
+        XCTAssertTrue(app.staticTexts["Solar"].exists, "Sample cards did not render.")
         capture(named: "screenshot-subscription-notice")
     }
 #endif

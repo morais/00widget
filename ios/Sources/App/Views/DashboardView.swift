@@ -76,6 +76,17 @@ struct DashboardView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                 }
+
+                #if ZW_SUBSCRIPTIONS_ENABLED
+                // Also here, not only alongside cards. Someone who has never
+                // subscribed usually has nothing published yet, so putting the
+                // notice only on the populated dashboard hid it from exactly
+                // the person it is addressed to.
+                SubscriptionNotice()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                #endif
+
                 emptyState
                     .frame(maxWidth: .infinity, minHeight: 420)
             }

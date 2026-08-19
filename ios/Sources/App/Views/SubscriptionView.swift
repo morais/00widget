@@ -57,7 +57,7 @@ struct SubscriptionView: View {
     @ViewBuilder
     private var statusSection: some View {
         Section {
-            KeyValue(key: "Status", value: statusLabel)
+            KeyValue(key: "Status", value: subscriptions.state.displayLabel)
             if let expiresAt = subscriptions.state.expiresAt {
                 KeyValue(key: renewalLabel, value: expiresAt.formatted(date: .abbreviated, time: .shortened))
             }
@@ -101,17 +101,6 @@ struct SubscriptionView: View {
                 }
                 .disabled(subscriptions.purchaseInProgress)
             }
-        }
-    }
-
-    private var statusLabel: String {
-        switch subscriptions.state.status {
-        case .none: return "Not subscribed"
-        case .active: return "Active"
-        case .trial: return "Free trial"
-        case .grace: return "Payment issue"
-        case .expired: return "Expired"
-        case .revoked: return "Refunded"
         }
     }
 
@@ -180,18 +169,30 @@ struct SubscriptionNotice: View {
             NavigationLink {
                 SubscriptionView()
             } label: {
-                HStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Publishing is paused")
-                            .font(.subheadline.weight(.medium))
+                            .font(.subheadline.weight(.semibold))
                         Text("Your agents can't send new state until your subscription is active.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
             }
+            // Without .plain, SwiftUI renders the whole label as tinted,
+            // centred link text — which reads as a stray hyperlink rather than
+            // as the warning card it sits beside on the dashboard.
+            .buttonStyle(.plain)
         }
     }
 }
