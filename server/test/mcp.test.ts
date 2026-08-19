@@ -3,6 +3,7 @@ import handler from "../src/index";
 import * as storage from "../src/storage";
 import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY, testApiKey } from "./helpers";
+import { llmsMarkdown } from "../src/generated/llmsDoc";
 
 const ctx = {} as ExecutionContext;
 
@@ -324,6 +325,80 @@ describe("tools/list", () => {
       expect.arrayContaining(["id", "template", "title", "status", "items", "chart", "deepLink"]),
     );
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
+  });
+});
+
+describe("get_integration_guide", () => {
+  const guide = async (env: Env, args: Record<string, unknown> = {}) =>
+    toolText(await call(env, "get_integration_guide", args));
+
+  it("returns the publishing rules and leaves out the code-level material", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const text = await guide(env);
+
+    for (const heading of [
+      "## Data model",
+      "## Choosing a template",
+      "## Publishing a card",
+      "## Live Activities",
+      "## Actions",
+      "## Errors",
+      "## Don'ts",
+    ]) {
+      expect(text, heading).toContain(heading);
+    }
+    // A tool caller has typed arguments and an OAuth credential; curl
+    // invocations, four language bindings and key setup are all noise it pays
+    // for in context.
+    for (const heading of [
+      "## Snippets",
+      "## Get the operator to give you",
+      "## Notes for Cloudflare Workers callers",
+    ]) {
+      expect(text, heading).not.toContain(heading);
+    }
+    expect(text).not.toContain("curl -X POST");
+    // The payload shapes are exactly what the caller is building, so they stay.
+    expect(text).toContain("```json");
+    expect(text.length).toBeLessThan(llmsMarkdown.length);
+  });
+
+  // Regression: a `# ...` shell comment inside a fenced example used to be read
+  // as a heading, which truncated the section it sat in and swallowed whichever
+  // heading came next — "Live Activities" disappeared from the default guide.
+  it("does not mistake shell comments for headings", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    for (const section of ["essentials", "cards", "live-activities", "actions"]) {
+      const text = await guide(env, { section });
+      const fences = text.split("\n").filter((line) => line.startsWith("```")).length;
+      expect(fences % 2, `${section} leaves an unbalanced fence`).toBe(0);
+    }
+  });
+
+  it("narrows to one section on request", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const activities = await guide(env, { section: "live-activities" });
+    expect(activities).toContain("## Live Activities");
+    expect(activities).not.toContain("## Choosing a template");
+    expect(activities.length).toBeLessThan((await guide(env)).length);
+  });
+
+  it("still serves the whole public document on request", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const everything = await guide(env, { section: "everything" });
+    expect(everything).toContain("## Snippets");
+    expect(everything).toContain("curl -X POST");
+  });
+
+  it("rejects a section it does not have", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const result = await call(env, "get_integration_guide", { section: "nonsense" });
+    expect(result.result?.isError).toBe(true);
   });
 });
 

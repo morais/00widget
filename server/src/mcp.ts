@@ -10,6 +10,7 @@ import {
 import * as cards from "./cards";
 import * as liveActivities from "./liveActivities";
 import { json } from "./http";
+import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
 import { subscriptionGate, subscriptionRequiredMessage } from "./subscription";
@@ -43,6 +44,106 @@ import {
 // 2026-07-28 revision removed the initialize handshake and session header
 // outright. Older clients that still open with `initialize` are answered too;
 // both spellings are cheap to support and the wire shapes barely differ.
+
+// The guide an MCP client gets, which is not the guide a person writing code
+// gets. A tool caller already has typed arguments with per-field descriptions,
+// so most of docs/llms.md is dead weight in its context window: curl
+// invocations for endpoints it addresses by name, the same publish written out
+// in four languages, credential setup that OAuth already did, field limits the
+// JSON Schema already states. What is left is what no schema can carry — which
+// template fits which shape of data, and the rules a Live Activity enforces
+// without reporting.
+//
+// Filtered from the one source document rather than written separately, so it
+// cannot fall out of step with it.
+export const MCP_GUIDE_SECTIONS = {
+  essentials: [
+    "Tap behavior",
+    "Data model",
+    "Choosing a template",
+    "Publishing a card",
+    "Live Activities",
+    "Actions",
+    "Rate limits",
+    "Errors",
+    "Don'ts",
+  ],
+  cards: ["Data model", "Choosing a template", "Publishing a card", "Don'ts"],
+  "live-activities": ["Live Activities", "Errors", "Don'ts"],
+  actions: ["Actions", "Errors"],
+  everything: null,
+} as const;
+
+export type McpGuideSection = keyof typeof MCP_GUIDE_SECTIONS;
+
+export function renderMcpGuide(section: McpGuideSection, baseURL: string): string {
+  const wanted = MCP_GUIDE_SECTIONS[section];
+  if (wanted === null) return renderHostedLlmsMarkdown(baseURL);
+  return mcpGuidePreamble(section, baseURL) + stripShellExamples(selectSections(llmsMarkdown, wanted));
+}
+
+/// Says what was left out and how to get it back, so a caller that needs the
+/// HTTP surface knows it exists rather than concluding it does not. The base
+/// URL is here because it is the one thing from the credential section a tool
+/// caller might still want — for the day it stops being a tool caller.
+function mcpGuidePreamble(section: McpGuideSection, baseURL: string): string {
+  return [
+    `# 00Widget — ${section}`,
+    "",
+    "The publishing rules, trimmed for MCP clients: the tool schemas already",
+    "carry every field and its limits, so what is left here is what they cannot",
+    "say. Credential setup, curl invocations and the client snippets are gone;",
+    'ask for `section: "everything"` to read the full public document.',
+    "",
+    `This deployment is \`00WIDGET_BASE_URL=${baseURL}\`, if you ever need to`,
+    "call the HTTP API directly instead of through these tools.",
+    "",
+    "---",
+    "",
+  ].join("\n");
+}
+
+/// Keeps whole `##` sections by title, with every `###` under them.
+///
+/// Fenced blocks are tracked, because a `#` at the start of a line inside one
+/// is a shell comment rather than a heading. The document is full of them
+/// (`# → {"ok":true}`), and reading one as a heading silently truncates the
+/// section it sits in and leaves the fence unbalanced for whatever runs next.
+function selectSections(markdown: string, titles: readonly string[]): string {
+  const wanted = new Set<string>(titles);
+  const out: string[] = [];
+  let keeping = false;
+  let inFence = false;
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("```")) inFence = !inFence;
+    else if (!inFence && line.startsWith("## ")) keeping = wanted.has(line.slice(3).trim());
+    else if (!inFence && line.startsWith("# ")) keeping = false;
+    if (keeping) out.push(line);
+  }
+  return out.join("\n").trim() + "\n";
+}
+
+/// Drops ```sh blocks. Each is a curl form of a call this client makes by tool
+/// name, so it costs context and teaches the wrong interface. The ```json
+/// blocks stay: those are payload shapes, which is exactly what the caller is
+/// building.
+function stripShellExamples(markdown: string): string {
+  const out: string[] = [];
+  let inShell = false;
+  for (const line of markdown.split("\n")) {
+    if (!inShell && /^```(sh|bash|shell)\b/.test(line)) {
+      inShell = true;
+      continue;
+    }
+    if (inShell) {
+      if (line.startsWith("```")) inShell = false;
+      continue;
+    }
+    out.push(line);
+  }
+  // Collapse the blank-line pairs the removals leave behind.
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
 
 export const MCP_PATH = "/mcp";
 
@@ -328,17 +429,28 @@ const TOOLS: McpTool[] = [
     name: "get_integration_guide",
     title: "Read the 00Widget integration guide",
     description:
-      "Return the full 00Widget integration contract: every card template with its fields, the "
-      + "decision matrix for picking one, Live Activity rules, and publishing etiquette. Read this "
-      + "before publishing anything for the first time.",
-    schema: NoArguments,
+      "The rules no argument schema can carry: which template fits which shape of data, what a "
+      + "Live Activity freezes at start, and what publishing etiquette costs you if you ignore it. "
+      + "Read it before publishing for the first time. Narrow it with `section` when you already "
+      + "know which half you need.",
+    schema: z.object({
+      section: z
+        .enum(Object.keys(MCP_GUIDE_SECTIONS) as [McpGuideSection, ...McpGuideSection[]])
+        .default("essentials")
+        .describe(
+          "Which part to return. `essentials` (default) is everything a publisher needs; `cards`, "
+          + "`live-activities` and `actions` narrow it further; `everything` is the full public "
+          + "document, including the HTTP and code-level material an MCP client has no use for.",
+        ),
+    }),
     scope: "tenant:read",
     readOnly: true,
     destructive: false,
-    invoke: async (_args, tools) =>
-      new Response(renderHostedLlmsMarkdown(tools.origin), {
-        headers: { "content-type": "text/markdown; charset=utf-8" },
-      }),
+    invoke: async (args, tools) =>
+      new Response(
+        renderMcpGuide((args.section as McpGuideSection) ?? "essentials", tools.origin),
+        { headers: { "content-type": "text/markdown; charset=utf-8" } },
+      ),
   },
 ];
 

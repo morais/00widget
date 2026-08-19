@@ -71,9 +71,16 @@ credential — say so rather than trying to publish with it.
 the operator has enabled it. It wraps the same endpoints as tools —
 `upsert_card`, `upsert_cards_batch`, `list_cards`, `get_card`, `delete_card`,
 `start_live_activity`, `update_live_activity`, `end_live_activity`,
-`list_live_activities`, and `get_integration_guide`, which returns this
-document. Everything below still applies: the tool arguments *are* the JSON
-bodies documented here, validated by the same schemas.
+`list_live_activities`, and `get_integration_guide`. Everything below still
+applies: the tool arguments *are* the JSON bodies documented here, validated by
+the same schemas, and every field carries its description into the tool's JSON
+Schema.
+
+`get_integration_guide` returns this document trimmed for a tool caller — the
+rules the argument schemas cannot carry, without the credential setup, curl
+invocations, and language snippets an MCP client has no use for. Pass
+`section` (`essentials`, `cards`, `live-activities`, `actions`, `everything`)
+to narrow it further or to read the whole thing.
 
 Use it when the thing that wants to publish is an MCP client (ChatGPT, a Claude
 connector, an editor). Do **not** reach for it when you are writing code — a
