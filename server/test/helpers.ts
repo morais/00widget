@@ -64,6 +64,7 @@ export class FakeD1 {
   private rateLimitBuckets = new Map<string, FakeRow>();
   private widgetPushCadence = new Map<string, FakeRow>();
   private widgetPushPending = new Map<string, FakeRow>();
+  private subscriptions = new Map<string, FakeApiKeyRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -732,11 +733,108 @@ export class FakeD1 {
       this.widgetPushPending.delete(tenant_id);
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO subscriptions")) {
+      return this.upsertSubscription(values);
+    }
+    if (normalized.startsWith("UPDATE subscriptions SET tenant_id = ?, updated_at = ? WHERE original_transaction_id = ? AND tenant_id IS NULL")) {
+      const [tenant_id, updated_at, original_transaction_id] = values.map(String);
+      const row = this.subscriptions.get(original_transaction_id);
+      if (!row || row.tenant_id) return 0;
+      this.subscriptions.set(original_transaction_id, { ...row, tenant_id, updated_at });
+      return 1;
+    }
+    if (normalized.startsWith("UPDATE subscriptions SET auto_renew = ?, grace_expires_at_ms = ?, updated_at = ? WHERE original_transaction_id = ?")) {
+      const [auto_renew, grace_expires_at_ms, updated_at, original_transaction_id] = values;
+      const row = this.subscriptions.get(String(original_transaction_id));
+      if (!row) return 0;
+      this.subscriptions.set(String(original_transaction_id), {
+        ...row,
+        auto_renew: Number(auto_renew),
+        grace_expires_at_ms: grace_expires_at_ms === null ? null : Number(grace_expires_at_ms),
+        updated_at: String(updated_at),
+      });
+      return 1;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
+  }
+
+  // Mirrors the ON CONFLICT clause in recordTransaction: an existing tenant_id
+  // is never cleared, and a payload older than the stored one is dropped.
+  private upsertSubscription(values: unknown[]): number {
+    const [
+      original_transaction_id, tenant_id, product_id, status, expires_at_ms,
+      grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms,
+      signed_date_ms, created_at, updated_at,
+    ] = values;
+    const key = String(original_transaction_id);
+    const existing = this.subscriptions.get(key);
+    if (existing && Number(signed_date_ms) < Number(existing.signed_date_ms ?? 0)) return 0;
+    const asNumber = (value: unknown) => (value === null || value === undefined ? null : Number(value));
+    this.subscriptions.set(key, {
+      original_transaction_id: key,
+      tenant_id: (tenant_id === null ? null : String(tenant_id)) ?? existing?.tenant_id ?? null,
+      product_id: String(product_id),
+      status: String(status),
+      expires_at_ms: asNumber(expires_at_ms),
+      grace_expires_at_ms: asNumber(grace_expires_at_ms),
+      is_trial: Number(is_trial),
+      auto_renew: Number(auto_renew),
+      environment: String(environment),
+      revoked_at_ms: asNumber(revoked_at_ms),
+      signed_date_ms: Number(signed_date_ms),
+      created_at: String(existing?.created_at ?? created_at),
+      updated_at: String(updated_at),
+    });
+    return 1;
+  }
+
+  /// Seeds an entitlement directly, for tests about enforcement rather than
+  /// about verification.
+  seedSubscription(row: {
+    originalTransactionId?: string;
+    tenantId?: string | null;
+    productId?: string;
+    status?: string;
+    expiresAtMs?: number | null;
+    graceExpiresAtMs?: number | null;
+    isTrial?: boolean;
+    autoRenew?: boolean;
+    environment?: string;
+    revokedAtMs?: number | null;
+    signedDateMs?: number;
+  } = {}): void {
+    const id = row.originalTransactionId ?? "original-transaction-1";
+    this.subscriptions.set(id, {
+      original_transaction_id: id,
+      tenant_id: row.tenantId === undefined ? "test-tenant" : row.tenantId,
+      product_id: row.productId ?? "com.example.app.pro.monthly",
+      status: row.status ?? "active",
+      expires_at_ms: row.expiresAtMs === undefined ? Date.now() + 30 * 86400_000 : row.expiresAtMs,
+      grace_expires_at_ms: row.graceExpiresAtMs ?? null,
+      is_trial: row.isTrial ? 1 : 0,
+      auto_renew: row.autoRenew === false ? 0 : 1,
+      environment: row.environment ?? "Production",
+      revoked_at_ms: row.revokedAtMs ?? null,
+      signed_date_ms: row.signedDateMs ?? 1,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    });
   }
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
+      const [tenant_id] = values.map(String);
+      return [...this.subscriptions.values()]
+        .filter((row) => row.tenant_id === tenant_id)
+        .sort((a, b) => Number(b.expires_at_ms ?? 0) - Number(a.expires_at_ms ?? 0))
+        .slice(0, 1);
+    }
+    if (normalized === "SELECT tenant_id FROM subscriptions WHERE original_transaction_id = ?") {
+      const [id] = values.map(String);
+      const row = this.subscriptions.get(id);
+      return row ? [{ tenant_id: row.tenant_id ?? null }] : [];
+    }
     if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds, api_keys.resource_kind, api_keys.resource_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {

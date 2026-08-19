@@ -25,6 +25,7 @@ import * as mcpOAuth from "./mcpOAuth";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
+import * as subscription from "./subscription";
 import { processPendingWidgetReload } from "./widgetPush";
 import { sweepExpiredRateLimitBuckets } from "./rateLimit";
 
@@ -74,6 +75,12 @@ const routes: Route[] = [
   },
   { method: "POST", pattern: /^\/oauth\/register\/?$/, handler: (req, env) => mcpOAuth.handleRegister(req, env) },
   { method: "POST", pattern: /^\/oauth\/token\/?$/, handler: (req, env) => mcpOAuth.handleToken(req, env) },
+  // App Store Server Notifications V2. Apple presents no credential — the JWS
+  // signature on the body is the authentication — so this cannot be wrapped in
+  // `authed`.
+  { method: "POST", pattern: /^\/v1\/apple\/subscription-notifications\/?$/, handler: (req, env) =>
+    subscription.handleAppleNotification(req, env),
+  },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),
   authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, "publish", (req, env, auth, _match, ctx) =>
@@ -162,6 +169,14 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
   },
+  // Subscription routes are never themselves gated on holding a subscription:
+  // proving you have paid must work from a lapsed account, or renewing is
+  // impossible.
+  authed("POST", /^\/v1\/subscription\/verify\/?$/, "tenant:read", (req, env, auth) =>
+    subscription.verifySubscription(req, env, auth)),
+  authed("GET", /^\/v1\/subscription\/?$/, "tenant:read", (req, env, auth) =>
+    subscription.getSubscription(req, env, auth)),
+
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
     sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },
   ),

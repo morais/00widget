@@ -34,6 +34,14 @@ export const RateLimitPolicies = {
   // the token exchange is what mints the credential.
   mcpClientRegisterIpDay: { label: "MCP client registrations", limit: 20, windowSeconds: DAY },
   mcpTokenIpHour: { label: "MCP token exchanges", limit: 30, windowSeconds: HOUR },
+  // Receipt verification. Generous because the app re-verifies on every launch
+  // and on every StoreKit update, and a subscriber locked out of proving they
+  // have paid is the worst failure this whole feature has.
+  subscriptionVerifyTenantHour: { label: "Subscription verifications", limit: 120, windowSeconds: HOUR },
+  // Keyed on caller IP: an App Store Server Notification carries no tenant, and
+  // verifying its certificate chain is real CPU. Apple's own volume for one app
+  // is orders of magnitude below this.
+  appleNotificationIpHour: { label: "App Store notifications", limit: 600, windowSeconds: HOUR },
 } as const;
 
 type RateLimitPolicyName = keyof typeof RateLimitPolicies;

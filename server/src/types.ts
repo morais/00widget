@@ -15,6 +15,10 @@ export const RequestBodyLimits = {
   // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
   // body any tool forwards (a card batch) plus the wrapper around it.
   mcpRpc: 160 * KiB,
+  // StoreKit hands over every current entitlement at once, and each is a JWS
+  // carrying a full certificate chain — a few KiB apiece.
+  subscriptionVerify: 128 * KiB,
+  appleNotification: 64 * KiB,
 } as const;
 
 export const FieldLimits = {
@@ -724,4 +728,27 @@ export interface Env {
   SIGNUP_ALERTS?: SendEmail;              // [[send_email]] binding in wrangler.toml
   SIGNUP_ALERT_TO?: string;               // recipient; the binding's verified destination
   SIGNUP_ALERT_FROM?: string;             // optional sender on an Email Routing domain
+
+  // App Store subscriptions. Two flags rather than one, because the useful
+  // middle state is selling subscriptions without yet enforcing them —
+  // grandfathering existing tenants, or letting the verification pipeline run
+  // for a while before it is allowed to reject anything.
+  //
+  // Off unless "true", so a deployment that has not thought about billing keeps
+  // behaving exactly as it did before any of this existed. Requiring without
+  // enabling fails open: a monetization switch that locks out paying customers
+  // on a typo is worse than one that bills nobody.
+  SUBSCRIPTIONS_ENABLED?: string;
+  SUBSCRIPTION_REQUIRED?: string;
+  // Comma-separated product ids sold by this deployment, e.g.
+  // com.example.app.pro.monthly,com.example.app.pro.yearly. Empty accepts any
+  // product for the right bundle id, which is only sensible in development.
+  SUBSCRIPTION_PRODUCT_IDS?: string;
+  // "Production" (default) or "Sandbox". Sandbox purchases are free and
+  // unlimited, so one must never entitle a production tenant.
+  SUBSCRIPTION_ENVIRONMENT?: string;
+  // Days past expiry that an entitlement still counts. Covers a late webhook,
+  // not a lapsed payment; Apple's own billing grace period arrives in the
+  // payload and is honoured separately.
+  SUBSCRIPTION_GRACE_DAYS?: string;
 }
