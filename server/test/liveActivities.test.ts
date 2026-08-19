@@ -253,6 +253,90 @@ describe("live activities", () => {
     expect(body.activities[0]).not.toHaveProperty("progress");
   });
 
+  it("keeps an ended activity listable so a producer can reconcile", async () => {
+    const env = makeEnv();
+    const post = (path: string, body: unknown) =>
+      (handler.fetch as any)(
+        authedRequest(`https://x/v1/live-activities/${path}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionCtx,
+      );
+    const list = async (query = "") => {
+      const res = await (handler.fetch as any)(
+        authedRequest(`https://x/v1/live-activities${query}`, { method: "GET" }),
+        env,
+        executionCtx,
+      );
+      return (await res.json()) as { activities: any[]; ended?: any[] };
+    };
+
+    await post("start", {
+      externalActivityId: "build-9",
+      kind: "job",
+      title: "CI build #9",
+      state: "running",
+    });
+    await post("end", {
+      externalActivityId: "build-9",
+      finalState: "finished",
+      finalSubtitle: "passed in 4m 12s",
+    });
+
+    // Gone from the running list, which is the whole point of ending it.
+    expect((await list()).activities).toEqual([]);
+    // History is opt-in: a producer polling for what is running should not pay
+    // for a window it ignores.
+    expect(await list()).not.toHaveProperty("ended");
+
+    const withEnded = await list("?include=ended");
+    expect(withEnded.activities).toEqual([]);
+    expect(withEnded.ended).toHaveLength(1);
+    expect(withEnded.ended![0]).toMatchObject({
+      externalActivityId: "build-9",
+      title: "CI build #9",
+      finalState: "finished",
+      finalSubtitle: "passed in 4m 12s",
+    });
+    expect(typeof withEnded.ended![0].endedAt).toBe("string");
+  });
+
+  it("records a restart's replaced activity in history", async () => {
+    // A restart ends the old one, so it belongs in the window too — otherwise
+    // the record of what ran would have a hole in exactly the case where a
+    // producer is most likely to be reconciling.
+    const env = makeEnv();
+    const start = (title: string) =>
+      (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/start", {
+          method: "POST",
+          body: JSON.stringify({
+            externalActivityId: "build-10",
+            kind: "job",
+            title,
+            state: "running",
+          }),
+        }),
+        env,
+        executionCtx,
+      );
+    await start("first");
+    await start("second");
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities?include=ended", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await res.json()) as { activities: any[]; ended: any[] };
+    expect(body.activities).toHaveLength(1);
+    expect(body.activities[0].title).toBe("second");
+    expect(body.ended).toHaveLength(1);
+    expect(body.ended[0].title).toBe("first");
+  });
+
   it("answers 200 when ending an activity that is not running", async () => {
     const res = await (handler.fetch as any)(
       authedRequest("https://x/v1/live-activities/end", {

@@ -263,7 +263,7 @@ something to integrate against:
 | POST   | `/v1/live-activities/register-start-token`   | Store this device's push-to-start token. |
 | POST   | `/v1/live-activities/recover`                | Replay ongoing activities missing from one device. |
 | POST   | `/v1/live-activities/start`                  | Start a Live Activity through APNs.    |
-| GET    | `/v1/live-activities`                        | List current activities, deduplicated across pending and registered devices. |
+| GET    | `/v1/live-activities`                        | List current activities, deduplicated across pending and registered devices. `?include=ended` adds a 24-hour window of finished ones. |
 | GET    | `/v1/live-activities/pending`                | Compatibility fallback for older apps. |
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
@@ -401,6 +401,7 @@ Tables:
 | `activity_targets` | `(activity_instance_id, target_tenant_id)` | Exact owner or accepted-share audiences authorized to receive an instance. |
 | `activity_deliveries` | `(activity_instance_id, target_tenant_id, device_id)` | Per-device ActivityKit push tokens bound to an exact instance and optional share. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
+| `activity_history` | `(tenant_id, activity_instance_id)` | Live Activities that ended in the last 24 hours, so a producer can reconcile. Swept with the rate limit buckets. |
 | `webhook_integrations` | `tenant_id` | Per-tenant action webhook URL and signing secret. |
 
 The Worker uses D1 only.

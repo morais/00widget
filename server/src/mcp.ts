@@ -368,15 +368,41 @@ const TOOLS: McpTool[] = [
   },
   {
     name: "list_live_activities",
-    title: "List running Live Activities",
-    description: "List the Live Activities this tenant currently has running, with their content state.",
-    schema: NoArguments,
-    outputSchema: ActivitiesOutput,
+    title: "List Live Activities",
+    description:
+      "The Live Activities this tenant currently has running, with their content state. Pass "
+      + "includeEnded to also get the ones that finished in the last day — which is how to check "
+      + "whether an end actually landed, or to find an activity whose externalActivityId you lost.",
+    schema: z.object({
+      includeEnded: z
+        .boolean()
+        .optional()
+        .describe("Also return activities that ended within the last 24 hours."),
+    }),
+    outputSchema: ActivitiesOutput.extend({
+      ended: z.array(z.object({
+        activityInstanceId: z.string(),
+        externalActivityId: z.string(),
+        kind: z.string(),
+        title: z.string(),
+        finalState: z.string().optional(),
+        finalSubtitle: z.string().optional(),
+        startedAt: z.string().optional(),
+        endedAt: z.string(),
+      })).optional().describe("Present only when includeEnded was set."),
+    }),
     scope: "read",
     readOnly: true,
     destructive: false,
-    invoke: (_args, tools) =>
-      liveActivities.activeActivities(getRequest(tools.origin, "/v1/live-activities"), tools.env, tools.auth),
+    invoke: (args, tools) =>
+      liveActivities.activeActivities(
+        getRequest(
+          tools.origin,
+          args.includeEnded ? "/v1/live-activities?include=ended" : "/v1/live-activities",
+        ),
+        tools.env,
+        tools.auth,
+      ),
   },
   {
     name: "start_live_activity",

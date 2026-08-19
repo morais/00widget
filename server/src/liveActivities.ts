@@ -467,11 +467,18 @@ export async function pendingActivities(
 }
 
 export async function activeActivities(
-  _req: Request,
+  req: Request,
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  return json({ activities: await listActiveActivitySessions(env, auth.tenantId) });
+  const activities = await listActiveActivitySessions(env, auth.tenantId);
+  // `?include=ended` adds a bounded window of recently finished activities.
+  // Opt-in rather than always present: the common call is "what is running",
+  // and a producer polling that should not pay for history it ignores.
+  if (new URL(req.url).searchParams.get("include") !== "ended") {
+    return json({ activities });
+  }
+  return json({ activities, ended: await storage.listEndedActivities(env, auth.tenantId) });
 }
 
 export async function listActiveActivitySessions(
@@ -691,6 +698,23 @@ export async function endAndDeleteActivity(
     if (!endDeliverySucceeded(result)) deliveryFailures.push(result);
   }
   if (deliveryFailures.length === 0 || options.deleteOnDeliveryFailure === true) {
+    // Recorded before the delete, so a producer can still answer "did my end
+    // land, and what did it say?" after the instance that addressed it is gone.
+    // Bounded to a day and swept; this is a reconciliation window, not a log.
+    await storage.recordEndedActivity(env, tenantId, {
+      activityInstanceId: instance.activityInstanceId,
+      externalActivityId: instance.externalActivityId,
+      kind: instance.kind,
+      title: instance.title,
+      finalState: typeof endPayload.finalContentState?.state === "string"
+        ? endPayload.finalContentState.state
+        : undefined,
+      finalSubtitle: typeof endPayload.finalContentState?.subtitle === "string"
+        ? endPayload.finalContentState.subtitle
+        : undefined,
+      startedAt: instance.startedAt,
+      endedAt: new Date().toISOString(),
+    });
     await storage.deleteActivityInstance(env, instance.activityInstanceId);
   }
   return { apnsResult, recipientResults, deliveryFailures };

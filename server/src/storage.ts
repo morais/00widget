@@ -696,6 +696,122 @@ export async function deleteActivityShareTarget(env: Env, shareId: string): Prom
   ]);
 }
 
+export interface EndedActivity {
+  activityInstanceId: string;
+  externalActivityId: string;
+  kind: string;
+  title: string;
+  finalState?: string;
+  finalSubtitle?: string;
+  startedAt?: string;
+  endedAt: string;
+}
+
+/// How long an ended activity stays listable. A Live Activity's own ceiling is
+/// 8 hours plus a 4-hour dismissal window, so a day covers everything that
+/// could still be recent without turning this into a log.
+const ACTIVITY_HISTORY_TTL_SECONDS = 24 * 60 * 60;
+
+export async function recordEndedActivity(
+  env: Env,
+  tenantId: string,
+  entry: EndedActivity,
+): Promise<void> {
+  const expiresAt = Math.floor(Date.parse(entry.endedAt) / 1000) + ACTIVITY_HISTORY_TTL_SECONDS;
+  await env.ZW_DB.prepare(
+    `INSERT INTO activity_history
+       (tenant_id, activity_instance_id, external_id, kind, title,
+        final_state, final_subtitle, started_at, ended_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(tenant_id, activity_instance_id) DO UPDATE SET
+       final_state = excluded.final_state,
+       final_subtitle = excluded.final_subtitle,
+       ended_at = excluded.ended_at,
+       expires_at = excluded.expires_at`,
+  )
+    .bind(
+      tenantId,
+      entry.activityInstanceId,
+      entry.externalActivityId,
+      entry.kind,
+      entry.title,
+      entry.finalState ?? null,
+      entry.finalSubtitle ?? null,
+      entry.startedAt ?? null,
+      entry.endedAt,
+      expiresAt,
+    )
+    .run();
+}
+
+export async function listEndedActivities(
+  env: Env,
+  tenantId: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): Promise<EndedActivity[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT activity_instance_id, external_id, kind, title, final_state,
+            final_subtitle, started_at, ended_at
+     FROM activity_history
+     WHERE tenant_id = ? AND expires_at > ?
+     ORDER BY ended_at DESC, activity_instance_id`,
+  )
+    .bind(tenantId, nowSeconds)
+    .all<{
+      activity_instance_id: string;
+      external_id: string;
+      kind: string;
+      title: string;
+      final_state: string | null;
+      final_subtitle: string | null;
+      started_at: string | null;
+      ended_at: string;
+    }>();
+  return rows.results.map((row) => ({
+    activityInstanceId: row.activity_instance_id,
+    externalActivityId: row.external_id,
+    kind: row.kind,
+    title: row.title,
+    ...(row.final_state ? { finalState: row.final_state } : {}),
+    ...(row.final_subtitle ? { finalSubtitle: row.final_subtitle } : {}),
+    ...(row.started_at ? { startedAt: row.started_at } : {}),
+    endedAt: row.ended_at,
+  }));
+}
+
+/// Reclaims ended activities past their retention window.
+///
+/// Rides the same sampled sweep as the rate limit buckets, and deletes in
+/// bounded chunks for the same reason: `expires_at` carries no index — one
+/// would add a second write to the end path — so an unqualified delete would
+/// scan, and most expensively in exactly the situation that makes sweeping
+/// worth doing. Failures are swallowed; a sweep must never fail the work it
+/// rides along with.
+export async function sweepExpiredActivityHistory(env: Env): Promise<number> {
+  const CHUNK = 200;
+  const MAX_CHUNKS = 5;
+  let deleted = 0;
+  try {
+    for (let i = 0; i < MAX_CHUNKS; i++) {
+      const result = await env.ZW_DB.prepare(
+        `DELETE FROM activity_history WHERE rowid IN (
+           SELECT rowid FROM activity_history WHERE expires_at < ? LIMIT ?
+         ) RETURNING rowid`,
+      )
+        .bind(Math.floor(Date.now() / 1000), CHUNK)
+        .all<{ rowid: number }>();
+      const removed = result.results.length;
+      deleted += removed;
+      if (removed < CHUNK) break;
+    }
+  } catch (err) {
+    console.warn("activity_history.cleanup_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return deleted;
+}
+
 export async function deleteActivityInstance(
   env: Env,
   activityInstanceId: string,

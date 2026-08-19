@@ -65,6 +65,7 @@ export class FakeD1 {
   private widgetPushCadence = new Map<string, FakeRow>();
   private widgetPushPending = new Map<string, FakeRow>();
   private subscriptions = new Map<string, FakeApiKeyRow>();
+  private activityHistory = new Map<string, FakeApiKeyRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -733,6 +734,36 @@ export class FakeD1 {
       this.widgetPushPending.delete(tenant_id);
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO activity_history")) {
+      const [
+        tenant_id, activity_instance_id, external_id, kind, title,
+        final_state, final_subtitle, started_at, ended_at, expires_at,
+      ] = values;
+      this.activityHistory.set(`${String(tenant_id)}:${String(activity_instance_id)}`, {
+        tenant_id: String(tenant_id),
+        activity_instance_id: String(activity_instance_id),
+        external_id: String(external_id),
+        kind: String(kind),
+        title: String(title),
+        final_state: final_state === null ? null : String(final_state),
+        final_subtitle: final_subtitle === null ? null : String(final_subtitle),
+        started_at: started_at === null ? null : String(started_at),
+        ended_at: String(ended_at),
+        expires_at: Number(expires_at),
+      });
+      return 1;
+    }
+    if (normalized.startsWith("DELETE FROM activity_history WHERE expires_at")) {
+      const cutoff = Number(values[0]);
+      let removed = 0;
+      for (const [key, row] of [...this.activityHistory]) {
+        if (Number(row.expires_at) <= cutoff) {
+          this.activityHistory.delete(key);
+          removed++;
+        }
+      }
+      return removed;
+    }
     if (normalized.startsWith("INSERT INTO subscriptions")) {
       return this.upsertSubscription(values);
     }
@@ -823,6 +854,20 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized.startsWith("DELETE FROM activity_history WHERE rowid IN")) {
+      const [cutoff, limit] = values.map(Number);
+      const doomed = [...this.activityHistory]
+        .filter(([, row]) => Number(row.expires_at) < cutoff)
+        .slice(0, limit);
+      for (const [key] of doomed) this.activityHistory.delete(key);
+      return doomed.map((_, index) => ({ rowid: index + 1 })) as unknown as FakeApiKeyRow[];
+    }
+    if (normalized.startsWith("SELECT activity_instance_id, external_id, kind, title, final_state, final_subtitle, started_at, ended_at FROM activity_history")) {
+      const [tenant_id, now] = values;
+      return [...this.activityHistory.values()]
+        .filter((row) => row.tenant_id === String(tenant_id) && Number(row.expires_at) > Number(now))
+        .sort((a, b) => String(b.ended_at).localeCompare(String(a.ended_at)));
+    }
     if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
       const [tenant_id] = values.map(String);
       return [...this.subscriptions.values()]

@@ -970,6 +970,38 @@ no need for defensive parsing:
 }
 ```
 
+Add `?include=ended` for a bounded window of activities that have finished:
+
+```sh
+curl "$00WIDGET_BASE_URL/v1/live-activities?include=ended" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY"
+```
+
+```json
+{
+  "activities": [ ... ],
+  "ended": [
+    {
+      "activityInstanceId": "lai_9f3c1d7a2b",
+      "externalActivityId": "ci-build-2026-04-26-1234",
+      "kind": "job",
+      "title": "CI build #1234",
+      "finalState": "finished",
+      "finalSubtitle": "passed in 4m 12s",
+      "startedAt": "2026-04-26T10:00:00Z",
+      "endedAt": "2026-04-26T10:12:40Z"
+    }
+  ]
+}
+```
+
+That is how to check whether an end actually landed, and how to find a run
+whose `externalActivityId` you lost rather than starting a duplicate. It keeps
+**24 hours** and no more — a Live Activity's own ceiling is 8 hours plus a
+4-hour dismissal window, so a day covers everything that could still be recent.
+It is a reconciliation window, not a log; nothing older is kept and there is no
+way to ask for more.
+
 Each entry uses the same session fields as the start/update payloads, plus a
 server-issued `activityInstanceId`. Optional fields are omitted rather than sent
 as `null`. Producers continue addressing their own activity by

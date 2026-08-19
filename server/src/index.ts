@@ -26,6 +26,7 @@ import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
 import * as status from "./status";
+import { sweepExpiredActivityHistory } from "./storage";
 import * as subscription from "./subscription";
 import { processPendingWidgetReload } from "./widgetPush";
 import { rateLimitSnapshotFor, sweepExpiredRateLimitBuckets } from "./rateLimit";
@@ -326,6 +327,7 @@ const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
   },
   async scheduled(_event, env, _ctx) {
     await sweepExpiredRateLimitBuckets(env);
+    await sweepExpiredActivityHistory(env);
   },
   async queue(batch: MessageBatch<WidgetReloadQueueMessage>, env, ctx) {
     for (const message of batch.messages) {
@@ -372,7 +374,10 @@ const RATE_LIMIT_SWEEP_PROBABILITY = 0.05;
 
 function maybeSweepRateLimitBuckets(env: Env, ctx: ExecutionContext): void {
   if (Math.random() >= RATE_LIMIT_SWEEP_PROBABILITY) return;
+  // Two bounded sweeps on the same sampled tick, for the same reason: both
+  // reclaim rows whose keys nothing will touch again, and neither is urgent.
   ctx.waitUntil(sweepExpiredRateLimitBuckets(env));
+  ctx.waitUntil(sweepExpiredActivityHistory(env));
 }
 
 function preventSensitiveResponseCaching(pathname: string, response: Response): Response {

@@ -166,8 +166,12 @@ describe("sweepExpiredRateLimitBuckets", () => {
     ]);
     const prepare = vi.spyOn(env.ZW_DB, "prepare");
     await handler.scheduled!(scheduledEvent, env, executionCtx);
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(prepare.mock.calls[0][0]).toContain("DELETE FROM rate_limit_buckets");
+    // Both bounded sweeps: expired rate limit buckets and ended activities
+    // past their retention window. Neither is urgent, so they share a tick.
+    const swept = prepare.mock.calls.map(([sql]) => String(sql));
+    expect(swept).toHaveLength(2);
+    expect(swept[0]).toContain("DELETE FROM rate_limit_buckets");
+    expect(swept[1]).toContain("DELETE FROM activity_history");
   });
 
   // Seeds distinct keys so the sweep has a backlog to chew through. Each key is
@@ -262,8 +266,9 @@ describe("the queue consumer sweep", () => {
     // The sweep must not hold acks: by the time it is handed to waitUntil,
     // every message in the batch is already settled.
     expect(settledWhenSwept).toBe(2);
-    expect(pending).toHaveLength(1);
-    expect(prepare.mock.calls.filter(([sql]) => sql.includes("expires_at < ?"))).toHaveLength(1);
+    // Two sweeps ride the same sampled tick — buckets and ended activities.
+    expect(pending).toHaveLength(2);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("expires_at < ?"))).toHaveLength(2);
   });
 
   it("leaves the table alone when the sample misses", async () => {
