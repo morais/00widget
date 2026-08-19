@@ -25,6 +25,7 @@ import * as mcpOAuth from "./mcpOAuth";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
+import * as status from "./status";
 import * as subscription from "./subscription";
 import { processPendingWidgetReload } from "./widgetPush";
 import { sweepExpiredRateLimitBuckets } from "./rateLimit";
@@ -88,6 +89,11 @@ const routes: Route[] = [
   authed("GET", /^\/v1\/cards\/?$/, "read", (req, env, auth) => cards.listCards(req, env, auth)),
   authed("GET", /^\/v1\/dashboard\/?$/, "read", (req, env, auth) =>
     dashboard.getDashboard(req, env, auth),
+  ),
+  // Never gated on a subscription: a lapsed account is exactly the one that
+  // needs to find out why its writes are failing.
+  authed("GET", /^\/v1\/status\/?$/, "read", (req, env, auth) =>
+    status.getStatus(req, env, auth),
   ),
   authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "read", (req, env, auth, m) => cards.getCard(req, env, auth, pathParam(m[1]))),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, "publish", (req, env, auth, m, ctx) =>

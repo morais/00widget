@@ -145,7 +145,7 @@ export async function getPendingWidgetReload(
   return row ? pendingFromRow(row) : null;
 }
 
-async function secondsUntilWidgetPushWindow(
+export async function secondsUntilWidgetPushWindow(
   env: Env,
   tenantId: string,
   nowSeconds = Math.floor(Date.now() / 1_000),

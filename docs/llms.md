@@ -22,7 +22,7 @@ On Home Screen widgets, iOS first launches the containing 00Widget app with the 
 
 ## Operator checklist for agents
 
-- Verify `00WIDGET_BASE_URL` with `/health` and `00WIDGET_API_KEY` with `GET /v1/cards`.
+- Verify `00WIDGET_BASE_URL` with `/health` and `00WIDGET_API_KEY` with `GET /v1/status`, which also tells you whether any device can receive what you publish.
 - If you start a Live Activity, check `pushToStartAttempted` in the response. `0` means no device can receive it, and nothing else will tell you.
 - Pick one stable `id` per logical card.
 - If the project has a dashboard, consider setting `deepLink`.
@@ -111,6 +111,61 @@ connection in a browser, which scopes it to their own account.
 If you already hold an API token, ignore all of this and call `/v1/*` directly —
 the MCP endpoint accepts the same `zw_` tokens, so an existing credential works
 there too without any OAuth.
+
+## Ask what your integration can actually reach
+
+`GET /v1/status` answers, for the deployment in front of you, the questions
+this document can only answer in general:
+
+```sh
+curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/status"
+```
+
+```json
+{
+  "account": {
+    "tenantId": "tenant_…",
+    "credentialKind": "publisher",
+    "scopes": ["read", "publish", "webhook:manage"],
+    "credentialExpiresAt": "2026-11-17T09:12:00.000Z"
+  },
+  "delivery": {
+    "devices": 1,
+    "widgetPushTokens": 3,
+    "liveActivityStartTokens": 1,
+    "canPushWidgets": true,
+    "canStartLiveActivities": true,
+    "widgetReloadIntervalSeconds": 1800,
+    "secondsUntilNextWidgetReload": 412
+  },
+  "published": { "cards": 5, "liveActivities": 1 },
+  "features": { "sharing": true, "mcp": true },
+  "subscription": { "enabled": false, "required": false },
+  "rateLimits": [
+    { "label": "Card upserts", "limit": 600, "remaining": 587, "resetAt": "2026-08-19T15:00:00.000Z" }
+  ]
+}
+```
+
+Worth one call at the start of an integration, and worth reading before
+reporting a problem:
+
+- **`canPushWidgets` / `canStartLiveActivities`.** `false` means what you
+  publish is stored correctly and seen by nobody, because no device has
+  registered to receive it. Tell the operator to open the 00Widget app and
+  allow notifications; no amount of publishing will fix it.
+- **`scopes`.** What this credential may do, without discovering it through a
+  `403`.
+- **`secondsUntilNextWidgetReload`.** How long before a Home Screen widget
+  redraws. See [Rate limits](#rate-limits) for why this is not zero.
+- **`rateLimits`.** Only windows this account has touched appear; anything
+  absent is untouched and has its full allowance.
+- **`subscription`.** Whether this deployment sells subscriptions at all, and
+  whether it refuses writes without one.
+
+It needs only `read`, and it is never refused for a lapsed subscription — a
+lapsed account is exactly the one that needs to find out why its writes are
+failing.
 
 ## Data model
 

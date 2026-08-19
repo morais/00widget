@@ -256,6 +256,7 @@ something to integrate against:
 | GET    | `/v1/cards/:id`                              | Get one card.                          |
 | DELETE | `/v1/cards/:id`                              | Delete one card.                       |
 | GET    | `/v1/dashboard`                              | Fetch cards and ongoing activities in one polling-efficient response. |
+| GET    | `/v1/status`                                 | What this credential may do, whether any device can receive a publish, and the remaining rate budget. |
 | POST   | `/v1/devices/register`                       | Store the app APNs device token.       |
 | POST   | `/v1/widgets/register-push-token`            | Reconcile WidgetKit push subscriptions. |
 | POST   | `/v1/live-activities/register`               | Store an ActivityKit push token.       |
