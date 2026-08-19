@@ -32,6 +32,12 @@ settings:
     # run overrides it with `xcodebuild test ZW_DEBUG_TOOLS=YES`.
     ZW_DEBUG_TOOLS: NO
 
+# Referenced by the screenshots scheme's StoreKit configuration, and a member of
+# no target — a .storekit file compiled into the app would ship our price list
+# as a bundle resource for no reason.
+fileGroups:
+  - Resources/ZeroZeroWidget.storekit
+
 targets:
   ZeroZeroWidgetApp:
     type: application
@@ -346,6 +352,12 @@ schemes:
       config: Debug
       targets:
         - ZeroZeroWidgetUITests
+    run:
+      config: Debug
+      # Lets the paywall load real Product objects in the Simulator, with no
+      # App Store Connect round trip. The test action inherits it via
+      # shouldUseLaunchSchemeArgsEnv. Only on the screenshots scheme.
+      storeKitConfiguration: Resources/ZeroZeroWidget.storekit
 
   ZeroZeroWidgetTVScreenshots:
     build:

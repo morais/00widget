@@ -114,6 +114,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
+  "priority": "integer? (higher sorts first; absent counts as 0)",
   "progress": "number? 0.0-1.0 (draws a bar; required by template=progress)",
   "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
   "staleAfter": "ISO-8601 timestamp? (after this, widget shows a 'stale' state)",
@@ -260,6 +261,7 @@ Card field limits:
 | `unit` | 24 chars |
 | `icon` | 64 chars |
 | `statusIcon` | 64 chars |
+| `priority` | integer |
 | `deadline` | ISO-8601 timestamp |
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
@@ -551,6 +553,26 @@ what the card shows. They are unrelated and a card may set either, both, or
 neither.
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
+
+### Ordering
+
+Cards come back **highest `priority` first**, and cards with the same priority
+are ordered by `id`. `priority` is a signed integer; leave it off and the card
+counts as `0`.
+
+```json
+{ "id": "api-status", "template": "summary", "title": "API", "priority": 10 }
+```
+
+That order is what the app's dashboard shows, what `GET /v1/cards` and
+`GET /v1/dashboard` return, and which cards fill a Home Screen grid widget the
+operator has not configured with specific ones. Set `priority` on the one or
+two cards that matter and leave the rest alone.
+
+Without it the `id` is the sort key, which is a bad job for it to have: `id` is
+the dedupe key, so the only way to promote a card would be to rename it — and
+renaming it creates a second card. Use `priority` to say what matters and keep
+ids stable.
 
 ### Stable ids
 
@@ -1069,6 +1091,7 @@ struct WidgetClient {
 
 - **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
+- **Don't** name cards to control their order — `a-solar`, `b-washer`. Ids are the dedupe key; set `priority` instead.
 - **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it.
 - **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
 - **Don't** send a `chart` series longer than 10 points or expect the server to keep a history. Send the current window, oldest first, on every publish.

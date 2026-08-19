@@ -188,7 +188,21 @@ export async function listCards(env: Env, tenantId: string): Promise<DashboardCa
   const rows = await env.ZW_DB.prepare(`SELECT json FROM cards WHERE tenant_id = ? ORDER BY id`)
     .bind(tenantId)
     .all<JsonRow>();
-  return rows.results.map((row) => parsePublicCard(row.json));
+  return rows.results.map((row) => parsePublicCard(row.json)).sort(byPriorityThenId);
+}
+
+/// Highest priority first, then by id.
+///
+/// Sorted here rather than in SQL because `priority` lives inside the stored
+/// card JSON, and giving it a column of its own would mean an index on a
+/// column every upsert writes — D1 bills index maintenance as rows written,
+/// and rows written cost 1000x rows read. Every row for the tenant is already
+/// in memory by this point, so the comparison is free. The SQL `ORDER BY id`
+/// stays: it makes the input deterministic, which is what keeps the sort
+/// stable for the cards that set no priority.
+export function byPriorityThenId(a: DashboardCard, b: DashboardCard): number {
+  const difference = (b.priority ?? 0) - (a.priority ?? 0);
+  return difference !== 0 ? difference : a.id.localeCompare(b.id);
 }
 
 export async function getActionPayload(

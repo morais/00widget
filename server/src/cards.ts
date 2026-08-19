@@ -111,7 +111,9 @@ export async function listCards(req: Request, env: Env, auth: AuthContext): Prom
       sharedBy: { ownerEmail: share.ownerEmail, shareId: share.id },
     });
   }
-  return json({ cards: own, shared }, 200);
+  // Shared cards are collected in share order; give them the same ordering the
+  // tenant's own cards get, so one rule explains every list this API returns.
+  return json({ cards: own, shared: shared.sort(storage.byPriorityThenId) }, 200);
 }
 
 export async function getCard(

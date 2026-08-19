@@ -64,10 +64,71 @@ public final class SubscriptionController: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        #if ZW_SCREENSHOTS
+        if let seeded = Self.screenshotState() {
+            state = seeded.state
+            isRequired = seeded.required
+            productIds = seeded.productIds
+            await loadProducts()
+            return
+        }
+        #endif
+
         await loadServerState()
         await loadProducts()
         await syncEntitlements()
     }
+
+    #if ZW_SCREENSHOTS
+    /// Stands in for the server so the paywall can be photographed without one.
+    ///
+    /// Compiled only into the screenshot build, like the sample widget kinds —
+    /// no shipping build contains it. Products still come from StoreKit against
+    /// the scheme's .storekit configuration, so the plan rows, prices, and
+    /// trial text on a captured screenshot are the real thing.
+    private static func screenshotState() -> (
+        state: SubscriptionState, required: Bool, productIds: [String]
+    )? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-ZWSubscriptionState"),
+              index + 1 < arguments.count
+        else { return nil }
+        let ids = [
+            "com.example.zerozerowidget.pro.monthly",
+            "com.example.zerozerowidget.pro.yearly",
+        ]
+        switch arguments[index + 1] {
+        case "none":
+            return (.none, true, ids)
+        case "expired":
+            return (
+                SubscriptionState(
+                    status: .expired,
+                    active: false,
+                    productId: ids[0],
+                    expiresAt: Date().addingTimeInterval(-6 * 24 * 60 * 60),
+                    autoRenew: false
+                ),
+                true,
+                ids
+            )
+        case "active":
+            return (
+                SubscriptionState(
+                    status: .active,
+                    active: true,
+                    productId: ids[1],
+                    expiresAt: Date().addingTimeInterval(240 * 24 * 60 * 60),
+                    autoRenew: true
+                ),
+                true,
+                ids
+            )
+        default:
+            return nil
+        }
+    }
+    #endif
 
     private func loadServerState() async {
         guard let config = APIClientConfig.fromSettings() else { return }
@@ -91,7 +152,10 @@ public final class SubscriptionController: ObservableObject {
     private func loadProducts() async {
         guard !productIds.isEmpty else { return }
         do {
+            let requested = productIds.joined(separator: ",")
+            Self.log.error("ZWDIAG requesting products: \(requested, privacy: .public)")
             let loaded = try await Product.products(for: productIds)
+            Self.log.error("ZWDIAG loaded \(loaded.count, privacy: .public) products")
             // Cheapest first so monthly leads and the yearly saving reads as an
             // upgrade rather than as the default.
             products = loaded.sorted { $0.price < $1.price }
@@ -99,7 +163,7 @@ public final class SubscriptionController: ObservableObject {
                 isEligibleForIntroOffer = await group.isEligibleForIntroOffer
             }
         } catch {
-            Self.log.error("product load failed: \(String(describing: error), privacy: .public)")
+            Self.log.error("ZWDIAG product load failed: \(String(describing: error), privacy: .public)")
         }
     }
 

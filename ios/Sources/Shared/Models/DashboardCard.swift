@@ -33,6 +33,10 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var status: DashboardStatus
     public var icon: String?
     public var statusIcon: String?
+    /// Where this card sits among the others. Higher first, absent counts as 0,
+    /// ties broken by `id`. The server returns cards already in this order; the
+    /// app and the widgets render the order they are given.
+    public var priority: Int?
     /// How full the thing is, 0...1. The `progress` template used to carry this
     /// in `value`, which meant a progress card could show a bar or a headline
     /// number but never both — "3 of 12" was inexpressible. This is the same
@@ -61,6 +65,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status: DashboardStatus = .unknown,
         icon: String? = nil,
         statusIcon: String? = nil,
+        priority: Int? = nil,
         progress: Double? = nil,
         updatedAt: Date = Date(),
         staleAfter: Date? = nil,
@@ -80,6 +85,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.status = status
         self.icon = icon
         self.statusIcon = statusIcon
+        self.priority = priority
         self.progress = progress
         self.updatedAt = updatedAt
         self.staleAfter = staleAfter
@@ -107,6 +113,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status = DashboardStatus(rawValue: rawStatus) ?? .unknown
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
+        priority = try c.decodeIfPresent(Int.self, forKey: .priority)
         progress = try c.decodeIfPresent(Double.self, forKey: .progress)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
         staleAfter = try DashboardCard.decodeDate(c, forKey: .staleAfter)
@@ -122,7 +129,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon, statusIcon
-        case progress, updatedAt, staleAfter, deadline, deepLink, items, chart, actions, sharedBy
+        case priority, progress, updatedAt, staleAfter, deadline, deepLink, items, chart, actions, sharedBy
     }
 
     public var isStale: Bool {

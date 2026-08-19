@@ -789,6 +789,66 @@ describe("cards endpoints", () => {
   });
 });
 
+describe("card ordering", () => {
+  const seed = async (env: ReturnType<typeof makeEnv>, cards: Array<Record<string, unknown>>) => {
+    for (const card of cards) {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/upsert", { method: "POST", body: JSON.stringify(card) }),
+        env,
+        executionCtx,
+      );
+      expect(res.status).toBe(200);
+    }
+  };
+  const listed = async (env: ReturnType<typeof makeEnv>) => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    return ((await res.json()) as { cards: Array<{ id: string }> }).cards.map((c) => c.id);
+  };
+
+  it("puts higher priority first and breaks ties by id", async () => {
+    const env = makeEnv();
+    await seed(env, [
+      { id: "zebra", template: "summary", title: "Z", priority: 10 },
+      { id: "alpha", template: "summary", title: "A" },
+      { id: "middle", template: "summary", title: "M", priority: 5 },
+      { id: "beta", template: "summary", title: "B" },
+      { id: "demoted", template: "summary", title: "D", priority: -1 },
+    ]);
+    expect(await listed(env)).toEqual(["zebra", "middle", "alpha", "beta", "demoted"]);
+  });
+
+  it("keeps the id order for cards that set no priority", async () => {
+    // The order everything had before this field existed, so a producer that
+    // ignores it sees no change.
+    const env = makeEnv();
+    await seed(env, [
+      { id: "queue-depth", template: "summary", title: "Q" },
+      { id: "api-status", template: "summary", title: "A" },
+      { id: "database-status", template: "summary", title: "D" },
+    ]);
+    expect(await listed(env)).toEqual(["api-status", "database-status", "queue-depth"]);
+  });
+
+  it("orders the dashboard the same way", async () => {
+    const env = makeEnv();
+    await seed(env, [
+      { id: "alpha", template: "summary", title: "A" },
+      { id: "zebra", template: "summary", title: "Z", priority: 3 },
+    ]);
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/dashboard", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await res.json()) as { cards: Array<{ id: string }> };
+    expect(body.cards.map((c) => c.id)).toEqual(["zebra", "alpha"]);
+  });
+});
+
 describe("documented compatibility promises", () => {
   it("ignores request fields it does not recognise", async () => {
     // So an integration written against a newer deployment does not break when

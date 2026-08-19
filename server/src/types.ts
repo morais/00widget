@@ -332,6 +332,18 @@ const DashboardCardFields = {
     + "the card is — bolt.fill while boosting, arrow.up while charging. Drawn "
     + "at every widget size, including grid cells.",
   ),
+  // Where the card sits in every list the API returns. Ordering used to be
+  // `ORDER BY id` alone, which made the dedupe key double as the sort key: a
+  // producer could only promote a card by renaming it, and renaming it creates
+  // a second card. Higher first, absent counts as 0, ties still broken by id so
+  // the order stays stable for everything that sets nothing.
+  priority: z.number().int().optional().describe(
+    "Where this card sits among the tenant's cards. Higher comes first; absent "
+    + "counts as 0 and ties break by `id`, which is the order everything had "
+    + "before. It decides the order of `GET /v1/cards`, the app's dashboard, "
+    + "and which cards fill a Home Screen grid widget that has not been "
+    + "configured with specific ones.",
+  ),
   // How full the thing is, 0-1. The `progress` template used to carry this in
   // `value`, parsed back out as a Double with anything above 1 read as a
   // percentage — so a progress card could draw a bar or show a headline number

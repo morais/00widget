@@ -457,6 +457,68 @@ final class ScreenshotTests: XCTestCase {
         return element.exists && element.isHittable
     }
 
+#if ZW_SUBSCRIPTIONS_ENABLED
+    /// Photographs the paywall in each state the server can put it in.
+    ///
+    /// Subscription state is seeded through a launch argument rather than a
+    /// live server, but the plan rows come from StoreKit against the scheme's
+    /// .storekit configuration, so prices and trial text are real.
+    func testCaptureSubscriptionScreenshots() throws {
+        for state in ["none", "expired", "active"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-ZWSubscriptionState", state]
+            app.launch()
+
+            let settingsTab = navigationButton(named: "Settings", in: app)
+            XCTAssertTrue(
+                settingsTab.waitForExistence(timeout: 30),
+                "Navigation never appeared for state \(state)."
+            )
+            settingsTab.tap()
+
+            // The row's accessibility label is compound — "Subscription, Active"
+            // — because the NavigationLink wraps a label and a status together,
+            // so an exact match never finds it.
+            let row = app.buttons
+                .containing(NSPredicate(format: "label BEGINSWITH 'Subscription'"))
+                .firstMatch
+            XCTAssertTrue(scrollTo(row, in: app, swipes: 10), "Subscription row not found.")
+            capture(named: "screenshot-subscription-settings-\(state)")
+
+            row.tap()
+            XCTAssertTrue(
+                app.staticTexts["Status"].waitForExistence(timeout: 10),
+                "Subscription screen did not appear for state \(state)."
+            )
+            capture(named: "screenshot-subscription-\(state)")
+            app.terminate()
+        }
+    }
+
+    /// The banner the dashboard shows while publishing is blocked.
+    func testCaptureSubscriptionNotice() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ZWSubscriptionState", "expired"]
+        app.launch()
+
+        let widgetsTab = navigationButton(named: "Widgets", in: app)
+        XCTAssertTrue(widgetsTab.waitForExistence(timeout: 30), "Navigation never appeared.")
+        hideSampleIndicators(in: app)
+        widgetsTab.tap()
+
+        // The notice sits above the cards, so the dashboard needs content.
+        let generate = app.buttons["Generate sample widgets"]
+        if generate.waitForExistence(timeout: 5) {
+            generate.tap()
+        }
+        XCTAssertTrue(
+            app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15),
+            "Subscription notice did not appear on the dashboard."
+        )
+        capture(named: "screenshot-subscription-notice")
+    }
+#endif
+
     /// Captures the whole screen, not `app.screenshot()`, so the status bar is
     /// included — the published shots show it.
     private func capture(named name: String) {
