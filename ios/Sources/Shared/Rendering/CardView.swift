@@ -508,22 +508,29 @@ public struct CardView: View {
             let fractions = RankedRows.fractions(for: items)
             VStack(spacing: 10) {
                 ForEach(items.prefix(density == .compact ? 3 : 10)) { item in
-                    HStack(spacing: 12) {
-                        Text(item.title)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        if let value = item.value {
-                            Text("\(value)\(item.unit ?? "")")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(item.status?.tint ?? .primary)
+                    rowLink(item) {
+                        HStack(spacing: 12) {
+                            Text(item.title)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                            if item.deepLink != nil {
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer(minLength: 8)
+                            if let value = item.value {
+                                Text("\(value)\(item.unit ?? "")")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(item.status?.tint ?? .primary)
+                            }
                         }
-                    }
-                    .padding(.vertical, 3)
-                    .padding(.horizontal, 6)
-                    .background(alignment: .leading) {
-                        if let fraction = fractions?[item.id] {
-                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 6)
+                        .background(alignment: .leading) {
+                            if let fraction = fractions?[item.id] {
+                                RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                            }
                         }
                     }
                 }
@@ -710,25 +717,53 @@ public struct CardView: View {
         }
     }
 
+    /// Wraps a row in a `Link` where one row can be addressed on its own.
+    ///
+    /// Only medium and large Home Screen widgets can: everywhere else the whole
+    /// widget is a single tap target owned by `widgetURL`, and a `Link` there
+    /// is silently inert — the card's own `deepLink` is what opens. In the app
+    /// every row can be a link.
+    private func rowLink<Content: View>(
+        _ item: DashboardItem,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Group {
+            if let destination = item.deepLink, addressableRows {
+                Link(destination: destination) { content() }
+            } else {
+                content()
+            }
+        }
+    }
+
+    private var addressableRows: Bool {
+        switch context {
+        case .app, .widgetMedium, .widgetLarge: return true
+        default: return false
+        }
+    }
+
     @ViewBuilder
     private func listRows(max: Int) -> some View {
         if let items = card.items, !items.isEmpty {
             let fractions = RankedRows.fractions(for: items)
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(items.prefix(max)) { item in
-                    HStack {
-                        Text(item.title).font(.caption).lineLimit(1)
-                        Spacer()
-                        if let v = item.value {
-                            Text("\(v)\(item.unit ?? "")")
-                                .font(.caption)
-                                .foregroundStyle(item.status?.tint ?? .primary)
+                    rowLink(item) {
+                        HStack {
+                            Text(item.title).font(.caption).lineLimit(1)
+                            Spacer()
+                            if let v = item.value {
+                                Text("\(v)\(item.unit ?? "")")
+                                    .font(.caption)
+                                    .foregroundStyle(item.status?.tint ?? .primary)
+                            }
                         }
-                    }
-                    .padding(.horizontal, 3)
-                    .background(alignment: .leading) {
-                        if let fraction = fractions?[item.id] {
-                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                        .padding(.horizontal, 3)
+                        .background(alignment: .leading) {
+                            if let fraction = fractions?[item.id] {
+                                RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                            }
                         }
                     }
                 }

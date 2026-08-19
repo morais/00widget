@@ -50,6 +50,8 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .prog rect.fill.r{fill:#0a84ff}
 .state{color:var(--fg);font-weight:600;margin:0 0 .35rem}
 .rowsub{color:var(--muted);font-size:.85rem;margin:-.35rem 0 .35rem}
+a.k{color:var(--accent);text-decoration:none}
+a.k:hover{text-decoration:underline}
 .rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
 .rank rect{fill:var(--accent);fill-opacity:.5;rx:2px}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
@@ -175,7 +177,12 @@ const GUEST_SCRIPT = `
       var widest=0;
       (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
       (c.items||[]).forEach(function(i){
-        h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+        // Only https reaches here — the server refuses any other scheme on the
+        // way in — but the anchor is still built from escaped text.
+        var label=i.deepLink
+          ? '<a class="k" href="'+esc(i.deepLink)+'" rel="noopener noreferrer">'+esc(i.title)+'</a>'
+          : '<span class="k">'+esc(i.title)+'</span>';
+        h+='<div class="row">'+label+'<span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
         // Ranked against the widest row, matching the app. Width has to be an
         // attribute rather than a style — see the note on breakdown() above.
         if(widest>0&&i.amount!=null){

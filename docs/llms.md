@@ -208,7 +208,8 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "value": "string?",
   "unit": "string?",
   "status": "DashboardStatus?",
-  "amount": "number? (magnitude, for templates that draw items)"
+  "amount": "number? (magnitude, for templates that draw items)",
+  "deepLink": "HTTPS URL? (tapping this row opens it, instead of the card's)"
 }
 ```
 
@@ -342,7 +343,12 @@ Card field limits:
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
 
-Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars.
+Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars. An item `deepLink` is an HTTPS URL up to 2048 chars, like a card's.
+
+A row with its own `deepLink` opens that instead of the card's. Only medium and
+large Home Screen widgets can address a single row — everywhere smaller the
+whole card is one tap target, so the card's own link is what opens. The app and
+a shared link both honour per-row destinations.
 
 Action payload limits:
 

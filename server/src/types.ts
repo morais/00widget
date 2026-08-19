@@ -190,6 +190,12 @@ export const DashboardItemSchema = z.object({
     "Colours the row. In a `history` card it is the entire content: each item is "
     + "one past outcome and only its status is drawn.",
   ),
+  deepLink: OptionalDeepLink.describe(
+    "HTTPS URL opened when this row is tapped, instead of the card's own "
+    + "`deepLink`. Only medium and large Home Screen widgets can address a "
+    + "single row; everywhere smaller the whole card is one tap target and the "
+    + "card's link is used.",
+  ),
   // The row's magnitude, for templates that draw items rather than list them.
   // `value` cannot serve: it is a display string ("12.40", "3m 51s", "Rinse")
   // and parsing it back into a number would guess at locale and format.

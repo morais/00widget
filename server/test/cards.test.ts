@@ -139,6 +139,19 @@ describe("DashboardCardSchema", () => {
     expect(DashboardCardInputSchema.safeParse(card("2026-09-02")).success).toBe(false);
   });
 
+  it("accepts an https deepLink on a row and refuses anything else", () => {
+    const withLink = (deepLink: string) => ({
+      id: "services",
+      template: "list" as const,
+      title: "Services",
+      items: [{ id: "api", title: "API", deepLink }],
+    });
+    expect(DashboardCardInputSchema.safeParse(withLink("https://example.com/api")).success).toBe(true);
+    // Same policy as a card's own link: no other scheme reaches the device.
+    expect(DashboardCardInputSchema.safeParse(withLink("http://example.com")).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse(withLink("javascript:alert(1)")).success).toBe(false);
+  });
+
   it("rejects unknown template values", () => {
     expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });
