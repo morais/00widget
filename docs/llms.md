@@ -642,6 +642,25 @@ the dedupe key, so the only way to promote a card would be to rename it — and
 renaming it creates a second card. Use `priority` to say what matters and keep
 ids stable.
 
+### Two producers on one id
+
+An upsert is **last-write-wins, unconditionally**. There is no compare-and-set,
+no version, and no way to say "only if it hasn't changed since I read it": the
+card you send replaces the stored one whole, and if two producers publish the
+same `id` the later request is what remains. Neither is told the other exists.
+
+That is fine when one producer owns a card, which is the shape this API is
+built for. It is a bug when two share one, and the fix is on your side, not in
+a flag here — namespace the ids so each producer owns its own (`myapp-build`,
+`ci-build`), which the stable-id advice below already recommends for a
+different reason.
+
+It also means a partial update is not a thing. Send the whole card every time;
+omitting a field removes it rather than leaving it alone. (A Live Activity
+`update` is the opposite — it merges, and clearing takes an explicit `null`.
+The two differ because a card is a complete snapshot and an activity is a
+running thing being nudged.)
+
 ### Stable ids
 
 The `id` field is the dedupe key, and it is also a URL path segment
@@ -1073,6 +1092,10 @@ as they did.
 **A renamed scope keeps answering to its old name.** `tenant:read` became
 `read`; a credential issued under the old spelling still works, and the OAuth
 `scope` parameter accepts either. Only the new name is issued and reported.
+
+**Upsert is last-write-wins and will stay that way.** No conditional write is
+coming; if one is ever added it will be an optional field on the request, not a
+change to what an unconditional publish does.
 
 **Ids and dates are validated on the way in, not on the way out.** Tightening
 either rule rejects new bad values without breaking anything already stored, so
