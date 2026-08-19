@@ -752,13 +752,20 @@ async function callTool(
   // is what reaches the model's context — so the agent can tell its human what
   // happened instead of the connector merely looking broken.
   const lapsed = await subscriptionGate(authed.env, authed.auth, tool.scope);
-  if (lapsed) return ok(toolError(subscriptionRequiredMessage(lapsed)));
+  if (lapsed) {
+    return ok(toolError(subscriptionRequiredMessage(lapsed), {
+      status: 402,
+      code: "subscription_required",
+    }));
+  }
 
   // Validated here as well as inside the handler so an argument mistake comes
   // back as a tool error the model can act on, rather than as a bare 400.
   const parsed = tool.schema.safeParse(args);
   if (!parsed.success) {
-    return ok(toolError(`validation failed: ${parsed.error.message}`));
+    // Never reaches the route, so it has no status of its own — but it is the
+    // same 400 the route would have answered with, and equally unretryable.
+    return ok(toolError(`validation failed: ${parsed.error.message}`, { status: 400 }));
   }
 
   let response: Response;
@@ -772,7 +779,7 @@ async function callTool(
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
   if (!response.ok) {
-    return ok(toolError(text || `request failed with ${response.status}`));
+    return ok(toolFailure(response, text));
   }
   if (!contentType.includes("application/json")) {
     return ok({ content: [{ type: "text", text }] });
@@ -793,8 +800,55 @@ function emptyList(key: string): Record<string, unknown> {
   return { [key]: [], ttlMs: TOOL_LIST_TTL_MS, cacheScope: "public" };
 }
 
-function toolError(message: string): Record<string, unknown> {
-  return { content: [{ type: "text", text: message }], isError: true };
+/// Every tool error carries the same structured detail, whichever layer
+/// produced it — a schema rejection here, a lapsed subscription, or a status
+/// from the route underneath. A model should not have to tell them apart by
+/// reading prose to find out whether trying again could possibly work.
+function toolError(message: string, detail: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    content: [{ type: "text", text: message }],
+    structuredContent: { error: message, retryable: false, ...detail },
+    isError: true,
+  };
+}
+
+/// A failed route response, turned into a tool error the model can act on
+/// rather than only read.
+///
+/// The body used to be the whole of it, which meant the status code and every
+/// header were dropped on the floor. A `429` arrived as a sentence with the
+/// retry delay buried in JSON inside it, and nothing distinguished "your card
+/// was rejected" from "the far end is down" except wording. Structured
+/// alongside the text, a model can branch on the number.
+function toolFailure(response: Response, text: string): Record<string, unknown> {
+  const detail: Record<string, unknown> = { status: response.status };
+
+  const retryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) detail.retryAfterSeconds = retryAfter;
+
+  // The route's own error body, when it sent one. Its fields — `error`, `code`,
+  // `retryAfter`, `subscription` — are what the REST docs tell a caller to read.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    Object.assign(detail, parsed);
+  }
+
+  // `retryable` is the one judgement the transport can make for the model, and
+  // the one it most often gets wrong on its own: a 4xx that is not 429 will
+  // fail again identically, and retrying it just burns the budget.
+  detail.retryable = response.status === 429 || response.status >= 500;
+
+  // Carried in `structuredContent` even on tools that declare an
+  // `outputSchema`, which this deliberately does not match: an error result is
+  // not the tool's output, and a client validating it against the success shape
+  // would have no way to let any tool report a failure at all. `isError` is
+  // what says which of the two this is.
+  return toolError(text || `request failed with ${response.status}`, detail);
 }
 
 function negotiatedProtocolVersion(params: unknown): string {

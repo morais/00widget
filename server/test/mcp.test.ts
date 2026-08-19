@@ -402,6 +402,43 @@ describe("get_integration_guide", () => {
   });
 });
 
+describe("failed tool calls", () => {
+  it("reports the status and whether retrying can help", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    // A card id the schema refuses: a 400 from the route underneath.
+    const result = await call(env, "upsert_card", {
+      id: "not a valid id",
+      template: "summary",
+      title: "x",
+    });
+    expect(result.result?.isError).toBe(true);
+    const detail = result.result?.structuredContent as Record<string, unknown>;
+    expect(detail.status).toBe(400);
+    // The whole point: a 4xx that is not 429 fails again identically, and a
+    // model that retries it just burns the budget.
+    expect(detail.retryable).toBe(false);
+    // The route's own error body is merged in, so `error` reads as documented.
+    expect(String(detail.error)).toContain("validation failed");
+  });
+
+  it("carries a rate limit's retry delay as a number", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    // Spend the per-card upsert allowance, then look at what the next one says.
+    let result: JsonRpcResult | undefined;
+    for (let i = 0; i < 70; i++) {
+      result = await call(env, "upsert_card", { id: "hot", template: "summary", title: "x" });
+      if (result.result?.isError) break;
+    }
+    const detail = result?.result?.structuredContent as Record<string, unknown>;
+    expect(detail?.status).toBe(429);
+    expect(detail.retryable).toBe(true);
+    expect(typeof detail.retryAfterSeconds).toBe("number");
+    expect(detail.retryAfterSeconds as number).toBeGreaterThan(0);
+  });
+});
+
 describe("tool input schemas", () => {
   // The schemas are the zod objects the REST routes validate with, converted at
   // module load. A field added without a `.describe()` reaches every MCP client
