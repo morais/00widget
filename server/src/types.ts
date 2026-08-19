@@ -449,21 +449,30 @@ export const StartLiveActivitySchema = z.object({
     .optional(),
 });
 
+// An update merges into the running activity's content state, so an omitted
+// field keeps whatever is there. That left no way to *remove* one: an activity
+// that had ever carried a `progress`, `chart`, or `endsAt` carried it for the
+// rest of its life, so a job that finished early kept a countdown that had
+// already run out, and a chart that stopped being the point kept winning the
+// banner from `progress`.
+//
+// `null` clears. Omitted still keeps. `items` accepts `null` alongside the `[]`
+// that already worked, so one rule covers every content-state field.
 export const UpdateLiveActivitySchema = z.object({
   externalActivityId: z.string().min(1).max(FieldLimits.externalActivityId),
   state: z.string().min(1).max(FieldLimits.activityState).optional(),
   title: z.string().min(1).max(FieldLimits.title).optional(),
-  subtitle: OptionalSubtitleString,
-  icon: OptionalIconString,
-  value: OptionalValueString,
-  unit: OptionalUnitString,
-  progress: z.number().min(0).max(1).optional(),
-  items: LiveActivityItemsSchema.optional(),
-  chart: DashboardChartSchema.optional(),
-  endsAt: IsoDate.optional(),
-  countdownGranularity: CountdownGranularitySchema.optional(),
-  staleAt: IsoDate.optional(),
-  relevanceScore: z.number().min(0).optional(),
+  subtitle: z.string().max(FieldLimits.subtitle).nullish(),
+  icon: z.string().max(FieldLimits.icon).nullish(),
+  value: z.string().max(FieldLimits.value).nullish(),
+  unit: z.string().max(FieldLimits.unit).nullish(),
+  progress: z.number().min(0).max(1).nullish(),
+  items: LiveActivityItemsSchema.nullish(),
+  chart: DashboardChartSchema.nullish(),
+  endsAt: IsoDate.nullish(),
+  countdownGranularity: CountdownGranularitySchema.nullish(),
+  staleAt: IsoDate.nullish(),
+  relevanceScore: z.number().min(0).nullish(),
   alert: z
     .object({
       title: z.string().min(1).max(FieldLimits.alertTitle),

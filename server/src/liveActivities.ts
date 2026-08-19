@@ -70,6 +70,16 @@ function initialContentState(
   return state;
 }
 
+/// Applies one field of an update to the running activity's content state:
+/// `null` clears it, an omitted field keeps what is there, and anything else
+/// replaces it. Plain `??` cannot express the first case, which is why a
+/// Live Activity used to be able to gain a `chart` or an `endsAt` and never
+/// lose it.
+function merge<T>(incoming: T | null | undefined, current: T | undefined): T | undefined {
+  if (incoming === null) return undefined;
+  return incoming ?? current;
+}
+
 function activityKitContentState(state: ContentStateRecord): ContentStateRecord {
   const encoded = { ...state };
   for (const key of ["updatedAt", "endsAt", "staleAt"] as const) {
@@ -485,25 +495,27 @@ export async function updateLiveActivity(
   );
   if (!instance) return notFound();
   const now = new Date().toISOString();
-  const endsAt = d.endsAt ?? instance.endsAt;
+  const endsAt = merge(d.endsAt, instance.endsAt);
+  // Clearing `endsAt` takes the granularity with it — it means nothing without
+  // a date to count down to.
   const countdownGranularity = endsAt === undefined
     ? undefined
-    : d.countdownGranularity ?? instance.countdownGranularity ?? "second";
+    : merge(d.countdownGranularity, instance.countdownGranularity) ?? "second";
   const updated = LiveActivitySessionSchema.parse({
     ...instance,
     title: d.title ?? instance.title,
-    subtitle: d.subtitle ?? instance.subtitle,
+    subtitle: merge(d.subtitle, instance.subtitle),
     state: d.state ?? instance.state,
-    icon: d.icon ?? instance.icon,
-    value: d.value ?? instance.value,
-    unit: d.unit ?? instance.unit,
-    progress: d.progress ?? instance.progress,
-    items: d.items ?? instance.items,
-    chart: d.chart ?? instance.chart,
+    icon: merge(d.icon, instance.icon),
+    value: merge(d.value, instance.value),
+    unit: merge(d.unit, instance.unit),
+    progress: merge(d.progress, instance.progress),
+    items: merge(d.items, instance.items),
+    chart: merge(d.chart, instance.chart),
     endsAt,
     countdownGranularity,
-    staleAt: d.staleAt ?? instance.staleAt,
-    relevanceScore: d.relevanceScore ?? instance.relevanceScore,
+    staleAt: merge(d.staleAt, instance.staleAt),
+    relevanceScore: merge(d.relevanceScore, instance.relevanceScore),
     updatedAt: now,
   });
   const contentState = initialContentState(updated, now);
@@ -526,8 +538,8 @@ export async function updateLiveActivity(
   for (const delivery of deliveries) {
     const result = await sendLiveActivityUpdate(env, delivery.record.pushToken, {
       contentState: activityKitContentState(contentState),
-      staleAt: d.staleAt,
-      relevanceScore: d.relevanceScore,
+      staleAt: d.staleAt ?? undefined,
+      relevanceScore: d.relevanceScore ?? undefined,
       alert: d.alert,
     });
     if (delivery.targetTenantId === auth.tenantId) {

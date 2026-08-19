@@ -154,6 +154,105 @@ describe("live activities", () => {
     expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
   });
 
+  it("clears a content-state field when an update sends null", async () => {
+    const env = makeEnv();
+    const post = (path: string, body: unknown) =>
+      (handler.fetch as any)(
+        authedRequest(`https://x/v1/live-activities/${path}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionCtx,
+      );
+    const read = async () => {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities", { method: "GET" }),
+        env,
+        executionCtx,
+      );
+      const body = (await res.json()) as { activities: Array<Record<string, unknown>> };
+      return body.activities[0];
+    };
+
+    const start = await post("start", {
+      externalActivityId: "build-1",
+      kind: "job",
+      title: "CI build",
+      state: "running",
+      subtitle: "linting",
+      progress: 0.4,
+      endsAt: "2026-04-26T18:45:00Z",
+      countdownGranularity: "minute",
+      chart: { points: [1, 2, 3] },
+    });
+    expect(start.status).toBe(200);
+
+    // An omitted field is still preserved — that half of the contract is what
+    // makes a partial update useful and must not change.
+    await post("update", { externalActivityId: "build-1", state: "testing" });
+    expect(await read()).toMatchObject({
+      state: "testing",
+      subtitle: "linting",
+      progress: 0.4,
+      endsAt: "2026-04-26T18:45:00Z",
+    });
+
+    // The job finished early: the countdown, the bar and the plot all have to
+    // go, and before this there was no request that could remove any of them.
+    const cleared = await post("update", {
+      externalActivityId: "build-1",
+      state: "passed",
+      progress: null,
+      endsAt: null,
+      chart: null,
+      subtitle: null,
+    });
+    expect(cleared.status).toBe(200);
+
+    const after = await read();
+    expect(after).toMatchObject({ state: "passed" });
+    expect(after).not.toHaveProperty("progress");
+    expect(after).not.toHaveProperty("endsAt");
+    expect(after).not.toHaveProperty("chart");
+    expect(after).not.toHaveProperty("subtitle");
+    // Granularity means nothing without a date to count down to.
+    expect(after).not.toHaveProperty("countdownGranularity");
+  });
+
+  it("treats items: null the same as items: []", async () => {
+    const env = makeEnv();
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "queue-1",
+          kind: "job",
+          title: "Queue",
+          state: "running",
+          items: [{ id: "a", title: "A" }],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "queue-1", items: null }),
+      }),
+      env,
+      executionCtx,
+    );
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await res.json()) as { activities: Array<Record<string, unknown>> };
+    expect(body.activities[0]).not.toHaveProperty("items");
+  });
+
   // Pinned because a client that cannot rely on one envelope writes speculative
   // fallback parsing for a bare array or a differently named key.
   it("always answers GET /v1/live-activities with exactly one `activities` key", async () => {

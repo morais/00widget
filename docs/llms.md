@@ -641,10 +641,37 @@ Screen, in the Dynamic Island, or on a paired Watch — see
 above. Treat `/v1/live-activities/update` as content-state-only and leave
 `title` out of it.
 
+#### Omitting keeps, `null` clears
+
+An update is a partial: a field you leave out keeps whatever the activity
+already has. To *remove* one, send it as `null`.
+
+```json
+{
+  "externalActivityId": "ci-build-2026-04-26-1234",
+  "state": "passed",
+  "progress": null,
+  "endsAt": null,
+  "chart": null
+}
+```
+
+That is the update a job that finished early has to send. Without it the
+countdown keeps running against a time that has passed, the progress bar stays
+frozen at 0.6, and the chart keeps taking the Lock Screen space that `progress`
+would otherwise have.
+
+Clearable this way: `subtitle`, `icon`, `value`, `unit`, `progress`, `items`,
+`chart`, `endsAt`, `countdownGranularity`, `staleAt`, `relevanceScore`.
+Clearing `endsAt` drops `countdownGranularity` with it, since it means nothing
+without a date to count down to. `state` cannot be cleared — every activity has
+one — and `title` cannot be changed at all.
+
 `items` uses snapshot semantics. Omitting it from an update preserves the current
 items, sending a new array replaces the complete list, and sending `"items": []`
-returns the activity to its top-level fallback fields. Producers should send one
-coalesced snapshot rather than updating individual items independently.
+or `"items": null` returns the activity to its top-level fallback fields.
+Producers should send one coalesced snapshot rather than updating individual
+items independently.
 
 ### List
 
@@ -909,6 +936,7 @@ struct WidgetClient {
 
 - **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
+- **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it.
 - **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
 - **Don't** send a `chart` series longer than 10 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
