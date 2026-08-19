@@ -179,7 +179,7 @@ public final class APIClient {
     }
 
     public func revokeGuestLink(id: String) async throws {
-        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/guest/\(id)")
+        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/guest/\(Self.pathSegment(id))")
     }
 
     public func fetchGuestResource() async throws -> GuestResourceResponse {
@@ -326,15 +326,15 @@ public final class APIClient {
     }
 
     public func acceptShare(id: String) async throws {
-        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(id)/accept")
+        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(Self.pathSegment(id))/accept")
     }
 
     public func declineShare(id: String) async throws {
-        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(id)/decline")
+        let _: EmptyBody = try await request("POST", path: "/v1/shares/\(Self.pathSegment(id))/decline")
     }
 
     public func revokeShare(id: String) async throws {
-        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/\(id)")
+        let _: EmptyBody = try await request("DELETE", path: "/v1/shares/\(Self.pathSegment(id))")
     }
     #endif
 
@@ -343,7 +343,7 @@ public final class APIClient {
     }
 
     public func deleteCard(id: String) async throws {
-        let _: EmptyBody = try await request("DELETE", path: "/v1/cards/\(id)")
+        let _: EmptyBody = try await request("DELETE", path: "/v1/cards/\(Self.pathSegment(id))")
     }
 
     public func registerDevice(
@@ -451,14 +451,14 @@ public final class APIClient {
             let context: Context
         }
         let body = Body(context: Context(cardId: cardId))
-        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run", body: body)
+        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(Self.pathSegment(id))/run", body: body)
     }
 
     public func runConfirmedAction(id: String, cardId: String?) async throws {
         struct Context: Codable { let cardId: String? }
         struct Body: Codable { let context: Context }
         let body = Body(context: Context(cardId: cardId))
-        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(id)/run-confirmed", body: body)
+        let _: EmptyBody = try await request("POST", path: "/v1/actions/\(Self.pathSegment(id))/run-confirmed", body: body)
     }
 
     public func revokeCurrentCredential() async throws {
@@ -467,12 +467,46 @@ public final class APIClient {
 
     // MARK: - Internal
 
+    /// Resolves a `/v1/...` path against the configured base URL.
+    ///
+    /// `appendingPathComponent` cannot do this: it treats the whole string as
+    /// one component and escapes what it finds, so `"/v1/cards?include=shared"`
+    /// became the literal path `/v1/cards%3Finclude=shared` — a request for a
+    /// card whose id is `?include=shared`, which no tenant has. It also
+    /// re-escapes the `%` of an already-encoded segment, so a caller cannot
+    /// encode an id itself either.
+    ///
+    /// Building the components explicitly keeps the query a query and leaves
+    /// escaped path segments alone. Any base-URL path is preserved, since a
+    /// deployment may be mounted under one.
+    private func url(for path: String) throws -> URL {
+        guard var components = URLComponents(url: config.baseURL, resolvingAgainstBaseURL: false) else {
+            throw APIClientError(status: 0, message: "invalid base URL")
+        }
+        let parts = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let basePath = components.percentEncodedPath
+        components.percentEncodedPath =
+            (basePath == "/" ? "" : basePath) + String(parts[0])
+        components.percentEncodedQuery = parts.count > 1 ? String(parts[1]) : nil
+        guard let url = components.url else {
+            throw APIClientError(status: 0, message: "invalid request URL")
+        }
+        return url
+    }
+
+    /// Escapes one path segment. Everything outside RFC 3986's unreserved set
+    /// is encoded, including `/` — an id carrying one would otherwise become
+    /// two segments and address a route that does not exist.
+    static func pathSegment(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .zwUnreserved) ?? value
+    }
+
     private func request<T: Decodable>(
         _ method: String,
         path: String,
         body: Encodable? = nil
     ) async throws -> T {
-        var req = URLRequest(url: config.baseURL.appendingPathComponent(path))
+        var req = URLRequest(url: try url(for: path))
         req.httpMethod = method
         req.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -492,6 +526,14 @@ public final class APIClient {
         }
         return try CardCache.jsonDecoder().decode(T.self, from: data)
     }
+}
+
+extension CharacterSet {
+    /// RFC 3986 unreserved characters. Anything else in a path segment is
+    /// percent-encoded, which is what the server now decodes on the way in.
+    static let zwUnreserved = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+    )
 }
 
 struct AnyEncodable: Encodable {
