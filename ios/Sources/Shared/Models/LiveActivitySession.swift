@@ -32,6 +32,9 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var subtitle: String?
     public var state: String
     public var icon: String?
+    /// What the activity is doing right now, beside the main icon. Content
+    /// state, so it changes on every update.
+    public var statusIcon: String?
     public var value: String?
     public var unit: String?
     public var progress: Double?
@@ -68,6 +71,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         subtitle: String? = nil,
         state: String,
         icon: String? = nil,
+        statusIcon: String? = nil,
         value: String? = nil,
         unit: String? = nil,
         progress: Double? = nil,
@@ -89,6 +93,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.subtitle = subtitle
         self.state = state
         self.icon = icon
+        self.statusIcon = statusIcon
         self.value = value
         self.unit = unit
         self.progress = progress
@@ -113,6 +118,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
         state = try container.decode(String.self, forKey: .state)
         icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        statusIcon = try container.decodeIfPresent(String.self, forKey: .statusIcon)
         value = try container.decodeIfPresent(String.self, forKey: .value)
         unit = try container.decodeIfPresent(String.self, forKey: .unit)
         progress = try container.decodeIfPresent(Double.self, forKey: .progress)
@@ -134,7 +140,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, value, unit
+        case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, statusIcon, value, unit
         case progress, items, chart, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
         case relevanceScore, deepLink, actions
     }

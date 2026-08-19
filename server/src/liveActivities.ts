@@ -43,6 +43,7 @@ function initialContentState(
     state: string;
     subtitle?: string;
     icon?: string;
+    statusIcon?: string;
     value?: string;
     unit?: string;
     progress?: number;
@@ -57,6 +58,7 @@ function initialContentState(
   const state: ContentStateRecord = { state: activity.state, updatedAt };
   if (activity.subtitle !== undefined) state.subtitle = activity.subtitle;
   if (activity.icon !== undefined) state.icon = activity.icon;
+  if (activity.statusIcon !== undefined) state.statusIcon = activity.statusIcon;
   if (activity.value !== undefined) state.value = activity.value;
   if (activity.unit !== undefined) state.unit = activity.unit;
   if (activity.progress !== undefined) state.progress = activity.progress;
@@ -346,6 +348,7 @@ export async function startLiveActivity(
     subtitle: d.subtitle,
     state: d.state,
     icon: d.icon,
+    statusIcon: d.statusIcon,
     value: d.value,
     unit: d.unit,
     progress: d.progress,
@@ -531,6 +534,7 @@ export async function updateLiveActivity(
     subtitle: merge(d.subtitle, instance.subtitle),
     state: d.state ?? instance.state,
     icon: merge(d.icon, instance.icon),
+    statusIcon: merge(d.statusIcon, instance.statusIcon),
     value: merge(d.value, instance.value),
     unit: merge(d.unit, instance.unit),
     progress: merge(d.progress, instance.progress),

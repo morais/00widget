@@ -364,6 +364,7 @@ Live Activity limits:
 | `subtitle` | 240 chars |
 | `state` | 120 chars |
 | `icon` | 64 chars |
+| `statusIcon` | 64 chars |
 | `value` | 80 chars |
 | `unit` | 24 chars |
 | `deepLink` | HTTPS URL, 2048 chars |
@@ -372,7 +373,8 @@ Live Activity limits:
 | `items` | 6 rows |
 
 Live Activity item limits match the corresponding top-level text limits: `id`
-96 chars, `title` 120 chars, `subtitle` 240 chars, `icon` 64 chars, `value` 80
+96 chars, `title` 120 chars, `subtitle` 240 chars, `icon` and `statusIcon` 64
+chars, `value` 80
 chars, and `unit` 24 chars. Each item may also include `progress` (`0.0`–`1.0`)
 and `status`. Item ids must be unique within the activity. A `chart` on an activity costs roughly 100 bytes
 of that budget at ten points. ActivityKit limits
@@ -763,8 +765,9 @@ Live Activity rendering fields:
 
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
+- `statusIcon`: optional second SF Symbol for what the activity is *doing* right now, drawn beside the main one — `bolt.fill` while boosting, `exclamationmark.triangle.fill` when something needs attention, `pause.fill` while held. Where `icon` says what the activity is, this says what it is doing, so it is content state and may change on every update; send `null` to remove it. The same field exists on each item. Omitted from the compact and minimal Dynamic Island, which have no room for a second glyph.
 - `progress`: optional `0.0`–`1.0` progress bar.
-- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen and expanded Dynamic Island in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
+- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `statusIcon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen and expanded Dynamic Island in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
 - `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. When both `chart` and `progress` are sent, the chart wins the space. When `items` are also sent, the chart loses it — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space) before sending both.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
 - `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.
@@ -789,7 +792,7 @@ after `start`**:
 - `deepLink`
 
 Everything else is content state and updates normally: `subtitle`, `state`,
-`icon`, `value`, `unit`, `progress`, `items`, `chart`, `endsAt`,
+`icon`, `statusIcon`, `value`, `unit`, `progress`, `items`, `chart`, `endsAt`,
 `countdownGranularity`, `staleAt`, `relevanceScore`.
 
 So `title` must be the stable *name of the thing*, never a value that moves.
@@ -915,8 +918,9 @@ countdown keeps running against a time that has passed, the progress bar stays
 frozen at 0.6, and the chart keeps taking the Lock Screen space that `progress`
 would otherwise have.
 
-Clearable this way: `subtitle`, `icon`, `value`, `unit`, `progress`, `items`,
-`chart`, `endsAt`, `countdownGranularity`, `staleAt`, `relevanceScore`.
+Clearable this way: `subtitle`, `icon`, `statusIcon`, `value`, `unit`,
+`progress`, `items`, `chart`, `endsAt`, `countdownGranularity`, `staleAt`,
+`relevanceScore`.
 Clearing `endsAt` drops `countdownGranularity` with it, since it means nothing
 without a date to count down to. `state` cannot be cleared — every activity has
 one — and `title` cannot be changed at all.

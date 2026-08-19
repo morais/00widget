@@ -457,6 +457,10 @@ export const LiveActivityItemSchema = z.object({
   title: TitleString.describe("The row's label."),
   subtitle: OptionalSubtitleString.describe("A second line under the row's title."),
   icon: OptionalIconString.describe("SF Symbol name for this row."),
+  statusIcon: OptionalIconString.describe(
+    "A second SF Symbol for what this row is doing right now, drawn beside its "
+    + "own icon — arrow.up while charging, pause.fill while held.",
+  ),
   value: OptionalValueString.describe("The row's reading, as a display string."),
   unit: OptionalUnitString.describe("Unit shown after the row's `value`."),
   progress: z.number().min(0).max(1).optional().describe("This row's own progress, 0-1."),
@@ -587,6 +591,13 @@ export const StartLiveActivitySchema = z.object({
     + "and setting it to \"finished\" does not end the activity.",
   ),
   icon: OptionalIconString.describe("SF Symbol name, overriding the one `kind` implies."),
+  statusIcon: OptionalIconString.describe(
+    "A second SF Symbol for what the activity is doing right now, drawn beside "
+    + "the main one — bolt.fill while boosting, exclamationmark.triangle.fill "
+    + "when something needs attention. Unlike `icon`, which says what the "
+    + "activity IS, this says what it is DOING, so it is content state and "
+    + "changes on every update.",
+  ),
   value: OptionalValueString.describe(
     "The headline, as a display string. With `items`, an explicit value "
     + "outranks the derived active-item count.",
@@ -676,6 +687,10 @@ export const UpdateLiveActivitySchema = z.object({
   icon: z.string().max(FieldLimits.icon).nullish().describe(
     "New SF Symbol name. `null` falls back to the one `kind` implies.",
   ),
+  statusIcon: z.string().max(FieldLimits.icon).nullish().describe(
+    "New runtime glyph. `null` removes it — which is what an activity that has "
+    + "stopped doing the thing should send.",
+  ),
   value: z.string().max(FieldLimits.value).nullish().describe(
     "New headline display string. `null` removes it.",
   ),
@@ -727,6 +742,7 @@ export const LiveActivitySessionSchema = z.object({
   subtitle: OptionalSubtitleString,
   state: z.string().min(1).max(FieldLimits.activityState),
   icon: OptionalIconString,
+  statusIcon: OptionalIconString,
   value: OptionalValueString,
   unit: OptionalUnitString,
   progress: z.number().min(0).max(1).optional(),

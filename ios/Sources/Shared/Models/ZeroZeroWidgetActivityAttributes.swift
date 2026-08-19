@@ -7,6 +7,10 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         public var subtitle: String?
         public var state: String
         public var icon: String?
+        /// What the activity is doing right now, beside the main icon. Content
+        /// state, unlike the attributes, so it changes on every update — which
+        /// is the point of it on a surface that is by definition moving.
+        public var statusIcon: String?
         public var value: String?
         public var unit: String?
         public var progress: Double?
@@ -21,6 +25,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
             subtitle: String? = nil,
             state: String,
             icon: String? = nil,
+            statusIcon: String? = nil,
             value: String? = nil,
             unit: String? = nil,
             progress: Double? = nil,
@@ -34,6 +39,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
             self.subtitle = subtitle
             self.state = state
             self.icon = icon
+            self.statusIcon = statusIcon
             self.value = value
             self.unit = unit
             self.progress = progress
@@ -100,6 +106,7 @@ public extension ZeroZeroWidgetActivityAttributes {
             subtitle: session.subtitle,
             state: session.state,
             icon: session.icon,
+            statusIcon: session.statusIcon,
             value: session.value,
             unit: session.unit,
             progress: session.progress,

@@ -138,10 +138,18 @@ private struct ActivityCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: iconName)
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
+                VStack(spacing: 2) {
+                    Image(systemName: iconName)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    // What the activity is doing right now, under what it is.
+                    if let statusIcon = session.statusIcon {
+                        Image(systemName: statusIcon)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
@@ -470,6 +478,11 @@ private struct ActivityItemRow: View {
                     .font(.body)
                     .foregroundStyle(item.status?.tint ?? .secondary)
                     .frame(width: 24, height: 24)
+                if let statusIcon = item.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)

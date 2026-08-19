@@ -154,6 +154,51 @@ describe("live activities", () => {
     expect((await active.json()) as unknown).toMatchObject({ activities: [{ items: [] }] });
   });
 
+  it("carries statusIcon as content state, on the activity and on its items", async () => {
+    const env = makeEnv();
+    const post = (path: string, body: unknown) =>
+      (handler.fetch as any)(
+        authedRequest(`https://x/v1/live-activities/${path}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionCtx,
+      );
+    const read = async () => {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities", { method: "GET" }),
+        env,
+        executionCtx,
+      );
+      return ((await res.json()) as { activities: Array<Record<string, any>> }).activities[0];
+    };
+
+    expect((await post("start", {
+      externalActivityId: "charge-1",
+      kind: "charging",
+      title: "Car",
+      state: "charging",
+      icon: "bolt.car",
+      statusIcon: "arrow.up",
+      items: [{ id: "a", title: "Front", icon: "bolt.car", statusIcon: "arrow.up" }],
+    })).status).toBe(200);
+
+    expect(await read()).toMatchObject({
+      statusIcon: "arrow.up",
+      items: [{ id: "a", statusIcon: "arrow.up" }],
+    });
+
+    // Content state, not an attribute: it changes on an ordinary update, which
+    // is the whole reason for having it on a surface that is always moving.
+    await post("update", { externalActivityId: "charge-1", statusIcon: "pause.fill" });
+    expect(await read()).toMatchObject({ statusIcon: "pause.fill" });
+
+    // And clears like every other content-state field.
+    await post("update", { externalActivityId: "charge-1", statusIcon: null });
+    expect(await read()).not.toHaveProperty("statusIcon");
+  });
+
   it("restarts an activity when started again under the same id", async () => {
     const env = makeEnv();
     const start = (body: unknown) =>

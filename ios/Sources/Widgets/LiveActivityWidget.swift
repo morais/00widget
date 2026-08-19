@@ -175,6 +175,7 @@ private struct LockScreenView: View {
                 Image(systemName: iconName)
                     .font(.headline)
                     .foregroundStyle(.secondary)
+                statusGlyph(.subheadline)
                 Text(attributes.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -209,9 +210,12 @@ private struct LockScreenView: View {
 
     private var legacyLockScreenBody: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: iconName)
-                .font(.title2)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 3) {
+                Image(systemName: iconName)
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                statusGlyph(.caption)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(attributes.title).font(.headline)
                 if let subtitle = state.subtitle {
@@ -268,6 +272,7 @@ private struct LockScreenView: View {
             Image(systemName: iconName)
                 .font(.title3)
                 .foregroundStyle(.secondary)
+            statusGlyph(.caption)
             VStack(alignment: .leading, spacing: 1) {
                 Text(attributes.title)
                     .font(.caption2)
@@ -329,6 +334,22 @@ private struct LockScreenView: View {
         }
     }
 
+    /// The runtime glyph beside the identity icon: what the activity is doing
+    /// right now, as opposed to what it is.
+    ///
+    /// Drawn in `.primary` against the identity icon's `.secondary`, because
+    /// the moving thing is the one worth the eye. Deliberately absent from the
+    /// compact and minimal Dynamic Island regions — they are a few points wide,
+    /// and a second glyph there would crowd out the value.
+    @ViewBuilder
+    private func statusGlyph(_ font: Font) -> some View {
+        if let statusIcon = state.statusIcon {
+            Image(systemName: statusIcon)
+                .font(font)
+                .foregroundStyle(.primary)
+        }
+    }
+
     private var iconName: String {
         if let icon = state.icon ?? attributes.icon {
             return icon
@@ -355,6 +376,11 @@ private struct LiveActivityItemRow: View {
                     .font(condensed ? .caption2 : .caption)
                     .frame(width: 14)
                     .foregroundStyle(item.status?.tint ?? .secondary)
+                if let statusIcon = item.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.caption2)
+                        .foregroundStyle(.primary)
+                }
                 VStack(alignment: .leading, spacing: 0) {
                     Text(item.title)
                         .font(condensed ? .caption2 : .caption.weight(.semibold))
