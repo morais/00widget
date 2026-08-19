@@ -403,6 +403,38 @@ describe("guest link browser page", () => {
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
   });
 
+  it("draws a progress bar, matching how the device reads the fraction", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+    expect(script).toContain("var progressBar=function");
+    expect(body).toContain(".prog rect.fill{");
+
+    // Run the page's own fraction logic against the cases that separate it
+    // from a naive parse. It has to agree with DashboardCard.progressValue on
+    // the device, or the same shared card reads differently in a browser.
+    const source = /var clamp01=[\s\S]*?return isFinite\(d\)\?clamp01\(d>1\?d\/100:d\):null;\n {2}\};/
+      .exec(script)?.[0];
+    expect(source).toBeTruthy();
+    const fraction = new Function(`${source} return fraction;`)() as (
+      card: Record<string, unknown>,
+    ) => number | null;
+
+    // An explicit progress wins on any template.
+    expect(fraction({ template: "progress", value: "184 of 240", progress: 0.767 })).toBe(0.767);
+    expect(fraction({ template: "summary", progress: 0.25 })).toBe(0.25);
+    expect(fraction({ template: "progress", progress: 1.4 })).toBe(1);
+    // The legacy fallback: value as the fraction, above 1 read as a percentage.
+    expect(fraction({ template: "progress", value: "0.5" })).toBe(0.5);
+    expect(fraction({ template: "progress", value: "50" })).toBe(0.5);
+    expect(fraction({ template: "progress", value: "2" })).toBe(0.02);
+    // And what must NOT be parsed: Swift's Double(_:) rejects a string that is
+    // not wholly a number, so parseFloat would have drawn 1.84% here.
+    expect(fraction({ template: "progress", value: "184 of 240" })).toBeNull();
+    expect(fraction({ template: "progress", value: "" })).toBeNull();
+    expect(fraction({ template: "summary", value: "3.2" })).toBeNull();
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');

@@ -41,6 +41,13 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .bar rect.w{fill:#ff9f0a}
 .bar rect.c{fill:#ff3b30}
 .bar rect.r{fill:#0a84ff}
+.prog{display:block;width:100%;height:10px;margin:.75rem 0}
+.prog rect.track{fill:var(--muted);fill-opacity:.22;rx:3px}
+.prog rect.fill{fill:var(--accent);rx:3px}
+.prog rect.fill.g{fill:#34c759}
+.prog rect.fill.w{fill:#ff9f0a}
+.prog rect.fill.c{fill:#ff3b30}
+.prog rect.fill.r{fill:#0a84ff}
 .rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
 .rank rect{fill:var(--accent);fill-opacity:.5;rx:2px}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
@@ -122,6 +129,29 @@ const GUEST_SCRIPT = `
     }
     return '<svg class="bar" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+out+'</svg>';
   };
+  // Mirrors DashboardCard.progressValue on the device: an explicit progress
+  // wins on any template, and a progress card that sends none falls back to
+  // parsing value, reading anything above 1 as a percentage. No backticks in
+  // here: this whole script is a TypeScript template literal.
+  var clamp01=function(n){return Math.max(0,Math.min(1,n))};
+  var fraction=function(c){
+    if(typeof c.progress==='number'){return clamp01(c.progress)}
+    if(c.template!=='progress'){return null}
+    // Number(), not parseFloat(): Swift's Double(_:) rejects a string that is
+    // not wholly a number, and parseFloat would read "184 of 240" as 184 and
+    // draw a bar at 1.84% where the device draws none.
+    if(typeof c.value!=='string'||c.value===''){return null}
+    var d=Number(c.value);
+    return isFinite(d)?clamp01(d>1?d/100:d):null;
+  };
+  // Width has to be an attribute rather than a style — see the note on
+  // breakdown() above.
+  var progressBar=function(f,status){
+    var cls=PIP[status]||'';
+    return '<svg class="prog" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true">'
+      +'<rect class="track" x="0" y="0" width="100" height="10"/>'
+      +'<rect class="fill '+cls+'" x="0" y="0" width="'+(f*100).toFixed(2)+'" height="10"/></svg>';
+  };
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
@@ -135,6 +165,8 @@ const GUEST_SCRIPT = `
       h+='<p class="title">'+esc(c.title)+'</p>';
       if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
+      var pf=fraction(c);
+      if(pf!=null){h+=progressBar(pf,c.status)}
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
       if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
       if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
