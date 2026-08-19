@@ -79,6 +79,26 @@ interface BucketRow {
   expires_at: number;
 }
 
+/// What a caller has left on the tightest limit this request touched.
+export interface RateLimitSnapshot {
+  label: string;
+  limit: number;
+  remaining: number;
+  resetAt: number;
+}
+
+/// Recorded per request so the response can carry it, keyed on the
+/// `AuthContext` — which `requireAuth` mints fresh for every request and drops
+/// afterwards, and which is the one request-scoped object every rate-limited
+/// handler already holds. Threading a return value through all twenty-six call
+/// sites would say the same thing twenty-six times to reach one place that
+/// uses it.
+const snapshots = new WeakMap<object, RateLimitSnapshot>();
+
+export function rateLimitSnapshotFor(owner: object): RateLimitSnapshot | undefined {
+  return snapshots.get(owner);
+}
+
 export async function enforceTenantRateLimits(
   env: Env,
   auth: AuthContext,
@@ -87,14 +107,15 @@ export async function enforceTenantRateLimits(
   return enforceRateLimits(env, [
     { policy: "anyWriteTenantHour", key: tenantKey(auth.tenantId) },
     ...buckets,
-  ]);
+  ], auth);
 }
 
 export async function enforceRateLimits(
   env: Env,
   buckets: RateLimitBucketInput[],
+  owner?: object,
 ): Promise<Response | null> {
-  const exceeded = await incrementRateLimitBuckets(env, buckets);
+  const exceeded = await incrementRateLimitBuckets(env, buckets, owner);
   if (!exceeded) return null;
   return rateLimitResponse(exceeded);
 }
@@ -113,6 +134,7 @@ export async function enforceRateLimits(
 export async function incrementRateLimitBuckets(
   env: Env,
   buckets: RateLimitBucketInput[],
+  owner?: object,
 ): Promise<RateLimitExceeded | null> {
   if (buckets.length === 0) return null;
   const now = nowSeconds();
@@ -147,6 +169,23 @@ export async function incrementRateLimitBuckets(
       ).bind(entry.bucketKey, entry.windowStart),
     ),
   ]);
+
+  // The tightest bucket, whether or not anything was exceeded: it is the one
+  // that will bite first, so it is the one worth reporting back.
+  let tightest: RateLimitSnapshot | undefined;
+  for (const [index, entry] of planned.entries()) {
+    const count = Number(results[index]?.results?.[0]?.count ?? 0);
+    const remaining = Math.max(0, entry.policy.limit - count);
+    if (!tightest || remaining < tightest.remaining) {
+      tightest = {
+        label: entry.policy.label,
+        limit: entry.policy.limit,
+        remaining,
+        resetAt: entry.windowStart + entry.policy.windowSeconds,
+      };
+    }
+  }
+  if (owner && tightest) snapshots.set(owner, tightest);
 
   for (const [index, entry] of planned.entries()) {
     const count = Number(results[index]?.results?.[0]?.count ?? 0);

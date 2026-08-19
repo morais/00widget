@@ -28,7 +28,7 @@ import * as sessions from "./sessions";
 import * as status from "./status";
 import * as subscription from "./subscription";
 import { processPendingWidgetReload } from "./widgetPush";
-import { sweepExpiredRateLimitBuckets } from "./rateLimit";
+import { rateLimitSnapshotFor, sweepExpiredRateLimitBuckets } from "./rateLimit";
 
 interface Route {
   method: string;
@@ -223,6 +223,24 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
 
+/// Reports what the caller has left on the tightest limit this request
+/// touched, so an agent can pace itself instead of discovering the wall by
+/// hitting it. The limits were previously knowable only from a table in the
+/// docs, which cannot say what *this* deployment is configured for or how much
+/// of the window is already spent.
+///
+/// Only on responses that actually consumed budget; a read that touches no
+/// bucket says nothing rather than guessing. A 429 carries its own headers
+/// already, including `Retry-After`.
+function withRateLimitHeaders(response: Response, auth: import("./auth").AuthContext): Response {
+  const snapshot = rateLimitSnapshotFor(auth);
+  if (!snapshot) return response;
+  response.headers.set("RateLimit-Limit", String(snapshot.limit));
+  response.headers.set("RateLimit-Remaining", String(snapshot.remaining));
+  response.headers.set("RateLimit-Reset", String(Math.max(0, snapshot.resetAt - Math.floor(Date.now() / 1000))));
+  return response;
+}
+
 /// A captured path segment, decoded. Route patterns capture the raw text, so
 /// an id carrying anything that needs escaping used to be looked up in its
 /// still-encoded form and never found: `GET /v1/cards/my%20card` searched for
@@ -267,7 +285,7 @@ function authed(
         // that is gated — no extra query on any other request.
         const lapsed = await subscription.subscriptionGate(env, auth, requiredScope);
         if (lapsed) return subscription.subscriptionRequiredResponse(lapsed);
-        return await handler(req, env, auth, match, ctx);
+        return withRateLimitHeaders(await handler(req, env, auth, match, ctx), auth);
       } catch (err) {
         if (err instanceof AuthRateLimitError) {
           return json({ error: err.message }, 429, { "retry-after": "60" });

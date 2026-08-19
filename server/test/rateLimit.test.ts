@@ -7,7 +7,7 @@ import {
   sweepExpiredRateLimitBuckets,
   tenantKey,
 } from "../src/rateLimit";
-import { makeEnv } from "./helpers";
+import { authedRequest, makeEnv } from "./helpers";
 
 const scheduledEvent = {
   cron: "0 * * * *",
@@ -282,5 +282,55 @@ describe("the queue consumer sweep", () => {
     expect(settled).toEqual(["ack:t1"]);
     expect(pending).toHaveLength(0);
     expect(prepare.mock.calls.filter(([sql]) => sql.includes("expires_at < ?"))).toHaveLength(0);
+  });
+});
+
+describe("rate limit headers", () => {
+  const ctx = {} as ExecutionContext;
+  const upsert = (env: ReturnType<typeof makeEnv>, id = "solar") =>
+    (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({ id, template: "summary", title: "Solar" }),
+      }),
+      env,
+      ctx,
+    );
+
+  it("reports the remaining budget on a successful write", async () => {
+    const env = makeEnv();
+    const res = await upsert(env);
+    expect(res.status).toBe(200);
+    // The tightest bucket the request touched, which is the per-card one at 60.
+    expect(res.headers.get("RateLimit-Limit")).toBe("60");
+    expect(res.headers.get("RateLimit-Remaining")).toBe("59");
+    expect(Number(res.headers.get("RateLimit-Reset"))).toBeGreaterThan(0);
+  });
+
+  it("counts down as the window is spent", async () => {
+    const env = makeEnv();
+    await upsert(env);
+    const second = await upsert(env);
+    expect(second.headers.get("RateLimit-Remaining")).toBe("58");
+  });
+
+  it("says nothing on a read that consumes no budget", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }),
+      makeEnv(),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("RateLimit-Limit")).toBeNull();
+  });
+
+  it("does not leak one tenant's budget into another's response", async () => {
+    // The snapshot is keyed on the per-request AuthContext, so a second
+    // request in the same isolate must not see the first one's numbers.
+    const env = makeEnv();
+    await upsert(env, "a");
+    await upsert(env, "a");
+    const fresh = await upsert(env, "b");
+    expect(fresh.headers.get("RateLimit-Remaining")).toBe("59");
   });
 });

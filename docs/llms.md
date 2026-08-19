@@ -1108,6 +1108,21 @@ keeps working. Nothing is deprecated by silently changing under you.
 | Apple app login attempt | client IP, before token verification | 60 / hour |
 | Apple app login token exchange | verified Apple user | 30 / hour |
 
+Every response that spends budget carries what is left of it, so you can pace
+yourself rather than discovering the wall by hitting it:
+
+```
+RateLimit-Limit: 60
+RateLimit-Remaining: 59
+RateLimit-Reset: 2841
+```
+
+They describe the **tightest** limit that request touched — the one that will
+bite first — and `RateLimit-Reset` is seconds until that window rolls over. A
+read that consumes no budget carries no such headers rather than guessing. A
+`429` carries `Retry-After` as well, and `GET /v1/status` reports every window
+this account has touched.
+
 Agents should coalesce state changes and avoid hot loops. Publish one batch per producer snapshot, skip a publish when none of the displayed values changed, and respect `429 Retry-After` instead of retrying immediately.
 
 ## Errors

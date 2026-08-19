@@ -76,7 +76,7 @@ export async function upsertCardsBatch(
       policy: "cardUpsertCardHour" as const,
       key: tenantResourceKey(auth.tenantId, "card", card.id),
     })),
-  ]);
+  ], auth);
   if (limited) return limited;
 
   const receivedAt = new Date().toISOString();
