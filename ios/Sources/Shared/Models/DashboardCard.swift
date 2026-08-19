@@ -40,6 +40,11 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var progress: Double?
     public var updatedAt: Date
     public var staleAfter: Date?
+    /// When the thing this card is about is due. Rendered as a relative
+    /// countdown that the device ticks on its own, so it stays right between
+    /// widget reloads — which a republished string cannot, given how rarely a
+    /// Home Screen widget is allowed to reload.
+    public var deadline: Date?
     public private(set) var deepLink: URL?
     public var items: [DashboardItem]?
     public var chart: DashboardChart?
@@ -59,6 +64,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         progress: Double? = nil,
         updatedAt: Date = Date(),
         staleAfter: Date? = nil,
+        deadline: Date? = nil,
         deepLink: URL? = nil,
         items: [DashboardItem]? = nil,
         chart: DashboardChart? = nil,
@@ -77,6 +83,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.progress = progress
         self.updatedAt = updatedAt
         self.staleAfter = staleAfter
+        self.deadline = deadline
         self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
         self.items = items
         self.chart = chart
@@ -103,6 +110,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         progress = try c.decodeIfPresent(Double.self, forKey: .progress)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
         staleAfter = try DashboardCard.decodeDate(c, forKey: .staleAfter)
+        deadline = try DashboardCard.decodeDate(c, forKey: .deadline)
         deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
             try c.decodeIfPresent(URL.self, forKey: .deepLink)
         )
@@ -114,7 +122,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon, statusIcon
-        case progress, updatedAt, staleAfter, deepLink, items, chart, actions, sharedBy
+        case progress, updatedAt, staleAfter, deadline, deepLink, items, chart, actions, sharedBy
     }
 
     public var isStale: Bool {

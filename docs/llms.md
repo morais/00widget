@@ -26,6 +26,7 @@ On Home Screen widgets, iOS first launches the containing 00Widget app with the 
 - Pick one stable `id` per logical card.
 - If the project has a dashboard, consider setting `deepLink`.
 - Prefer common card fields: `id`, `template`, `title`, `status`, `icon`, `updatedAt`, `staleAfter`, `deepLink`.
+- If the thing has a due time, set `deadline` rather than writing the remaining time into `value` — the device keeps a `deadline` current between reloads and a string goes stale.
 - Avoid secrets and private user data in card text; widgets can appear on the Lock Screen.
 
 ## Get the operator to give you
@@ -109,6 +110,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "progress": "number? 0.0-1.0 (draws a bar; required by template=progress)",
   "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
   "staleAfter": "ISO-8601 timestamp? (after this, widget shows a 'stale' state)",
+  "deadline": "ISO-8601 timestamp? (drawn as a live countdown the device ticks)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
   "chart": "DashboardChart? (only for template=chart)",
@@ -251,6 +253,7 @@ Card field limits:
 | `unit` | 24 chars |
 | `icon` | 64 chars |
 | `statusIcon` | 64 chars |
+| `deadline` | ISO-8601 timestamp |
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
 | `progress` | number, 0.0–1.0 |
@@ -506,6 +509,39 @@ A shorter form is rejected with `400 validation failed` rather than accepted
 and quietly discarded later. `new Date().toISOString()`, Python's
 `datetime.now(timezone.utc).isoformat()`, and `date -u +%Y-%m-%dT%H:%M:%SZ` all
 produce the right thing.
+
+### Counting down to a deadline
+
+Set `deadline` and the card draws a relative countdown that **the device ticks
+on its own**:
+
+```json
+{
+  "id": "cert-expiry",
+  "template": "summary",
+  "title": "TLS certificate",
+  "value": "api.example.com",
+  "status": "warning",
+  "icon": "lock.shield",
+  "deadline": "2026-09-02T00:00:00Z"
+}
+```
+
+This is the one relative time a card can hold and keep right. A widget reloads
+at most once every 30 minutes, so "expires in 3 days" published as a *string*
+is stale within the hour and wrong for most of its life on screen. `deadline`
+costs no reloads at all — iOS re-renders the text locally, the same way a Live
+Activity's `endsAt` works.
+
+Use it for anything with a due time: a certificate expiry, the next scheduled
+run, when a boost ends, when a deploy window closes. It sits alongside any
+template, and it replaces the "updated N ago" stamp at the bottom of the card
+rather than crowding in next to it. A deadline in the past keeps counting, so
+overdue reads as overdue.
+
+`deadline` says when something is due; `staleAfter` says when to stop trusting
+what the card shows. They are unrelated and a card may set either, both, or
+neither.
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
 

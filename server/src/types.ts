@@ -269,6 +269,11 @@ const DashboardCardFields = {
   progress: z.number().min(0).max(1).optional(),
   updatedAt: IsoDate.optional(),
   staleAfter: IsoDate.optional(),
+  // When the thing this card is about is due. Rendered as a countdown the
+  // device ticks on its own, which is the only way a card can hold a correct
+  // relative time: a widget reloads at most once every 30 minutes, so a
+  // republished "12 min left" is wrong for most of the time it is on screen.
+  deadline: IsoDate.optional(),
   deepLink: OptionalDeepLink,
   items: z.array(DashboardItemSchema).max(FieldLimits.itemCount).optional(),
   chart: DashboardChartSchema.optional(),
@@ -281,6 +286,7 @@ export const DashboardCardSchema = z.object({
   ...DashboardCardFields,
   updatedAt: StoredIsoDate.optional(),
   staleAfter: StoredIsoDate.optional(),
+  deadline: StoredIsoDate.optional(),
   actions: z.array(ActionDefinitionSchema).max(FieldLimits.actionCount).optional(),
   // Set only on cards returned via ?include=shared.
   sharedBy: SharedByInfoSchema.optional(),

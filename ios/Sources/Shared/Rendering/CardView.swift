@@ -94,6 +94,31 @@ public struct CardView: View {
         }
     }
 
+    /// The single relative time at the bottom of a card. A `deadline` displaces
+    /// the updated-at stamp rather than joining it: both are relative times, and
+    /// the one worth a glance is the one that has not happened yet.
+    ///
+    /// `Text(_:style:.relative)` is ticked by the device, so this stays right
+    /// between reloads. That is the whole reason the field exists — a countdown
+    /// republished as a string is wrong for most of the half hour that a Home
+    /// Screen widget waits between reloads.
+    @ViewBuilder
+    private var footerLine: some View {
+        if let deadline = card.deadline {
+            HStack(spacing: 3) {
+                Image(systemName: "clock")
+                Text(deadline, style: .relative)
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+        } else {
+            Text(card.updatedAt, style: .relative)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
     /// Marks a card followed through someone else's shared link, so a card on
     /// the Home Screen is never mistaken for one of your own. Unlike the sample
     /// badge this is not suppressible: it states whose data this is, which is
@@ -174,6 +199,7 @@ public struct CardView: View {
             if card.template != .action {
                 actionButtons(max: density == .compact ? 0 : 1)
             }
+            if card.deadline != nil { footerLine }
         }
         .padding(8)
     }
@@ -220,9 +246,7 @@ public struct CardView: View {
             }
             Spacer(minLength: 0)
             if density != .compact {
-                Text(card.updatedAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                footerLine
             }
         }
         .padding(10)
@@ -264,9 +288,13 @@ public struct CardView: View {
             }
             Spacer(minLength: 0)
             if density != .compact {
-                Text("Updated \(card.updatedAt, style: .relative) ago")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if card.deadline != nil {
+                    footerLine
+                } else {
+                    Text("Updated \(card.updatedAt, style: .relative) ago")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(12)
@@ -330,9 +358,18 @@ public struct CardView: View {
             if density != .compact {
                 appControls
 
+                if let deadline = card.deadline {
+                    Label {
+                        Text(deadline, style: .relative)
+                    } icon: {
+                        Image(systemName: "clock")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 Label(
                     card.updatedAt.formatted(.relative(presentation: .named)),
-                    systemImage: "clock"
+                    systemImage: "arrow.clockwise"
                 )
                 .font(.caption)
                 .foregroundStyle(.tertiary)

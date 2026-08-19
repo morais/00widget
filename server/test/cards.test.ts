@@ -128,6 +128,17 @@ describe("DashboardCardSchema", () => {
     expect(DashboardCardInputSchema.safeParse(card(1)).success).toBe(true);
   });
 
+  it("accepts a deadline on any template and validates it like other dates", () => {
+    const card = (deadline: string) => ({
+      id: "cert-expiry",
+      template: "summary" as const,
+      title: "TLS certificate",
+      deadline,
+    });
+    expect(DashboardCardInputSchema.safeParse(card("2026-09-02T00:00:00Z")).success).toBe(true);
+    expect(DashboardCardInputSchema.safeParse(card("2026-09-02")).success).toBe(false);
+  });
+
   it("rejects unknown template values", () => {
     expect(DashboardCardSchema.safeParse({ id: "a", template: "exotic", title: "x" }).success).toBe(false);
   });

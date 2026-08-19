@@ -387,6 +387,16 @@ private struct TVDashboardCardView: View {
                         valueContent
                     }
 
+                    if let deadline = card.deadline {
+                        Label {
+                            Text(deadline, style: .relative)
+                        } icon: {
+                            Image(systemName: "clock")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 28)
