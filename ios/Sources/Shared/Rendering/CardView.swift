@@ -263,7 +263,7 @@ public struct CardView: View {
                 actionButtons(max: density == .compact ? 2 : 4)
             case .chart:
                 chartHeadline
-                sparkline(height: density == .compact ? 60 : 90)
+                sparkline(minHeight: density == .compact ? 60 : 90, lineWidth: 2.5)
             case .history:
                 chartHeadline
                 statusStrip(limit: 20, height: 16)
@@ -286,7 +286,12 @@ public struct CardView: View {
             if card.template != .action {
                 actionButtons(max: density == .compact ? 2 : 4)
             }
-            Spacer(minLength: 0)
+            // The plot already claims the slack when it is drawn; a Spacer as
+            // well would split the leftover height between them and leave the
+            // chart short again.
+            if !largePlotFillsHeight {
+                Spacer(minLength: 0)
+            }
             if density != .compact {
                 if card.deadline != nil {
                     footerLine
@@ -298,6 +303,14 @@ public struct CardView: View {
             }
         }
         .padding(12)
+    }
+
+    /// Whether `largeView` hands its spare vertical space to the plot instead
+    /// of to a trailing `Spacer`. Only true when a plot is actually drawn — a
+    /// `chart` card whose series is too short to render has nothing to grow,
+    /// and would otherwise centre its text in the widget.
+    private var largePlotFillsHeight: Bool {
+        card.template == .chart && (card.chart?.isRenderable ?? false)
     }
 
     private var rectangularView: some View {
@@ -669,6 +682,19 @@ public struct CardView: View {
             SparklineView(chart: chart, tint: card.status.tint, lineWidth: lineWidth)
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
+        }
+    }
+
+    /// A plot that grows into whatever height the layout has left over, never
+    /// falling below `minHeight`. A fixed height is right where the card is
+    /// mostly text, but a large widget is over twice the height of a medium one
+    /// and a pinned plot leaves the bottom third of the card empty.
+    @ViewBuilder
+    private func sparkline(minHeight: CGFloat, lineWidth: CGFloat = 2) -> some View {
+        if let chart = card.chart, chart.isRenderable {
+            SparklineView(chart: chart, tint: card.status.tint, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: minHeight, maxHeight: .infinity)
         }
     }
 
