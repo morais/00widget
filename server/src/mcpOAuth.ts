@@ -54,7 +54,7 @@ const OAUTH_BODY_MAX_BYTES = 8 * 1024;
 const CLIENT_SIGNING_PURPOSE = "mcp-client-v1";
 const CODE_SIGNING_PURPOSE = "mcp-code-v1";
 
-const GRANTABLE_SCOPES: readonly ApiScope[] = ApiScopePresets.producer;
+const GRANTABLE_SCOPES: readonly ApiScope[] = ApiScopePresets.mcp;
 
 interface RegisteredClient {
   /// Display name, shown on the consent screen.
@@ -529,9 +529,9 @@ function renderConsentPage(
      <section>
        <h2>${esc(request.client.n)} wants to publish to 00Widget</h2>
        <p class="muted">Approving mints a new API token for your account. It can read your cards and
-       Live Activities, publish to them, and manage your webhook integration. It cannot register
-       devices, run confirmed actions, or manage shares. Revoke it any time by signing in to the
-       app.</p>
+       Live Activities and publish to them. It cannot register devices, run confirmed actions,
+       manage shares, or change the webhook that receives your card buttons. Revoke it any time by
+       signing in to the app.</p>
        <table><tbody>
          <tr><th>Client</th><td>${esc(request.client.n)}</td></tr>
          <tr><th>Account</th><td>${esc(identity.ownerEmail || session.email)}</td></tr>

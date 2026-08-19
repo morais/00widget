@@ -411,8 +411,11 @@ export const DashboardCardInputSchema = z.object({
   actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional().describe(
     "Buttons, for `template: action`. Only `role: normal` with `confirm: false` "
     + "can run straight from a widget; anything else routes through the iOS app "
-    + "for confirmation. Requires a webhook registered at "
-    + "PUT /v1/integrations/webhook, or every press fails with a 409.",
+    + "for confirmation. A press is delivered to the account's action webhook, "
+    + "so one must already be registered at PUT /v1/integrations/webhook or "
+    + "every press fails with a 409. That call needs the `webhook:manage` "
+    + "scope, which an MCP credential does not have — the operator registers "
+    + "the webhook with their API token, from whatever runs the endpoint.",
   ),
 });
 

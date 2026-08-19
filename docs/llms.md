@@ -58,6 +58,9 @@ iOS app and use credentials it holds itself, which you are never given and never
 need. A `403` naming a required scope means the operator must issue the right
 credential; do not try to work around it with another endpoint.
 
+A token minted through MCP is narrower still: `tenant:read` and `publish`, with
+no `webhook:manage`. See [the MCP section](#if-your-host-speaks-mcp).
+
 Guest links (`zwg_` tokens) are a fourth kind of credential you may encounter
 but should never mint or handle: they carry only `guest:read`, unlock exactly
 one card or one Live Activity instance, and cannot publish or run actions. They
@@ -89,6 +92,15 @@ plain `fetch` to `/v1/cards/upsert` is simpler and needs no connector.
 The transport is Streamable HTTP: one `POST` with a JSON-RPC body, one JSON
 response, no SSE stream and no session id. `GET <BASE_URL>/mcp.json` returns a
 ready-to-paste client config for whichever host is serving it.
+
+**Actions are not part of the MCP surface.** A token minted through the consent
+screen carries `tenant:read` and `publish` and nothing else, so an MCP client
+cannot read, register, or rotate the account's action webhook — those calls
+return `403`. You can still publish a card with `actions` over MCP, and the
+buttons work, but only if the operator has already registered the webhook with
+their API token. Registering it means running an HTTPS endpoint and storing a
+signing secret handed back exactly once; that belongs to the integration that
+owns the endpoint, not to a connector approved in a browser.
 
 Authorization is OAuth 2.1 rather than the `00WIDGET_API_KEY` used everywhere
 else, because the clients that need MCP cannot send a custom API key header.
@@ -855,7 +867,8 @@ If your card has buttons, define them as `actions` on the card:
 ```
 
 Before buttons can call your system, register your webhook with the same token
-you publish with:
+you publish with. This needs the `webhook:manage` scope, which the API publisher
+token has and an MCP-minted token does not:
 
 ```sh
 curl -X PUT "$00WIDGET_BASE_URL/v1/integrations/webhook" \

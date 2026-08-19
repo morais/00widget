@@ -433,7 +433,11 @@ describe("token exchange", () => {
     const body = (await res.json()) as { access_token: string; token_type: string; scope: string };
     expect(body.token_type).toBe("Bearer");
     expect(body.access_token.startsWith("zw_")).toBe(true);
-    expect(body.scope.split(" ").sort()).toEqual(["publish", "tenant:read", "webhook:manage"]);
+    // Publishing, and nothing that administers the account. `webhook:manage` is
+    // deliberately absent: the webhook is a URL the operator runs and a signing
+    // secret handed back once, neither of which belongs to a connector approved
+    // in a browser.
+    expect(body.scope.split(" ").sort()).toEqual(["publish", "tenant:read"]);
 
     // The point of the whole flow: the token is an ordinary API credential.
     const cards = await fetchWorker(
@@ -459,6 +463,46 @@ describe("token exchange", () => {
         ctx,
       );
       expect(res.status, path).toBe(403);
+    }
+  });
+
+  it("cannot read, change or rotate the account's action webhook", async () => {
+    const env = oauthEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const { token } = await connect(env);
+    const attempts: Array<[string, RequestInit]> = [
+      ["GET", {}],
+      ["PUT", { body: JSON.stringify({ url: "https://example.com/hook" }) }],
+      ["DELETE", {}],
+      // The one that would actually matter: rotating hands back a new signing
+      // secret, once.
+      ["PUT", { body: JSON.stringify({ url: "https://example.com/hook", rotateSecret: true }) }],
+    ];
+    for (const [method, init] of attempts) {
+      const res = await fetchWorker(
+        new Request(`${ORIGIN}/v1/integrations/webhook`, {
+          ...init,
+          method,
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        }),
+        env,
+        ctx,
+      );
+      expect(res.status, method).toBe(403);
+      expect(((await res.json()) as { error: string }).error).toContain("webhook:manage");
+    }
+  });
+
+  it("does not advertise a scope it will not grant", async () => {
+    const env = oauthEnv();
+    for (const path of [
+      "/.well-known/oauth-authorization-server",
+      "/.well-known/oauth-protected-resource",
+    ]) {
+      const res = await fetchWorker(new Request(`${ORIGIN}${path}`), env, ctx);
+      const body = (await res.json()) as { scopes_supported?: string[] };
+      if (!body.scopes_supported) continue;
+      expect(body.scopes_supported, path).not.toContain("webhook:manage");
     }
   });
 

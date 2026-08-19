@@ -44,6 +44,16 @@ export const ApiScopePresets = {
   // receives the taps, so webhook administration rides on the publisher token
   // rather than a credential the app has no way to issue.
   producer: ["tenant:read", "publish", "webhook:manage"] as ApiScope[],
+  // What an MCP connector gets: publishing, and nothing that administers the
+  // account. Deliberately the producer preset minus `webhook:manage`.
+  //
+  // A webhook is the other half of an integration — a URL the operator runs,
+  // and a signing secret handed back exactly once that they have to store.
+  // Neither belongs to a connector approved through a browser consent screen,
+  // and an MCP client has no good place to keep a secret it is given once.
+  // Buttons published over MCP still work; the webhook behind them is
+  // registered with the API token, by whoever owns the endpoint receiving it.
+  mcp: ["tenant:read", "publish"] as ApiScope[],
   readOnly: ["tenant:read"] as ApiScope[],
   device: ["tenant:read", "device:register", "actions:run"] as ApiScope[],
   appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],

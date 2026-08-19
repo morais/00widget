@@ -1,72 +1,72 @@
 {
-  "identifier" : "00widget-subscriptions",
-  "nonRenewingSubscriptions" : [ ],
-  "products" : [ ],
-  "settings" : {
-    "_failTransactionsEnabled" : false,
-    "_storeKitErrors" : [ ]
+  "identifier": "00widget-subscriptions",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_storeKitErrors": []
   },
-  "subscriptionGroups" : [
+  "subscriptionGroups": [
     {
-      "id" : "00widget-pro",
-      "localizations" : [ ],
-      "name" : "00Widget Pro",
-      "subscriptions" : [
+      "id": "20345678",
+      "localizations": [],
+      "name": "00Widget Pro",
+      "subscriptions": [
         {
-          "adHocOffers" : [ ],
-          "codeOffers" : [ ],
-          "displayPrice" : "2.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "00widget-pro-monthly",
-          "introductoryOffer" : {
-            "internalID" : "00widget-trial-monthly",
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P1W"
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "2.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6740925951",
+          "introductoryOffer": {
+            "internalID": "6840925951",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
           },
-          "localizations" : [
+          "localizations": [
             {
-              "description" : "Publish state to your widgets from any agent.",
-              "displayName" : "Monthly",
-              "locale" : "en_US"
+              "description": "Publish state to your widgets from any agent.",
+              "displayName": "Monthly",
+              "locale": "en_US"
             }
           ],
-          "productID" : "com.example.zerozerowidget.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Pro Monthly",
-          "subscriptionGroupID" : "00widget-pro",
-          "type" : "RecurringSubscription"
+          "productID": "com.example.zerozerowidget.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "20345678",
+          "type": "RecurringSubscription"
         },
         {
-          "adHocOffers" : [ ],
-          "codeOffers" : [ ],
-          "displayPrice" : "29.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "00widget-pro-yearly",
-          "introductoryOffer" : {
-            "internalID" : "00widget-trial-yearly",
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P1W"
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "29.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6740925952",
+          "introductoryOffer": {
+            "internalID": "6840925952",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
           },
-          "localizations" : [
+          "localizations": [
             {
-              "description" : "Publish state to your widgets from any agent.",
-              "displayName" : "Yearly",
-              "locale" : "en_US"
+              "description": "Publish state to your widgets from any agent.",
+              "displayName": "Yearly",
+              "locale": "en_US"
             }
           ],
-          "productID" : "com.example.zerozerowidget.pro.yearly",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Pro Yearly",
-          "subscriptionGroupID" : "00widget-pro",
-          "type" : "RecurringSubscription"
+          "productID": "com.example.zerozerowidget.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Pro Yearly",
+          "subscriptionGroupID": "20345678",
+          "type": "RecurringSubscription"
         }
       ]
     }
   ],
-  "version" : {
-    "major" : 4,
-    "minor" : 0
+  "version": {
+    "major": 3,
+    "minor": 0
   }
 }

@@ -279,7 +279,7 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authentica
 | `actions:run` | Run safe, non-confirmed card actions. |
 | `actions:confirm` | Run confirmed/destructive actions; additionally requires an app credential. |
 | `shares:manage` | Create, list, accept, decline, and revoke shares. |
-| `webhook:manage` | Read, create, update, rotate, or delete the action webhook. |
+| `webhook:manage` | Read, create, update, rotate, or delete the action webhook. Not granted to MCP-minted tokens. |
 
 Route declarations in `src/index.ts` must name a scope; there is no implicit
 publisher access. Existing publisher tokens receive an explicit compatibility
