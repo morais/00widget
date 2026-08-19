@@ -202,7 +202,7 @@ An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant 
 
 ## iOS app login
 
-The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates three 90-day credentials in one revocable session: a widget-visible device credential (`tenant:read`, `device:register`, `actions:run`), an app-only credential (`actions:confirm`, `shares:manage`), and an app-only stored publisher credential (`tenant:read`, `publish`) that the user can copy for agents. Signing out calls `DELETE /v1/auth/token`, revokes all three, and removes that device's APNs, widget, and Live Activity registrations.
+The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates three 90-day credentials in one revocable session: a widget-visible device credential (`read`, `device:register`, `actions:run`), an app-only credential (`actions:confirm`, `shares:manage`), and an app-only stored publisher credential (`read`, `publish`) that the user can copy for agents. Signing out calls `DELETE /v1/auth/token`, revokes all three, and removes that device's APNs, widget, and Live Activity registrations.
 
 All newly created API tokens expire after 90 days. The migration also gives existing tokens a 90-day transition window. A standalone publisher token can revoke itself with `DELETE /v1/auth/token`; the endpoint also accepts an expired token solely so it can clean up its own registrations.
 
@@ -273,13 +273,15 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authentica
 
 | Scope | Capabilities |
 | ----- | ------------ |
-| `tenant:read` | Read cards, dashboard state, and Live Activities. |
+| `read` | Read cards, dashboard state, and Live Activities. Answers to its former name `tenant:read` on credentials issued before the rename. |
 | `publish` | Upsert/delete cards and start/update/end Live Activities. |
 | `device:register` | Register device, WidgetKit, and ActivityKit push tokens. |
 | `actions:run` | Run safe, non-confirmed card actions. |
 | `actions:confirm` | Run confirmed/destructive actions; additionally requires an app credential. |
 | `shares:manage` | Create, list, accept, decline, and revoke shares. |
 | `webhook:manage` | Read, create, update, rotate, or delete the action webhook. Not granted to MCP-minted tokens. |
+
+A bare verb spans resources; a prefix names the one thing the scope touches. `read` and `publish` both cover cards and Live Activities, so neither carries a prefix; everything narrower or administrative does. Keep a new scope on that rule.
 
 Route declarations in `src/index.ts` must name a scope; there is no implicit
 publisher access. Existing publisher tokens receive an explicit compatibility

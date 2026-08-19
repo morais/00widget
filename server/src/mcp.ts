@@ -280,7 +280,7 @@ const TOOLS: McpTool[] = [
         .describe("Also return cards other tenants have shared with this one, when sharing is enabled."),
     }),
     outputSchema: CardsOutput,
-    scope: "tenant:read",
+    scope: "read",
     readOnly: true,
     destructive: false,
     invoke: (args, tools) =>
@@ -296,7 +296,7 @@ const TOOLS: McpTool[] = [
     description: "Read one published card by its stable id. Returns `{ card }`, the same envelope every other read on this API uses.",
     schema: z.object({ id: z.string().min(1).describe("The card's stable id.") }),
     outputSchema: CardOutput,
-    scope: "tenant:read",
+    scope: "read",
     readOnly: true,
     destructive: false,
     invoke: (args, tools) =>
@@ -361,7 +361,7 @@ const TOOLS: McpTool[] = [
     description: "List the Live Activities this tenant currently has running, with their content state.",
     schema: NoArguments,
     outputSchema: ActivitiesOutput,
-    scope: "tenant:read",
+    scope: "read",
     readOnly: true,
     destructive: false,
     invoke: (_args, tools) =>
@@ -443,7 +443,7 @@ const TOOLS: McpTool[] = [
           + "document, including the HTTP and code-level material an MCP client has no use for.",
         ),
     }),
-    scope: "tenant:read",
+    scope: "read",
     readOnly: true,
     destructive: false,
     invoke: async (args, tools) =>

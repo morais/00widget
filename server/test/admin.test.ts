@@ -525,7 +525,7 @@ describe("admin routes (no Apple call required)", () => {
     expect(body.token).toMatch(/^zw_/);
     expect(body.tenant.ownerEmail).toBe("customer-a@example.com");
     expect(body.apiKey.label).toBe("Webhook manager");
-    expect(body.apiKey.scopes).toEqual(["tenant:read", "webhook:manage"]);
+    expect(body.apiKey.scopes).toEqual(["read", "webhook:manage"]);
     expect(body.apiKey.tokenHash).not.toBe(body.token);
 
     const dash = await (handler.fetch as any)(

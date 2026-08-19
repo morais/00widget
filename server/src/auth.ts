@@ -26,8 +26,12 @@ export const DEFAULT_TOKEN_LIFETIME_SECONDS = 90 * 24 * 60 * 60;
 // most this often. A 90-day window does not need minute-accurate bookkeeping.
 const TOUCH_THROTTLE_MS = 60 * 60 * 1000;
 
+// Bare verbs span resources; a prefix names the one thing the scope touches.
+// `read` and `publish` both cover cards and Live Activities, which is why
+// neither carries one; everything narrower or administrative does. Keep a new
+// scope on that rule.
 export const API_SCOPES = [
-  "tenant:read",
+  "read",
   "publish",
   "device:register",
   "actions:run",
@@ -43,7 +47,7 @@ export const ApiScopePresets = {
   // The agent that publishes a card with buttons is the same system that
   // receives the taps, so webhook administration rides on the publisher token
   // rather than a credential the app has no way to issue.
-  producer: ["tenant:read", "publish", "webhook:manage"] as ApiScope[],
+  producer: ["read", "publish", "webhook:manage"] as ApiScope[],
   // What an MCP connector gets: publishing, and nothing that administers the
   // account. Deliberately the producer preset minus `webhook:manage`.
   //
@@ -53,17 +57,17 @@ export const ApiScopePresets = {
   // and an MCP client has no good place to keep a secret it is given once.
   // Buttons published over MCP still work; the webhook behind them is
   // registered with the API token, by whoever owns the endpoint receiving it.
-  mcp: ["tenant:read", "publish"] as ApiScope[],
-  readOnly: ["tenant:read"] as ApiScope[],
-  device: ["tenant:read", "device:register", "actions:run"] as ApiScope[],
+  mcp: ["read", "publish"] as ApiScope[],
+  readOnly: ["read"] as ApiScope[],
+  device: ["read", "device:register", "actions:run"] as ApiScope[],
   appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],
-  webhookManager: ["tenant:read", "webhook:manage"] as ApiScope[],
+  webhookManager: ["read", "webhook:manage"] as ApiScope[],
   // Deliberately the whole of a guest's authority: read the one resource the
   // credential is bound to. No publish, no actions:run, no actions:confirm —
   // holding a shared link must never let anyone act on someone else's account.
   guest: ["guest:read"] as ApiScope[],
   legacyPublisher: [
-    "tenant:read",
+    "read",
     "publish",
     "device:register",
     "actions:run",
@@ -562,9 +566,25 @@ export function hasScope(auth: Pick<AuthContext, "scopes">, scope: ApiScope): bo
   return auth.scopes.includes(scope);
 }
 
+/// Scope names that were renamed, mapped to what they are called now.
+///
+/// The strings are persisted in `api_keys.scopes_json` and handed out in OAuth
+/// responses, so a rename cannot simply be applied to the enum: every
+/// credential already issued carries the old spelling, including the three the
+/// iOS app mints on every sign-in. Translating here — before the values are
+/// checked against `API_SCOPES` — means those keep working untouched and no
+/// migration has to rewrite live rows. Nothing writes an old name back.
+const RENAMED_SCOPES: Record<string, ApiScope> = {
+  "tenant:read": "read",
+};
+
+export function canonicalScope(scope: string): string {
+  return RENAMED_SCOPES[scope] ?? scope;
+}
+
 function normalizeScopes(scopes: readonly ApiScope[]): ApiScope[] {
   const allowed = new Set<ApiScope>(API_SCOPES);
-  const normalized = [...new Set(scopes)];
+  const normalized = [...new Set(scopes.map((scope) => canonicalScope(scope) as ApiScope))];
   if (normalized.some((scope) => !allowed.has(scope))) {
     throw new Error("invalid API scope");
   }

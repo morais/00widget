@@ -533,7 +533,7 @@ describe("tools/call", () => {
   it("reports a missing scope as a protocol error, because no argument fixes it", async () => {
     const env = mcpEnv();
     await seedApiKey(env, "readonly", "test-tenant", "publisher", "", "", "2099-01-01T00:00:00.000Z", [
-      "tenant:read",
+      "read",
     ]);
     const result = await call(
       env,

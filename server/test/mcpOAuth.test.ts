@@ -437,7 +437,7 @@ describe("token exchange", () => {
     // deliberately absent: the webhook is a URL the operator runs and a signing
     // secret handed back once, neither of which belongs to a connector approved
     // in a browser.
-    expect(body.scope.split(" ").sort()).toEqual(["publish", "tenant:read"]);
+    expect(body.scope.split(" ").sort()).toEqual(["publish", "read"]);
 
     // The point of the whole flow: the token is an ordinary API credential.
     const cards = await fetchWorker(

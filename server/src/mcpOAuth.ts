@@ -1,6 +1,6 @@
 import { b64url, b64urlDecodeToText, constantTimeEqual, hmacSha256Hex } from "./appleAuth";
 import { isSecureAdminSecret } from "./adminSecurity";
-import { ApiScopePresets, createApiKey, type ApiScope } from "./auth";
+import { ApiScopePresets, canonicalScope, createApiKey, type ApiScope } from "./auth";
 import { baseHTML, esc, htmlResponse } from "./html";
 import { resolveIdentity, type ResolvedIdentity } from "./identity";
 import {
@@ -322,7 +322,10 @@ async function parseAuthorizeParams(
 function requestedScopes(params: URLSearchParams): ApiScope[] {
   const raw = params.get("scope")?.trim();
   if (!raw) return [...GRANTABLE_SCOPES];
-  const asked = new Set(raw.split(/\s+/));
+  // Through `canonicalScope`, so a client that hardcoded a scope name from
+  // before it was renamed asks for the thing it means rather than being
+  // silently dropped and falling back to the full grant.
+  const asked = new Set(raw.split(/\s+/).map(canonicalScope));
   const granted = GRANTABLE_SCOPES.filter((scope) => asked.has(scope));
   return granted.length > 0 ? granted : [...GRANTABLE_SCOPES];
 }

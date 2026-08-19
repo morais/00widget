@@ -1188,7 +1188,7 @@ describe("live activities", () => {
       "device-session",
       "device-a",
       "2099-01-01T00:00:00.000Z",
-      ["tenant:read", "device:register", "actions:run"],
+      ["read", "device:register", "actions:run"],
     );
 
     for (const [deviceId, pushToken] of [

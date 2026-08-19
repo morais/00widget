@@ -5,6 +5,55 @@ import { authedRequest, makeEnv, seedApiKey } from "./helpers";
 
 const ctx = {} as ExecutionContext;
 
+describe("renamed scopes", () => {
+  // `tenant:read` became `read`. The old spelling is persisted in
+  // `api_keys.scopes_json` for every credential issued before the rename —
+  // including the three the iOS app mints on each sign-in — so it has to keep
+  // resolving without a migration rewriting live rows.
+  const ctx = {} as ExecutionContext;
+
+  it("still authorises a credential stored under the old name", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "legacy-key", "test-tenant", "publisher", "", "", "2099-01-01T00:00:00.000Z", [
+      "tenant:read" as never,
+      "publish",
+    ]);
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }, "legacy-key"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("reports the new name when a scope is missing", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "no-read", "test-tenant", "publisher", "", "", "2099-01-01T00:00:00.000Z", [
+      "publish",
+    ]);
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", { method: "GET" }, "no-read"),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
+    // The error tells the operator which scope to issue, so it has to name the
+    // scope they can actually ask for now.
+    expect(((await res.json()) as { error: string }).error).toBe("API scope 'read' required");
+  });
+
+  it("mints new credentials under the new name only", async () => {
+    const env = makeEnv();
+    const created = await createApiKey(env, {
+      tenantId: "test-tenant",
+      ownerEmail: "a@example.com",
+      scopes: ApiScopePresets.producer,
+    });
+    expect(created.apiKey.scopes).toContain("read");
+    expect(created.apiKey.scopes).not.toContain("tenant:read");
+  });
+});
+
 describe("API credential scopes", () => {
   it("fails closed before every scoped handler when a credential has no permissions", async () => {
     const env = makeEnv({ SHARING_ENABLED: "true" });

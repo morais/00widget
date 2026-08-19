@@ -51,14 +51,14 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/card
 
 API tokens expire after 90 days of **inactivity**, not 90 days after creation. Every authenticated call slides the deadline forward on the existing token, so an integration that keeps publishing never needs re-keying and the token value never changes. A token only lapses if nothing uses it for 90 days. A `401` with `API key expired` therefore means this token has been idle that long and the operator must issue a replacement; do not keep retrying the expired credential. A token owner can revoke it and remove registrations associated with it using `DELETE /v1/auth/token` with the same Bearer header.
 
-Tokens are capability-scoped. The agent publisher token has `tenant:read`,
+Tokens are capability-scoped. The agent publisher token has `read`,
 `publish`, and `webhook:manage` — everything an agent needs. It cannot register
 device push tokens, run confirmed actions, or manage shares; those belong to the
 iOS app and use credentials it holds itself, which you are never given and never
 need. A `403` naming a required scope means the operator must issue the right
 credential; do not try to work around it with another endpoint.
 
-A token minted through MCP is narrower still: `tenant:read` and `publish`, with
+A token minted through MCP is narrower still: `read` and `publish`, with
 no `webhook:manage`. See [the MCP section](#if-your-host-speaks-mcp).
 
 Guest links (`zwg_` tokens) are a fourth kind of credential you may encounter
@@ -94,7 +94,7 @@ response, no SSE stream and no session id. `GET <BASE_URL>/mcp.json` returns a
 ready-to-paste client config for whichever host is serving it.
 
 **Actions are not part of the MCP surface.** A token minted through the consent
-screen carries `tenant:read` and `publish` and nothing else, so an MCP client
+screen carries `read` and `publish` and nothing else, so an MCP client
 cannot read, register, or rotate the account's action webhook — those calls
 return `403`. You can still publish a card with `actions` over MCP, and the
 buttons work, but only if the operator has already registered the webhook with
@@ -944,6 +944,10 @@ card on an old app instead of taking the whole cached list down with it.
 activity has a defined meaning when absent. `progress` and `deadline` are the
 recent examples: cards published before either existed keep rendering exactly
 as they did.
+
+**A renamed scope keeps answering to its old name.** `tenant:read` became
+`read`; a credential issued under the old spelling still works, and the OAuth
+`scope` parameter accepts either. Only the new name is issued and reported.
 
 **Ids and dates are validated on the way in, not on the way out.** Tightening
 either rule rejects new bad values without breaking anything already stored, so

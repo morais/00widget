@@ -352,7 +352,7 @@ export async function claimTransactionForTenant(
 /// of the business of deciding whether the Lock Screen renders at all.
 ///
 /// Deliberately absent:
-///   tenant:read      — reading your own state always works.
+///   read             — reading your own state always works.
 ///   guest:read       — a guest is not the subscriber and cannot fix a lapse.
 ///   device:register  — registering must work while lapsed, or renewing lands
 ///                      on a device the server cannot push to.

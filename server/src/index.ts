@@ -85,11 +85,11 @@ const routes: Route[] = [
     cards.upsertCard(req, env, auth, ctx)),
   authed("POST", /^\/v1\/cards\/upsert-batch\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCardsBatch(req, env, auth, ctx)),
-  authed("GET", /^\/v1\/cards\/?$/, "tenant:read", (req, env, auth) => cards.listCards(req, env, auth)),
-  authed("GET", /^\/v1\/dashboard\/?$/, "tenant:read", (req, env, auth) =>
+  authed("GET", /^\/v1\/cards\/?$/, "read", (req, env, auth) => cards.listCards(req, env, auth)),
+  authed("GET", /^\/v1\/dashboard\/?$/, "read", (req, env, auth) =>
     dashboard.getDashboard(req, env, auth),
   ),
-  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "tenant:read", (req, env, auth, m) => cards.getCard(req, env, auth, pathParam(m[1]))),
+  authed("GET", /^\/v1\/cards\/([^/]+)\/?$/, "read", (req, env, auth, m) => cards.getCard(req, env, auth, pathParam(m[1]))),
   authed("DELETE", /^\/v1\/cards\/([^/]+)\/?$/, "publish", (req, env, auth, m, ctx) =>
     cards.deleteCard(req, env, auth, pathParam(m[1]), ctx)),
   authed("POST", /^\/v1\/devices\/register\/?$/, "device:register", (req, env, auth) => devices.registerDevice(req, env, auth)),
@@ -108,10 +108,10 @@ const routes: Route[] = [
   authed("POST", /^\/v1\/live-activities\/start\/?$/, "publish", (req, env, auth) =>
     liveActivities.startLiveActivity(req, env, auth),
   ),
-  authed("GET", /^\/v1\/live-activities\/pending\/?$/, "tenant:read", (req, env, auth) =>
+  authed("GET", /^\/v1\/live-activities\/pending\/?$/, "read", (req, env, auth) =>
     liveActivities.pendingActivities(req, env, auth),
   ),
-  authed("GET", /^\/v1\/live-activities\/?$/, "tenant:read", (req, env, auth) =>
+  authed("GET", /^\/v1\/live-activities\/?$/, "read", (req, env, auth) =>
     liveActivities.activeActivities(req, env, auth),
   ),
   authed("POST", /^\/v1\/live-activities\/update\/?$/, "publish", (req, env, auth) =>
@@ -172,9 +172,9 @@ const routes: Route[] = [
   // Subscription routes are never themselves gated on holding a subscription:
   // proving you have paid must work from a lapsed account, or renewing is
   // impossible.
-  authed("POST", /^\/v1\/subscription\/verify\/?$/, "tenant:read", (req, env, auth) =>
+  authed("POST", /^\/v1\/subscription\/verify\/?$/, "read", (req, env, auth) =>
     subscription.verifySubscription(req, env, auth)),
-  authed("GET", /^\/v1\/subscription\/?$/, "tenant:read", (req, env, auth) =>
+  authed("GET", /^\/v1\/subscription\/?$/, "read", (req, env, auth) =>
     subscription.getSubscription(req, env, auth)),
 
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
