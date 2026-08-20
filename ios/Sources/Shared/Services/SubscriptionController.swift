@@ -3,6 +3,15 @@ import Foundation
 import StoreKit
 import os
 
+#if ZW_SCREENSHOTS
+struct SubscriptionScreenshotPlan: Identifiable {
+    let id: String
+    let displayName: String
+    let offerLabel: String?
+    let priceLabel: String
+}
+#endif
+
 /// Buys, restores, and reports the App Store subscription.
 ///
 /// The server is the authority on entitlement, never this class. StoreKit says
@@ -35,6 +44,9 @@ public final class SubscriptionController: ObservableObject {
 
     private var updatesTask: Task<Void, Never>?
     private var productIds: [String] = []
+#if ZW_SCREENSHOTS
+    @Published private(set) var screenshotPlans: [SubscriptionScreenshotPlan] = []
+#endif
 
     public init() {}
 
@@ -69,7 +81,7 @@ public final class SubscriptionController: ObservableObject {
             state = seeded.state
             isRequired = seeded.required
             productIds = seeded.productIds
-            await loadProducts()
+            prepareScreenshotPlans()
             return
         }
         #endif
@@ -83,9 +95,9 @@ public final class SubscriptionController: ObservableObject {
     /// Stands in for the server so the paywall can be photographed without one.
     ///
     /// Compiled only into the screenshot build, like the sample widget kinds —
-    /// no shipping build contains it. Products still come from StoreKit against
-    /// the scheme's .storekit configuration, so the plan rows, prices, and
-    /// trial text on a captured screenshot are the real thing.
+    /// no shipping build contains it. Plan text is decoded from the same local
+    /// .storekit catalog used for manual StoreKit testing, so it cannot drift
+    /// from the configured prices and trial periods.
     private static func screenshotState() -> (
         state: SubscriptionState, required: Bool, productIds: [String]
     )? {
@@ -94,8 +106,8 @@ public final class SubscriptionController: ObservableObject {
               index + 1 < arguments.count
         else { return nil }
         let ids = [
-            "com.example.zerozerowidget.pro.monthly",
-            "com.example.zerozerowidget.pro.yearly",
+            "com.example.zerozerowidget.monthly",
+            "com.example.zerozerowidget.yearly",
         ]
         switch arguments[index + 1] {
         case "none":
@@ -127,6 +139,89 @@ public final class SubscriptionController: ObservableObject {
         default:
             return nil
         }
+    }
+
+    private func prepareScreenshotPlans() {
+        guard screenshotPlans.isEmpty else { return }
+        do {
+            guard let url = Bundle.main.url(
+                forResource: "ZeroZeroWidget",
+                withExtension: "storekit"
+            ) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            let catalog = try JSONDecoder().decode(
+                ScreenshotStoreKitCatalog.self,
+                from: Data(contentsOf: url)
+            )
+            screenshotPlans = catalog.subscriptionGroups
+                .flatMap(\.subscriptions)
+                .compactMap(Self.screenshotPlan)
+                .sorted { $0.priceLabel < $1.priceLabel }
+        } catch {
+            Self.log.error(
+                "screenshot StoreKit catalog failed: \(String(describing: error), privacy: .public)"
+            )
+        }
+    }
+
+    private struct ScreenshotStoreKitCatalog: Decodable {
+        let subscriptionGroups: [Group]
+
+        struct Group: Decodable {
+            let subscriptions: [Subscription]
+        }
+
+        struct Subscription: Decodable {
+            let displayPrice: String
+            let introductoryOffer: IntroductoryOffer?
+            let localizations: [Localization]
+            let productID: String
+            let recurringSubscriptionPeriod: String
+        }
+
+        struct IntroductoryOffer: Decodable {
+            let paymentMode: String
+            let subscriptionPeriod: String
+        }
+
+        struct Localization: Decodable {
+            let displayName: String
+            let locale: String
+        }
+    }
+
+    private static func screenshotPlan(
+        _ subscription: ScreenshotStoreKitCatalog.Subscription
+    ) -> SubscriptionScreenshotPlan? {
+        guard let localization = subscription.localizations.first else { return nil }
+        let period: String
+        switch subscription.recurringSubscriptionPeriod {
+        case "P1M": period = "month"
+        case "P1Y": period = "year"
+        default: return nil
+        }
+        let amount = Decimal(string: subscription.displayPrice) ?? 0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: localization.locale)
+        let price = formatter.string(from: NSDecimalNumber(decimal: amount))
+            ?? subscription.displayPrice
+        let offerLabel = subscription.introductoryOffer.flatMap { offer -> String? in
+            guard offer.paymentMode == "free" else { return nil }
+            switch offer.subscriptionPeriod {
+            case "P1W": return "1 week free, then"
+            case "P2W": return "2 weeks free, then"
+            case "P1M": return "1 month free, then"
+            default: return nil
+            }
+        }
+        return SubscriptionScreenshotPlan(
+            id: subscription.productID,
+            displayName: localization.displayName,
+            offerLabel: offerLabel,
+            priceLabel: "\(price) / \(period)"
+        )
     }
     #endif
 

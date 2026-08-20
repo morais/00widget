@@ -11,6 +11,7 @@
 #   ios/scripts/capture-screenshots.sh
 #   ios/scripts/capture-screenshots.sh --only activities
 #   ios/scripts/capture-screenshots.sh --only app
+#   ios/scripts/capture-screenshots.sh --only subscriptions
 #   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
 #   ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"
 #
@@ -31,8 +32,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" ]]; then
-  echo "--only must be 'all', 'activities', or 'app'" >&2
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "subscriptions" ]]; then
+  echo "--only must be 'all', 'activities', 'app', or 'subscriptions'" >&2
   exit 2
 fi
 
@@ -88,7 +89,7 @@ xcodebuild build-for-testing \
   -derivedDataPath "$DERIVED" \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS" \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS ZW_SUBSCRIPTIONS_ENABLED" \
   ZW_DEBUG_TOOLS=YES \
   > "$WORK/build.log" 2>&1 || {
     echo "✗ build failed — tail of log:" >&2
@@ -99,6 +100,12 @@ xcodebuild build-for-testing \
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetApp.app"
 EXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
 APP_GROUP="$(/usr/libexec/PlistBuddy -c 'Print :ZWAppGroupIdentifier' "$APP/Info.plist")"
+
+# `test-without-building` does not inherit the Run action's StoreKit
+# configuration. The screenshot-only app decodes its plan previews from this
+# injected catalog instead. Re-signing below seals the added resource into the
+# bundle.
+cp "$IOS_ROOT/Resources/ZeroZeroWidget.storekit" "$APP/ZeroZeroWidget.storekit"
 
 echo "→ re-signing with App Group entitlements"
 ENTITLEMENTS="$WORK/sim.entitlements"
@@ -122,6 +129,8 @@ if [[ "$ONLY" == "activities" ]]; then
   TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot"
 elif [[ "$ONLY" == "app" ]]; then
   TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureAppScreenshots"
+elif [[ "$ONLY" == "subscriptions" ]]; then
+  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionScreenshots"
 else
   TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots"
 fi

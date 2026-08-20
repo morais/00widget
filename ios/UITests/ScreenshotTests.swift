@@ -575,6 +575,15 @@ final class ScreenshotTests: XCTestCase {
                 app.staticTexts["Status"].waitForExistence(timeout: 10),
                 "Subscription screen did not appear for state \(state)."
             )
+            if state != "active" {
+                let monthlyPlan = app.buttons
+                    .containing(NSPredicate(format: "label BEGINSWITH 'Monthly'"))
+                    .firstMatch
+                XCTAssertTrue(
+                    monthlyPlan.waitForExistence(timeout: 15),
+                    "StoreKit plans did not load for state \(state)."
+                )
+            }
             capture(named: "screenshot-subscription-\(state)")
             app.terminate()
         }

@@ -73,7 +73,7 @@ SUBSCRIPTION_REQUIRED = "false"
 # Products this deployment sells, comma-separated, matching App Store Connect.
 # Empty accepts any product signed for the right bundle id, which is only
 # sensible in development.
-# SUBSCRIPTION_PRODUCT_IDS = "com.example.zerozerowidget.pro.monthly,com.example.zerozerowidget.pro.yearly"
+# SUBSCRIPTION_PRODUCT_IDS = "com.example.zerozerowidget.monthly,com.example.zerozerowidget.yearly"
 
 # "Production" (default) or "Sandbox". A sandbox purchase is free and unlimited,
 # so one must never entitle a production tenant. Point a staging deployment at

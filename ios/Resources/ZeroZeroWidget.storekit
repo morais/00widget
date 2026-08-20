@@ -10,7 +10,7 @@
     {
       "id": "20345678",
       "localizations": [],
-      "name": "00Widget Pro",
+      "name": "00Widget",
       "subscriptions": [
         {
           "adHocOffers": [],
@@ -31,9 +31,9 @@
               "locale": "en_US"
             }
           ],
-          "productID": "com.example.zerozerowidget.pro.monthly",
+          "productID": "com.example.zerozerowidget.monthly",
           "recurringSubscriptionPeriod": "P1M",
-          "referenceName": "Pro Monthly",
+          "referenceName": "Monthly",
           "subscriptionGroupID": "20345678",
           "type": "RecurringSubscription"
         },
@@ -56,9 +56,9 @@
               "locale": "en_US"
             }
           ],
-          "productID": "com.example.zerozerowidget.pro.yearly",
+          "productID": "com.example.zerozerowidget.yearly",
           "recurringSubscriptionPeriod": "P1Y",
-          "referenceName": "Pro Yearly",
+          "referenceName": "Yearly",
           "subscriptionGroupID": "20345678",
           "type": "RecurringSubscription"
         }

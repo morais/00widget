@@ -75,32 +75,59 @@ struct SubscriptionView: View {
     private var offersSection: some View {
         Section("Plans") {
             if subscriptions.products.isEmpty {
-                // Distinguishable from "no plans exist": products fail to load
-                // when the device is offline or the products are not yet
-                // approved, and both look identical to an empty list.
-                Text(subscriptions.isLoading ? "Loading plans…" : "Plans are unavailable right now.")
-                    .foregroundStyle(.secondary)
+                #if ZW_SCREENSHOTS
+                ForEach(subscriptions.screenshotPlans) { plan in
+                    Button {} label: {
+                        planLabel(
+                            name: plan.displayName,
+                            offer: plan.offerLabel,
+                            price: plan.priceLabel
+                        )
+                    }
+                }
+                if subscriptions.screenshotPlans.isEmpty {
+                    unavailablePlansLabel
+                }
+                #else
+                unavailablePlansLabel
+                #endif
             }
             ForEach(subscriptions.products, id: \.id) { product in
                 Button {
                     Task { await subscriptions.purchase(product) }
                 } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(product.displayName)
-                            if let offer = introOfferLabel(for: product) {
-                                Text(offer)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Text(priceLabel(for: product))
-                            .foregroundStyle(.secondary)
-                    }
+                    planLabel(
+                        name: product.displayName,
+                        offer: introOfferLabel(for: product),
+                        price: priceLabel(for: product)
+                    )
                 }
                 .disabled(subscriptions.purchaseInProgress)
             }
+        }
+    }
+
+    private var unavailablePlansLabel: some View {
+        // Distinguishable from "no plans exist": products fail to load when
+        // the device is offline or the products are not yet approved, and both
+        // look identical to an empty list.
+        Text(subscriptions.isLoading ? "Loading plans…" : "Plans are unavailable right now.")
+            .foregroundStyle(.secondary)
+    }
+
+    private func planLabel(name: String, offer: String?, price: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let offer {
+                    Text(offer)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Text(price)
+                .foregroundStyle(.secondary)
         }
     }
 

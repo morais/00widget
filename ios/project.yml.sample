@@ -360,9 +360,8 @@ schemes:
         - ZeroZeroWidgetUITests
     run:
       config: Debug
-      # Lets the paywall load real Product objects in the Simulator, with no
-      # App Store Connect round trip. The test action inherits it via
-      # shouldUseLaunchSchemeArgsEnv. Only on the screenshots scheme.
+      # Lets a manual scheme launch load real Product objects in the Simulator.
+      # The capture script also injects this file into its private app bundle.
       storeKitConfiguration: Resources/ZeroZeroWidget.storekit
 
   ZeroZeroWidgetTVScreenshots:

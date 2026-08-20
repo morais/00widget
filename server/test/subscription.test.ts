@@ -18,8 +18,8 @@ const handler = (await import("../src/index")).default;
 
 const executionCtx = {} as ExecutionContext;
 const BUNDLE_ID = "com.example.zerozerowidget";
-const MONTHLY = "com.example.zerozerowidget.pro.monthly";
-const YEARLY = "com.example.zerozerowidget.pro.yearly";
+const MONTHLY = "com.example.zerozerowidget.monthly";
+const YEARLY = "com.example.zerozerowidget.yearly";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 let chain: TestChain;
