@@ -226,7 +226,11 @@ private struct ActivityCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
+                // This screen is not hosted by a grouped list, where
+                // secondarySystemGroupedBackground would contrast with its
+                // parent. Here it resolves to the same white as the page and
+                // makes the activity container disappear around the chart.
+                .fill(Color(.systemGray6))
         )
     }
 
