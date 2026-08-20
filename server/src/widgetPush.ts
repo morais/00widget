@@ -123,29 +123,42 @@ export async function claimWidgetPushWindow(
   token: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
 ): Promise<boolean> {
+  // Anonymous `?` placeholders, with every value bound once per appearance.
+  // Numbered `?NNN` would read better for a statement that repeats five values
+  // a dozen times, and D1 does document support for them — this is the plainer
+  // form rather than the correct one, chosen because a claim that silently
+  // returns false stops every widget on the account from reloading and logs
+  // nothing, so the binding is a bad place to be clever.
   const result = await env.ZW_DB.prepare(
     `INSERT INTO widget_push_cadence (token, last_sent_at, allowance)
-     VALUES (?1, ?2, ?3 - 1)
+     VALUES (?, ?, ? - 1)
      ON CONFLICT(token) DO UPDATE SET
        allowance = MIN(
-         ?3,
+         ?,
          widget_push_cadence.allowance
-           + (?2 - widget_push_cadence.last_sent_at) / CAST(?4 AS REAL)
+           + (? - widget_push_cadence.last_sent_at) / CAST(? AS REAL)
        ) - 1,
-       last_sent_at = ?2
-     WHERE widget_push_cadence.last_sent_at <= ?2 - ?5
+       last_sent_at = ?
+     WHERE widget_push_cadence.last_sent_at <= ? - ?
        AND MIN(
-         ?3,
+         ?,
          widget_push_cadence.allowance
-           + (?2 - widget_push_cadence.last_sent_at) / CAST(?4 AS REAL)
+           + (? - widget_push_cadence.last_sent_at) / CAST(? AS REAL)
        ) >= 1`,
   )
     .bind(
-      token,
-      nowSeconds,
-      WIDGET_PUSH_BURST,
-      WIDGET_PUSH_REFILL_SECONDS,
-      WIDGET_PUSH_MIN_SPACING_SECONDS,
+      token,                              // VALUES token
+      nowSeconds,                         // VALUES last_sent_at
+      WIDGET_PUSH_BURST,                  // VALUES allowance = burst - 1
+      WIDGET_PUSH_BURST,                  // SET     MIN cap
+      nowSeconds,                         // SET     elapsed
+      WIDGET_PUSH_REFILL_SECONDS,         // SET     refill
+      nowSeconds,                         // SET     last_sent_at
+      nowSeconds,                         // WHERE   spacing: now
+      WIDGET_PUSH_MIN_SPACING_SECONDS,    // WHERE   spacing: gap
+      WIDGET_PUSH_BURST,                  // WHERE   MIN cap
+      nowSeconds,                         // WHERE   elapsed
+      WIDGET_PUSH_REFILL_SECONDS,         // WHERE   refill
     )
     .run();
   return Number(result.meta.changes ?? 0) > 0;

@@ -714,7 +714,14 @@ export class FakeD1 {
       // Mirrors the real conditional upsert: a token bucket that refills by
       // elapsed time, plus a hard minimum spacing.
       const key = String(values[0]);
-      const [, now, burst, refill, minSpacing] = values.map(Number);
+      // Positions, not names: the real statement uses anonymous placeholders
+      // and binds each value once per appearance, so this mirrors that order.
+      // (token, now, burst | burst, now, refill, now | now, spacing | burst,
+      // now, refill)
+      const now = Number(values[1]);
+      const burst = Number(values[2]);
+      const refill = Number(values[5]);
+      const minSpacing = Number(values[8]);
       const existing = this.widgetPushCadence.get(key);
       if (!existing) {
         this.widgetPushCadence.set(key, {
