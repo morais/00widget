@@ -16,9 +16,30 @@ export interface WidgetPushDeliveryResult extends ApnsResult {
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1_000];
 const MAX_RETRY_AFTER_MS = 5_000;
-// Apple budgets WidgetKit reloads over a rolling day. Keeping the server below
-// two pushes/hour leaves room for timeline and foreground-triggered reloads.
-export const MIN_PUSH_INTERVAL_SECONDS = 30 * 60;
+// Reload allowance for one widget, as a token bucket.
+//
+// Apple budgets WidgetKit reloads per widget instance — "a daily budget
+// typically includes from 40 to 70 refreshes" for a widget someone views often
+// — and pushes draw on the same budget as the widget's own periodic refreshes.
+// The timeline asks for 24 a day, so a sustained ~36 from pushes keeps the
+// total inside Apple's band with the weight on reloads that mean something.
+//
+// A bucket rather than a quota, because a quota starves. Forty pushes five
+// minutes apart spends a day in three hours and twenty minutes and leaves the
+// widget dark for the next twenty — worse than the flat interval it replaced.
+// Refilling continuously means a widget always regains a push after a quiet
+// stretch, and the cap bounds what a burst can spend at once.
+export const WIDGET_PUSH_BURST = 6;
+
+// One push per 40 minutes sustained, which is ~36 a day. With a full bucket a
+// day tops out near 42.
+export const WIDGET_PUSH_REFILL_SECONDS = 40 * 60;
+
+// The shortest gap between two pushes to the same widget, whatever the bucket
+// holds. Apple asks for at least five minutes between timeline entries and this
+// matches it; it is also what makes a burst of publishes coalesce into one
+// reload instead of each earning its own.
+export const WIDGET_PUSH_MIN_SPACING_SECONDS = 5 * 60;
 const TRANSIENT_QUEUE_RETRY_SECONDS = 5 * 60;
 const DEAD_TOKEN_REASONS = new Set([
   "BadDeviceToken",
@@ -85,20 +106,61 @@ export async function collectWidgetPushTargetsForCards(
   }));
 }
 
+/// Takes this widget's next push slot, or reports that it has none right now.
+///
+/// One statement, because the read and the write have to be the same act: two
+/// publishes landing together would otherwise both see a free slot and both
+/// spend it. The `WHERE` carries both rules — minimum spacing since the last
+/// push, and budget left in the current rolling day — and the `CASE` arms roll
+/// the day over when the previous one has expired.
 export async function claimWidgetPushWindow(
   env: Env,
-  tenantId: string,
+  token: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
 ): Promise<boolean> {
   const result = await env.ZW_DB.prepare(
-    `INSERT INTO widget_push_cadence (tenant_id, last_sent_at)
-     VALUES (?, ?)
-     ON CONFLICT(tenant_id) DO UPDATE SET last_sent_at = excluded.last_sent_at
-     WHERE widget_push_cadence.last_sent_at <= ?`,
+    `INSERT INTO widget_push_cadence (token, last_sent_at, allowance)
+     VALUES (?1, ?2, ?3 - 1)
+     ON CONFLICT(token) DO UPDATE SET
+       allowance = MIN(
+         ?3,
+         widget_push_cadence.allowance
+           + (?2 - widget_push_cadence.last_sent_at) / CAST(?4 AS REAL)
+       ) - 1,
+       last_sent_at = ?2
+     WHERE widget_push_cadence.last_sent_at <= ?2 - ?5
+       AND MIN(
+         ?3,
+         widget_push_cadence.allowance
+           + (?2 - widget_push_cadence.last_sent_at) / CAST(?4 AS REAL)
+       ) >= 1`,
   )
-    .bind(tenantId, nowSeconds, nowSeconds - MIN_PUSH_INTERVAL_SECONDS)
+    .bind(
+      token,
+      nowSeconds,
+      WIDGET_PUSH_BURST,
+      WIDGET_PUSH_REFILL_SECONDS,
+      WIDGET_PUSH_MIN_SPACING_SECONDS,
+    )
     .run();
   return Number(result.meta.changes ?? 0) > 0;
+}
+
+/// Seconds until this widget could be pushed again, from a stored row.
+export function widgetPushWait(
+  row: { last_sent_at: number; allowance: number },
+  nowSeconds: number,
+): number {
+  const elapsed = nowSeconds - Number(row.last_sent_at);
+  const spacing = Math.max(0, WIDGET_PUSH_MIN_SPACING_SECONDS - elapsed);
+  const allowance = Math.min(
+    WIDGET_PUSH_BURST,
+    Number(row.allowance) + elapsed / WIDGET_PUSH_REFILL_SECONDS,
+  );
+  if (allowance >= 1) return spacing;
+  // Short of a whole push: wait for the bucket to finish refilling one.
+  const refill = Math.ceil((1 - Number(row.allowance)) * WIDGET_PUSH_REFILL_SECONDS - elapsed);
+  return Math.max(spacing, Math.max(0, refill));
 }
 
 export interface PendingWidgetReload {
@@ -145,20 +207,36 @@ export async function getPendingWidgetReload(
   return row ? pendingFromRow(row) : null;
 }
 
+/// How long until *any* of this tenant's widgets can be pushed again.
+///
+/// The soonest, not the latest: a queued reload should wake as soon as it can
+/// deliver to something. Widgets still waiting keep their pending row and are
+/// picked up on a later pass.
 export async function secondsUntilWidgetPushWindow(
   env: Env,
   tenantId: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
 ): Promise<number> {
-  const row = await env.ZW_DB.prepare(
-    `SELECT last_sent_at
+  const tokens = [...new Set(await storage.listWidgetTokens(env, tenantId))];
+  if (tokens.length === 0) return 0;
+  const rows = await env.ZW_DB.prepare(
+    `SELECT token, last_sent_at, allowance
      FROM widget_push_cadence
-     WHERE tenant_id = ?`,
+     WHERE token IN (${tokens.map(() => "?").join(", ")})`,
   )
-    .bind(tenantId)
-    .first<{ last_sent_at: number }>();
-  if (!row) return 0;
-  return Math.max(0, Number(row.last_sent_at) + MIN_PUSH_INTERVAL_SECONDS - nowSeconds);
+    .bind(...tokens)
+    .all<{ token: string; last_sent_at: number; allowance: number }>();
+
+  const known = new Map(rows.results.map((row) => [row.token, row]));
+  let soonest = Number.POSITIVE_INFINITY;
+  for (const token of tokens) {
+    const row = known.get(token);
+    // Never pushed, so nothing is holding it back.
+    if (!row) return 0;
+    soonest = Math.min(soonest, widgetPushWait(row, nowSeconds));
+    if (soonest === 0) return 0;
+  }
+  return Number.isFinite(soonest) ? soonest : 0;
 }
 
 export interface PendingWidgetReloadOutcome {
@@ -193,7 +271,14 @@ export async function processPendingWidgetReload(
     await deletePendingWidgetReload(env, pending);
     return { delivered: false };
   }
-  if (!(await claimWidgetPushWindow(env, pending.tenantId, nowSeconds))) {
+  // Each widget has its own allowance, so this claims per token rather than
+  // for the tenant. A device with two widgets where only one has a slot free
+  // gets that one reloaded now and the other on a later pass.
+  const claimed: string[] = [];
+  for (const token of tokens) {
+    if (await claimWidgetPushWindow(env, token, nowSeconds)) claimed.push(token);
+  }
+  if (claimed.length === 0) {
     return {
       delivered: false,
       retryAfterSeconds: Math.max(
@@ -202,7 +287,7 @@ export async function processPendingWidgetReload(
       ),
     };
   }
-  const targets = tokens.map((token) => ({ token, tenantIds: [pending.tenantId] }));
+  const targets = claimed.map((token) => ({ token, tenantIds: [pending.tenantId] }));
   const results = await deliverWidgetReloads(env, targets, options);
   logDeliverySummary(
     { tenantId: pending.tenantId, cardIds: [] },
@@ -212,11 +297,22 @@ export async function processPendingWidgetReload(
   if (hasRetryableFailure(results)) {
     return { delivered: false, retryAfterSeconds: TRANSIENT_QUEUE_RETRY_SECONDS };
   }
+  // Any widget that had no slot still needs one, so the pending row stays and
+  // the message comes back when the soonest of them opens.
+  if (claimed.length < tokens.length) {
+    return {
+      delivered: true,
+      retryAfterSeconds: Math.max(
+        1,
+        await secondsUntilWidgetPushWindow(env, pending.tenantId, nowSeconds),
+      ),
+    };
+  }
   const cleared = await deletePendingWidgetReload(env, pending);
   if (!cleared) {
     return {
       delivered: true,
-      retryAfterSeconds: MIN_PUSH_INTERVAL_SECONDS,
+      retryAfterSeconds: WIDGET_PUSH_MIN_SPACING_SECONDS,
     };
   }
   return { delivered: true };
@@ -292,19 +388,24 @@ async function deliverOrEnqueueWidgetReloads(
   const grouped = groupTargetsByTenant(targets);
   await Promise.all(
     [...grouped.entries()].map(async ([tenantId, tenantTargets]) => {
-      const claimed = await claimWidgetPushWindow(env, tenantId);
-      if (!claimed) {
-        await enqueuePendingWidgetReload(env, tenantId);
-        return;
-      }
-
       // If an older suppressed change is already queued, one generic reload of
       // every token for the tenant covers both it and the current change.
       const pending = await getPendingWidgetReload(env, tenantId);
-      let deliveryTargets = tenantTargets;
+      let candidates = tenantTargets;
       if (pending) {
         const tokens = [...new Set(await storage.listWidgetTokens(env, tenantId))];
-        deliveryTargets = tokens.map((token) => ({ token, tenantIds: [tenantId] }));
+        candidates = tokens.map((token) => ({ token, tenantIds: [tenantId] }));
+      }
+
+      // Per widget, not per tenant: one widget being inside its spacing window
+      // must not hold back another that is ready.
+      const deliveryTargets: WidgetPushTarget[] = [];
+      for (const target of candidates) {
+        if (await claimWidgetPushWindow(env, target.token)) deliveryTargets.push(target);
+      }
+      if (deliveryTargets.length === 0) {
+        await enqueuePendingWidgetReload(env, tenantId);
+        return;
       }
       const results = await deliverWidgetReloads(env, deliveryTargets);
       logDeliverySummary(
@@ -312,7 +413,7 @@ async function deliverOrEnqueueWidgetReloads(
         deliveryTargets.length,
         results,
       );
-      if (hasRetryableFailure(results)) {
+      if (hasRetryableFailure(results) || deliveryTargets.length < candidates.length) {
         await enqueuePendingWidgetReload(env, tenantId);
       } else if (pending) {
         await deletePendingWidgetReload(env, pending);

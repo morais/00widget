@@ -46,9 +46,11 @@ describe("GET /v1/status", () => {
     expect(body.delivery.widgetPushTokens).toBe(1);
   });
 
-  it("states the reload interval and how long until the next one", async () => {
+  it("states the reload cadence and how long until the next one", async () => {
     const body = await status(makeEnv());
-    expect(body.delivery.widgetReloadIntervalSeconds).toBe(30 * 60);
+    expect(body.delivery.widgetReloadMinSpacingSeconds).toBe(5 * 60);
+    expect(body.delivery.widgetReloadBurst).toBe(6);
+    expect(body.delivery.widgetReloadRefillSeconds).toBe(40 * 60);
     // Nothing has been published, so the window is open now.
     expect(body.delivery.secondsUntilNextWidgetReload).toBe(0);
   });

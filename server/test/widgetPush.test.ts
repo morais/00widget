@@ -5,6 +5,7 @@ import * as storage from "../src/storage";
 import {
   collectWidgetPushTargetsForCard,
   claimWidgetPushWindow,
+  secondsUntilWidgetPushWindow,
   deliverWidgetReloads,
   enqueuePendingWidgetReload,
   getPendingWidgetReload,
@@ -107,12 +108,62 @@ describe("widget push subscriptions", () => {
     await expect(storage.listWidgetTokens(env, "test-tenant")).resolves.toEqual([]);
   });
 
-  it("claims at most one push window per tenant every thirty minutes", async () => {
+  it("spaces pushes to one widget by five minutes, and budgets each widget alone", async () => {
     const env = makeEnv();
-    await expect(claimWidgetPushWindow(env, "tenant-a", 10_000)).resolves.toBe(true);
-    await expect(claimWidgetPushWindow(env, "tenant-a", 11_799)).resolves.toBe(false);
-    await expect(claimWidgetPushWindow(env, "tenant-a", 11_800)).resolves.toBe(true);
-    await expect(claimWidgetPushWindow(env, "tenant-b", 10_001)).resolves.toBe(true);
+    await expect(claimWidgetPushWindow(env, "token-a", 10_000)).resolves.toBe(true);
+    await expect(claimWidgetPushWindow(env, "token-a", 10_299)).resolves.toBe(false);
+    await expect(claimWidgetPushWindow(env, "token-a", 10_300)).resolves.toBe(true);
+    // A second widget on the same device has its own allowance: Apple budgets
+    // per widget instance, so one must never hold back another.
+    await expect(claimWidgetPushWindow(env, "token-b", 10_001)).resolves.toBe(true);
+  });
+
+  it("bursts, then settles to the refill rate, and never runs dry", async () => {
+    const env = makeEnv();
+    let now = 10_000;
+    // Six in hand, spent as fast as the spacing allows.
+    for (let i = 0; i < 6; i++) {
+      await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
+      now += 300;
+    }
+    // Bucket empty: spacing alone is no longer enough.
+    await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(false);
+
+    // This is the property a plain daily quota does not have. Forty pushes
+    // five minutes apart would exhaust a day in 3h20m and leave the widget
+    // dark for the next twenty hours; a bucket hands one back every refill
+    // period, for as long as the day lasts.
+    for (let i = 0; i < 5; i++) {
+      now += 40 * 60;
+      await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
+    }
+
+    // And an idle stretch refills but does not overflow: after six hours the
+    // bucket is full, not nine deep.
+    now += 6 * 60 * 60;
+    for (let i = 0; i < 6; i++) {
+      await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
+      now += 300;
+    }
+    await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(false);
+  });
+
+  it("does not let one widget's push hold back another on the same account", async () => {
+    // The reason the cadence moved off the tenant. Apple budgets per widget
+    // instance, so publishing to one must not stall the other.
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    for (const [device, token] of [["device-1", "aaaa"], ["device-2", "bbbb"]]) {
+      await storage.putWidgetToken(env, "test-tenant", hash, device, "ZeroZeroWidgetCardWidget", token);
+    }
+
+    await expect(claimWidgetPushWindow(env, "aaaa", 10_000)).resolves.toBe(true);
+    // The account is not "in a window" because one widget is: the second has
+    // never been pushed, so a queued reload should wake now rather than sleep.
+    await expect(secondsUntilWidgetPushWindow(env, "test-tenant", 10_001)).resolves.toBe(0);
+    await expect(claimWidgetPushWindow(env, "bbbb", 10_001)).resolves.toBe(true);
+    // With both just pushed, the wait is the sooner of the two spacings.
+    await expect(secondsUntilWidgetPushWindow(env, "test-tenant", 10_002)).resolves.toBe(298);
   });
 
   it("coalesces suppressed reloads and delivers them after the cadence window", async () => {
@@ -126,7 +177,7 @@ describe("widget push subscriptions", () => {
       "ZeroZeroWidgetCardWidget",
       "aabbccdd",
     );
-    await claimWidgetPushWindow(env, "test-tenant", 10_000);
+    await claimWidgetPushWindow(env, "aabbccdd", 10_000);
     await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
     await enqueuePendingWidgetReload(env, "test-tenant", 10_002);
 
@@ -135,7 +186,7 @@ describe("widget push subscriptions", () => {
       queuedAt: 10_002,
     });
     await expect(
-      processPendingWidgetReload(env, { tenantId: "test-tenant" }, { nowSeconds: 11_799 }),
+      processPendingWidgetReload(env, { tenantId: "test-tenant" }, { nowSeconds: 10_299 }),
     ).resolves.toEqual({ delivered: false, retryAfterSeconds: 1 });
 
     const sender = vi.fn().mockResolvedValue({ status: 200, apnsId: "deferred" });
@@ -143,7 +194,7 @@ describe("widget push subscriptions", () => {
       processPendingWidgetReload(
         env,
         { tenantId: "test-tenant" },
-        { nowSeconds: 11_800, sender },
+        { nowSeconds: 10_300, sender },
       ),
     ).resolves.toEqual({ delivered: true });
     expect(sender).toHaveBeenCalledOnce();
@@ -189,7 +240,17 @@ describe("widget push subscriptions", () => {
   it("schedules only one delayed queue message while reloads coalesce", async () => {
     const queue = { send: vi.fn().mockResolvedValue(undefined) };
     const env = { ...makeEnv(), WIDGET_RELOAD_QUEUE: queue } as unknown as ReturnType<typeof makeEnv>;
-    await claimWidgetPushWindow(env, "test-tenant", 10_000);
+    // The delay is computed from the tenant's widgets, so there has to be one:
+    // an account with no widget registered has nothing to wait for.
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      await sha256Hex(TEST_API_KEY),
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await claimWidgetPushWindow(env, "aabbccdd", 10_000);
 
     await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
     await enqueuePendingWidgetReload(env, "test-tenant", 10_002);
@@ -197,7 +258,7 @@ describe("widget push subscriptions", () => {
     expect(queue.send).toHaveBeenCalledOnce();
     expect(queue.send).toHaveBeenCalledWith(
       { tenantId: "test-tenant" },
-      { delaySeconds: 1_799 },
+      { delaySeconds: 299 },
     );
     await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toMatchObject({
       generation: 2,

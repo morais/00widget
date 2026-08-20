@@ -711,10 +711,28 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT INTO widget_push_cadence")) {
-      const [tenant_id, last_sent_at, cutoff] = values.map(String);
-      const existing = this.widgetPushCadence.get(tenant_id);
-      if (existing && Number(existing.last_sent_at) > Number(cutoff)) return 0;
-      this.widgetPushCadence.set(tenant_id, { tenant_id, last_sent_at });
+      // Mirrors the real conditional upsert: a token bucket that refills by
+      // elapsed time, plus a hard minimum spacing.
+      const key = String(values[0]);
+      const [, now, burst, refill, minSpacing] = values.map(Number);
+      const existing = this.widgetPushCadence.get(key);
+      if (!existing) {
+        this.widgetPushCadence.set(key, {
+          token: key,
+          last_sent_at: String(now),
+          allowance: String(burst - 1),
+        });
+        return 1;
+      }
+      const elapsed = now - Number(existing.last_sent_at);
+      if (elapsed < minSpacing) return 0;
+      const allowance = Math.min(burst, Number(existing.allowance) + elapsed / refill);
+      if (allowance < 1) return 0;
+      this.widgetPushCadence.set(key, {
+        token: key,
+        last_sent_at: String(now),
+        allowance: String(allowance - 1),
+      });
       return 1;
     }
     if (normalized.startsWith("INSERT INTO widget_push_pending")) {
@@ -854,6 +872,10 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized.startsWith("SELECT token, last_sent_at, allowance FROM widget_push_cadence")) {
+      const wanted = new Set(values.map(String));
+      return [...this.widgetPushCadence.values()].filter((row) => wanted.has(String(row.token)));
+    }
     if (normalized.startsWith("DELETE FROM activity_history WHERE rowid IN")) {
       const [cutoff, limit] = values.map(Number);
       const doomed = [...this.activityHistory]
@@ -1025,10 +1047,7 @@ export class FakeD1 {
       const [tenant_id] = values.map(String);
       return pick(this.widgetPushPending.get(tenant_id), ["tenant_id", "generation", "queued_at"]);
     }
-    if (normalized === "SELECT last_sent_at FROM widget_push_cadence WHERE tenant_id = ?") {
-      const [tenant_id] = values.map(String);
-      return pick(this.widgetPushCadence.get(tenant_id), ["last_sent_at"]);
-    }
+
     if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE instances.id = ? AND targets.target_tenant_id = ?") {
       const [id, target_tenant_id] = values.map(String);
       const targeted = [...this.activityTargets.values()].some(

@@ -10,7 +10,12 @@ import {
   readSubscriptionState,
 } from "./subscription";
 import { listActiveActivitySessions } from "./liveActivities";
-import { MIN_PUSH_INTERVAL_SECONDS, secondsUntilWidgetPushWindow } from "./widgetPush";
+import {
+  WIDGET_PUSH_BURST,
+  WIDGET_PUSH_MIN_SPACING_SECONDS,
+  WIDGET_PUSH_REFILL_SECONDS,
+  secondsUntilWidgetPushWindow,
+} from "./widgetPush";
 import type { Env } from "./types";
 
 // The ActivityAttributes type the iOS app registers a push-to-start token
@@ -75,11 +80,16 @@ export async function getStatus(
       // has not installed the app, or has not allowed notifications.
       canPushWidgets: widgetTokens.length > 0,
       canStartLiveActivities: startTokens.length > 0,
-      // A Home Screen widget is reloaded at most this often per account.
-      // Publishes in between are stored immediately and coalesced into the next
-      // one, so a card is never out of date on the device — it is just not
-      // redrawn yet.
-      widgetReloadIntervalSeconds: MIN_PUSH_INTERVAL_SECONDS,
+      // The shortest gap between two reload pushes to the same widget, and how
+      // many a widget gets per rolling day. Publishes in between are stored
+      // immediately and coalesced into the next reload, so a card is never out
+      // of date on the device — it is just not redrawn yet.
+      widgetReloadMinSpacingSeconds: WIDGET_PUSH_MIN_SPACING_SECONDS,
+      // A bucket, not a quota: `burst` reloads may go out close together, and
+      // one more becomes available every `refill` seconds thereafter. So a
+      // widget can respond quickly to a change and still never run dry.
+      widgetReloadBurst: WIDGET_PUSH_BURST,
+      widgetReloadRefillSeconds: WIDGET_PUSH_REFILL_SECONDS,
       secondsUntilNextWidgetReload: secondsUntilReload,
     },
     published: {

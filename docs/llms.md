@@ -1229,6 +1229,48 @@ this account has touched.
 
 Agents should coalesce state changes and avoid hot loops. Publish one batch per producer snapshot, skip a publish when none of the displayed values changed, and respect `429 Retry-After` instead of retrying immediately.
 
+## How fast a widget actually updates
+
+A publish is stored the moment it returns. Getting it *drawn* is a separate
+question, and the answer is Apple's, not ours.
+
+iOS gives each widget a daily reload budget — Apple documents "40 to 70
+refreshes" for a widget someone looks at often — and **push notifications draw
+on the same budget as the widget's own periodic refreshes**. There is no
+mechanism, for us or anyone, to reload a widget more often than that budget
+allows.
+
+Within it, 00Widget aims to spend the budget on changes rather than on polling:
+
+| | |
+| --- | --- |
+| Shortest gap between two reload pushes to one widget | **5 minutes** |
+| Reloads available back-to-back after a quiet stretch | **6** |
+| One more becomes available every | **40 minutes** |
+| The widget's own periodic refresh, as a safety net | every 60 minutes |
+
+That last pair is an allowance that refills rather than a daily quota, which
+matters if you publish a lot: a quota can be spent in a few hours and leave the
+widget dark for the rest of the day, where a refilling allowance always hands
+one back. Publish freely after a quiet period; keep publishing all day and you
+settle to roughly one reload every 40 minutes rather than stopping.
+
+Each *widget* has its own allowance, not each account: publishing a card shown
+on one widget does not delay another. Publishes inside a window are not lost —
+they are stored immediately and coalesced, so the next reload carries the
+latest state of everything, and opening the app always shows current data.
+
+What this means for you:
+
+- **Publish when something changes.** You do not need to throttle; that is what
+  the coalescing is for. Skipping a publish when nothing changed still helps,
+  because it leaves budget for one that matters.
+- **Expect up to a few minutes**, not seconds, for a Home Screen widget.
+- **`GET /v1/status`** reports `secondsUntilNextWidgetReload` for the account
+  in front of you, along with the numbers above.
+- **If you need seconds, use a Live Activity.** It is a different mechanism with
+  a different budget, which is why it exists.
+
 ## Errors
 
 - `401 {"error":"..."}` — bad or missing bearer token. Don't retry with the same key.
