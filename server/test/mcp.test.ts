@@ -284,7 +284,7 @@ describe("tools/list", () => {
     );
   });
 
-  it("flags exactly the irreversible tools as destructive", async () => {
+  it("flags tools that can overwrite, clear, delete, or replace state as destructive", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -295,9 +295,14 @@ describe("tools/list", () => {
     }[];
 
     const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name).sort();
-    // Ending a Live Activity cannot be undone — it belongs here as much as a
-    // delete does, and was previously mislabelled as safe.
-    expect(destructive).toEqual(["delete_card", "end_live_activity"]);
+    expect(destructive).toEqual([
+      "delete_card",
+      "end_live_activity",
+      "start_live_activity",
+      "update_live_activity",
+      "upsert_card",
+      "upsert_cards_batch",
+    ]);
 
     const readOnly = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name).sort();
     expect(readOnly).toEqual([
@@ -311,8 +316,13 @@ describe("tools/list", () => {
     // A read-only tool must never claim to be destructive.
     for (const tool of tools) {
       if (tool.annotations.readOnlyHint) expect(tool.annotations.destructiveHint, tool.name).toBe(false);
-      expect(tool.annotations.idempotentHint, tool.name).toBe(true);
     }
+
+    const nonIdempotent = tools
+      .filter((tool) => !tool.annotations.idempotentHint)
+      .map((tool) => tool.name)
+      .sort();
+    expect(nonIdempotent).toEqual(["start_live_activity", "update_live_activity"]);
   });
 
   it("carries the card fields through from the shared zod schema", async () => {
@@ -485,6 +495,28 @@ describe("tool input schemas", () => {
     // describe — and declaring a schema it does not fill would be worse than
     // declaring none.
     expect(missing).toEqual(["get_integration_guide"]);
+  });
+
+  it("declares the get_status delivery fields returned by the handler", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as Array<{
+      name: string;
+      outputSchema?: {
+        properties?: Record<string, { required?: string[] }>;
+      };
+    }>;
+    const delivery = tools.find((tool) => tool.name === "get_status")
+      ?.outputSchema?.properties?.delivery;
+
+    expect(delivery?.required).toEqual(expect.arrayContaining([
+      "widgetReloadMinSpacingSeconds",
+      "widgetReloadBurst",
+      "widgetReloadRefillSeconds",
+    ]));
+    expect(delivery?.required).not.toContain("widgetReloadIntervalSeconds");
   });
 
   it("returns structured content matching what it declared", async () => {

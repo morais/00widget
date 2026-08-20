@@ -272,6 +272,9 @@ interface McpTool {
   /// Irreversible from the caller's side, in a way a person would want to
   /// confirm. Not merely "writes something" — see the note on TOOL_DESCRIPTORS.
   destructive: boolean;
+  /// Whether repeating the same call can create an additional user-visible
+  /// effect. Starts and alerting updates are deliberately not idempotent.
+  idempotent: boolean;
   invoke(args: Record<string, unknown>, tools: AuthedToolContext): Promise<Response>;
 }
 
@@ -294,6 +297,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: (args, tools) =>
       cards.listCards(
         getRequest(tools.origin, args.includeShared ? "/v1/cards?include=shared" : "/v1/cards"),
@@ -310,6 +314,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: (args, tools) =>
       cards.getCard(getRequest(tools.origin, "/v1/cards"), tools.env, tools.auth, String(args.id)),
   },
@@ -324,7 +329,8 @@ const TOOLS: McpTool[] = [
     outputSchema: CardOutput,
     scope: "publish",
     readOnly: false,
-    destructive: false,
+    destructive: true,
+    idempotent: true,
     invoke: (args, tools) =>
       cards.upsertCard(postRequest(tools.origin, "/v1/cards/upsert", args), tools.env, tools.auth, tools.ctx),
   },
@@ -347,7 +353,8 @@ const TOOLS: McpTool[] = [
     }),
     scope: "publish",
     readOnly: false,
-    destructive: false,
+    destructive: true,
+    idempotent: true,
     invoke: (args, tools) =>
       cards.upsertCardsBatch(
         postRequest(tools.origin, "/v1/cards/upsert-batch", args),
@@ -365,6 +372,7 @@ const TOOLS: McpTool[] = [
     scope: "publish",
     readOnly: false,
     destructive: true,
+    idempotent: true,
     invoke: (args, tools) =>
       cards.deleteCard(
         getRequest(tools.origin, "/v1/cards"),
@@ -402,6 +410,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: (args, tools) =>
       liveActivities.activeActivities(
         getRequest(
@@ -425,7 +434,8 @@ const TOOLS: McpTool[] = [
     outputSchema: StartActivityOutput,
     scope: "publish",
     readOnly: false,
-    destructive: false,
+    destructive: true,
+    idempotent: false,
     invoke: (args, tools) =>
       liveActivities.startLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/start", args),
@@ -443,7 +453,8 @@ const TOOLS: McpTool[] = [
     outputSchema: UpdateActivityOutput,
     scope: "publish",
     readOnly: false,
-    destructive: false,
+    destructive: true,
+    idempotent: false,
     invoke: (args, tools) =>
       liveActivities.updateLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/update", args),
@@ -463,6 +474,7 @@ const TOOLS: McpTool[] = [
     scope: "publish",
     readOnly: false,
     destructive: true,
+    idempotent: true,
     invoke: (args, tools) =>
       liveActivities.endLiveActivity(
         postRequest(tools.origin, "/v1/live-activities/end", args),
@@ -482,6 +494,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: (_args, tools) =>
       dashboard.getDashboard(getRequest(tools.origin, "/v1/dashboard"), tools.env, tools.auth),
   },
@@ -516,9 +529,14 @@ const TOOLS: McpTool[] = [
         canStartLiveActivities: z.boolean().describe(
           "False means a Live Activity cannot appear on any device.",
         ),
-        widgetReloadIntervalSeconds: z.number().describe(
-          "A Home Screen widget redraws at most this often per account. Publishes in between are "
-          + "stored immediately and coalesced into the next one.",
+        widgetReloadMinSpacingSeconds: z.number().describe(
+          "The shortest gap between two reload pushes to the same widget.",
+        ),
+        widgetReloadBurst: z.number().describe(
+          "How many reloads a widget may receive back-to-back after a quiet stretch.",
+        ),
+        widgetReloadRefillSeconds: z.number().describe(
+          "How often one additional widget reload becomes available.",
         ),
         secondsUntilNextWidgetReload: z.number(),
       }),
@@ -539,6 +557,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: (_args, tools) =>
       status.getStatus(getRequest(tools.origin, "/v1/status"), tools.env, tools.auth),
   },
@@ -563,6 +582,7 @@ const TOOLS: McpTool[] = [
     scope: "read",
     readOnly: true,
     destructive: false,
+    idempotent: true,
     invoke: async (args, tools) =>
       new Response(
         renderMcpGuide((args.section as McpGuideSection) ?? "essentials", tools.origin),
@@ -586,18 +606,10 @@ const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
   annotations: {
     title: tool.title,
     readOnlyHint: tool.readOnly,
-    // `destructiveHint` drives whether a client asks a person before going
-    // ahead, so it marks what is irreversible rather than merely what writes.
-    // Deleting a card and ending a Live Activity qualify: the content is gone,
-    // and an ended activity cannot be resumed. Publishing does not, even though
-    // an upsert replaces a card wholesale rather than merging into it — that
-    // replacement is the entire point of the integration, and flagging it would
-    // put a confirmation in front of every routine publish and teach people to
-    // click through the two that matter.
+    // A tool is destructive when any supported call can overwrite, clear,
+    // delete, or irreversibly replace existing user-visible state.
     destructiveHint: tool.destructive,
-    // Every tool here is idempotent: republishing the same card, re-ending an
-    // ended activity, or deleting an absent one all converge on the same state.
-    idempotentHint: true,
+    idempotentHint: tool.idempotent,
     // Nothing reaches outside the operator's own 00Widget account.
     openWorldHint: false,
   },

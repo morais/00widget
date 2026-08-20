@@ -139,7 +139,9 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/stat
     "liveActivityStartTokens": 1,
     "canPushWidgets": true,
     "canStartLiveActivities": true,
-    "widgetReloadIntervalSeconds": 1800,
+    "widgetReloadMinSpacingSeconds": 300,
+    "widgetReloadBurst": 6,
+    "widgetReloadRefillSeconds": 1800,
     "secondsUntilNextWidgetReload": 412
   },
   "published": { "cards": 5, "liveActivities": 1 },
