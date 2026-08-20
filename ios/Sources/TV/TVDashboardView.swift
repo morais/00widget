@@ -273,7 +273,11 @@ private struct TVLiveActivityCardView: View {
                 .padding(.horizontal, 28)
                 .padding(.vertical, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 220)
+                // The header, value row, chart, and inter-row spacing need
+                // enough height for the requested inset to survive layout.
+                // At 220 points SwiftUI compressed the vertical padding to
+                // almost zero, leaving the focused card against its content.
+                .frame(height: 260)
                 .contentShape(RoundedRectangle(cornerRadius: 24))
             }
             .buttonStyle(.card)
