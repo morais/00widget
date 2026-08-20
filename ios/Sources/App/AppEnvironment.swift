@@ -268,11 +268,10 @@ public final class AppEnvironment: ObservableObject {
     /// the scanner does, rather than appearing to do nothing.
     @Published public var guestLinkBanner: String?
 
-    /// Tab to land on after taking a link: where the thing that just arrived
-    /// actually is. Scanning a code and staying on Settings looks like nothing
-    /// happened, which is how this reads to anyone who has not been told the
-    /// card appeared two tabs away.
-    @Published public var guestLinkLandingTab: String?
+    /// Tab requested by an incoming app or guest link. Keeping the destination
+    /// in the environment lets a cold launch deliver its URL before RootView
+    /// has finished constructing the tab bar.
+    @Published public var requestedLandingTab: String?
 
     public func reportGuestLinkProblem(_ message: String) {
         guestLinkBanner = message
@@ -287,10 +286,10 @@ public final class AppEnvironment: ObservableObject {
         switch result {
         case .added(let title):
             guestLinkBanner = "Added \u{201C}\(title)\u{201D}."
-            guestLinkLandingTab = landingTab(forTokenNamed: token)
+            requestedLandingTab = landingTab(forTokenNamed: token)
         case .alreadyHeld(let title):
             guestLinkBanner = "You already have \u{201C}\(title)\u{201D}."
-            guestLinkLandingTab = landingTab(forTokenNamed: token)
+            requestedLandingTab = landingTab(forTokenNamed: token)
         case .invalid:
             guestLinkBanner = "That is not a 00Widget link."
         case .expired:

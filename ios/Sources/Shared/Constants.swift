@@ -20,6 +20,20 @@ public enum ZeroZeroWidgetConstants {
         Bundle.main.object(forInfoDictionaryKey: "ZWDefaultServerBaseURL") as? String ?? ""
     }
 
+    /// Internal destination used when a full-app Live Activity has no producer
+    /// deep link. This key exists in the app's widget extension and is absent
+    /// from the App Clip extension, which has no Activities tab.
+    public static var liveActivityFallbackURL: URL? {
+        guard
+            let raw = Bundle.main.object(forInfoDictionaryKey: "ZWLiveActivityFallbackURL") as? String,
+            let url = URL(string: raw),
+            ZeroZeroWidgetInternalLink.route(for: url) == "activities"
+        else {
+            return nil
+        }
+        return url
+    }
+
     public static var appleLoginEnabled: Bool {
         Bundle.main.object(forInfoDictionaryKey: "ZWAppleLoginEnabled") as? Bool ?? false
     }
@@ -99,6 +113,20 @@ public enum ZeroZeroWidgetConstants {
         /// fetches them and writes GuestCardCache, which is what the extension
         /// actually reads.
         public static let guestLinks = "zw.guestLinks"
+    }
+}
+
+/// Private navigation URLs emitted by our widget extension. They are separate
+/// from producer-owned HTTPS deep links, which must continue opening externally.
+public enum ZeroZeroWidgetInternalLink {
+    public static let scheme = "zerozerowidget"
+
+    public static func route(for url: URL) -> String? {
+        guard url.scheme?.lowercased() == scheme else { return nil }
+        switch url.host?.lowercased() {
+        case "activities": return "activities"
+        default: return nil
+        }
     }
 }
 

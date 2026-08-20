@@ -8,6 +8,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             LockScreenView(attributes: context.attributes, state: context.state)
                 .activityBackgroundTint(.black.opacity(0.6))
                 .activitySystemActionForegroundColor(.white)
+                .widgetURL(tapURL(for: context.attributes))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -117,7 +118,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     Image(systemName: iconName(attributes: context.attributes, state: context.state))
                 }
             }
-            .widgetURL(context.attributes.deepLink)
+            .widgetURL(tapURL(for: context.attributes))
         }
         // Opt the Live Activity into rendering as a Smart Stack card on Apple
         // Watch (.small) in addition to the iPhone Lock Screen (.medium).
@@ -130,6 +131,13 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
         state: ZeroZeroWidgetActivityAttributes.ContentState
     ) -> String {
         state.icon ?? attributes.icon ?? iconName(for: attributes.kind)
+    }
+
+    /// A producer URL wins. The full app's widget target supplies an internal
+    /// Activities-tab URL as its fallback; the App Clip extension deliberately
+    /// omits that setting because the clip has no tab bar.
+    private func tapURL(for attributes: ZeroZeroWidgetActivityAttributes) -> URL? {
+        attributes.deepLink ?? ZeroZeroWidgetConstants.liveActivityFallbackURL
     }
 
     private func iconName(for kind: LiveActivityKind) -> String {

@@ -47,13 +47,16 @@ struct ZeroZeroWidgetApp: App {
         #endif
     }
 
-    /// `onOpenURL` sees two unrelated kinds of URL: card and Live Activity deep
-    /// links, which belong to whoever published them and open in the browser,
-    /// and — since the app claims `applinks:` — universal links for our own
-    /// host, which must not be forwarded. Handing one of those to
-    /// `UIApplication.open` gives it straight back to iOS, which routes it to
-    /// this app again.
+    /// `onOpenURL` sees private tab routes, producer-owned card and Live
+    /// Activity links that open in the browser, and — since the app claims
+    /// `applinks:` — universal links for our own host. Handing one of the latter
+    /// to `UIApplication.open` gives it straight back to iOS, which routes it
+    /// to this app again.
     private func handleIncomingURL(_ url: URL) {
+        if let tab = ZeroZeroWidgetInternalLink.route(for: url) {
+            env.requestedLandingTab = tab
+            return
+        }
         if let route = ZeroZeroWidgetUniversalLink.route(for: url, serverBaseURL: env.serverBaseURL) {
             handleUniversalLink(route: route, url: url)
             return
@@ -147,12 +150,19 @@ struct RootView: View {
         // Land where the thing that just arrived actually is: the dashboard for
         // a card, Activities for a Live Activity. Scanning a code and staying
         // on Settings reads as nothing having happened.
-        .onChange(of: env.guestLinkLandingTab) { _, tab in
-            guard let tab else { return }
-            // Activities can be switched off, and selecting a tab that is not
-            // in the TabView leaves it showing nothing at all.
-            selectedTab = (tab == "activities" && !env.showActivitiesTab) ? "widgets" : tab
-            env.guestLinkLandingTab = nil
+        .onAppear {
+            applyRequestedLandingTab()
         }
+        .onChange(of: env.requestedLandingTab) { _, _ in
+            applyRequestedLandingTab()
+        }
+    }
+
+    private func applyRequestedLandingTab() {
+        guard let tab = env.requestedLandingTab else { return }
+        // Activities can be switched off, and selecting a tab that is not in
+        // the TabView leaves it showing nothing at all.
+        selectedTab = (tab == "activities" && !env.showActivitiesTab) ? "widgets" : tab
+        env.requestedLandingTab = nil
     }
 }
