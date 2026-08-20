@@ -212,61 +212,63 @@ private struct LockScreenView: View {
     }
 
     private var legacyLockScreenBody: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 3) {
-                Image(systemName: iconName)
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                statusGlyph(.caption)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(attributes.title).font(.headline)
-                if let subtitle = state.subtitle {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 3) {
+                    Image(systemName: iconName)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    statusGlyph(.caption)
                 }
-                if let endsAt = state.endsAt {
-                    LiveActivityCountdownText(
-                        endsAt: endsAt,
-                        granularity: state.countdownGranularity
-                    )
-                        .font(.title3.weight(.semibold))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                } else if let p = state.progress, state.chart == nil {
-                    ProgressView(value: max(0, min(p, 1)))
-                        .progressViewStyle(.linear)
-                }
-                // Only on the non-composite banner: item rows already fill a
-                // composite one, and the Lock Screen has no room for both.
-                if let chart = state.chart, chart.isRenderable {
-                    SparklineView(chart: chart, tint: attributes.kind.tint, lineWidth: 1.5)
-                        .frame(height: 24)
-                }
-                Text("Updated \(state.updatedAt, style: .relative)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-            if state.endsAt != nil {
-                Text(state.state.capitalized)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.2)))
-            } else if let value = state.value {
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text(value).font(.title3).fontWeight(.semibold)
-                    if let unit = state.unit {
-                        Text(unit).font(.caption2).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(attributes.title).font(.headline)
+                    if let subtitle = state.subtitle {
+                        Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let endsAt = state.endsAt {
+                        LiveActivityCountdownText(
+                            endsAt: endsAt,
+                            granularity: state.countdownGranularity
+                        )
+                            .font(.title3.weight(.semibold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    } else if let p = state.progress, state.chart == nil {
+                        ProgressView(value: max(0, min(p, 1)))
+                            .progressViewStyle(.linear)
                     }
                 }
-            } else {
-                Text(state.state.capitalized)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.2)))
+                Spacer()
+                // An explicit producer value is more useful than the generic
+                // runtime state, even when the activity also has a deadline.
+                if let value = state.value {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(value).font(.title3).fontWeight(.semibold)
+                        if let unit = state.unit {
+                            Text(unit).font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text(state.state.capitalized)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.secondary.opacity(0.2)))
+                }
             }
+
+            // Keep the identity column clear while allowing the plot to use
+            // the space beneath the trailing value/status presentation.
+            if let chart = state.chart, chart.isRenderable {
+                SparklineView(chart: chart, tint: attributes.kind.tint, lineWidth: 1.5)
+                    .frame(height: 24)
+                    .padding(.leading, 44)
+            }
+
+            Text("Updated \(state.updatedAt, style: .relative)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 44)
         }
     }
 
