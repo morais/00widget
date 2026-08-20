@@ -36,7 +36,11 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     public func timeline(for configuration: SelectCardIntent, in context: Context) async -> Timeline<CardTimelineEntry> {
         await refreshCacheIfPossible(reason: "timeline")
         let entry = entry(for: configuration)
-        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next()))
+        // Keyed by the card this widget shows, so two widgets do not overwrite
+        // each other's history. Two showing the same card may share it: they
+        // are pushed together anyway.
+        let widgetKey = "card.\(configuration.card?.id ?? "default")"
+        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next(for: widgetKey)))
     }
 
     private func refreshCacheIfPossible(reason: String) async {

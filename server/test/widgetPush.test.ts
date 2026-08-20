@@ -120,32 +120,53 @@ describe("widget push subscriptions", () => {
 
   it("bursts, then settles to the refill rate, and never runs dry", async () => {
     const env = makeEnv();
-    let now = 10_000;
-    // Six in hand, spent as fast as the spacing allows.
-    for (let i = 0; i < 6; i++) {
-      await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
-      now += 300;
-    }
-    // Bucket empty: spacing alone is no longer enough.
-    await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(false);
+    // Claims at the minimum spacing until one is refused, which is what a
+    // producer publishing flat out would experience.
+    const drain = async (token: string, from: number) => {
+      let at = from;
+      let granted = 0;
+      while (await claimWidgetPushWindow(env, token, at)) {
+        granted += 1;
+        at += 300;
+      }
+      return { granted, at };
+    };
 
-    // This is the property a plain daily quota does not have. Forty pushes
-    // five minutes apart would exhaust a day in 3h20m and leave the widget
-    // dark for the next twenty hours; a bucket hands one back every refill
-    // period, for as long as the day lasts.
+    // A burst is bounded — a producer cannot spend the day in five minutes —
+    // but it is a real burst, not a single push.
+    const first = await drain("token-a", 10_000);
+    expect(first.granted).toBeGreaterThan(3);
+    expect(first.granted).toBeLessThan(10);
+
+    // The property a plain daily quota does not have, and the reason this is a
+    // bucket. Forty pushes five minutes apart would exhaust a day in 3h20m and
+    // leave the widget dark for the next twenty hours. Here the allowance keeps
+    // coming back, one per refill period, for as long as the producer asks.
+    let now = first.at;
     for (let i = 0; i < 5; i++) {
-      now += 40 * 60;
+      now += 30 * 60;
       await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
     }
 
-    // And an idle stretch refills but does not overflow: after six hours the
-    // bucket is full, not nine deep.
-    now += 6 * 60 * 60;
-    for (let i = 0; i < 6; i++) {
-      await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(true);
-      now += 300;
-    }
-    await expect(claimWidgetPushWindow(env, "token-a", now)).resolves.toBe(false);
+    // Idle time refills the bucket but does not overflow it: a day of quiet
+    // buys no more than a few hours of it. Asserted as a cap rather than a
+    // count, so the test states the guarantee instead of restating the rate.
+    const burstAfterIdle = async (token: string, idleSeconds: number) => {
+      const fresh = makeEnv();
+      await claimWidgetPushWindow(fresh, token, 0);
+      return (await (async () => {
+        let at = idleSeconds;
+        let granted = 0;
+        while (await claimWidgetPushWindow(fresh, token, at)) {
+          granted += 1;
+          at += 300;
+        }
+        return granted;
+      })());
+    };
+    expect(await burstAfterIdle("idle-6h", 6 * 60 * 60)).toBe(
+      await burstAfterIdle("idle-24h", 24 * 60 * 60),
+    );
   });
 
   it("does not let one widget's push hold back another on the same account", async () => {

@@ -4,34 +4,93 @@ import Foundation
 ///
 /// A widget's daily reload budget is shared between timeline refreshes and
 /// WidgetKit pushes. Apple documents roughly 40–70 reloads a day for a widget
-/// someone looks at often — "widget reloads every 15 to 60 minutes" — and says
-/// pushes are budgeted the same way: "Like timeline updates, the system budgets
-/// WidgetKit push notifications and delivers them opportunistically."
+/// someone looks at often, and says pushes are budgeted the same way: "Like
+/// timeline updates, the system budgets WidgetKit push notifications and
+/// delivers them opportunistically."
 ///
 /// So the two compete, and they are not worth the same. A timeline refresh is
-/// blind: it fires whether or not anything changed, and it costs an API call to
-/// find out. A push fires *because* something changed. Spending the budget on
-/// pushes puts more real changes on screen than spending it on polling.
+/// blind: it fires whether or not anything changed, and costs an API call to
+/// find out. A push fires *because* something changed. Every blind reload not
+/// asked for is budget left for one that carries news.
 ///
-/// The old 15-minute interval asked for ~96 reloads a day on its own, before a
-/// single push. Against a 40–70 budget that was never granted — iOS was already
-/// dropping most of them, and choosing which to drop without knowing which
-/// mattered. Asking for 24 a day is a request that can actually be met, which
-/// is why this is not simply "refresh less often": a reload that happens beats
-/// one that is requested and denied.
+/// The trick is knowing whether pushes are actually arriving, because the
+/// timeline is only a backstop while they are. The signal is not "how long
+/// since the last run" — that is set by whatever interval this policy last
+/// returned, so reading it converges on nothing. It is **how long since the
+/// last run compared with what we asked for**. A run that arrives well before
+/// its scheduled time was triggered by something else: a push, or the app
+/// coming to the foreground. Either means this widget is being kept current by
+/// something other than polling.
 ///
-/// Deliberately a constant rather than something adaptive. The obvious signal —
-/// how long since the last refresh — is set by whatever interval this function
-/// last returned, so a policy that reads it oscillates rather than converges.
-/// Knowing whether pushes are actually arriving needs a fact the extension does
-/// not have; until it does, one honest number is better than a feedback loop
-/// that lies.
+/// That comparison settles in both directions. While pushes arrive, every run
+/// is early and the interval stays long. When they stop, the next run happens
+/// on schedule, is not early, and the interval drops — and stays down, because
+/// each subsequent run is also on schedule. When they resume, the first push
+/// makes a run early again.
+///
+/// Nothing here can force a reload; `.after` is a request against a budget the
+/// system owns. Asking for less is how a request gets granted.
 enum WidgetRefreshPolicy {
-    /// The safety net. Pushes carry real changes; this catches a device that
-    /// missed one, and refreshes a widget nobody is publishing to.
-    static let interval: TimeInterval = 60 * 60
+    /// Pushes are landing. The timeline exists to catch the push path breaking
+    /// silently — a revoked notification permission, a dead token, an outage —
+    /// not to fetch news, so it can be rare.
+    static let relaxed: TimeInterval = 4 * 60 * 60
 
-    static func next(from now: Date = Date()) -> Date {
-        now.addingTimeInterval(interval)
+    /// Nothing else is waking this widget, so the timeline is all it has.
+    static let unaided: TimeInterval = 60 * 60
+
+    /// A run this far ahead of schedule was triggered by something other than
+    /// the timeline. Below 1.0 because the system delivers reloads
+    /// "opportunistically" and a scheduled one can land slightly early; well
+    /// above 0 so a genuine push is unambiguous.
+    static let earlyFraction = 0.85
+
+    /// - Parameter widget: distinguishes one widget's history from another's.
+    ///   It has to: with a single shared record, a second widget's run would
+    ///   reset the timestamp and make every other widget look woken-early
+    ///   forever. Two widgets showing the same thing may share a key — they are
+    ///   pushed together anyway.
+    static func next(for widget: String, now: Date = Date()) -> Date {
+        let previous = record(for: widget)
+        let interval = chooseInterval(previous: previous, now: now)
+        store(Record(ranAt: now, requested: interval), for: widget)
+        return now.addingTimeInterval(interval)
+    }
+
+    static func chooseInterval(previous: Record?, now: Date) -> TimeInterval {
+        // Nothing learned yet. Start attentive rather than assume the push path
+        // works: a widget that never refreshes is worse than one that polls.
+        guard let previous else { return unaided }
+        let elapsed = now.timeIntervalSince(previous.ranAt)
+        return elapsed < previous.requested * earlyFraction ? relaxed : unaided
+    }
+
+    struct Record {
+        var ranAt: Date
+        var requested: TimeInterval
+    }
+
+    // MARK: - Storage
+
+    private static var defaults: UserDefaults? {
+        UserDefaults(suiteName: ZeroZeroWidgetConstants.appGroupIdentifier)
+    }
+
+    private static func key(_ widget: String) -> String {
+        "\(ZeroZeroWidgetConstants.UserDefaultsKeys.widgetRefreshRecordPrefix)\(widget)"
+    }
+
+    private static func record(for widget: String) -> Record? {
+        guard let stored = (defaults ?? .standard).array(forKey: key(widget)) as? [Double],
+              stored.count == 2, stored[1] > 0
+        else { return nil }
+        return Record(ranAt: Date(timeIntervalSince1970: stored[0]), requested: stored[1])
+    }
+
+    private static func store(_ record: Record, for widget: String) {
+        (defaults ?? .standard).set(
+            [record.ranAt.timeIntervalSince1970, record.requested],
+            forKey: key(widget)
+        )
     }
 }

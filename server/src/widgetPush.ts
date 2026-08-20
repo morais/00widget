@@ -21,8 +21,13 @@ const MAX_RETRY_AFTER_MS = 5_000;
 // Apple budgets WidgetKit reloads per widget instance — "a daily budget
 // typically includes from 40 to 70 refreshes" for a widget someone views often
 // — and pushes draw on the same budget as the widget's own periodic refreshes.
-// The timeline asks for 24 a day, so a sustained ~36 from pushes keeps the
-// total inside Apple's band with the weight on reloads that mean something.
+// So the two compete, and the split between them is a choice.
+//
+// The device backs its timeline off to four hours once it can see pushes
+// arriving (`WidgetRefreshPolicy`), which spends about 6 reloads a day on
+// polling rather than the 24 a flat hourly interval would. That freed room is
+// what this spends: a sustained 48 keeps the total near 54, inside Apple's
+// band, with the overwhelming majority going to reloads that carry news.
 //
 // A bucket rather than a quota, because a quota starves. Forty pushes five
 // minutes apart spends a day in three hours and twenty minutes and leaves the
@@ -31,9 +36,9 @@ const MAX_RETRY_AFTER_MS = 5_000;
 // stretch, and the cap bounds what a burst can spend at once.
 export const WIDGET_PUSH_BURST = 6;
 
-// One push per 40 minutes sustained, which is ~36 a day. With a full bucket a
-// day tops out near 42.
-export const WIDGET_PUSH_REFILL_SECONDS = 40 * 60;
+// One push per 30 minutes sustained, which is 48 a day. With a full bucket a
+// day tops out near 54.
+export const WIDGET_PUSH_REFILL_SECONDS = 30 * 60;
 
 // The shortest gap between two pushes to the same widget, whatever the bucket
 // holds. Apple asks for at least five minutes between timeline entries and this

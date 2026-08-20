@@ -1246,8 +1246,8 @@ Within it, 00Widget aims to spend the budget on changes rather than on polling:
 | --- | --- |
 | Shortest gap between two reload pushes to one widget | **5 minutes** |
 | Reloads available back-to-back after a quiet stretch | **6** |
-| One more becomes available every | **40 minutes** |
-| The widget's own periodic refresh, as a safety net | every 60 minutes |
+| One more becomes available every | **30 minutes** |
+| The widget's own periodic refresh, as a safety net | hourly, backing off to 4-hourly once it can see pushes arriving |
 
 That last pair is an allowance that refills rather than a daily quota, which
 matters if you publish a lot: a quota can be spent in a few hours and leave the

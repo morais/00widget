@@ -118,7 +118,11 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
         await refreshCacheIfPossible(reason: "timeline")
         let entry = entry(for: configuration)
-        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next()))
+        // Keyed by what this placement shows, so two grids do not overwrite
+        // each other's history.
+        let slots = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
+        let widgetKey = "grid.\(slots.compactMap { $0?.id }.joined(separator: "+"))"
+        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next(for: widgetKey)))
     }
 
     private func refreshCacheIfPossible(reason: String) async {

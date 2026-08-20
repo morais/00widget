@@ -80,6 +80,10 @@ public enum ZeroZeroWidgetConstants {
         public static let lastSyncError = "zw.lastSyncError"
         public static let appleLoginEmail = "zw.appleLoginEmail"
         public static let hideSampleIndicators = "zw.hideSampleIndicators"
+        /// Prefix for one record per widget: when its timeline last ran and
+        /// what interval it asked for. `WidgetRefreshPolicy` compares the two
+        /// to tell a scheduled reload from one a push triggered.
+        public static let widgetRefreshRecordPrefix = "zw.widgetRefresh."
         /// Written by the app, read by the widget extension. See
         /// `SharedSettings.subscriptionActive` for why it defaults to true.
         public static let subscriptionActive = "zw.subscriptionActive"
