@@ -118,8 +118,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
         await refreshCacheIfPossible(reason: "timeline")
         let entry = entry(for: configuration)
-        let refresh = Date().addingTimeInterval(15 * 60)
-        return Timeline(entries: [entry], policy: .after(refresh))
+        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next()))
     }
 
     private func refreshCacheIfPossible(reason: String) async {
