@@ -66,3 +66,6 @@ ios/Resources/*/*.entitlements
 .vscode/
 .idea/
 *.swp
+
+# Generated ChatGPT app submission artifact
+/chatgpt-app-submission.json

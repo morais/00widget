@@ -204,8 +204,8 @@ interface AuthedToolContext extends Omit<ToolContext, "auth"> {
 // What each tool puts in `structuredContent`, which is the response its route
 // already returns. Declaring it is not decoration: a tool that emits structured
 // content is expected to say what shape it is, and a strict client validates
-// against this. `get_integration_guide` deliberately has none — it answers with
-// markdown, so there is no structured content to describe.
+// against this. Text-first tools keep their readable `content` and also wrap
+// the same value in a small structured envelope.
 const ApnsResultSchema = z.object({
   status: z.number().describe("The HTTP status APNs answered with; 200 is delivered."),
   reason: z.string().optional().describe("APNs failure reason, when it failed."),
@@ -264,9 +264,14 @@ interface McpTool {
   title: string;
   description: string;
   schema: z.ZodType;
-  /// The shape of `structuredContent`. Omitted only by tools that do not
-  /// answer with JSON.
-  outputSchema?: z.ZodType;
+  /// The shape of successful `structuredContent` returned by this tool.
+  outputSchema: z.ZodType;
+  /// Builds `structuredContent` for a successful non-JSON response while the
+  /// original response text remains available as ordinary MCP `content`.
+  structuredTextOutput?(
+    text: string,
+    args: Record<string, unknown>,
+  ): Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
   /// Irreversible from the caller's side, in a way a person would want to
@@ -279,6 +284,9 @@ interface McpTool {
 }
 
 const NoArguments = z.object({});
+const McpGuideSectionSchema = z.enum(
+  Object.keys(MCP_GUIDE_SECTIONS) as [McpGuideSection, ...McpGuideSection[]],
+);
 
 const TOOLS: McpTool[] = [
   {
@@ -570,14 +578,21 @@ const TOOLS: McpTool[] = [
       + "Read it before publishing for the first time. Narrow it with `section` when you already "
       + "know which half you need.",
     schema: z.object({
-      section: z
-        .enum(Object.keys(MCP_GUIDE_SECTIONS) as [McpGuideSection, ...McpGuideSection[]])
+      section: McpGuideSectionSchema
         .default("essentials")
         .describe(
           "Which part to return. `essentials` (default) is everything a publisher needs; `cards`, "
           + "`live-activities` and `actions` narrow it further; `everything` is the full public "
           + "document, including the HTTP and code-level material an MCP client has no use for.",
         ),
+    }),
+    outputSchema: z.object({
+      section: McpGuideSectionSchema.describe("The guide section that was returned."),
+      markdown: z.string().describe("The requested integration guide as Markdown."),
+    }),
+    structuredTextOutput: (markdown, args) => ({
+      section: args.section,
+      markdown,
     }),
     scope: "read",
     readOnly: true,
@@ -599,10 +614,8 @@ const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
   title: tool.title,
   description: tool.description,
   inputSchema: toolInputSchema(tool.schema),
-  // Only when there is one: declaring an outputSchema is a promise that the
-  // tool returns matching structuredContent, and the guide tool answers with
-  // markdown.
-  ...(tool.outputSchema ? { outputSchema: toolOutputSchema(tool.outputSchema) } : {}),
+  // Text-first tools satisfy the same promise through structuredTextOutput.
+  outputSchema: toolOutputSchema(tool.outputSchema),
   annotations: {
     title: tool.title,
     readOnlyHint: tool.readOnly,
@@ -906,7 +919,14 @@ async function callTool(
     return ok(toolFailure(response, text));
   }
   if (!contentType.includes("application/json")) {
-    return ok({ content: [{ type: "text", text }] });
+    const result: Record<string, unknown> = { content: [{ type: "text", text }] };
+    if (tool.structuredTextOutput) {
+      result.structuredContent = tool.structuredTextOutput(
+        text,
+        parsed.data as Record<string, unknown>,
+      );
+    }
+    return ok(result);
   }
   let structured: unknown;
   try {

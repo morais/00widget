@@ -483,7 +483,7 @@ describe("tool input schemas", () => {
   // module load. A field added without a `.describe()` reaches every MCP client
   // as a bare `{"type":"string"}` — the model then has to guess whether `icon`
   // is a URL or an SF Symbol, and whether `amount` or `value` draws the bar.
-  it("declares an output schema for every tool that answers with JSON", async () => {
+  it("declares an output schema for every tool", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
@@ -491,10 +491,7 @@ describe("tool input schemas", () => {
     const tools = body.result?.tools as Array<{ name: string; outputSchema?: unknown }>;
 
     const missing = tools.filter((tool) => !tool.outputSchema).map((tool) => tool.name);
-    // The guide answers with markdown, so it has no structured content to
-    // describe — and declaring a schema it does not fill would be worse than
-    // declaring none.
-    expect(missing).toEqual(["get_integration_guide"]);
+    expect(missing).toEqual([]);
   });
 
   it("declares the get_status delivery fields returned by the handler", async () => {
@@ -535,6 +532,7 @@ describe("tool input schemas", () => {
       ["get_card", { id: "solar" }],
       ["list_cards", {}],
       ["delete_card", { id: "solar" }],
+      ["get_integration_guide", { section: "cards" }],
     ];
     for (const [name, args] of checks) {
       const result = await call(env, name, args);
@@ -544,6 +542,17 @@ describe("tool input schemas", () => {
         expect(structured, `${name}.${key}`).toHaveProperty(key);
       }
     }
+  });
+
+  it("returns the guide as both readable content and matching structured content", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const result = await call(env, "get_integration_guide", { section: "cards" });
+    const markdown = toolText(result);
+    const structured = result.result?.structuredContent as Record<string, unknown>;
+
+    expect(markdown).toContain("# 00Widget — cards");
+    expect(structured).toEqual({ section: "cards", markdown });
   });
 
   it("describes every argument a tool accepts", async () => {
