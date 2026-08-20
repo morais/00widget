@@ -4,16 +4,19 @@ import SwiftUI
 @main
 struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
     var body: some Widget {
-        CardWidget()
-        CardGridWidget()
-        ZeroZeroWidgetLiveActivityWidget()
 #if ZW_SCREENSHOTS
+        // Keep private configurations first: XCUITest must traverse the picker
+        // carousel for every placement, so this halves the required swipes.
         ScreenshotSolarWidget()
         ScreenshotWasherWidget()
         ScreenshotBoilerWidget()
         ScreenshotEnergyWidget()
+        ScreenshotEnergyWideWidget()
         ScreenshotDeploysWidget()
-        ScreenshotSpendingWidget()
+        ScreenshotDeviceFleetWidget()
 #endif
+        CardWidget()
+        CardGridWidget()
+        ZeroZeroWidgetLiveActivityWidget()
     }
 }

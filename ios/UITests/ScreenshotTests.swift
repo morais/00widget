@@ -60,18 +60,20 @@ final class ScreenshotTests: XCTestCase {
             // Always reach the dedicated marketing page from the first page so
             // the capture is independent of which page a previous run left open.
             let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            for _ in 0..<5 { springboard.swipeRight() }
-            for _ in 0..<marketingPageIndex(in: springboard) {
-                springboard.swipeLeft()
-            }
+            XCTAssertTrue(
+                navigateToMarketingPage(in: springboard),
+                "The prepared marketing Home Screen page disappeared."
+            )
             Thread.sleep(forTimeInterval: 3)
 
             let homeWidgets = springboard.descendants(matching: .icon)
                 .matching(identifier: "00Widget")
                 .allElementsBoundByIndex
+                .filter { $0.frame.width > 120 }
             XCTAssertTrue(
-                homeWidgets.filter { isSmallWidget($0) }.count == 3,
-                "The marketing page must contain exactly three small 00Widget widgets."
+                homeWidgets.count == 4
+                    && homeWidgets.filter { isSmallWidget($0) }.count == 3,
+                "The classic marketing page must contain three small widgets and one wide widget."
             )
             if isIPad(springboard) {
                 XCTAssertFalse(
@@ -79,7 +81,7 @@ final class ScreenshotTests: XCTestCase {
                     "The UI test runner must not appear in a marketing screenshot."
                 )
                 // iPad has no Dynamic Island. Its applicable Home Screen shot
-                // is the three-widget layout without an island presentation.
+                // is the classic widget layout without an island presentation.
                 capture(named: "screenshot-home-widgets")
             } else {
                 capture(named: "screenshot-home-dynamic-island")
@@ -95,10 +97,16 @@ final class ScreenshotTests: XCTestCase {
 
             app.activate()
             prepareHomeScreenWidgets(displayNames: insightWidgetNames)
+            let insightWidgets = marketingWidgets(in: springboard)
             XCTAssertEqual(
-                marketingWidgets(in: springboard).filter { isSmallWidget($0) }.count,
+                insightWidgets.count,
                 3,
-                "The insights page must contain exactly three small 00Widget widgets."
+                "The insights page must contain exactly three widgets."
+            )
+            XCTAssertEqual(
+                insightWidgets.filter { isSmallWidget($0) }.count,
+                3,
+                "Every widget on the insights page must be small."
             )
             capture(named: "screenshot-home-insights")
         }
@@ -154,15 +162,10 @@ final class ScreenshotTests: XCTestCase {
         guard activitiesTab.waitForExistence(timeout: 5) else { return false }
         activitiesTab.tap()
 
-        // Start a local sample so the tab shows a running activity rather than
-        // its empty state. Only push-started activities require APNs.
-        let generateActivity = app.buttons["Generate sample activity"]
-        if generateActivity.waitForExistence(timeout: 5) {
-            generateActivity.tap()
-        }
-
+        // The private screenshot build replaces any retained local sample when
+        // this screen opens, so a previous capture cannot leave stale content.
         XCTAssertTrue(
-            app.staticTexts["Washing machine"].waitForExistence(timeout: 15),
+            app.staticTexts["Home battery"].waitForExistence(timeout: 15),
             "Sample Live Activity did not start."
         )
         capture(named: "screenshot-activities")
@@ -180,33 +183,51 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Deploys"].firstMatch.waitForExistence(timeout: 5))
         capture(named: "screenshot-insights")
 
-        let spending = app.staticTexts["Spending"].firstMatch
-        XCTAssertTrue(scrollTo(spending, in: app, swipes: 4), "Spending sample card not found.")
+        let deviceFleet = app.staticTexts["Device fleet"].firstMatch
+        XCTAssertTrue(scrollTo(deviceFleet, in: app, swipes: 4), "Device fleet sample card not found.")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+            .press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            )
         capture(named: "screenshot-breakdown")
     }
 
     private var classicWidgetNames: [String] {
-        ["Screenshot Solar", "Screenshot Washer", "Screenshot Boiler"]
+        ["Screenshot Solar", "Screenshot Washer", "Screenshot Boiler", "Screenshot Energy Wide"]
     }
 
     private var insightWidgetNames: [String] {
-        ["Screenshot Energy", "Screenshot Deploys", "Screenshot Spending"]
+        ["Screenshot Energy", "Screenshot Deploys", "Screenshot Device Fleet"]
     }
 
-    /// Replaces the retained layout with three screenshot-only small widgets.
-    /// One existing widget stays until all three are added so SpringBoard does
+    /// Replaces the retained layout with the requested screenshot-only widgets.
+    /// One existing widget stays until the first replacement is added so SpringBoard does
     /// not delete the otherwise-empty dedicated page.
     private func prepareHomeScreenWidgets(displayNames: [String]) {
         XCUIDevice.shared.press(.home)
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for _ in 0..<5 { springboard.swipeRight() }
-        for _ in 0..<marketingPageIndex(in: springboard) {
-            springboard.swipeLeft()
+        if !navigateToMarketingPage(in: springboard) {
+            createMarketingPage(in: springboard)
+            XCTAssertTrue(
+                navigateToMarketingPage(in: springboard),
+                "The marketing Home Screen page could not be created."
+            )
         }
 
-        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.7))
-            .press(forDuration: 1.2)
-        XCTAssertTrue(springboard.buttons["Edit"].waitForExistence(timeout: 5))
+        enterHomeScreenEditing(in: springboard)
+
+        // A fresh iPhone simulator ships with Maps and Calendar widgets on its
+        // widget page. Reuse that page, but clear those system widgets so the
+        // classic layout has room for three small cards and the wide Energy
+        // chart. App icons are excluded by the widget-sized frame filter.
+        if !isIPad(springboard) {
+            for widget in homeScreenWidgets(in: springboard)
+                .filter({ $0.identifier != "00Widget" })
+            {
+                removeHomeScreenWidget(widget, in: springboard)
+            }
+        }
 
         let existing = marketingWidgets(in: springboard)
         let hasNonSmall = existing.contains { !isSmallWidget($0) }
@@ -221,12 +242,14 @@ final class ScreenshotTests: XCTestCase {
         }
 
         let insertionOrder = isIPad(springboard) ? displayNames : Array(displayNames.reversed())
-        for name in insertionOrder {
+        for (index, name) in insertionOrder.enumerated() {
             addWidget(named: name, in: springboard)
-        }
-
-        if keepSmallAnchor {
-            removeWidget(in: springboard, matching: isSmallWidget, last: true)
+            if keepSmallAnchor && index == 0 {
+                // Once a replacement exists, the page no longer needs the old
+                // small widget as an anchor. At this point it is still the last
+                // retained widget in Home Screen order.
+                removeWidget(in: springboard, matching: isSmallWidget, last: true)
+            }
         }
         if hasNonSmall {
             removeWidget(in: springboard) { !isSmallWidget($0) }
@@ -274,17 +297,29 @@ final class ScreenshotTests: XCTestCase {
         let matches = marketingWidgets(in: springboard).filter(predicate)
         let widget = last ? matches.max(by: isEarlierOnHomeScreen) : matches.first
         XCTAssertNotNil(widget, "Expected retained 00Widget widget was not found.")
-        widget?.buttons["DeleteButton"].tap()
+        guard let widget else { return }
+        removeHomeScreenWidget(widget, in: springboard)
+    }
+
+    private func removeHomeScreenWidget(
+        _ widget: XCUIElement,
+        in springboard: XCUIApplication
+    ) {
+        widget.buttons["DeleteButton"].tap()
         XCTAssertTrue(springboard.buttons["Remove"].waitForExistence(timeout: 5))
         springboard.buttons["Remove"].tap()
         Thread.sleep(forTimeInterval: 1)
     }
 
-    private func marketingWidgets(in springboard: XCUIApplication) -> [XCUIElement] {
+    private func homeScreenWidgets(in springboard: XCUIApplication) -> [XCUIElement] {
         springboard.descendants(matching: .icon)
-            .matching(identifier: "00Widget")
             .allElementsBoundByIndex
             .filter { $0.frame.width > 120 }
+    }
+
+    private func marketingWidgets(in springboard: XCUIApplication) -> [XCUIElement] {
+        homeScreenWidgets(in: springboard)
+            .filter { $0.identifier == "00Widget" }
     }
 
     private func isSmallWidget(_ widget: XCUIElement) -> Bool {
@@ -318,10 +353,59 @@ final class ScreenshotTests: XCTestCase {
         app.activate()
     }
 
-    private func marketingPageIndex(in springboard: XCUIApplication) -> Int {
-        // The leftmost position is Today View on both devices. The iPad's
-        // second regular page avoids the large preinstalled Apple widgets.
-        isIPad(springboard) ? 2 : 3
+    /// Finds the retained marketing page by its 00Widget widgets instead of by
+    /// a fixed page number. SpringBoard renumbers pages when an ordinary page
+    /// is added or removed; a hard-coded index can therefore land in App
+    /// Library even though the dedicated widget page still exists.
+    private func navigateToMarketingPage(in springboard: XCUIApplication) -> Bool {
+        for _ in 0..<8 { springboard.swipeRight() }
+        for page in 0..<8 {
+            if !marketingWidgets(in: springboard).isEmpty { return true }
+            if page < 7 { springboard.swipeLeft() }
+        }
+        return false
+    }
+
+    /// Bootstraps the otherwise-retained widget-only page after a simulator
+    /// reset or after SpringBoard has deleted it. A temporary small widget is
+    /// added to the first ordinary page, then carried right past the existing
+    /// pages; SpringBoard creates a new page to receive it without moving or
+    /// deleting any of the user's app icons.
+    private func createMarketingPage(in springboard: XCUIApplication) {
+        for _ in 0..<8 { springboard.swipeRight() }
+        springboard.swipeLeft()
+        enterHomeScreenEditing(in: springboard)
+        addWidget(named: "Screenshot Solar", in: springboard)
+
+        for _ in 0..<6 {
+            guard let widget = marketingWidgets(in: springboard).first else {
+                XCTFail("The temporary marketing widget disappeared while creating its page.")
+                return
+            }
+            widget.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(
+                    forDuration: 0.8,
+                    thenDragTo: springboard.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.98, dy: 0.45)
+                    )
+                )
+            Thread.sleep(forTimeInterval: 1)
+        }
+
+        XCTAssertTrue(springboard.buttons["Done"].waitForExistence(timeout: 5))
+        springboard.buttons["Done"].tap()
+        Thread.sleep(forTimeInterval: 2)
+    }
+
+    private func enterHomeScreenEditing(in springboard: XCUIApplication) {
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.7))
+            .press(forDuration: 1.2)
+        if !springboard.buttons["Edit"].waitForExistence(timeout: 2) {
+            let editHomeScreen = springboard.buttons["Edit Home Screen"]
+            XCTAssertTrue(editHomeScreen.waitForExistence(timeout: 3))
+            editHomeScreen.tap()
+        }
+        XCTAssertTrue(springboard.buttons["Edit"].waitForExistence(timeout: 5))
     }
 
     /// SwiftUI exposes the same navigation as tab-bar buttons on iPhone and

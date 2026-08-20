@@ -110,20 +110,19 @@ public enum SampleDataFactory {
             )
             ,
             DashboardCard(
-                id: sampleId("spending"),
+                id: sampleId("device-fleet"),
                 template: .breakdown,
-                title: "Spending",
-                subtitle: "This month",
-                value: "394",
-                unit: "€",
-                status: .good,
-                icon: "eurosign.circle",
+                title: "Device fleet",
+                subtitle: "Current status",
+                value: "24",
+                status: .warning,
+                icon: "desktopcomputer",
                 updatedAt: now,
                 items: [
-                    DashboardItem(id: "groceries", title: "Groceries", value: "182", unit: "€", amount: 182.4),
-                    DashboardItem(id: "transport", title: "Transport", value: "96", unit: "€", amount: 96.2),
-                    DashboardItem(id: "utilities", title: "Utilities", value: "74", unit: "€", amount: 74.1),
-                    DashboardItem(id: "other", title: "Other", value: "41", unit: "€", amount: 41.3),
+                    DashboardItem(id: "healthy", title: "Healthy", value: "14", status: .good, amount: 14),
+                    DashboardItem(id: "updating", title: "Updating", value: "5", status: .running, amount: 5),
+                    DashboardItem(id: "attention", title: "Attention", value: "3", status: .warning, amount: 3),
+                    DashboardItem(id: "offline", title: "Offline", value: "2", status: .offline, amount: 2),
                 ]
             )
         ]
@@ -134,37 +133,23 @@ public enum SampleDataFactory {
     /// agent started.
     public static func makeLiveActivitySession() -> LiveActivitySession {
         LiveActivitySession(
-            externalActivityId: sampleId("washer"),
-            kind: .appliance,
-            title: "Washing machine",
-            subtitle: "Cycle running",
-            state: "running",
-            value: nil,
-            unit: nil,
-            progress: nil,
-            items: [
-                LiveActivityItem(
-                    id: "washer",
-                    title: "Washer",
-                    subtitle: "Rinsing",
-                    icon: "washer",
-                    value: "18",
-                    unit: "min",
-                    progress: 0.62,
-                    status: .running
-                ),
-                LiveActivityItem(
-                    id: "dryer",
-                    title: "Dryer",
-                    subtitle: "Ready next",
-                    icon: "wind",
-                    status: .paused
-                ),
-            ],
+            externalActivityId: sampleId("home-battery"),
+            kind: .charging,
+            title: "Home battery",
+            subtitle: "Charging from solar",
+            state: "charging",
+            icon: "battery.100percent.bolt",
+            statusIcon: "bolt.fill",
+            value: "95",
+            unit: "%",
+            progress: 0.95,
             chart: DashboardChart(
-                points: [42, 38, 35, 31, 29, 26, 24, 22, 20, 18],
-                min: 0,
-                reference: 20
+                // Solar input and household load make the state of charge
+                // wobble even while the overall trend is upward.
+                points: [38, 57, 51, 72, 64, 68, 85, 76, 91, 95],
+                min: 30,
+                max: 100,
+                reference: 100
             ),
             startedAt: Date(),
             updatedAt: Date(),

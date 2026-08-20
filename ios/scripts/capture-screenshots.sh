@@ -74,7 +74,11 @@ xcrun simctl status_bar "$DEVICE" override \
 # renders empty. Re-signing between build and run, the way build-sim.sh does,
 # gives both processes the container: widgets read real cards, and the
 # "hide sample indicators" flag reaches the extension.
-DERIVED="$WORK/DerivedData"
+# Keep DerivedData between runs. Xcode still invalidates changed inputs, while
+# iterative screenshot work avoids recompiling the entire app and test bundle.
+# The cache lives under gitignored ios/build and can be overridden or deleted
+# whenever a genuinely clean build is wanted.
+DERIVED="${ZW_SCREENSHOT_DERIVED_DATA:-$IOS_ROOT/build/ScreenshotDerivedData-ios}"
 
 echo "→ building for testing"
 xcodebuild build-for-testing \

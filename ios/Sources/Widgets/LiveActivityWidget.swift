@@ -13,7 +13,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     Label(context.attributes.title, systemImage: iconName(attributes: context.attributes, state: context.state))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(context.attributes.kind.tint)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .layoutPriority(1)
@@ -65,7 +65,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         // Ranked above progress: a producer sending both has a
                         // number that moves, and the plot says which way while
                         // a bar only says how far.
-                        SparklineView(chart: chart, tint: .primary, lineWidth: 1.5)
+                        SparklineView(chart: chart, tint: context.attributes.kind.tint, lineWidth: 1.5)
                             .frame(height: 26)
                             .padding(.horizontal, 8)
                             .padding(.bottom, 4)
@@ -76,6 +76,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 Image(systemName: iconName(attributes: context.attributes, state: context.state))
+                    .foregroundStyle(context.attributes.kind.tint)
             } compactTrailing: {
                 // The compact trailing region is a few points wide. Without a
                 // scale factor the text is clipped rather than shrunk, and it
@@ -93,6 +94,8 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         .monospacedDigit()
                     } else if let value = context.state.value {
                         Text(value)
+                            .font(.caption2)
+                            .monospacedDigit()
                     } else if let p = context.state.progress {
                         Text("\(Int((max(0, min(p, 1)) * 100).rounded()))%")
                             .monospacedDigit()
@@ -236,7 +239,7 @@ private struct LockScreenView: View {
                 // Only on the non-composite banner: item rows already fill a
                 // composite one, and the Lock Screen has no room for both.
                 if let chart = state.chart, chart.isRenderable {
-                    SparklineView(chart: chart, tint: .primary, lineWidth: 1.5)
+                    SparklineView(chart: chart, tint: attributes.kind.tint, lineWidth: 1.5)
                         .frame(height: 24)
                 }
                 Text("Updated \(state.updatedAt, style: .relative)")
@@ -346,7 +349,7 @@ private struct LockScreenView: View {
         if let statusIcon = state.statusIcon {
             Image(systemName: statusIcon)
                 .font(font)
-                .foregroundStyle(.primary)
+                .foregroundStyle(attributes.kind.tint)
         }
     }
 

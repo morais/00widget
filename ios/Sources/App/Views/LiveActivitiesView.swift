@@ -11,7 +11,16 @@ struct LiveActivitiesView: View {
             content
                 .navigationTitle("Activities")
                 .refreshable { await liveActivityController.reconcileWithServer() }
-                .task { await liveActivityController.reconcileWithServer() }
+                .task {
+                    #if ZW_SCREENSHOTS
+                    // ActivityKit survives app reinstalls and previous capture
+                    // runs. Replace the retained local sample so changes to
+                    // the marketing data appear on the very next run.
+                    await liveActivityController.endSamples()
+                    try? await liveActivityController.startSample()
+                    #endif
+                    await liveActivityController.reconcileWithServer()
+                }
         }
     }
 
@@ -141,12 +150,12 @@ private struct ActivityCard: View {
                 VStack(spacing: 2) {
                     Image(systemName: iconName)
                         .font(.title2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(session.kind.tint)
                     // What the activity is doing right now, under what it is.
                     if let statusIcon = session.statusIcon {
                         Image(systemName: statusIcon)
                             .font(.caption)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(session.kind.tint)
                     }
                 }
                 .frame(width: 32)
@@ -192,6 +201,7 @@ private struct ActivityCard: View {
             } else if let progress = session.progress, session.endsAt == nil, session.chart == nil {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
+                    .tint(session.kind.tint)
             }
 
             // Unlike the Lock Screen banner, the app card can afford the plot
@@ -203,7 +213,7 @@ private struct ActivityCard: View {
             // white in light mode — that edge reads as the plot bleeding out
             // of a clipped container rather than as the bottom of a chart.
             if let chart = session.chart, chart.isRenderable {
-                SparklineView(chart: chart, tint: .accentColor, lineWidth: 2)
+                SparklineView(chart: chart, tint: session.kind.tint, lineWidth: 2)
                     .frame(height: 56)
                     .padding(10)
                     .background(

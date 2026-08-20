@@ -39,3 +39,16 @@ public enum DashboardStatus: String, Codable, CaseIterable, Hashable, Sendable {
         }
     }
 }
+
+public extension LiveActivityKind {
+    /// A stable semantic accent for Live Activity surfaces. Charging uses
+    /// green rather than inheriting each platform's default blue/white tint.
+    var tint: Color {
+        switch self {
+        case .charging: return .green
+        case .appliance, .progress: return .blue
+        case .job, .timer: return .orange
+        case .generic: return .accentColor
+        }
+    }
+}

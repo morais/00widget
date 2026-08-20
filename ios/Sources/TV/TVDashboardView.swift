@@ -261,11 +261,11 @@ private struct TVLiveActivityCardView: View {
                     }
 
                     if let chart = activity.chart, chart.isRenderable {
-                        SparklineView(chart: chart, tint: .accentColor, lineWidth: 3)
+                        SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 3)
                             .frame(height: 46)
                     } else if let progress = activity.progress, activity.endsAt == nil {
                         ProgressView(value: max(0, min(progress, 1)))
-                            .tint(.accentColor)
+                            .tint(activity.kind.tint)
                     }
 
                     Spacer(minLength: 0)
@@ -303,7 +303,7 @@ private struct TVLiveActivityCardView: View {
         HStack(spacing: 12) {
             Image(systemName: iconName)
                 .font(.title2)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(activity.kind.tint)
             Text(activity.title)
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
@@ -314,8 +314,8 @@ private struct TVLiveActivityCardView: View {
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                .foregroundStyle(Color.accentColor)
+                .background(Capsule().fill(activity.kind.tint.opacity(0.18)))
+                .foregroundStyle(activity.kind.tint)
         }
     }
 

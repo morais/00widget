@@ -10,6 +10,7 @@ import WidgetKit
 /// giving the screenshot harness stable, independently identifiable widgets.
 private struct ScreenshotCardProvider: TimelineProvider {
     let sampleSuffix: String
+    let density: CardRenderDensity
 
     func placeholder(in context: Context) -> CardTimelineEntry {
         entry()
@@ -27,25 +28,27 @@ private struct ScreenshotCardProvider: TimelineProvider {
         let id = SampleDataFactory.sampleId(sampleSuffix)
         let card = CardCache.load().cards.first(where: { $0.id == id })
             ?? SampleDataFactory.makeCards().first(where: { $0.id == id })
-        return CardTimelineEntry(date: Date(), card: card, density: .compact)
+        return CardTimelineEntry(date: Date(), card: card, density: density)
     }
 }
 
 private func screenshotCardConfiguration(
     kind: String,
     sampleSuffix: String,
-    displayName: String
+    displayName: String,
+    density: CardRenderDensity = .compact,
+    supportedFamilies: [WidgetFamily] = [.systemSmall]
 ) -> some WidgetConfiguration {
     StaticConfiguration(
         kind: kind,
-        provider: ScreenshotCardProvider(sampleSuffix: sampleSuffix)
+        provider: ScreenshotCardProvider(sampleSuffix: sampleSuffix, density: density)
     ) { entry in
         CardWidgetView(entry: entry)
             .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName(displayName)
     .description("Marketing screenshot sample.")
-    .supportedFamilies([.systemSmall])
+    .supportedFamilies(supportedFamilies)
 }
 
 struct ScreenshotSolarWidget: Widget {
@@ -88,6 +91,18 @@ struct ScreenshotEnergyWidget: Widget {
     }
 }
 
+struct ScreenshotEnergyWideWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.energy-wide",
+            sampleSuffix: "energy-trend",
+            displayName: "Screenshot Energy Wide",
+            density: .automatic,
+            supportedFamilies: [.systemMedium]
+        )
+    }
+}
+
 struct ScreenshotDeploysWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
@@ -98,12 +113,12 @@ struct ScreenshotDeploysWidget: Widget {
     }
 }
 
-struct ScreenshotSpendingWidget: Widget {
+struct ScreenshotDeviceFleetWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.spending",
-            sampleSuffix: "spending",
-            displayName: "Screenshot Spending"
+            kind: "com.00widget.screenshot.device-fleet",
+            sampleSuffix: "device-fleet",
+            displayName: "Screenshot Device Fleet"
         )
     }
 }

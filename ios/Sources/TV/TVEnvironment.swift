@@ -36,7 +36,7 @@ final class TVEnvironment: ObservableObject {
         } else {
             self.cards = samples
         }
-        self.liveActivities = screenshotSection == "widgets" || screenshotSection == "insights"
+        self.liveActivities = screenshotSection == "widgets"
             ? []
             : [SampleDataFactory.makeLiveActivitySession()]
         SharedSettings.setHideSampleIndicators(true)

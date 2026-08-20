@@ -38,6 +38,7 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 RESULT="$WORK/screenshots.xcresult"
+DERIVED="${ZW_TV_SCREENSHOT_DERIVED_DATA:-$IOS_ROOT/build/ScreenshotDerivedData-tvos}"
 
 echo "→ booting $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
@@ -60,7 +61,7 @@ xcodebuild test \
   -project ZeroZeroWidget.xcodeproj \
   -scheme ZeroZeroWidgetTVScreenshots \
   -destination "platform=tvOS Simulator,name=$DEVICE" \
-  -derivedDataPath "$WORK/DerivedData" \
+  -derivedDataPath "$DERIVED" \
   -resultBundlePath "$RESULT" \
   "${TEST_FILTERS[@]}" \
   CODE_SIGNING_ALLOWED=NO \

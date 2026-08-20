@@ -12,7 +12,7 @@ final class TVScreenshotTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Washing machine"].waitForExistence(timeout: 30),
+            app.staticTexts["Home battery"].waitForExistence(timeout: 30),
             "Sample Live Activity did not render on Apple TV."
         )
         capture(named: "screenshot-tv-activities")
@@ -38,7 +38,8 @@ final class TVScreenshotTests: XCTestCase {
             app.staticTexts["Energy"].waitForExistence(timeout: 30),
             "Chart samples did not render on Apple TV."
         )
-        XCTAssertTrue(app.staticTexts["Spending"].exists)
+        XCTAssertTrue(app.staticTexts["Device fleet"].exists)
+        XCTAssertTrue(app.staticTexts["Home battery"].exists)
         capture(named: "screenshot-tv-insights")
     }
 
