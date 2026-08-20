@@ -112,14 +112,6 @@ def save(image: Image.Image, path: Path, *, opaque: bool = False) -> None:
     image.save(path, optimize=True)
 
 
-def save_chatgpt_icon(image: Image.Image, path: Path) -> None:
-    """Write the 256 px GPT icon while enforcing its 10 KB asset budget."""
-    icon = image.convert("RGB").resize((256, 256), Image.Resampling.LANCZOS)
-    icon.save(path, format="JPEG", quality=90, optimize=True, progressive=True)
-    if path.stat().st_size >= 10_000:
-        raise SystemExit(f"Generated ChatGPT icon exceeds 10 KB: {path}")
-
-
 def exact_wordmark(*, transparent: bool) -> Image.Image:
     source = crop(WORDMARK_BOX)
     if transparent:
@@ -206,9 +198,10 @@ def generate() -> None:
 
     save(app_icon, BRAND_DIR / "mark-1024.png", opaque=True)
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
+    save(resize(app_icon, (512, 512), opaque=True), BRAND_DIR / "plugin-logo.png", opaque=True)
+    save(contain(mark, (512, 512), padding=10), BRAND_DIR / "plugin-composer-icon.png")
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
-    save_chatgpt_icon(app_icon, BRAND_DIR / "chatgpt-icon-256.jpg")
 
     save(app_icon, REPO_ROOT / "ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
 
