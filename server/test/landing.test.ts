@@ -12,7 +12,7 @@ describe("public landing + docs endpoints", () => {
     expect(res.headers.get("content-type")?.startsWith("text/html")).toBe(true);
     const body = await res.text();
     expect(body).toContain("Widgets for all your agents");
-    expect(body).toContain("Pointing an agent at 00Widget from another project");
+    expect(body).toContain("Integrate an app, script, or automation");
     expect(body).toContain("00WIDGET_BASE_URL");
     expect(body).toContain("/llms.md");
   });

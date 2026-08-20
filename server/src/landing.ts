@@ -127,18 +127,19 @@ export async function handleLlmsTxt(req: Request, env: Env): Promise<Response> {
 
 An MCP server is available at ${baseURL}/mcp (Streamable HTTP, OAuth 2.1).
 ${baseURL}/mcp.json returns a client config for it. Agents writing code should
-call the endpoints above directly instead.
+use the API integration contract below instead.
 `
     : "";
   const body = `# 00Widget
 
 Widgets for all your agents.
 
-A reusable iOS companion app and Cloudflare Worker backend that lets your web apps,
-automations, and agents publish structured state to iOS widgets, Live Activities,
-and the Dynamic Island.
+A reusable Apple-platform companion app and Cloudflare Worker backend that gives
+Claude, ChatGPT, automations, and software you build a native output channel
+through widgets, Live Activities, the Dynamic Island, and Apple TV dashboards.
+${mcp}
 
-## Integration contract for AI agents
+## API integration contract
 
 The complete API contract is at ${baseURL}/llms.md — that one
 document is everything an integrating agent needs.
@@ -154,7 +155,7 @@ document is everything an integrating agent needs.
 
 All /v1/* endpoints require Authorization: Bearer <api-token>. Tokens are issued
 from the operator's /admin dashboard, not from this file.
-${mcp}`;
+`;
   return new Response(body, {
     status: 200,
     headers: {
@@ -263,7 +264,7 @@ function renderLandingHTML(baseURL: string, mcpEnabled: boolean): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>00Widget — Widgets for all your agents</title>
-<meta name="description" content="A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS widgets, Live Activities, and the Dynamic Island.">
+<meta name="description" content="00Widget gives Claude, ChatGPT, automations, and custom agents a native output channel through widgets, Live Activities, the Dynamic Island, and Apple TV dashboards.">
 <style>${LANDING_STYLES}</style>
 </head>
 <body>
@@ -272,11 +273,12 @@ function renderLandingHTML(baseURL: string, mcpEnabled: boolean): string {
   <p class="tagline">Widgets for all your agents.</p>
 </header>
 
-<p>A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS Home/Lock Screen widgets, Live Activities, and the Dynamic Island.</p>
+<p>A reusable Apple-platform companion app and Cloudflare Worker backend that gives Claude, ChatGPT, automations, and software you build a native output channel through widgets, Live Activities, the Dynamic Island, and Apple TV dashboards.</p>
 
-<p>The server never sends UI — only structured state conforming to a small set of templates. The iOS app renders that state through predefined SwiftUI views.</p>
+<p>The server never sends UI — only structured state conforming to a small set of templates. The Apple apps render that state through predefined SwiftUI views.</p>
 
-<h2>Pointing an agent at 00Widget from another project</h2>
+${mcpEnabled ? mcpSection(baseURL) : ""}
+<h2>Integrate an app, script, or automation</h2>
 
 <p>If you're inside another repo (a CI pipeline, a home-automation script, a server-side agent) and want Claude Code / Codex to publish state here, paste this into the agent — it's self-contained:</p>
 
@@ -287,7 +289,6 @@ function renderLandingHTML(baseURL: string, mcpEnabled: boolean): string {
 
 <p class="copy-hint">The API contract is also available at <a href="/llms.md"><code>/llms.md</code></a>.</p>
 
-${mcpEnabled ? mcpSection(baseURL) : ""}
 <h2>API endpoints</h2>
 
 <ul class="endpoints">
@@ -312,9 +313,9 @@ ${mcpEnabled ? mcpSection(baseURL) : ""}
 // Only rendered where MCP is actually enabled. A deployment that has not turned
 // it on should not advertise an endpoint that answers 404.
 function mcpSection(baseURL: string): string {
-  return `<h2>Connect an MCP client</h2>
+  return `<h2>Connect Claude, ChatGPT, or another MCP host</h2>
 
-<p>Hosts that speak the Model Context Protocol — ChatGPT connectors, Claude, some editors — can publish here without any code. Add this URL as a custom connector:</p>
+<p>Publish directly from a conversation with no integration code. Add this URL as a custom connector:</p>
 
 <div class="copy-wrap">
   <button type="button" class="copy-btn" data-copy-target="mcp-url" aria-label="Copy MCP server URL">Copy</button>

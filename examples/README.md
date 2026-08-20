@@ -1,6 +1,6 @@
 # 00Widget — Examples
 
-Thin `curl` scripts demonstrating how any agent, automation, or web app can publish state to 00Widget.
+Thin `curl` scripts demonstrating the API path for scripts, services, automations, and custom agents that publish state to 00Widget.
 
 ## Setup
 

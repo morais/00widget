@@ -6,11 +6,27 @@
 
 **Widgets for all your agents.**
 
-A reusable iOS companion app and Cloudflare Worker backend that lets your web apps, automations, and agents publish structured state to iOS Home/Lock Screen widgets, Live Activities, and the Dynamic Island.
+A reusable Apple-platform companion app and Cloudflare Worker backend that gives Claude, ChatGPT, automations, and software you build a native output channel through widgets, Live Activities, the Dynamic Island, and Apple TV dashboards.
 
-The server never sends UI — only structured state conforming to a small set of templates. The iOS app renders that state through predefined SwiftUI views.
+The server never sends UI — only structured state conforming to a small set of templates. The Apple apps render that state through predefined SwiftUI views.
 
-## Pointing an agent at 00Widget from another project
+## Choose how to connect
+
+### Claude, ChatGPT, and other MCP hosts
+
+Hosts that speak the Model Context Protocol can publish to 00Widget with no
+integration code: add `<BASE_URL>/mcp` as a custom connector, sign in, and pick
+a tenant. The tools wrap the same handlers as the REST routes, so the two
+surfaces cannot drift.
+
+MCP is off by default (`MCP_ENABLED` in `wrangler.toml`) because it exposes a
+browser flow that mints API tokens on the public internet. Approving a connector
+requires signing in, and the credential it issues is a normal tenant token
+scoped to the approver's own account, revocable from `/admin`.
+
+Details: `server/README.md` → "MCP".
+
+### Apps, scripts, automations, and coding agents
 
 If you're inside another repo (say, a CI pipeline or a home-automation script) and want to make Claude Code / Codex publish state to your 00Widget instance, paste this into the agent — it's self-contained:
 
@@ -95,20 +111,6 @@ See `ios/Sources/Shared/Models/` (Swift) and `server/src/types.ts` (zod) — the
 - **DashboardCard** — a single widget tile. Templates: `summary`, `progress`, `list`, `action`, `chart`.
 - **LiveActivitySession** — a Lock Screen / Dynamic Island activity.
 - **ActionDefinition** — a button that runs a backend-defined action via `POST /v1/actions/:id/run`.
-
-## MCP endpoint
-
-Hosts that speak the Model Context Protocol — ChatGPT connectors, Claude,
-editors — can publish to 00Widget with no integration code: add
-`<BASE_URL>/mcp` as a custom connector, sign in, and pick a tenant. The tools
-wrap the same handlers as the REST routes, so the two cannot drift.
-
-It is off by default (`MCP_ENABLED` in `wrangler.toml`) because it puts a
-browser flow that mints API tokens on the public internet. Approving a connector
-requires signing in, and the credential it issues is a normal tenant token
-scoped to the approver's own account, revocable from `/admin`.
-
-Details: `server/README.md` → "MCP".
 
 ## Web sign-in and admin
 

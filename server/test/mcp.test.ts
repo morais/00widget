@@ -765,6 +765,8 @@ describe("advertising the endpoint", () => {
     for (const path of ["/", "/llms.txt"]) {
       const on = await (await fetchWorker(new Request(`https://api.example.com${path}`), mcpEnv(), ctx)).text();
       expect(on, path).toContain("https://api.example.com/mcp");
+      const apiMarker = path === "/" ? "Integrate an app, script, or automation" : "## API integration contract";
+      expect(on.indexOf("https://api.example.com/mcp"), path).toBeLessThan(on.indexOf(apiMarker));
       const off = await (await fetchWorker(new Request(`https://api.example.com${path}`), makeEnv(), ctx)).text();
       expect(off, path).not.toContain("/mcp");
     }

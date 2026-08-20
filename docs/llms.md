@@ -1,10 +1,25 @@
 # Integrating with 00Widget
 
-You're an agent (Claude Code, Codex, etc.) working on a project that wants to **publish state to 00Widget** so it shows up on the operator's iOS widgets, Lock Screen, and Dynamic Island.
+You're an agent (Claude Code, Codex, etc.) working on a project that wants to **publish state to 00Widget** so it shows up on the operator's widgets, Lock Screen, Dynamic Island, and Apple TV dashboard.
 
 This document is the entire contract you need. You do **not** need to read the rest of this repo. The 00Widget app and backend handle rendering — you just publish structured JSON.
 
-## TL;DR
+## Choose the right connection
+
+- **Publishing directly from Claude, ChatGPT, or another MCP host:** if the
+  operator has enabled MCP, add `<BASE_URL>/mcp` as a custom connector and sign
+  in. Use the exposed tools; call `get_status` before the first publish and
+  `get_integration_guide` for the rendering rules relevant to the task. You do
+  not need an API key or integration code.
+- **Adding 00Widget to an app, script, service, automation, or repository:** use
+  the REST API documented below. Ask the operator for the base URL and a
+  publisher API key, then add the smallest possible publish path to the code.
+
+Do not add MCP as an internal dependency merely because the code is being
+written by an AI agent. MCP is the direct-host connection; HTTP+JSON is the
+software integration.
+
+## TL;DR for API integrations
 
 - Get two values from the operator: `00WIDGET_BASE_URL` and `00WIDGET_API_KEY`.
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
