@@ -479,6 +479,52 @@ public final class AppEnvironment: ObservableObject {
         publisherCredential.isEmpty ? apiKey : publisherCredential
     }
 
+    /// A client on the publisher credential.
+    ///
+    /// Deleting a card is a `publish`-scoped write, and the device credential
+    /// this app authenticates most calls with carries `read`,
+    /// `device:register`, and `actions:run` — not `publish`. The publisher
+    /// token is the one that can, and is the same token Settings hands to an
+    /// agent, so a manually pasted producer key works here too.
+    public func publisherClient() -> APIClient? {
+        guard
+            let url = APIClientConfig.validatedBaseURL(from: serverBaseURL),
+            !agentApiKey.isEmpty
+        else { return nil }
+        return APIClient(config: APIClientConfig(baseURL: url, apiKey: agentApiKey))
+    }
+
+    /// Removes a card from the account, not just from this device.
+    ///
+    /// Samples never reached the server — they are generated on-device
+    /// straight into the App Group — so deleting one is a local edit and
+    /// needs no credential, which also keeps the samples removable for a user
+    /// who has never signed in.
+    ///
+    /// Everything else goes to the server first. Dropping the card locally on
+    /// a failed request would let the next fetch bring it straight back, with
+    /// nothing said about why.
+    public func deleteCard(_ card: DashboardCard) async throws {
+        if !card.isSample {
+            guard let client = publisherClient() else {
+                throw APIClientError(
+                    status: 0,
+                    message: "Server URL or API key not configured."
+                )
+            }
+            try await client.deleteCard(id: card.id)
+        }
+        removeCardLocally(id: card.id)
+    }
+
+    private func removeCardLocally(id: String) {
+        var cached = CardCache.load().cards
+        cached.removeAll { $0.id == id }
+        try? CardCache.save(cached)
+        cards.removeAll { $0.id == id }
+        reloadWidgetTimelines()
+    }
+
     public func fetchCards() async {
         guard let client = apiClient() else {
             lastSyncError = "Server URL or API key not configured"

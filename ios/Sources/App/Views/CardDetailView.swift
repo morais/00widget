@@ -8,12 +8,24 @@ struct CardDetailView: View {
     @State private var showRawJson = false
     @State private var showCurlExample = false
     @State private var showGuestLinkSheet = false
+    @State private var confirmingDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
+    @Environment(\.dismiss) private var dismiss
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
     #endif
 
     private var isGuestCard: Bool {
-        env.guestCards.contains { $0.id == card.id }
+        card.isFromGuestLink || env.guestCards.contains { $0.id == card.id }
+    }
+
+    /// Only a card this account owns. A card arriving through a share or a
+    /// guest link lives in somebody else's tenant, so there is nothing here
+    /// that could delete it — a local-only "delete" would just have it
+    /// reappear on the next refresh.
+    private var canDelete: Bool {
+        !isGuestCard && card.sharedBy == nil
     }
 
     var body: some View {
@@ -61,13 +73,20 @@ struct CardDetailView: View {
                 }
                 .font(.headline)
 
-                HStack {
-                    Spacer()
-                    Button("Delete from cache", role: .destructive) {
-                        var cards = CardCache.load().cards
-                        cards.removeAll { $0.id == currentCard.id }
-                        try? CardCache.save(cards)
-                        env.loadCachedCards()
+                if canDelete {
+                    if let deleteError {
+                        Text(deleteError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button(deleting ? "Deleting\u{2026}" : "Delete", role: .destructive) {
+                            confirmingDelete = true
+                        }
+                        .disabled(deleting)
                     }
                 }
             }
@@ -129,6 +148,36 @@ struct CardDetailView: View {
             }
         } message: { action in
             Text("Run \(action.label) for \(currentCard.title)?")
+        }
+        .confirmationDialog(
+            "Delete \(currentCard.title)?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { delete(currentCard) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(deleteConfirmationMessage(for: currentCard))
+        }
+    }
+
+    private func deleteConfirmationMessage(for card: DashboardCard) -> String {
+        card.isSample
+            ? "This sample only exists on this device. Removing it affects nothing else."
+            : "This removes the card from the server as well as from this device. Any widget showing it goes blank until an agent publishes it again."
+    }
+
+    private func delete(_ card: DashboardCard) {
+        Task {
+            deleting = true
+            deleteError = nil
+            defer { deleting = false }
+            do {
+                try await env.deleteCard(card)
+                dismiss()
+            } catch {
+                deleteError = error.localizedDescription
+            }
         }
     }
 
