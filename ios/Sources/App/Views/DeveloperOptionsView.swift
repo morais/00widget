@@ -8,7 +8,13 @@ import SwiftUI
 /// default to off and both explain what they do.
 struct DeveloperOptionsView: View {
     @EnvironmentObject var env: AppEnvironment
-    @State private var showRawCardDetails = SharedSettings.showRawCardDetails
+    // The same storage `RawPayloadDisclosure` gates on, so the toggle and the
+    // screens it governs cannot disagree.
+    @AppStorage(
+        ZeroZeroWidgetConstants.UserDefaultsKeys.showRawPayloads,
+        store: UserDefaults(suiteName: ZeroZeroWidgetConstants.appGroupIdentifier)
+    )
+    private var showRawPayloads = false
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
     @State private var timelineEvents = WidgetTimelineDiagnostics.recentEvents
     @State private var widgetPushSnapshot = WidgetPushTokenStore.load()
@@ -17,14 +23,11 @@ struct DeveloperOptionsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show raw JSON and curl", isOn: $showRawCardDetails)
-                    .onChange(of: showRawCardDetails) { _, value in
-                        SharedSettings.setShowRawCardDetails(value)
-                    }
+                Toggle("Show raw JSON and curl", isOn: $showRawPayloads)
             } header: {
-                Text("Card details")
+                Text("Payloads")
             } footer: {
-                Text("Adds the card's wire format and an equivalent curl command to each card's detail screen — the exact request an agent would send to publish it.")
+                Text("Adds the stored wire format and an equivalent curl command to the detail screen of every card and Live Activity — the exact request an agent would send to publish it.")
             }
 
             Section {

@@ -101,10 +101,11 @@ public enum ZeroZeroWidgetConstants {
         /// Written by the app, read by the widget extension. See
         /// `SharedSettings.subscriptionActive` for why it defaults to true.
         public static let subscriptionActive = "zw.subscriptionActive"
-        /// Developer options. Both off unless somebody has been through
-        /// Settings -> Version, and both live in the App Group because the
-        /// widget extension renders from the same values.
-        public static let showRawCardDetails = "zw.showRawCardDetails"
+        /// Developer options, both off unless somebody has been through
+        /// Settings -> Version. `showWidgetTimestamps` is in the App Group
+        /// because the widget extension renders from it; `showRawPayloads` is
+        /// app-only and sits alongside it for one place to look.
+        public static let showRawPayloads = "zw.showRawPayloads"
         public static let showWidgetTimestamps = "zw.showWidgetTimestamps"
         /// When the app last asked WidgetKit to reload. Read by the extension
         /// to tell a reload the app requested from one a push delivered — both

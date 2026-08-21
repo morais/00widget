@@ -48,20 +48,6 @@ public enum SharedSettings {
             .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.subscriptionActive)
     }
 
-    /// Shows the raw JSON and the equivalent `curl` on a card's detail screen.
-    ///
-    /// Off by default: both are developer material, and the JSON of a card
-    /// somebody is looking at over your shoulder is not what the screen is for.
-    public static var showRawCardDetails: Bool {
-        (defaults ?? .standard)
-            .bool(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showRawCardDetails)
-    }
-
-    public static func setShowRawCardDetails(_ value: Bool) {
-        (defaults ?? .standard)
-            .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showRawCardDetails)
-    }
-
     /// Draws the last-render time in the corner of every Home Screen widget,
     /// tinted by what triggered that render. A diagnostic for the one thing
     /// about widgets nobody can otherwise see: when iOS actually redrew them.

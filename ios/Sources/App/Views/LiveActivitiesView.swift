@@ -325,8 +325,6 @@ private struct ActivityDetailView: View {
     @EnvironmentObject var env: AppEnvironment
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     let session: LiveActivitySession
-    @State private var showRawJson = false
-    @State private var showCurlExample = false
     @State private var showGuestLinkSheet = false
     #if ZW_SHARING_ENABLED
     @State private var showKindShareSheet = false
@@ -350,27 +348,10 @@ private struct ActivityDetailView: View {
                     deepLinkDestination(deepLink)
                 }
 
-                DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
-                    Text(jsonString)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .font(.headline)
-
-                DisclosureGroup("Example curl", isExpanded: $showCurlExample) {
-                    Text(curlExample)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .font(.headline)
+                RawPayloadDisclosure(
+                    payload: currentSession,
+                    endpoint: "/v1/live-activities/start"
+                )
             }
             .padding()
         }
@@ -459,27 +440,6 @@ private struct ActivityDetailView: View {
         return "\(scheme)://\(host)"
     }
 
-    private var jsonString: String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        guard
-            let data = try? encoder.encode(resolvedSession),
-            let string = String(data: data, encoding: .utf8)
-        else {
-            return "—"
-        }
-        return string
-    }
-
-    private var curlExample: String {
-        """
-        curl -X POST "$BASE_URL/v1/live-activities/start" \\
-          -H "Authorization: Bearer $API_KEY" \\
-          -H "Content-Type: application/json" \\
-          -d '\(jsonString.replacingOccurrences(of: "'", with: "'\\''"))'
-        """
-    }
 }
 
 private struct ActivityItemRow: View {
