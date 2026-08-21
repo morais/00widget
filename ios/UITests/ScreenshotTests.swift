@@ -568,6 +568,10 @@ final class ScreenshotTests: XCTestCase {
                 .containing(NSPredicate(format: "label BEGINSWITH 'Subscription'"))
                 .firstMatch
             XCTAssertTrue(scrollTo(row, in: app, swipes: 10), "Subscription row not found.")
+            XCTAssertTrue(
+                app.staticTexts["Publishing data requires an active subscription."].exists,
+                "Server section is missing the subscription requirement explanation."
+            )
             capture(named: "screenshot-subscription-settings-\(state)")
 
             row.tap()

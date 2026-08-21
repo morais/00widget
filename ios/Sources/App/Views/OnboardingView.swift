@@ -53,7 +53,7 @@ struct OnboardingView: View {
                     }
                 }
 
-                Section("Server") {
+                Section {
                     // The URL is only worth a row when the user can change it.
                     // Under Apple login it is fixed at build time, and the
                     // agent config above already names it.
@@ -97,6 +97,12 @@ struct OnboardingView: View {
                                 )
                         }
                     }
+                    #endif
+                } header: {
+                    Text("Server")
+                } footer: {
+                    #if ZW_SUBSCRIPTIONS_ENABLED
+                    Text("Publishing data requires an active subscription.")
                     #endif
                 }
 
