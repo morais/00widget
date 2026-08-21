@@ -210,9 +210,9 @@ public final class SubscriptionController: ObservableObject {
         let offerLabel = subscription.introductoryOffer.flatMap { offer -> String? in
             guard offer.paymentMode == "free" else { return nil }
             switch offer.subscriptionPeriod {
-            case "P1W": return "1 week free, then"
-            case "P2W": return "2 weeks free, then"
-            case "P1M": return "1 month free, then"
+            case "P1W": return "1 week free"
+            case "P2W": return "2 weeks free"
+            case "P1M": return "1 month free"
             default: return nil
             }
         }

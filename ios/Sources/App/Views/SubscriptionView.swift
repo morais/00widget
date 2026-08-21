@@ -65,9 +65,7 @@ struct SubscriptionView: View {
             if subscriptions.state.needsAttention {
                 Text(attentionMessage)
             } else if !subscriptions.isRequired && !subscriptions.state.active {
-                // Being told to subscribe by a server that does not require one
-                // reads as a bug. Say what is actually true.
-                Text("This server doesn't require a subscription. Subscribing supports development.")
+                Text("Subscribing supports ongoing development and server costs.")
             }
         }
     }
@@ -117,12 +115,18 @@ struct SubscriptionView: View {
 
     private func planLabel(name: String, offer: String?, price: String) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(name)
                 if let offer {
                     Text(offer)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Color.accentColor.opacity(0.12),
+                            in: Capsule()
+                        )
                 }
             }
             Spacer()
@@ -157,7 +161,7 @@ struct SubscriptionView: View {
             let offer = product.subscription?.introductoryOffer,
             offer.paymentMode == .freeTrial
         else { return nil }
-        return "\(offer.period.formatted(product.subscriptionPeriodFormatStyle)) free, then"
+        return "\(offer.period.formatted(product.subscriptionPeriodFormatStyle)) free"
     }
 
     private func priceLabel(for product: Product) -> String {
