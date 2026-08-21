@@ -90,6 +90,16 @@ export interface WidgetTokenMetadata {
 export interface WidgetTokenRecord extends WidgetTokenMetadata {
   token: string;
   updatedAt: string;
+  lastDelivery?: WidgetPushDeliveryDiagnostic;
+}
+
+export interface WidgetPushDeliveryDiagnostic {
+  tokenPrefix?: string;
+  attemptedAt: string;
+  status: number;
+  reason?: string;
+  apnsId?: string;
+  attempts: number;
 }
 
 function nowIso(): string {
@@ -449,6 +459,57 @@ export async function listWidgetTokensForCard(
         .map((row) => row.token),
     ),
   ];
+}
+
+export async function putWidgetPushDeliveryDiagnostic(
+  env: Env,
+  token: string,
+  diagnostic: Omit<WidgetPushDeliveryDiagnostic, "attemptedAt"> & { attemptedAt?: string },
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `INSERT INTO widget_push_delivery_diagnostics
+       (token, attempted_at, status, reason, apns_id, attempts)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(token) DO UPDATE SET
+       attempted_at = excluded.attempted_at,
+       status = excluded.status,
+       reason = excluded.reason,
+       apns_id = excluded.apns_id,
+       attempts = excluded.attempts`,
+  )
+    .bind(
+      token,
+      diagnostic.attemptedAt ?? nowIso(),
+      diagnostic.status,
+      diagnostic.reason ?? null,
+      diagnostic.apnsId ?? null,
+      diagnostic.attempts,
+    )
+    .run();
+}
+
+export async function listWidgetPushDeliveryDiagnostics(
+  env: Env,
+  tenantId: string,
+): Promise<WidgetPushDeliveryDiagnostic[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT DISTINCT diagnostics.token, diagnostics.attempted_at, diagnostics.status,
+       diagnostics.reason, diagnostics.apns_id, diagnostics.attempts
+     FROM widget_push_delivery_diagnostics AS diagnostics
+     JOIN widget_tokens AS tokens ON tokens.token = diagnostics.token
+     WHERE tokens.tenant_id = ?
+     ORDER BY diagnostics.attempted_at DESC`,
+  )
+    .bind(tenantId)
+    .all<{
+      token: string;
+      attempted_at: string;
+      status: number;
+      reason: string | null;
+      apns_id: string | null;
+      attempts: number;
+    }>();
+  return rows.results.map(deliveryDiagnosticFromRow);
 }
 
 export async function putActivityInstance(
@@ -957,10 +1018,15 @@ export async function listTenantWidgetTokens(
   tenantId: string,
 ): Promise<ScopedEntry<WidgetTokenRecord>[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform
-     FROM widget_tokens
-     WHERE tenant_id = ?
-     ORDER BY api_key_hash, device_id, widget_kind`,
+    `SELECT tokens.api_key_hash, tokens.device_id, tokens.widget_kind,
+       tokens.token, tokens.updated_at, tokens.app_version, tokens.platform,
+       diagnostics.attempted_at, diagnostics.status, diagnostics.reason,
+       diagnostics.apns_id, diagnostics.attempts
+     FROM widget_tokens AS tokens
+     LEFT JOIN widget_push_delivery_diagnostics AS diagnostics
+       ON diagnostics.token = tokens.token
+     WHERE tokens.tenant_id = ?
+     ORDER BY tokens.api_key_hash, tokens.device_id, tokens.widget_kind`,
   )
     .bind(tenantId)
     .all<{
@@ -971,6 +1037,11 @@ export async function listTenantWidgetTokens(
       updated_at: string;
       app_version: string;
       platform: string;
+      attempted_at: string | null;
+      status: number | null;
+      reason: string | null;
+      apns_id: string | null;
+      attempts: number | null;
     }>();
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
@@ -980,8 +1051,35 @@ export async function listTenantWidgetTokens(
       updatedAt: row.updated_at,
       appVersion: row.app_version,
       platform: row.platform,
+      lastDelivery: row.attempted_at && row.status !== null && row.attempts !== null
+        ? deliveryDiagnosticFromRow({
+          attempted_at: row.attempted_at,
+          status: row.status,
+          reason: row.reason,
+          apns_id: row.apns_id,
+          attempts: row.attempts,
+        })
+        : undefined,
     },
   }));
+}
+
+function deliveryDiagnosticFromRow(row: {
+  token?: string;
+  attempted_at: string;
+  status: number;
+  reason: string | null;
+  apns_id: string | null;
+  attempts: number;
+}): WidgetPushDeliveryDiagnostic {
+  return {
+    ...(row.token ? { tokenPrefix: row.token.slice(0, 8) } : {}),
+    attemptedAt: row.attempted_at,
+    status: Number(row.status),
+    reason: row.reason ?? undefined,
+    apnsId: row.apns_id ?? undefined,
+    attempts: Number(row.attempts),
+  };
 }
 
 export async function listTenantActivities(

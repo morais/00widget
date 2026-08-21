@@ -64,6 +64,7 @@ export class FakeD1 {
   private rateLimitBuckets = new Map<string, FakeRow>();
   private widgetPushCadence = new Map<string, FakeRow>();
   private widgetPushPending = new Map<string, FakeRow>();
+  private widgetPushDeliveryDiagnostics = new Map<string, FakeApiKeyRow>();
   private subscriptions = new Map<string, FakeApiKeyRow>();
   private activityHistory = new Map<string, FakeApiKeyRow>();
 
@@ -752,6 +753,18 @@ export class FakeD1 {
       });
       return 1;
     }
+    if (normalized.startsWith("INSERT INTO widget_push_delivery_diagnostics")) {
+      const [token, attempted_at, status, reason, apns_id, attempts] = values;
+      this.widgetPushDeliveryDiagnostics.set(String(token), {
+        token: String(token),
+        attempted_at: String(attempted_at),
+        status: Number(status),
+        reason: reason === null ? null : String(reason),
+        apns_id: apns_id === null ? null : String(apns_id),
+        attempts: Number(attempts),
+      });
+      return 1;
+    }
     if (normalized.startsWith("DELETE FROM widget_push_pending")) {
       const [tenant_id, generation] = values.map(String);
       const existing = this.widgetPushPending.get(tenant_id);
@@ -1197,19 +1210,36 @@ export class FakeD1 {
         .sort(by("api_key_hash", "device_id", "widget_kind"))
         .map(select("api_key_hash", "device_id", "widget_kind", "token"));
     }
-    if (normalized === "SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform FROM widget_tokens WHERE tenant_id = ? ORDER BY api_key_hash, device_id, widget_kind") {
+    if (normalized === "SELECT tokens.api_key_hash, tokens.device_id, tokens.widget_kind, tokens.token, tokens.updated_at, tokens.app_version, tokens.platform, diagnostics.attempted_at, diagnostics.status, diagnostics.reason, diagnostics.apns_id, diagnostics.attempts FROM widget_tokens AS tokens LEFT JOIN widget_push_delivery_diagnostics AS diagnostics ON diagnostics.token = tokens.token WHERE tokens.tenant_id = ? ORDER BY tokens.api_key_hash, tokens.device_id, tokens.widget_kind") {
       const [tenant_id] = values.map(String);
       return byTenant(this.widgetTokens, tenant_id)
         .sort(by("api_key_hash", "device_id", "widget_kind"))
-        .map(select(
-          "api_key_hash",
-          "device_id",
-          "widget_kind",
-          "token",
-          "updated_at",
-          "app_version",
-          "platform",
-        ));
+        .map((row) => ({
+          ...select(
+            "api_key_hash",
+            "device_id",
+            "widget_kind",
+            "token",
+            "updated_at",
+            "app_version",
+            "platform",
+          )(row),
+          ...(this.widgetPushDeliveryDiagnostics.get(String(row.token)) ?? {
+            attempted_at: null,
+            status: null,
+            reason: null,
+            apns_id: null,
+            attempts: null,
+          }),
+        }));
+    }
+    if (normalized === "SELECT DISTINCT diagnostics.token, diagnostics.attempted_at, diagnostics.status, diagnostics.reason, diagnostics.apns_id, diagnostics.attempts FROM widget_push_delivery_diagnostics AS diagnostics JOIN widget_tokens AS tokens ON tokens.token = diagnostics.token WHERE tokens.tenant_id = ? ORDER BY diagnostics.attempted_at DESC") {
+      const [tenant_id] = values.map(String);
+      const tokens = new Set(byTenant(this.widgetTokens, tenant_id).map((row) => String(row.token)));
+      return [...this.widgetPushDeliveryDiagnostics.values()]
+        .filter((row) => tokens.has(String(row.token)))
+        .sort((a, b) => String(b.attempted_at).localeCompare(String(a.attempted_at)))
+        .map(select("token", "attempted_at", "status", "reason", "apns_id", "attempts"));
     }
     if (normalized === "SELECT api_key_hash, device_id, widget_kind, token, updated_at, app_version, platform FROM widget_tokens ORDER BY api_key_hash, device_id, widget_kind") {
       return [...this.widgetTokens.values()]

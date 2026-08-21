@@ -1026,6 +1026,9 @@ export interface Env {
   APNS_PRIVATE_KEY?: string;
   APNS_BUNDLE_ID?: string;
   APNS_ENV?: "sandbox" | "production";
+  // Persist the latest WidgetKit APNs result per push token. Off unless the
+  // value is exactly "true" because every attempted reload adds one D1 write.
+  WIDGET_PUSH_APNS_DIAGNOSTICS?: string;
 
   // Web sign-in (Sign in with Apple). Any account created in the iOS app can
   // sign in; ADMIN_EMAILS is a separate capability layered on top, not a gate

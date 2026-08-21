@@ -458,6 +458,7 @@ function renderWidgetTokensSection(
     const parts = entry.key.split(":"); // widget-token:hash:deviceId:kind
     const deviceId = parts[2] ?? "";
     const widgetKind = parts[3] ?? "";
+    const delivery = entry.value.lastDelivery;
     return `<tr>
       <td>${esc(shortHash(entry.apiKeyHash))}</td>
       <td><code>${esc(deviceId)}</code></td>
@@ -466,12 +467,17 @@ function renderWidgetTokensSection(
       <td>${esc(entry.value.appVersion)}</td>
       <td>${esc(entry.value.platform)}</td>
       <td class="ts">${esc(entry.value.updatedAt)}</td>
+      <td class="ts">${esc(delivery?.attemptedAt ?? "")}</td>
+      <td>${esc(delivery ? String(delivery.status) : "")}</td>
+      <td>${esc(delivery?.reason ?? "")}</td>
+      <td>${esc(delivery ? String(delivery.attempts) : "")}</td>
+      <td><code>${esc(delivery?.apnsId ?? "")}</code></td>
       <td>${deleteForm(`/admin/tenants/${enc(tenantId)}/widget-tokens/${enc(deviceId)}/${enc(widgetKind)}/delete`, "Delete", csrf)}</td>
     </tr>`;
   }).join("");
   return section(
     `Widget push tokens <span class="count">${entries.length}</span>`,
-    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th><th>app build</th><th>platform</th><th>registered</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
+    `<table><thead><tr><th>API key</th><th>device id</th><th>widget kind</th><th>token</th><th>app build</th><th>platform</th><th>registered</th><th>last APNs attempt</th><th>status</th><th>reason</th><th>attempts</th><th>APNs id</th><th></th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 
@@ -684,5 +690,4 @@ function formatWindow(seconds: number): string {
 // round trip in a cookie. Only same-origin absolute /admin paths are honoured,
 // so this can never become an open redirect: no scheme, no host, no
 // protocol-relative "//evil" form survives the pattern.
-
 

@@ -11,12 +11,74 @@ import {
   getPendingWidgetReload,
   processPendingWidgetReload,
   scheduleWidgetReloadForCard,
+  widgetPushApnsDiagnosticsEnabled,
 } from "../src/widgetPush";
 import { authedRequest, makeEnv, TEST_API_KEY } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 
 describe("widget push subscriptions", () => {
+  it("keeps APNs persistence off by default and enables it only explicitly", async () => {
+    const off = makeEnv();
+    expect(widgetPushApnsDiagnosticsEnabled(off)).toBe(false);
+    const sender = vi.fn().mockResolvedValue({ status: 200, apnsId: "not-persisted" });
+    await deliverWidgetReloads(
+      off,
+      [{ token: "aabbccdd", tenantIds: ["test-tenant"] }],
+      { sender },
+    );
+    await expect(storage.listWidgetPushDeliveryDiagnostics(off, "test-tenant"))
+      .resolves.toEqual([]);
+
+    const on = makeEnv({ WIDGET_PUSH_APNS_DIAGNOSTICS: "true" });
+    expect(widgetPushApnsDiagnosticsEnabled(on)).toBe(true);
+    await storage.putWidgetToken(
+      on,
+      "test-tenant",
+      await sha256Hex(TEST_API_KEY),
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await deliverWidgetReloads(
+      on,
+      [{ token: "aabbccdd", tenantIds: ["test-tenant"] }],
+      { sender: vi.fn().mockResolvedValue({ status: 200, apnsId: "accepted-id" }) },
+    );
+    await expect(storage.listWidgetPushDeliveryDiagnostics(on, "test-tenant"))
+      .resolves.toMatchObject([{
+        status: 200,
+        apnsId: "accepted-id",
+        attempts: 1,
+      }]);
+  });
+
+  it("persists the final APNs failure after bounded retries", async () => {
+    const env = makeEnv({ WIDGET_PUSH_APNS_DIAGNOSTICS: "true" });
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      await sha256Hex(TEST_API_KEY),
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await deliverWidgetReloads(
+      env,
+      [{ token: "aabbccdd", tenantIds: ["test-tenant"] }],
+      {
+        sender: vi.fn().mockResolvedValue({ status: 503, reason: "ServiceUnavailable" }),
+        sleep: async () => {},
+      },
+    );
+    await expect(storage.listWidgetPushDeliveryDiagnostics(env, "test-tenant"))
+      .resolves.toMatchObject([{
+        status: 503,
+        reason: "ServiceUnavailable",
+        attempts: 3,
+      }]);
+  });
+
   it("replaces a device snapshot and targets only subscribed cards", async () => {
     const env = makeEnv();
     const hash = await sha256Hex(TEST_API_KEY);

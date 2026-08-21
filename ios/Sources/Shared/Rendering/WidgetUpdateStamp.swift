@@ -69,8 +69,15 @@ public enum WidgetUpdateSource: String, CaseIterable, Sendable {
         // most important thing to say about it, whatever woke it.
         guard refreshSucceeded else { return .offline }
         guard wokenEarly else { return .scheduled }
-        if let appReloadAt, now.timeIntervalSince(appReloadAt) < appReloadAttributionWindow {
-            return .app
+        if let appReloadAt {
+            let age = now.timeIntervalSince(appReloadAt)
+            // A marker ahead of this process's clock is not evidence that the
+            // app just asked for a reload. Clock correction, cross-process
+            // snapshots, or restored defaults can otherwise make every early
+            // push look blue until wall time catches up with the marker.
+            if age >= 0, age < appReloadAttributionWindow {
+                return .app
+            }
         }
         return .push
     }

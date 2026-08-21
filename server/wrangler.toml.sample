@@ -17,6 +17,11 @@ custom_domain = true
 [vars]
 APNS_ENV = "sandbox"
 
+# Persist the latest final WidgetKit APNs result per push token. Off by
+# default because every attempted widget reload adds one D1 row write. Enable
+# temporarily while diagnosing delivery, then turn it back off.
+WIDGET_PUSH_APNS_DIAGNOSTICS = "false"
+
 # Associated domains. `<Team ID>.<bundle id>` — must match the app's
 # DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in ios/project.yml, and the
 # domain here must be the one in that target's `applinks:` entitlement.

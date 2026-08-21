@@ -157,7 +157,8 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/stat
     "widgetReloadMinSpacingSeconds": 300,
     "widgetReloadBurst": 6,
     "widgetReloadRefillSeconds": 1800,
-    "secondsUntilNextWidgetReload": 412
+    "secondsUntilNextWidgetReload": 412,
+    "widgetPushApnsDiagnosticsEnabled": false
   },
   "published": { "cards": 5, "liveActivities": 1 },
   "features": { "sharing": true, "mcp": true },
@@ -179,6 +180,10 @@ reporting a problem:
   `403`.
 - **`secondsUntilNextWidgetReload`.** How long before a Home Screen widget
   redraws. See [Rate limits](#rate-limits) for why this is not zero.
+- **`widgetPushApnsDiagnosticsEnabled`.** When true, the deployment is
+  temporarily persisting `widgetPushLastDeliveries`, one latest final APNs
+  result per registered token. Use its status, reason, APNs id, attempts, and
+  timestamp to separate server rejection from APNs-accepted/iOS-missed pushes.
 - **`rateLimits`.** Only windows this account has touched appear; anything
   absent is untouched and has its full allowance.
 - **`subscription`.** Whether this deployment sells subscriptions at all, and

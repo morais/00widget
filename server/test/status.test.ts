@@ -53,6 +53,36 @@ describe("GET /v1/status", () => {
     expect(body.delivery.widgetReloadRefillSeconds).toBe(30 * 60);
     // Nothing has been published, so the window is open now.
     expect(body.delivery.secondsUntilNextWidgetReload).toBe(0);
+    expect(body.delivery.widgetPushApnsDiagnosticsEnabled).toBe(false);
+    expect(body.delivery.widgetPushLastDeliveries).toBeUndefined();
+  });
+
+  it("reports persisted APNs results only while diagnostics are enabled", async () => {
+    const env = makeEnv({ WIDGET_PUSH_APNS_DIAGNOSTICS: "true" });
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.putWidgetToken(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "ZeroZeroWidgetCardWidget",
+      "aabbccdd",
+    );
+    await storage.putWidgetPushDeliveryDiagnostic(env, "aabbccdd", {
+      attemptedAt: "2026-08-21T12:20:41.000Z",
+      status: 200,
+      apnsId: "accepted-id",
+      attempts: 1,
+    });
+    const body = await status(env);
+    expect(body.delivery.widgetPushApnsDiagnosticsEnabled).toBe(true);
+    expect(body.delivery.widgetPushLastDeliveries).toEqual([{
+      tokenPrefix: "aabbccdd",
+      attemptedAt: "2026-08-21T12:20:41.000Z",
+      status: 200,
+      apnsId: "accepted-id",
+      attempts: 1,
+    }]);
   });
 
   it("reports the credential's own scopes, so they need not be discovered by 403", async () => {

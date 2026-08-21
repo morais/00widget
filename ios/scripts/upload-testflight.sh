@@ -20,7 +20,9 @@
 #    Sign in with Apple fails at runtime on a build that installed fine.
 #    com.apple.developer.associated-domains on iOS is the same class of trap,
 #    and a quieter one: universal links just keep opening in Safari, and
-#    Apple's CDN caches the wrong association for hours.
+#    Apple's CDN caches the wrong association for hours. WidgetKit push has
+#    the same requirement on the separately signed widget extension, so the
+#    exported appex must carry its own production aps-environment entitlement.
 #
 # 3. Automatic signing archives against a *development* profile, and Apple only
 #    mints one for a platform that has a registered device. A team with
@@ -179,9 +181,12 @@ export_options() { # <path> <destination> <bundle-id> <profile-name-or-empty>
 #   $6 manually-managed profile name, empty for automatic signing
 #   $7 optional ';'-separated bundles inside the app whose build numbers must
 #      also match — extensions, and the App Clip with its own extension
+#   $8 optional ';'-separated relative-bundle=required-entitlement checks for
+#      separately signed nested bundles
 ship() {
   local label="$1" scheme="$2" destination="$3" product="$4"
   local required_entitlements="$5" profile="$6" extra_bundle="${7:-}"
+  local nested_entitlement_checks="${8:-}"
   local archive="$OUT/$product-$BUILD_NUMBER.xcarchive"
   local app="$archive/Products/Applications/$product.app"
 
@@ -276,6 +281,26 @@ ship() {
     exit 1
   fi
 
+  # A containing app's signature says nothing about a separately signed
+  # extension. WidgetKit can still mint a token while an exported extension is
+  # missing its production push entitlement, leaving APNs apparently healthy
+  # and the widget silent. Check nested bundles from the final IPA too.
+  local check nested_path nested_required nested_entitlements
+  while IFS= read -r check; do
+    [[ -z "$check" ]] && continue
+    nested_path="${check%%=*}"
+    nested_required="${check#*=}"
+    nested_entitlements="$(codesign -d --entitlements - --xml \
+      "$OUT/$label-unzip/Payload/$product.app/$nested_path" 2>/dev/null | plutil -p -)"
+    if grep -qF "$nested_required" <<<"$nested_entitlements"; then
+      echo "  ✓ signed $nested_path has $nested_required"
+    else
+      echo "✗ [$label] signed $nested_path is missing: $nested_required"
+      echo "$nested_entitlements" | sed 's/^/    /'
+      exit 1
+    fi
+  done <<<"${nested_entitlement_checks//;/$'\n'}"
+
   # The App Clip is signed separately from the app that carries it, so the
   # checks above say nothing about it. Without parent-application-identifiers
   # the clip installs and refuses to launch; without associated-domains the QR
@@ -316,7 +341,8 @@ if [[ "$DO_IOS" == "1" ]]; then
   ship iOS ZeroZeroWidgetApp 'generic/platform=iOS' ZeroZeroWidgetApp \
     '"aps-environment" => "production";com.apple.developer.associated-domains' \
     "${ZW_IOS_PROFILE:-}" \
-    "PlugIns/ZeroZeroWidgetWidgets.appex;AppClips/ZeroZeroWidgetClip.app;AppClips/ZeroZeroWidgetClip.app/PlugIns/ZeroZeroWidgetClipLiveActivity.appex"
+    "PlugIns/ZeroZeroWidgetWidgets.appex;AppClips/ZeroZeroWidgetClip.app;AppClips/ZeroZeroWidgetClip.app/PlugIns/ZeroZeroWidgetClipLiveActivity.appex" \
+    'PlugIns/ZeroZeroWidgetWidgets.appex="aps-environment" => "production"'
 fi
 
 if [[ "$DO_TVOS" == "1" ]]; then

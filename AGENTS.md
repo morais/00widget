@@ -279,6 +279,11 @@ committed.
    caches the wrong association for hours afterwards. Each platform takes a
    `;`-separated list of entitlements, and a run reports every missing one
    rather than stopping at the first.
+5. **The signed widget extension has production APNs.** WidgetKit push belongs
+   to the separately signed `ZeroZeroWidgetWidgets.appex`; a production
+   entitlement on the containing app does not prove the extension kept one.
+   The exported IPA must show `aps-environment` as `production` on the appex or
+   WidgetKit pushes can leave the server looking healthy while no timeline runs.
 
 ### Keeping iOS and tvOS symmetric
 

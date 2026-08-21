@@ -15,6 +15,7 @@ import {
   WIDGET_PUSH_MIN_SPACING_SECONDS,
   WIDGET_PUSH_REFILL_SECONDS,
   secondsUntilWidgetPushWindow,
+  widgetPushApnsDiagnosticsEnabled,
 } from "./widgetPush";
 import type { Env } from "./types";
 
@@ -41,13 +42,17 @@ export async function getStatus(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const [cards, activities, devices, widgetTokens, startTokens, buckets] = await Promise.all([
+  const diagnosticsEnabled = widgetPushApnsDiagnosticsEnabled(env);
+  const [cards, activities, devices, widgetTokens, startTokens, buckets, widgetDeliveries] = await Promise.all([
     storage.listCards(env, auth.tenantId),
     listActiveActivitySessions(env, auth.tenantId),
     storage.listTenantDevices(env, auth.tenantId),
     storage.listWidgetTokens(env, auth.tenantId),
     storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE),
     listTenantRateLimitBuckets(env, auth.tenantId),
+    diagnosticsEnabled
+      ? storage.listWidgetPushDeliveryDiagnostics(env, auth.tenantId)
+      : Promise.resolve([]),
   ]);
 
   const secondsUntilReload = await secondsUntilWidgetPushWindow(env, auth.tenantId);
@@ -91,6 +96,11 @@ export async function getStatus(
       widgetReloadBurst: WIDGET_PUSH_BURST,
       widgetReloadRefillSeconds: WIDGET_PUSH_REFILL_SECONDS,
       secondsUntilNextWidgetReload: secondsUntilReload,
+      widgetPushApnsDiagnosticsEnabled: diagnosticsEnabled,
+      // Latest final APNs result per currently registered token. This is
+      // present only while diagnostics are enabled, avoiding even a read when
+      // the opt-in flag is off.
+      ...(diagnosticsEnabled ? { widgetPushLastDeliveries: widgetDeliveries } : {}),
     },
     published: {
       cards: cards.length,

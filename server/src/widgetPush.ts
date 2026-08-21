@@ -53,6 +53,10 @@ const DEAD_TOKEN_REASONS = new Set([
   "Unregistered",
 ]);
 
+export function widgetPushApnsDiagnosticsEnabled(env: Env): boolean {
+  return env.WIDGET_PUSH_APNS_DIAGNOSTICS === "true";
+}
+
 export async function collectWidgetPushTargetsForCard(
   env: Env,
   ownerTenantId: string,
@@ -557,6 +561,24 @@ async function deliverOne(
     }
     if (!isTransient(result) || attempts === MAX_ATTEMPTS) break;
     await wait(retryDelay(result, attempts));
+  }
+
+  if (widgetPushApnsDiagnosticsEnabled(env)) {
+    try {
+      await storage.putWidgetPushDeliveryDiagnostic(env, target.token, {
+        status: result.status,
+        reason: result.reason,
+        apnsId: result.apnsId ?? undefined,
+        attempts,
+      });
+    } catch (error) {
+      // Diagnostics must never turn an accepted APNs delivery into a failed
+      // publish or prevent permanent-token cleanup.
+      console.error("widget push diagnostic write failed", {
+        status: result.status,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   if (DEAD_TOKEN_REASONS.has(result.reason ?? "")) {
