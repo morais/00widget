@@ -10,6 +10,7 @@ struct DeveloperOptionsView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var showRawCardDetails = SharedSettings.showRawCardDetails
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
+    @State private var timelineEvents = WidgetTimelineDiagnostics.recentEvents
 
     var body: some View {
         Form {
@@ -37,6 +38,7 @@ struct DeveloperOptionsView: View {
             }
 
             Section {
+                timelineStartedLegendRow
                 ForEach(WidgetUpdateSource.allCases, id: \.self) { source in
                     legendRow(source)
                 }
@@ -44,6 +46,26 @@ struct DeveloperOptionsView: View {
                 Text("What the colours mean")
             } footer: {
                 Text("The time shown is when the widget last redrew, not when the data changed — a card carries its own updated-at, and a widget can redraw with nothing new to show.")
+            }
+
+            if showWidgetTimestamps {
+                Section {
+                    if timelineEvents.isEmpty {
+                        Text("No timeline executions recorded yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(timelineEvents.prefix(16))) { event in
+                            timelineEventRow(event)
+                        }
+                    }
+                    Button("Refresh execution log") {
+                        timelineEvents = WidgetTimelineDiagnostics.recentEvents
+                    }
+                } header: {
+                    Text("Recent timeline executions")
+                } footer: {
+                    Text("Purple records the instant WidgetKit entered the timeline provider, before any network request. Every normal run is followed by a completion in its inferred source colour. A purple start with no matching completion means the extension began running but did not return a timeline.")
+                }
             }
 
             Section {
@@ -84,6 +106,57 @@ struct DeveloperOptionsView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var timelineStartedLegendRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(.purple)
+                .frame(width: 10, height: 10)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Timeline started")
+                    .font(.subheadline.weight(.semibold))
+                Text("WidgetKit entered the provider. This is persisted before networking, so it survives an extension termination that prevents a new widget render.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func timelineEventRow(_ event: WidgetTimelineDiagnostics.Event) -> some View {
+        let source = event.source
+        let tint: Color = event.phase == .started ? .purple : (source?.tint ?? .secondary)
+        let title = event.phase == .started ? "Started" : "Completed · \(source?.label ?? "Unknown")"
+        let matchingCompletionExists = event.phase == .started && timelineEvents.contains {
+            $0.runId == event.runId && $0.phase == .completed
+        }
+
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle()
+                .fill(tint)
+                .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                    Spacer()
+                    Text(event.date, format: .dateTime.hour().minute().second())
+                        .font(.caption.monospacedDigit())
+                }
+                Text(event.widgetKey)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if event.phase == .started && !matchingCompletionExists {
+                    Text("No matching completion")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.purple)
+                }
+            }
+        }
     }
 
     private struct Note {

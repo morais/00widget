@@ -26,6 +26,11 @@ export interface ApnsSendOptions {
 
 const CACHE_TTL_SECONDS = 50 * 60;
 const REQUEST_TIMEOUT_MS = 8_000;
+// WidgetKit delivers reload pushes opportunistically. Keep a collapsed reload
+// available for as long as the widget's own backed-off timeline interval so a
+// temporary power/network restriction does not turn a valid APNs acceptance
+// into a push that expires before WidgetKit is willing to act on it.
+const WIDGET_RELOAD_EXPIRATION_SECONDS = 4 * 60 * 60;
 let cachedJwt: { token: string; expiresAt: number } | null = null;
 
 export function apnsConfigured(env: Env): boolean {
@@ -248,7 +253,7 @@ export async function sendWidgetReloadPush(env: Env, pushToken: string): Promise
     // Every push causes the widget to fetch current server state, so older
     // queued reloads have no value after a newer one exists.
     collapseId: "card-reload",
-    expiration: Math.floor(Date.now() / 1000) + 15 * 60,
+    expiration: Math.floor(Date.now() / 1000) + WIDGET_RELOAD_EXPIRATION_SECONDS,
     payload: { aps: { "content-changed": true } },
   });
 }

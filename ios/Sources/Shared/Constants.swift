@@ -110,6 +110,11 @@ public enum ZeroZeroWidgetConstants {
         /// to tell a reload the app requested from one a push delivered — both
         /// arrive ahead of schedule, and they mean different things.
         public static let appWidgetReloadAt = "zw.appWidgetReloadAt"
+        /// A small persistent ring buffer written by the widget extension.
+        /// Starts are recorded before networking and completions immediately
+        /// before the timeline is returned, so a start without a matching
+        /// completion proves WidgetKit ran the provider but it never finished.
+        public static let widgetTimelineDiagnostics = "zw.widgetTimelineDiagnostics"
     }
 
     public enum KeychainKeys {

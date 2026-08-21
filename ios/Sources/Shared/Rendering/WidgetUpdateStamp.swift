@@ -8,7 +8,7 @@ import SwiftUI
 /// evidence available is *when* a run happened relative to when the previous
 /// run asked to be woken. See `WidgetRefreshPolicy` for that comparison, and
 /// `DeveloperOptionsView` for the version of this explanation a person reads.
-public enum WidgetUpdateSource: String, CaseIterable, Sendable {
+public enum WidgetUpdateSource: String, CaseIterable, Codable, Sendable {
     /// Woken well ahead of schedule with no app request nearby: a WidgetKit
     /// push, which the server only sends when a card actually changed.
     case push

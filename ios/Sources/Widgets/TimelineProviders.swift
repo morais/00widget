@@ -48,20 +48,39 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     }
 
     public func timeline(for configuration: SelectCardIntent, in context: Context) async -> Timeline<CardTimelineEntry> {
-        let refreshed = await refreshCacheIfPossible(reason: "timeline")
         // Keyed by the card this widget shows, so two widgets do not overwrite
         // each other's history. Two showing the same card may share it: they
         // are pushed together anyway.
         let widgetKey = "card.\(configuration.card?.id ?? "default")"
-        let decision = WidgetRefreshPolicy.decide(for: widgetKey)
-        let mark = WidgetUpdateMark(
-            date: Date(),
-            source: WidgetUpdateSource.classify(
-                wokenEarly: decision.wokenEarly,
-                refreshSucceeded: refreshed,
-                appReloadAt: SharedSettings.lastAppWidgetReloadAt
-            )
+        let startedAt = Date()
+        let decision = WidgetRefreshPolicy.decide(for: widgetKey, now: startedAt)
+        let diagnosticRunId = SharedSettings.showWidgetTimestamps
+            ? WidgetTimelineDiagnostics.recordStart(widgetKey: widgetKey, at: startedAt)
+            : nil
+        Self.log.info("card timeline execution started for \(widgetKey, privacy: .public)")
+
+        let refreshed = await refreshCacheIfPossible(reason: "timeline")
+        let completedAt = Date()
+        let source = WidgetUpdateSource.classify(
+            wokenEarly: decision.wokenEarly,
+            refreshSucceeded: refreshed,
+            appReloadAt: SharedSettings.lastAppWidgetReloadAt,
+            now: startedAt
         )
+        let mark = WidgetUpdateMark(
+            date: completedAt,
+            source: source
+        )
+        if let diagnosticRunId {
+            WidgetTimelineDiagnostics.recordCompletion(
+                runId: diagnosticRunId,
+                widgetKey: widgetKey,
+                source: source,
+                refreshSucceeded: refreshed,
+                at: completedAt
+            )
+        }
+        Self.log.info("card timeline execution completed for \(widgetKey, privacy: .public)")
         return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
     }
 

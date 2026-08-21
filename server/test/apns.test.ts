@@ -135,6 +135,7 @@ describe("APNs payload construction", () => {
     const env = apnsEnv();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetcher;
+    const sentAt = Math.floor(Date.now() / 1000);
     try {
       await sendWidgetReloadPush(env, "widgettokenfeed");
     } finally {
@@ -146,9 +147,9 @@ describe("APNs payload construction", () => {
     expect(captured[0].headers["apns-topic"]).toBe("com.example.zerozerowidget.push-type.widgets");
     expect(captured[0].headers["apns-priority"]).toBe("10");
     expect(captured[0].headers["apns-collapse-id"]).toBe("card-reload");
-    expect(Number(captured[0].headers["apns-expiration"])).toBeGreaterThan(
-      Math.floor(Date.now() / 1000),
-    );
+    const expiration = Number(captured[0].headers["apns-expiration"]);
+    expect(expiration).toBeGreaterThanOrEqual(sentAt + 4 * 60 * 60);
+    expect(expiration).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 4 * 60 * 60);
     expect(captured[0].body).toEqual({ aps: { "content-changed": true } });
   });
 
