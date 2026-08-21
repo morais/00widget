@@ -11,6 +11,8 @@ struct DeveloperOptionsView: View {
     @State private var showRawCardDetails = SharedSettings.showRawCardDetails
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
     @State private var timelineEvents = WidgetTimelineDiagnostics.recentEvents
+    @State private var widgetPushSnapshot = WidgetPushTokenStore.load()
+    @State private var registeringWidgetPush = false
 
     var body: some View {
         Form {
@@ -66,6 +68,48 @@ struct DeveloperOptionsView: View {
                 } footer: {
                     Text("Purple records the instant WidgetKit entered the timeline provider, before any network request. Every normal run is followed by a completion in its inferred source colour. A purple start with no matching completion means the extension began running but did not return a timeline.")
                 }
+            }
+
+            Section {
+                LabeledContent("Current build", value: ZeroZeroWidgetConstants.appVersion)
+                LabeledContent(
+                    "Token",
+                    value: widgetPushSnapshot?.pushToken.map { "\($0.prefix(8))…" } ?? "Unavailable"
+                )
+                LabeledContent(
+                    "Snapshot updated",
+                    value: formatted(widgetPushSnapshot?.updatedAt)
+                )
+                LabeledContent(
+                    "Server acknowledged",
+                    value: formatted(widgetPushSnapshot?.registeredAt)
+                )
+                LabeledContent(
+                    "Acknowledged build",
+                    value: widgetPushSnapshot?.registeredAppVersion ?? "Never"
+                )
+                LabeledContent(
+                    "Subscribed kinds",
+                    value: "\(widgetPushSnapshot?.subscriptions.count ?? 0)"
+                )
+                if let status = env.widgetPushRegistrationStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button(registeringWidgetPush ? "Registering…" : "Re-register widget push") {
+                    registeringWidgetPush = true
+                    Task {
+                        await env.forceRegisterSavedWidgetPushSnapshot()
+                        widgetPushSnapshot = WidgetPushTokenStore.load()
+                        registeringWidgetPush = false
+                    }
+                }
+                .disabled(registeringWidgetPush)
+            } header: {
+                Text("Widget push registration")
+            } footer: {
+                Text("The app sends this saved snapshot directly once on every launch, then asks WidgetKit for any newer token or configuration. The button repeats the direct send without waiting for WidgetKit.")
             }
 
             Section {
@@ -157,6 +201,11 @@ struct DeveloperOptionsView: View {
                 }
             }
         }
+    }
+
+    private func formatted(_ date: Date?) -> String {
+        guard let date else { return "Never" }
+        return date.formatted(date: .abbreviated, time: .standard)
     }
 
     private struct Note {

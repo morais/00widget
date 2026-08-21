@@ -143,6 +143,8 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
             : nil
         Self.log.info("grid timeline execution started for \(widgetKey, privacy: .public)")
 
+        await repairPushSubscription(for: configuration)
+
         let refreshed = await refreshCacheIfPossible(reason: "timeline")
         let completedAt = Date()
         let source = WidgetUpdateSource.classify(
@@ -166,6 +168,34 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         }
         Self.log.info("grid timeline execution completed for \(widgetKey, privacy: .public)")
         return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
+    }
+
+    private func repairPushSubscription(for configuration: SelectFourCardsIntent) async {
+        let selections = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
+        let cardIds = selections
+            .compactMap { $0?.id }
+            .filter { $0 != CardEntityQuery.noneId }
+        let subscription: WidgetPushSubscription
+        if selections.allSatisfy({ $0 == nil }) {
+            subscription = WidgetPushSubscription(
+                widgetKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid,
+                allCards: true
+            )
+        } else {
+            guard !cardIds.isEmpty else { return }
+            subscription = WidgetPushSubscription(
+                widgetKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid,
+                cardIds: cardIds
+            )
+        }
+        guard let snapshot = WidgetPushTokenStore.mergeSubscription(subscription) else { return }
+        do {
+            _ = try await WidgetPushTokenRegistrar.register(snapshot)
+        } catch {
+            Self.log.error(
+                "grid timeline push registration repair failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     /// See `CardTimelineProvider.refreshCacheIfPossible(reason:)`.

@@ -63,6 +63,7 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var notificationsAuthorized = false
     @Published public private(set) var notificationsDenied = false
     @Published public private(set) var connectionHealth: ConnectionHealthStatus = .unknown
+    @Published public private(set) var widgetPushRegistrationStatus: String?
     @Published public var showActivitiesTab: Bool {
         didSet {
             UserDefaults.standard.set(showActivitiesTab, forKey: "zw.showActivitiesTab")
@@ -650,6 +651,13 @@ public final class AppEnvironment: ObservableObject {
         await refreshConnectionHealth()
         await refreshGuestLinks()
         await registerDevice()
+        // Send the durable handler snapshot before asking WidgetCenter for its
+        // live configuration. On some devices that query can remain empty or
+        // unavailable during launch; making it a prerequisite left a valid
+        // token sitting on disk while no registration request ever left the
+        // phone. Reconcile afterward to refine the snapshot when WidgetKit is
+        // ready.
+        await forceRegisterSavedWidgetPushSnapshot(context: "launch snapshot")
         await registerPendingWidgetTokens()
         await refreshInstalledWidgetCount()
         await fetchCards()
@@ -735,6 +743,7 @@ public final class AppEnvironment: ObservableObject {
             // so this stays a no-op on every later credential change.
             await self.requestNotificationAuthorization()
             await self.registerDevice()
+            await self.forceRegisterSavedWidgetPushSnapshot(context: "credential snapshot")
             await self.registerPendingWidgetTokens()
             await self.fetchCards()
         }
@@ -776,13 +785,37 @@ public final class AppEnvironment: ObservableObject {
 
     /// Reconciles WidgetKit's current token/configurations with the durable
     /// extension snapshot, then retries server registration when needed.
-    public func registerPendingWidgetTokens() async {
-        let needsRetry = await reconcileWidgetPushToken()
+    public func registerPendingWidgetTokens(forceServerRegistration: Bool = false) async {
+        let needsRetry = await reconcileWidgetPushToken(
+            forceServerRegistration: forceServerRegistration
+        )
         if needsRetry {
-            scheduleWidgetTokenRetries()
+            scheduleWidgetTokenRetries(
+                forceServerRegistration: forceServerRegistration
+            )
         } else {
             widgetTokenRetryTask?.cancel()
             widgetTokenRetryTask = nil
+        }
+    }
+
+    /// Sends the extension's last canonical token/subscription snapshot
+    /// without waiting for a live WidgetCenter query. Used at launch and by
+    /// the manual repair control; normal reconciliation still follows launch.
+    @discardableResult
+    public func forceRegisterSavedWidgetPushSnapshot(context: String = "manual snapshot") async -> Bool {
+        do {
+            return try await registerWidgetPushSnapshot(
+                WidgetPushTokenStore.load(),
+                force: true,
+                context: context
+            )
+        } catch {
+            let message = "widget token register: \(error.localizedDescription)"
+            lastSyncError = message
+            widgetPushRegistrationStatus = message
+            Self.widgetPushLog.error("\(message, privacy: .public)")
+            return false
         }
     }
 
@@ -790,31 +823,40 @@ public final class AppEnvironment: ObservableObject {
     /// finished generating. Retry that short bootstrap window without polling
     /// card data or keeping the app alive indefinitely.
     private func reconcileWidgetPushToken(
-        allowEmptyConfigurations: Bool = false
+        stopRetryingIfConfigurationsEmpty: Bool = false,
+        forceServerRegistration: Bool = false
     ) async -> Bool {
         guard apiClient() != nil else { return false }
         do {
             let configured = try await WidgetCenter.shared.currentConfigurations()
                 .filter { ZeroZeroWidgetConstants.WidgetKinds.all.contains($0.kind) }
             if configured.isEmpty {
-                let existing = WidgetPushTokenStore.load()
-                let hasConfirmedEmptySnapshot = existing?.pushToken == nil
-                    && existing?.subscriptions.isEmpty == true
-                if !allowEmptyConfigurations && !hasConfirmedEmptySnapshot {
+                // An empty result is not authoritative. On a real iOS 26
+                // device this API can remain empty even while Home Screen
+                // widgets are visibly installed. Clearing here deleted the
+                // valid snapshot the WidgetPushHandler had just registered.
+                // The handler receives configuration changes and owns the
+                // genuine zero-widget sync; startup only retries or gives up.
+                if stopRetryingIfConfigurationsEmpty {
                     Self.widgetPushLog.info(
-                        "widget configurations are not available yet; waiting before clearing registration"
+                        "widget configurations remained unavailable; preserving saved registration"
                     )
-                    return true
+                    return false
                 }
-                WidgetPushTokenStore.replace(pushToken: nil, subscriptions: [])
-                _ = try await WidgetPushTokenRegistrar.registerCurrent()
-                return false
+                Self.widgetPushLog.info(
+                    "widget configurations are not available yet; preserving registration and retrying"
+                )
+                return true
             }
 
             guard let pushInfo = await WidgetCenter.shared.currentPushInfo else {
                 // A saved token can still repair a changed device id while
                 // WidgetKit finishes generating or rotating currentPushInfo.
-                _ = try await WidgetPushTokenRegistrar.registerCurrent()
+                _ = try await registerWidgetPushSnapshot(
+                    WidgetPushTokenStore.load(),
+                    force: forceServerRegistration,
+                    context: "saved token fallback"
+                )
                 Self.widgetPushLog.info(
                     "widget push token is still generating for \(configured.count, privacy: .public) configured widgets"
                 )
@@ -836,11 +878,15 @@ public final class AppEnvironment: ObservableObject {
                     WidgetPushSubscription(widgetKind: $0, allCards: true)
                 }
             }
-            WidgetPushTokenStore.replace(
+            let snapshot = WidgetPushTokenStore.replace(
                 pushToken: token,
                 subscriptions: subscriptions
             )
-            _ = try await WidgetPushTokenRegistrar.registerCurrent()
+            _ = try await registerWidgetPushSnapshot(
+                snapshot,
+                force: forceServerRegistration,
+                context: "current WidgetKit token"
+            )
             Self.widgetPushLog.info(
                 "widget push token reconciled for \(configured.count, privacy: .public) configured widgets"
             )
@@ -854,7 +900,34 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
-    private func scheduleWidgetTokenRetries() {
+    @discardableResult
+    private func registerWidgetPushSnapshot(
+        _ snapshot: WidgetPushTokenStore.Snapshot?,
+        force: Bool,
+        context: String
+    ) async throws -> Bool {
+        guard let snapshot else {
+            widgetPushRegistrationStatus = "No WidgetKit token snapshot is available"
+            return false
+        }
+        let registered = try await WidgetPushTokenRegistrar.register(snapshot, force: force)
+        guard registered else {
+            widgetPushRegistrationStatus = "Widget push registration was not sent"
+            return false
+        }
+        let tokenPrefix = snapshot.pushToken.map { String($0.prefix(8)) } ?? "none"
+        widgetPushRegistrationStatus = "Registered \(tokenPrefix)… with \(snapshot.subscriptions.count) subscribed kinds from \(context)"
+        Self.widgetPushLog.info(
+            "widget push registration acknowledged for token \(tokenPrefix, privacy: .public) with \(snapshot.subscriptions.count, privacy: .public) subscribed kinds from \(context, privacy: .public)"
+        )
+        return true
+    }
+
+    private func scheduleWidgetTokenRetries(forceServerRegistration: Bool = false) {
+        if forceServerRegistration {
+            widgetTokenRetryTask?.cancel()
+            widgetTokenRetryTask = nil
+        }
         guard widgetTokenRetryTask == nil else { return }
         widgetTokenRetryTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -866,11 +939,16 @@ public final class AppEnvironment: ObservableObject {
                     return
                 }
                 guard !Task.isCancelled else { return }
-                if !(await self.reconcileWidgetPushToken()) {
+                if !(await self.reconcileWidgetPushToken(
+                    forceServerRegistration: forceServerRegistration
+                )) {
                     return
                 }
             }
-            if await self.reconcileWidgetPushToken(allowEmptyConfigurations: true) {
+            if await self.reconcileWidgetPushToken(
+                stopRetryingIfConfigurationsEmpty: true,
+                forceServerRegistration: forceServerRegistration
+            ) {
                 Self.widgetPushLog.error(
                     "widget push token remained unavailable after bounded retries"
                 )

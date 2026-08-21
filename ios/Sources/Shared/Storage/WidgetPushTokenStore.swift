@@ -84,6 +84,23 @@ public enum WidgetPushTokenStore {
         return snapshot
     }
 
+    /// Adds evidence from a timeline configuration to the durable snapshot.
+    /// WidgetKit has been observed calling the push handler with an empty
+    /// `widgets` array while installed widgets still execute timelines, so the
+    /// providers are a second authoritative source for rebuilding subscriptions.
+    @discardableResult
+    public static func mergeSubscription(
+        _ subscription: WidgetPushSubscription
+    ) -> Snapshot? {
+        guard let current = load(),
+              let pushToken = current.pushToken,
+              !pushToken.isEmpty else { return nil }
+        return replace(
+            pushToken: pushToken,
+            subscriptions: current.subscriptions + [subscription]
+        )
+    }
+
     public static func load() -> Snapshot? {
         guard let data = AppGroup.read(filename) else { return nil }
         let decoder = JSONDecoder()
@@ -150,6 +167,17 @@ public enum WidgetPushTokenRegistrar {
     @discardableResult
     public static func registerCurrent(force: Bool = false) async throws -> Bool {
         guard let snapshot = WidgetPushTokenStore.load() else { return false }
+        return try await register(snapshot, force: force)
+    }
+
+    /// Registers an immutable snapshot captured by the caller. The extension
+    /// and app can write the shared file concurrently, so reloading it between
+    /// constructing and sending a subscription set is a correctness bug.
+    @discardableResult
+    public static func register(
+        _ snapshot: WidgetPushTokenStore.Snapshot,
+        force: Bool = false
+    ) async throws -> Bool {
         guard force || WidgetPushTokenStore.needsRegistration(snapshot) else { return true }
         guard let config = APIClientConfig.fromSettings() else { return false }
         try await APIClient(config: config).syncWidgetPushSubscriptions(

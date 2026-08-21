@@ -559,6 +559,13 @@ const SyncWidgetPushTokenSchema = z
         message: "widgetPushToken is required when subscriptions are present",
       });
     }
+    if (value.subscriptions.length === 0 && value.widgetPushToken) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["widgetPushToken"],
+        message: "omit widgetPushToken when clearing subscriptions",
+      });
+    }
   });
 
 // Keep accepting the original one-kind registration until every installed app

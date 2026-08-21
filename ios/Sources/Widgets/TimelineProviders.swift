@@ -59,6 +59,8 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
             : nil
         Self.log.info("card timeline execution started for \(widgetKey, privacy: .public)")
 
+        await repairPushSubscription(for: configuration)
+
         let refreshed = await refreshCacheIfPossible(reason: "timeline")
         let completedAt = Date()
         let source = WidgetUpdateSource.classify(
@@ -82,6 +84,30 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
         }
         Self.log.info("card timeline execution completed for \(widgetKey, privacy: .public)")
         return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
+    }
+
+    private func repairPushSubscription(for configuration: SelectCardIntent) async {
+        let subscription: WidgetPushSubscription
+        if let cardId = configuration.card?.id {
+            guard cardId != CardEntityQuery.noneId else { return }
+            subscription = WidgetPushSubscription(
+                widgetKind: ZeroZeroWidgetConstants.WidgetKinds.card,
+                cardIds: [cardId]
+            )
+        } else {
+            subscription = WidgetPushSubscription(
+                widgetKind: ZeroZeroWidgetConstants.WidgetKinds.card,
+                allCards: true
+            )
+        }
+        guard let snapshot = WidgetPushTokenStore.mergeSubscription(subscription) else { return }
+        do {
+            _ = try await WidgetPushTokenRegistrar.register(snapshot)
+        } catch {
+            Self.log.error(
+                "card timeline push registration repair failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     /// Returns whether this run actually reached the server. The caller needs

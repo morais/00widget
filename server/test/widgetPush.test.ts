@@ -396,6 +396,36 @@ describe("widget push subscriptions", () => {
     expect(response.status).toBe(400);
   });
 
+  it("rejects token-bearing empty snapshots without deleting registrations", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.replaceWidgetTokensForDevice(
+      env,
+      "test-tenant",
+      hash,
+      "device-1",
+      "aabbccdd",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: ["solar"], allCards: false }],
+    );
+
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/widgets/register-push-token", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "device-1",
+          widgetPushToken: "aabbccdd",
+          subscriptions: [],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(storage.listWidgetTokensForCard(env, "test-tenant", "solar"))
+      .resolves.toEqual(["aabbccdd"]);
+  });
+
   it("deduplicates one WidgetKit token across multiple widget kinds", async () => {
     const env = makeEnv();
     const hash = await sha256Hex(TEST_API_KEY);
