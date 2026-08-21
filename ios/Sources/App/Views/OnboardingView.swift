@@ -14,6 +14,7 @@ struct OnboardingView: View {
     @State private var copyResetTask: Task<Void, Never>?
     @State private var confirmingSignOut = false
     @State private var showScanner = false
+    @State private var showDeveloperOptions = false
 
     /// How long the copied agent config survives on the pasteboard. The label
     /// promises this, so the expiry below and the reset timer read it here.
@@ -181,7 +182,21 @@ struct OnboardingView: View {
                 #endif
 
                 Section("About") {
-                    KeyValue(key: "Version", value: appVersionString)
+                    // Tapping the version opens the developer options.
+                    // Deliberately not a disclosure row: it is a diagnostic
+                    // surface, not one of the settings a user is meant to walk
+                    // through, and a chevron here would invite everyone in.
+                    Button {
+                        showDeveloperOptions = true
+                    } label: {
+                        KeyValue(key: "Version", value: appVersionString)
+                            // The row is mostly the Spacer between the two
+                            // labels, and a Spacer takes no touches. Without
+                            // this, tapping the middle of the row — which is
+                            // where anyone would tap — does nothing.
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 // Reached from Settings rather than the tab bar: a fourth tab
@@ -196,6 +211,9 @@ struct OnboardingView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(isPresented: $showDeveloperOptions) {
+                DeveloperOptionsView().environmentObject(env)
+            }
             .sheet(isPresented: $showScanner) {
                 GuestLinkScannerSheet().environmentObject(env)
             }

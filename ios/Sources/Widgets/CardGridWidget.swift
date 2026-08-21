@@ -74,6 +74,8 @@ public struct CardGridEntry: TimelineEntry {
     public let compactTapTarget: CardGridTapTarget
     public let density: WidgetCardDensity
     public let statusFilter: WidgetStatusFilter
+    /// nil for placeholder and snapshot renders. See `CardTimelineEntry`.
+    public let updateMark: WidgetUpdateMark?
 
     public init(
         date: Date,
@@ -81,7 +83,8 @@ public struct CardGridEntry: TimelineEntry {
         reason: CardFallbackView.Reason? = nil,
         compactTapTarget: CardGridTapTarget,
         density: WidgetCardDensity,
-        statusFilter: WidgetStatusFilter
+        statusFilter: WidgetStatusFilter,
+        updateMark: WidgetUpdateMark? = nil
     ) {
         self.date = date
         self.cards = cards
@@ -89,6 +92,19 @@ public struct CardGridEntry: TimelineEntry {
         self.compactTapTarget = compactTapTarget
         self.density = density
         self.statusFilter = statusFilter
+        self.updateMark = updateMark
+    }
+
+    public func marked(_ mark: WidgetUpdateMark) -> CardGridEntry {
+        CardGridEntry(
+            date: date,
+            cards: cards,
+            reason: reason,
+            compactTapTarget: compactTapTarget,
+            density: density,
+            statusFilter: statusFilter,
+            updateMark: mark
+        )
     }
 }
 
@@ -116,26 +132,38 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     }
 
     public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
-        await refreshCacheIfPossible(reason: "timeline")
-        let entry = entry(for: configuration)
+        let refreshed = await refreshCacheIfPossible(reason: "timeline")
         // Keyed by what this placement shows, so two grids do not overwrite
         // each other's history.
         let slots = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
         let widgetKey = "grid.\(slots.compactMap { $0?.id }.joined(separator: "+"))"
-        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next(for: widgetKey)))
+        let decision = WidgetRefreshPolicy.decide(for: widgetKey)
+        let mark = WidgetUpdateMark(
+            date: Date(),
+            source: WidgetUpdateSource.classify(
+                wokenEarly: decision.wokenEarly,
+                refreshSucceeded: refreshed,
+                appReloadAt: SharedSettings.lastAppWidgetReloadAt
+            )
+        )
+        return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
     }
 
-    private func refreshCacheIfPossible(reason: String) async {
+    /// See `CardTimelineProvider.refreshCacheIfPossible(reason:)`.
+    @discardableResult
+    private func refreshCacheIfPossible(reason: String) async -> Bool {
         guard let config = APIClientConfig.fromSettings() else {
             Self.log.info("skipping grid refresh for \(reason, privacy: .public): API config unavailable")
-            return
+            return false
         }
         do {
             let cards = try await APIClient(config: config).fetchCards()
             try CardCache.save(cards)
             Self.log.info("refreshed \(cards.count, privacy: .public) cards for \(reason, privacy: .public)")
+            return true
         } catch {
             Self.log.error("grid refresh failed for \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -198,7 +226,9 @@ struct CardGridWidgetView: View {
     let entry: CardGridEntry
 
     var body: some View {
-        content.widgetURL(family == .systemSmall ? compactTapURL : nil)
+        content
+            .widgetUpdateStamp(entry.updateMark)
+            .widgetURL(family == .systemSmall ? compactTapURL : nil)
     }
 
     @ViewBuilder

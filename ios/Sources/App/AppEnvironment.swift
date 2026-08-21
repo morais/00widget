@@ -450,6 +450,7 @@ public final class AppEnvironment: ObservableObject {
             )
         }
         try? GuestCardCache.save(entries)
+        SharedSettings.markAppWidgetReload()
         WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.card)
         WidgetCenter.shared.reloadTimelines(ofKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid)
     }
@@ -713,6 +714,10 @@ public final class AppEnvironment: ObservableObject {
     }
 
     func reloadWidgetTimelines() {
+        // Stamped before the request, not after: the extension can run before
+        // this method returns, and a marker written afterwards would arrive
+        // too late to attribute the run it caused.
+        SharedSettings.markAppWidgetReload()
         for kind in ZeroZeroWidgetConstants.WidgetKinds.all {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }

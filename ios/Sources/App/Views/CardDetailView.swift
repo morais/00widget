@@ -11,6 +11,10 @@ struct CardDetailView: View {
     @State private var confirmingDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
+    // Read once per appearance rather than through @AppStorage: the flag lives
+    // in the App Group so the widget extension sees it too, and nothing can
+    // change it while this screen is on top.
+    @State private var showRawCardDetails = SharedSettings.showRawCardDetails
     @Environment(\.dismiss) private var dismiss
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
@@ -51,27 +55,32 @@ struct CardDetailView: View {
                     deepLinkDestination(deepLink)
                 }
 
-                DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
-                    Text(jsonString)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .font(.headline)
+                // Off unless the developer option is on, so an ordinary
+                // detail screen is the card rather than the card plus its
+                // wire format. Settings -> Version turns it back on.
+                if showRawCardDetails {
+                    DisclosureGroup("Raw JSON", isExpanded: $showRawJson) {
+                        Text(jsonString)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .font(.headline)
 
-                DisclosureGroup("Example curl", isExpanded: $showCurlExample) {
-                    Text(curlExample)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    DisclosureGroup("Example curl", isExpanded: $showCurlExample) {
+                        Text(curlExample)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .font(.headline)
                 }
-                .font(.headline)
 
                 if canDelete {
                     if let deleteError {
@@ -95,6 +104,7 @@ struct CardDetailView: View {
         .refreshable {
             await env.fetchCards()
         }
+        .onAppear { showRawCardDetails = SharedSettings.showRawCardDetails }
         .navigationTitle(currentCard.title)
         .toolbar {
             // Only the owner can share. A card arriving through a share

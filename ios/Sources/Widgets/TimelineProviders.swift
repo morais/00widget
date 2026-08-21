@@ -7,12 +7,26 @@ public struct CardTimelineEntry: TimelineEntry {
     public let card: DashboardCard?
     public let density: CardRenderDensity
     public let reason: CardFallbackView.Reason?
+    /// nil for placeholder and snapshot renders, which are previews rather
+    /// than updates and have no trigger worth reporting.
+    public let updateMark: WidgetUpdateMark?
 
-    public init(date: Date, card: DashboardCard?, density: CardRenderDensity = .automatic, reason: CardFallbackView.Reason? = nil) {
+    public init(
+        date: Date,
+        card: DashboardCard?,
+        density: CardRenderDensity = .automatic,
+        reason: CardFallbackView.Reason? = nil,
+        updateMark: WidgetUpdateMark? = nil
+    ) {
         self.date = date
         self.card = card
         self.density = density
         self.reason = reason
+        self.updateMark = updateMark
+    }
+
+    public func marked(_ mark: WidgetUpdateMark) -> CardTimelineEntry {
+        CardTimelineEntry(date: date, card: card, density: density, reason: reason, updateMark: mark)
     }
 }
 
@@ -34,27 +48,40 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
     }
 
     public func timeline(for configuration: SelectCardIntent, in context: Context) async -> Timeline<CardTimelineEntry> {
-        await refreshCacheIfPossible(reason: "timeline")
-        let entry = entry(for: configuration)
+        let refreshed = await refreshCacheIfPossible(reason: "timeline")
         // Keyed by the card this widget shows, so two widgets do not overwrite
         // each other's history. Two showing the same card may share it: they
         // are pushed together anyway.
         let widgetKey = "card.\(configuration.card?.id ?? "default")"
-        return Timeline(entries: [entry], policy: .after(WidgetRefreshPolicy.next(for: widgetKey)))
+        let decision = WidgetRefreshPolicy.decide(for: widgetKey)
+        let mark = WidgetUpdateMark(
+            date: Date(),
+            source: WidgetUpdateSource.classify(
+                wokenEarly: decision.wokenEarly,
+                refreshSucceeded: refreshed,
+                appReloadAt: SharedSettings.lastAppWidgetReloadAt
+            )
+        )
+        return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
     }
 
-    private func refreshCacheIfPossible(reason: String) async {
+    /// Returns whether this run actually reached the server. The caller needs
+    /// that to tell a widget showing fresh state from one drawing its cache.
+    @discardableResult
+    private func refreshCacheIfPossible(reason: String) async -> Bool {
         guard let config = APIClientConfig.fromSettings() else {
             Self.log.info("skipping card refresh for \(reason, privacy: .public): API config unavailable")
-            return
+            return false
         }
 
         do {
             let cards = try await APIClient(config: config).fetchCards()
             try CardCache.save(cards)
             Self.log.info("refreshed \(cards.count, privacy: .public) cards for \(reason, privacy: .public)")
+            return true
         } catch {
             Self.log.error("card refresh failed for \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 

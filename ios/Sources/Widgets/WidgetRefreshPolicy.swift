@@ -51,18 +51,39 @@ enum WidgetRefreshPolicy {
     ///   forever. Two widgets showing the same thing may share a key — they are
     ///   pushed together anyway.
     static func next(for widget: String, now: Date = Date()) -> Date {
+        decide(for: widget, now: now).next
+    }
+
+    /// The same step as `next(for:)`, also reporting the comparison it made.
+    ///
+    /// `wokenEarly` is the one piece of evidence a widget has about why it is
+    /// running: it did not ask to be woken this soon, so something else woke
+    /// it. The update stamp turns that into a colour; the interval choice
+    /// turns it into a cadence. Both read the same fact, so they are computed
+    /// once — the record is rewritten here, and a second read would see the
+    /// value this call just stored.
+    static func decide(for widget: String, now: Date = Date()) -> Decision {
         let previous = record(for: widget)
         let interval = chooseInterval(previous: previous, now: now)
         store(Record(ranAt: now, requested: interval), for: widget)
-        return now.addingTimeInterval(interval)
+        return Decision(next: now.addingTimeInterval(interval), wokenEarly: wasEarly(previous: previous, now: now))
+    }
+
+    static func wasEarly(previous: Record?, now: Date) -> Bool {
+        guard let previous else { return false }
+        return now.timeIntervalSince(previous.ranAt) < previous.requested * earlyFraction
+    }
+
+    struct Decision {
+        var next: Date
+        var wokenEarly: Bool
     }
 
     static func chooseInterval(previous: Record?, now: Date) -> TimeInterval {
         // Nothing learned yet. Start attentive rather than assume the push path
         // works: a widget that never refreshes is worse than one that polls.
-        guard let previous else { return unaided }
-        let elapsed = now.timeIntervalSince(previous.ranAt)
-        return elapsed < previous.requested * earlyFraction ? relaxed : unaided
+        guard previous != nil else { return unaided }
+        return wasEarly(previous: previous, now: now) ? relaxed : unaided
     }
 
     struct Record {

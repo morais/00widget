@@ -29,7 +29,18 @@ struct CardWidgetView: View {
 
     var body: some View {
         content
+            // Home Screen families only. The Lock Screen accessories are a
+            // handful of points tall and monochrome by design, so a badge there
+            // would displace the content it is meant to annotate.
+            .widgetUpdateStamp(isSystemFamily ? entry.updateMark : nil)
             .widgetURL(entry.card?.deepLink)
+    }
+
+    private var isSystemFamily: Bool {
+        switch family {
+        case .systemSmall, .systemMedium, .systemLarge, .systemExtraLarge: return true
+        default: return false
+        }
     }
 
     @ViewBuilder

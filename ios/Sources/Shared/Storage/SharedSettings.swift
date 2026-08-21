@@ -48,6 +48,49 @@ public enum SharedSettings {
             .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.subscriptionActive)
     }
 
+    /// Shows the raw JSON and the equivalent `curl` on a card's detail screen.
+    ///
+    /// Off by default: both are developer material, and the JSON of a card
+    /// somebody is looking at over your shoulder is not what the screen is for.
+    public static var showRawCardDetails: Bool {
+        (defaults ?? .standard)
+            .bool(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showRawCardDetails)
+    }
+
+    public static func setShowRawCardDetails(_ value: Bool) {
+        (defaults ?? .standard)
+            .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showRawCardDetails)
+    }
+
+    /// Draws the last-render time in the corner of every Home Screen widget,
+    /// tinted by what triggered that render. A diagnostic for the one thing
+    /// about widgets nobody can otherwise see: when iOS actually redrew them.
+    public static var showWidgetTimestamps: Bool {
+        (defaults ?? .standard)
+            .bool(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showWidgetTimestamps)
+    }
+
+    public static func setShowWidgetTimestamps(_ value: Bool) {
+        (defaults ?? .standard)
+            .set(value, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.showWidgetTimestamps)
+    }
+
+    /// Stamped by the app immediately before every `WidgetCenter` reload
+    /// request, and read by the extension while classifying the run that
+    /// follows. Deliberately in the App Group rather than passed in the
+    /// timeline: the extension is a separate process and there is no other
+    /// channel between the reload call and the run it causes.
+    public static var lastAppWidgetReloadAt: Date? {
+        let value = (defaults ?? .standard)
+            .double(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appWidgetReloadAt)
+        return value > 0 ? Date(timeIntervalSince1970: value) : nil
+    }
+
+    public static func markAppWidgetReload(at date: Date = Date()) {
+        (defaults ?? .standard)
+            .set(date.timeIntervalSince1970, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appWidgetReloadAt)
+    }
+
     public static var serverBaseURL: String? {
         defaults?.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
     }
