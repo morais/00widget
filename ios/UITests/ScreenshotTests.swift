@@ -560,12 +560,12 @@ final class ScreenshotTests: XCTestCase {
             )
             settingsTab.tap()
 
-            // The row's accessibility label is compound — "Status, Expired" —
-            // because the NavigationLink wraps a label and a status together,
-            // so an exact match never finds it. It sits under the section
-            // headed "Subscription".
+            // The row's accessibility label is compound — "Subscription,
+            // Expired" — because the NavigationLink wraps a label and a
+            // status together, so an exact match never finds it. It sits in
+            // the Server section rather than taking a section of its own.
             let row = app.buttons
-                .containing(NSPredicate(format: "label BEGINSWITH 'Status'"))
+                .containing(NSPredicate(format: "label BEGINSWITH 'Subscription'"))
                 .firstMatch
             XCTAssertTrue(scrollTo(row, in: app, swipes: 10), "Subscription row not found.")
             capture(named: "screenshot-subscription-settings-\(state)")

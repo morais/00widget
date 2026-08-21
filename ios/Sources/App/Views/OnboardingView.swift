@@ -83,6 +83,21 @@ struct OnboardingView: View {
                                 .foregroundStyle(healthStatusColor)
                         }
                     }
+
+                    #if ZW_SUBSCRIPTIONS_ENABLED
+                    NavigationLink {
+                        SubscriptionView()
+                    } label: {
+                        HStack {
+                            Text("Subscription")
+                            Spacer()
+                            Text(subscriptions.state.displayLabel)
+                                .foregroundStyle(
+                                    subscriptions.state.needsAttention ? .orange : .secondary
+                                )
+                        }
+                    }
+                    #endif
                 }
 
                 if !env.notificationsAuthorized {
@@ -155,23 +170,6 @@ struct OnboardingView: View {
                         Text("Swipe to remove. Removing a link only affects this device.")
                     }
                 }
-
-                #if ZW_SUBSCRIPTIONS_ENABLED
-                Section("Subscription") {
-                    NavigationLink {
-                        SubscriptionView()
-                    } label: {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            Text(subscriptions.state.displayLabel)
-                                .foregroundStyle(
-                                    subscriptions.state.needsAttention ? .orange : .secondary
-                                )
-                        }
-                    }
-                }
-                #endif
 
                 #if ZW_SHARING_ENABLED
                 Section("Sharing") {
