@@ -19,7 +19,7 @@ Use this exact wording — no rephrasing. It appears in:
 ## Identity
 
 U2 is the **Two-Card Agent**: two overlapping widget cards, an oversized
-secret-agent fedora, two horizontal eyes, and a teal rising trend line. The
+secret-agent fedora, two slashed-zero eyes, and a teal rising trend line. The
 approved artwork is intentionally friendly and slightly organic. Do not redraw
 it as hard geometric primitives or alter its proportions.
 

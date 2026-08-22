@@ -204,6 +204,7 @@ def generate() -> None:
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
 
     save(app_icon, REPO_ROOT / "ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
+    save(app_icon, REPO_ROOT / "ios/Resources/Clip/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
 
     tv_assets = REPO_ROOT / "ios/Resources/TV/Assets.xcassets/App Icon & Top Shelf Image.brandassets"
     back_store = dark_background((2560, 1536)).convert("RGB")
