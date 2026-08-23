@@ -87,6 +87,31 @@ struct ZeroZeroWidgetPushHandler: WidgetPushHandler {
                     subscription.allCards = true
                 }
             default:
+                // A kind this bundle ships but this switch does not describe.
+                //
+                // Over-subscribe rather than drop it. A widget receiving
+                // pushes it did not strictly need spends some of the token's
+                // allowance; a widget that registers nothing goes dark and is
+                // left with only its timeline — and says so nowhere, which is
+                // the worse of the two by a distance.
+                //
+                // Reached by registering a widget in WidgetBundle and
+                // WidgetKinds.all without extending this switch. That step is
+                // easy to miss precisely because everything else keeps
+                // working: the widget renders, its timeline runs, and only the
+                // push path is quietly absent.
+                //
+                // Kinds outside WidgetKinds.all are not ours to subscribe —
+                // the screenshot-only widgets are static, carry no push
+                // handler, and must not claim card pushes.
+                guard ZeroZeroWidgetConstants.WidgetKinds.all.contains(widget.kind) else {
+                    continue
+                }
+                subscription.allCards = true
+                subscriptions[widget.kind] = subscription
+                Self.log.warning(
+                    "widget kind \(widget.kind, privacy: .public) has no push subscription rule; subscribing to all cards"
+                )
                 continue
             }
             subscriptions[widget.kind] = WidgetPushSubscription(
