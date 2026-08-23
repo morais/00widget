@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -35,25 +35,45 @@ def crop(box: tuple[int, int, int, int]) -> Image.Image:
     return Image.open(SOURCE).convert("RGBA").crop(box)
 
 
-def remove_exterior_background(image: Image.Image, threshold: int = 54) -> Image.Image:
-    """Remove only sheet pixels connected to the crop edge.
+def isolate_mark(image: Image.Image, *, seal: int = 10, floor: int = 25, ceiling: int = 70) -> Image.Image:
+    """Cut the approved master's navy backdrop away without touching the art.
 
-    U2 contains white cards and a white hat band, so global white-to-alpha
-    conversion would damage the approved art. Edge-connected removal keeps
-    those enclosed white details intact.
+    The backdrop is a gradient, so a pixel counts as backdrop by *distance* from
+    the corner colour rather than by an exact match, and only pixels connected
+    to the image edge are removed: the mark's own navy hat band, card outline,
+    and eye glyphs sit well inside that same distance and have to survive.
+
+    Connectivity alone is not enough, because the card outline touches the
+    backdrop through a hairline where the brim crosses it — enough for an
+    unsealed fill to drain the entire outline. Closing the art mask by `seal`
+    pixels bridges that hairline first. The close feeds connectivity only;
+    alpha still comes from each pixel's own distance, which keeps the cut edge
+    anti-aliased instead of stair-stepped.
     """
     rgba = image.convert("RGBA")
-    pixels = rgba.load()
     width, height = rgba.size
-    sample_points = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
-    background = tuple(round(sum(pixels[x, y][channel] for x, y in sample_points) / 4) for channel in range(3))
+    pixels = rgba.load()
+    corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
+    backdrop = tuple(round(sum(pixels[x, y][channel] for x, y in corners) / 4) for channel in range(3))
 
-    def is_background(x: int, y: int) -> bool:
-        color = pixels[x, y]
-        return sum((color[channel] - background[channel]) ** 2 for channel in range(3)) ** 0.5 <= threshold
+    raw = rgba.tobytes()
+    distances = [
+        (
+            (raw[offset] - backdrop[0]) ** 2
+            + (raw[offset + 1] - backdrop[1]) ** 2
+            + (raw[offset + 2] - backdrop[2]) ** 2
+        )
+        ** 0.5
+        for offset in range(0, len(raw), 4)
+    ]
+
+    art = Image.new("L", (width, height))
+    art.putdata([255 if distance > ceiling else 0 for distance in distances])
+    kernel = seal * 2 + 1
+    sealed = art.filter(ImageFilter.MaxFilter(kernel)).filter(ImageFilter.MinFilter(kernel)).load()
 
     queue: deque[tuple[int, int]] = deque()
-    visited = bytearray(width * height)
+    outside = bytearray(width * height)
     for x in range(width):
         queue.append((x, 0))
         queue.append((x, height - 1))
@@ -64,10 +84,9 @@ def remove_exterior_background(image: Image.Image, threshold: int = 54) -> Image
     while queue:
         x, y = queue.popleft()
         index = y * width + x
-        if visited[index] or not is_background(x, y):
+        if outside[index] or sealed[x, y]:
             continue
-        visited[index] = 1
-        pixels[x, y] = (0, 0, 0, 0)
+        outside[index] = 1
         if x:
             queue.append((x - 1, y))
         if x + 1 < width:
@@ -77,6 +96,13 @@ def remove_exterior_background(image: Image.Image, threshold: int = 54) -> Image
         if y + 1 < height:
             queue.append((x, y + 1))
 
+    alpha = bytearray(width * height)
+    for index, distance in enumerate(distances):
+        if not outside[index]:
+            alpha[index] = 255
+        elif distance > floor:
+            alpha[index] = min(255, round((distance - floor) * 255 / (ceiling - floor)))
+    rgba.putalpha(Image.frombytes("L", (width, height), bytes(alpha)))
     return rgba
 
 
@@ -187,16 +213,17 @@ def resize(source: Image.Image, size: tuple[int, int], *, opaque: bool = False) 
 
 
 def generate() -> None:
-    for required in (SOURCE, MARK_MASTER, APP_ICON_MASTER):
+    for required in (SOURCE, APP_ICON_MASTER):
         if not required.exists():
             raise SystemExit(f"Missing approved identity source: {required}")
 
-    mark = Image.open(MARK_MASTER).convert("RGBA")
     app_icon_master = Image.open(APP_ICON_MASTER).convert("RGB")
+    mark = isolate_mark(app_icon_master)
     app_icon = app_icon_master.resize((1024, 1024), Image.Resampling.LANCZOS)
     wordmark_opaque = exact_wordmark(transparent=False).convert("RGB")
     wordmark_transparent = clean_wordmark((2400, 840), dark_surface=True)
 
+    save(mark, MARK_MASTER)
     save(app_icon, BRAND_DIR / "mark-1024.png", opaque=True)
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
     save(resize(app_icon_master, (512, 512), opaque=True), BRAND_DIR / "plugin-logo.png", opaque=True)
