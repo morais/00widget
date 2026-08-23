@@ -19,7 +19,7 @@ Use this exact wording — no rephrasing. It appears in:
 ## Identity
 
 U2 is the **Two-Card Agent**: two overlapping widget cards, an oversized
-secret-agent fedora, two slashed-zero eyes, and a teal rising trend line. The
+secret-agent fedora, two slashed-zero eyes, and a teal five-bar smile chart. The
 approved artwork is intentionally friendly and slightly organic. Do not redraw
 it as hard geometric primitives or alter its proportions.
 
@@ -66,7 +66,7 @@ approved U2 artwork. Do not substitute an approximate vector redraw.
 | Role             | Hex                   | Usage                                       |
 | ---------------- | --------------------- | ------------------------------------------- |
 | Brand blue       | `#1F8BFF` / `#0968E8` | "00" wordmark, primary accent               |
-| Trend teal       | `#1FB89A`             | Trend-line accent inside the mark           |
+| Trend teal       | `#1FB89A`             | Smile-chart accent inside the mark          |
 | Accent purple    | `#5B35DB`             | Card row accent inside the mark             |
 | Deep navy        | `#06152A`             | Panel + card stroke + "Widget" text         |
 | Mid navy         | `#4C607D`             | Tagline                                     |
@@ -80,7 +80,7 @@ logos are trademarks of Pedro Morais; no trademark rights are granted by the
 software license.
 
 - **Do not** rephrase the tagline.
-- **Do not** change the agent's hat, card overlap, eye placement, trend line,
+- **Do not** change the agent's hat, card overlap, eye placement, smile chart,
   tilt, or rounded proportions.
 - **Do not** recolor the mark. Use the supplied variants as-is.
 - **Do** keep clearspace around the mark equal to half the height of the "0" in `00Widget`.
