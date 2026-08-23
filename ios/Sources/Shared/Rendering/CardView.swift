@@ -72,10 +72,7 @@ public struct CardView: View {
         case .widgetLarge:
             largeView
         case .widgetExtraLarge:
-            // The roomiest layout there is, until one built for the space
-            // exists. Wrong for the canvas, but right about which way to be
-            // wrong: too much room beats a small-widget layout stretched.
-            largeView
+            extraLargeView
         case .app:
             appView
         }
@@ -321,6 +318,127 @@ public struct CardView: View {
     /// and would otherwise centre its text in the widget.
     private var largePlotFillsHeight: Bool {
         card.template == .chart && (card.chart?.isRenderable ?? false)
+    }
+
+    /// The double-width canvas: `systemExtraLarge` on iPad, and iOS 27's
+    /// `systemExtraLargePortrait`. Both are roughly twice the width of
+    /// `systemLarge` at the *same* height, so the room they add is horizontal.
+    /// This used to fall through to `largeView`, which spends new space
+    /// vertically and therefore left a column of content beside a wide empty
+    /// band. Each template now puts the width to work as a second column
+    /// instead of asking for taller content it has no height for.
+    private var extraLargeView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            extraLargeBody
+            // Same bargain as `largeView`: a plot that grows into the slack
+            // must not also compete with a Spacer for it.
+            if !largePlotFillsHeight {
+                Spacer(minLength: 0)
+            }
+            if density != .compact {
+                if card.deadline != nil {
+                    footerLine
+                } else {
+                    Text("Updated \(card.updatedAt, style: .relative) ago")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(14)
+    }
+
+    @ViewBuilder
+    private var extraLargeBody: some View {
+        let rowsPerColumn = density == .compact ? 5 : 7
+        switch card.template {
+        case .list:
+            HStack(alignment: .top, spacing: 14) {
+                listRows(max: rowsPerColumn)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // A short list keeps one column and the full width per row,
+                // rather than a half-empty second column beside it.
+                if (card.items?.count ?? 0) > rowsPerColumn {
+                    listRows(max: rowsPerColumn, dropping: rowsPerColumn)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            actionButtons(max: density == .compact ? 2 : 4)
+        case .action:
+            HStack(alignment: .top, spacing: 14) {
+                actionSummary
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if drawsActionButtons {
+                    actionButtons(max: density == .compact ? 4 : 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        case .chart:
+            HStack(alignment: .top, spacing: 14) {
+                // The headline is a number and a label; the plot is the reason
+                // for the canvas, so it takes the remaining width rather than
+                // an even half of it.
+                VStack(alignment: .leading, spacing: 8) {
+                    chartHeadline
+                    actionButtons(max: density == .compact ? 2 : 4)
+                }
+                .frame(maxWidth: 200, alignment: .leading)
+                sparkline(minHeight: density == .compact ? 70 : 110, lineWidth: 2.5)
+                    .frame(maxWidth: .infinity)
+            }
+        case .history:
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    chartHeadline
+                    statusStrip(limit: 30, height: 18)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                listRows(max: rowsPerColumn)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            actionButtons(max: density == .compact ? 2 : 4)
+        case .breakdown:
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    chartHeadline
+                    compositionBar(height: 18)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                breakdownLegend(max: density == .compact ? 5 : 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            actionButtons(max: density == .compact ? 2 : 4)
+        case .summary, .progress:
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    bigValue
+                    if let subtitle = card.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let p = card.progressValue {
+                        ProgressRow(progress: p, label: nil)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if drawsActionButtons {
+                    actionButtons(max: density == .compact ? 4 : 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    /// Whether `actionButtons` would draw anything, mirroring the conditions
+    /// it applies itself. The two-column layouts ask before reserving a column
+    /// for buttons: half a canvas left empty reads worse than one wide column.
+    private var drawsActionButtons: Bool {
+        #if canImport(WidgetKit)
+        guard widgetRenderingMode == .fullColor else { return false }
+        #endif
+        return card.actions?.contains(where: \.isSafeFromWidget) ?? false
     }
 
     private var rectangularView: some View {
@@ -753,12 +871,16 @@ public struct CardView: View {
         }
     }
 
+    /// `dropping` skips the rows a previous column already drew. The bar
+    /// fractions stay computed over *all* items, so the two columns of an
+    /// extra-large list remain comparable to each other rather than each
+    /// rescaling to its own tallest row.
     @ViewBuilder
-    private func listRows(max: Int) -> some View {
+    private func listRows(max: Int, dropping: Int = 0) -> some View {
         if let items = card.items, !items.isEmpty {
             let fractions = RankedRows.fractions(for: items)
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(items.prefix(max)) { item in
+                ForEach(items.dropFirst(dropping).prefix(max)) { item in
                     rowLink(item) {
                         HStack {
                             Text(item.title).font(.caption).lineLimit(1)

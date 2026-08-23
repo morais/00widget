@@ -34,15 +34,33 @@ public enum CardGridTapTarget: String, AppEnum {
 }
 
 public struct SelectGridCardsIntent: WidgetConfigurationIntent {
-    /// How many cells the grid ever draws. A selection may be longer: the
-    /// widget shows the highest-priority `maxCards` of whatever passes the
-    /// status filter, so picking eight and filtering to "needs attention" is a
-    /// meaningful configuration rather than a mistake.
+    /// How many cells the grid draws on the ordinary families. A selection may
+    /// be longer: the widget shows the highest-priority `maxCards` of whatever
+    /// passes the status filter, so picking eight and filtering to "needs
+    /// attention" is a meaningful configuration rather than a mistake.
     public static let maxCards = 4
+
+    /// The double-width canvases hold twice as many cells legibly — this is
+    /// the first family where the grid reads as a wall dashboard rather than a
+    /// tile.
+    public static let extraLargeMaxCards = 8
+
+    /// Cells drawn on `family`.
+    ///
+    /// Capacity is a *rendering* decision and nothing more. The push
+    /// subscription is driven by the selection — or by `allCards` when the
+    /// selection is empty — never by how many cells get drawn, so a roomier
+    /// grid draws more of the cards it already caches without subscribing to
+    /// anything new. It therefore costs no additional WidgetKit reload budget,
+    /// which is the constraint that would otherwise govern this.
+    public static func capacity(for family: WidgetFamily) -> Int {
+        if FullPageWidgetFamily.contains(family) { return extraLargeMaxCards }
+        return family == .systemExtraLarge ? extraLargeMaxCards : maxCards
+    }
 
     public static var title: LocalizedStringResource = "Select cards"
     public static var description = IntentDescription(
-        "Choose which cards this grid may show. The highest-priority four appear, and picking none follows your whole dashboard."
+        "Choose which cards this grid may show. The highest-priority four appear — eight on the largest sizes — and picking none follows your whole dashboard."
     )
 
     /// A set, not four ordered slots. Ordering comes from card priority, which
@@ -138,7 +156,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public func placeholder(in context: Context) -> CardGridEntry {
         return CardGridEntry(
             date: Date(),
-            cards: Array(SampleDataFactory.makeCards().prefix(SelectGridCardsIntent.maxCards)),
+            cards: Array(SampleDataFactory.makeCards().prefix(SelectGridCardsIntent.capacity(for: context.family))),
             compactTapTarget: .app,
             density: .automatic,
             statusFilter: .all
@@ -147,7 +165,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
 
     public func snapshot(for configuration: SelectGridCardsIntent, in context: Context) async -> CardGridEntry {
         await refreshCacheIfPossible(reason: "snapshot")
-        return entry(for: configuration)
+        return entry(for: configuration, capacity: SelectGridCardsIntent.capacity(for: context.family))
     }
 
     public func timeline(for configuration: SelectGridCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
@@ -185,7 +203,8 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
             )
         }
         Self.log.info("grid timeline execution completed for \(widgetKey, privacy: .public)")
-        return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
+        let capacity = SelectGridCardsIntent.capacity(for: context.family)
+        return Timeline(entries: [entry(for: configuration, capacity: capacity).marked(mark)], policy: .after(decision.next))
     }
 
     private func repairPushSubscription(for configuration: SelectGridCardsIntent) async {
@@ -232,7 +251,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         }
     }
 
-    private func entry(for configuration: SelectGridCardsIntent) -> CardGridEntry {
+    private func entry(for configuration: SelectGridCardsIntent, capacity: Int) -> CardGridEntry {
         let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
         let selected = Set(configuration.selectedCardIds)
@@ -244,7 +263,7 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         // how a grid nobody has configured follows the dashboard's top cards.
         let candidates = selected.isEmpty ? cached : cached.filter { selected.contains($0.id) }
         let cards = Array(
-            candidates.filter { filter.includes($0.status) }.prefix(SelectGridCardsIntent.maxCards)
+            candidates.filter { filter.includes($0.status) }.prefix(capacity)
         )
 
         let reason: CardFallbackView.Reason?
@@ -282,8 +301,8 @@ struct CardGridWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("00Widget Grid")
-        .description("Show up to four 00Widget cards at once, highest priority first.")
-        .supportedFamilies(FullPageWidgetFamily.adding(to: [.systemSmall, .systemMedium, .systemLarge]))
+        .description("Show several 00Widget cards at once, highest priority first.")
+        .supportedFamilies(FullPageWidgetFamily.adding(to: [.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge]))
         .pushHandler(ZeroZeroWidgetPushHandler.self)
     }
 }
@@ -325,7 +344,11 @@ struct CardGridWidgetView: View {
         switch family {
         case .systemSmall: return .compact
         case .systemMedium: return .standard
-        default: return .roomy
+        default:
+            // A double-width grid fits eight cells into the height that gives
+            // `systemLarge` four, so each one lands nearer a small widget than
+            // a large one and `.roomy` would overdraw it.
+            return entry.cards.count > 4 ? .standard : .roomy
         }
     }
 
@@ -353,7 +376,7 @@ struct CardGridWidgetView: View {
                 GridRow {
                     cell(at: 2, linkable: linkable).gridCellColumns(2)
                 }
-            default:
+            case 4:
                 GridRow {
                     cell(at: 0, linkable: linkable)
                     cell(at: 1, linkable: linkable)
@@ -361,6 +384,19 @@ struct CardGridWidgetView: View {
                 GridRow {
                     cell(at: 2, linkable: linkable)
                     cell(at: 3, linkable: linkable)
+                }
+            default:
+                // Only the double-width families reach here: every other one
+                // is capped at four by `SelectGridCardsIntent.capacity(for:)`.
+                // Four columns keep the cells near the proportions a 2x2 has
+                // on `systemLarge`, on a canvas twice as wide as it is tall.
+                let columns = 4
+                ForEach(Array(stride(from: 0, to: entry.cards.count, by: columns)), id: \.self) { start in
+                    GridRow {
+                        ForEach(Array(start..<min(start + columns, entry.cards.count)), id: \.self) { index in
+                            cell(at: index, linkable: linkable)
+                        }
+                    }
                 }
             }
         }

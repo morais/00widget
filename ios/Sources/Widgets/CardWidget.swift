@@ -16,7 +16,7 @@ struct CardWidget: Widget {
         .configurationDisplayName("00Widget Card")
         .description("Show one 00Widget card.")
         .supportedFamilies(FullPageWidgetFamily.adding(to: [
-            .systemSmall, .systemMedium, .systemLarge,
+            .systemSmall, .systemMedium, .systemLarge, .systemExtraLarge,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
         ]))
         .pushHandler(ZeroZeroWidgetPushHandler.self)
