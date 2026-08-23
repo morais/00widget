@@ -524,6 +524,7 @@ public final class AppEnvironment: ObservableObject {
         cached.removeAll { $0.id == id }
         try? CardCache.save(cached)
         cards.removeAll { $0.id == id }
+        SpotlightIndex.donate(cached)
         reloadWidgetTimelines()
     }
 
@@ -538,11 +539,15 @@ public final class AppEnvironment: ObservableObject {
             cards = result.own
             sharedCards = result.shared
             try CardCache.save(result.own)
+            // Own cards only, and never result.shared: a card from another
+            // tenant is revocable, and an index outlives the revocation.
+            SpotlightIndex.donate(result.own)
             #else
             let fetched = try await client.fetchCards()
             cards = fetched
             sharedCards = []
             try CardCache.save(fetched)
+            SpotlightIndex.donate(fetched)
             #endif
             lastSyncAt = Date()
             lastSyncError = nil
@@ -678,6 +683,10 @@ public final class AppEnvironment: ObservableObject {
         let samples = SampleDataFactory.makeCards()
         try? CardCache.save(samples)
         cards = samples
+        // Filtered out entirely by SpotlightIndex.indexable, so this prunes
+        // rather than donates. That is the intent: entering the sample state
+        // must not leave real cards behind in Spotlight.
+        SpotlightIndex.donate(samples)
         reloadWidgetTimelines()
     }
 
@@ -697,12 +706,14 @@ public final class AppEnvironment: ObservableObject {
             try? CardCache.save(remaining)
         }
         cards = remaining
+        SpotlightIndex.donate(remaining)
         reloadWidgetTimelines()
     }
 
     public func clearCache() {
         CardCache.clear()
         cards = []
+        SpotlightIndex.removeAll()
         reloadWidgetTimelines()
     }
 
@@ -710,6 +721,9 @@ public final class AppEnvironment: ObservableObject {
         CardCache.clear()
         cards = []
         sharedCards = []
+        // Signing out must empty the index too, or Siri keeps answering for a
+        // tenant nobody is signed into.
+        SpotlightIndex.removeAll()
         #if ZW_SHARING_ENABLED
         incomingShares = []
         outgoingShares = []
