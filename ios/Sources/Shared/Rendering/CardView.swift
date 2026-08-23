@@ -20,6 +20,11 @@ public enum CardRenderContext {
     case widgetSmall
     case widgetMedium
     case widgetLarge
+    /// Canvases larger than `systemLarge` — `systemExtraLarge` on iPad, and
+    /// `systemExtraLargePortrait` from iOS 27. It exists so that opting into
+    /// one of those families is a deliberate act with somewhere to land,
+    /// rather than a silent fall through to the smallest layout there is.
+    case widgetExtraLarge
     case accessoryRectangular
     case accessoryCircular
     case accessoryInline
@@ -65,6 +70,11 @@ public struct CardView: View {
         case .widgetMedium:
             mediumView
         case .widgetLarge:
+            largeView
+        case .widgetExtraLarge:
+            // The roomiest layout there is, until one built for the space
+            // exists. Wrong for the canvas, but right about which way to be
+            // wrong: too much room beats a small-widget layout stretched.
             largeView
         case .app:
             appView
@@ -738,7 +748,7 @@ public struct CardView: View {
 
     private var addressableRows: Bool {
         switch context {
-        case .app, .widgetMedium, .widgetLarge: return true
+        case .app, .widgetMedium, .widgetLarge, .widgetExtraLarge: return true
         default: return false
         }
     }

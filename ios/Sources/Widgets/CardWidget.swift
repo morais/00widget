@@ -57,10 +57,17 @@ struct CardWidgetView: View {
         case .systemSmall: return .widgetSmall
         case .systemMedium: return .widgetMedium
         case .systemLarge: return .widgetLarge
+        case .systemExtraLarge: return .widgetExtraLarge
         case .accessoryRectangular: return .accessoryRectangular
         case .accessoryCircular: return .accessoryCircular
         case .accessoryInline: return .accessoryInline
-        default: return .widgetSmall
+        // WidgetFamily is not frozen, so this branch is where every family
+        // Apple adds arrives first — `systemExtraLargePortrait` in iOS 27 is
+        // the current example. New families have consistently been *bigger*
+        // canvases, never smaller ones, so degrade to the roomiest layout.
+        // This used to return .widgetSmall, which meant a full-page widget
+        // would have rendered the small layout with nothing to indicate it.
+        default: return .widgetExtraLarge
         }
     }
 }
