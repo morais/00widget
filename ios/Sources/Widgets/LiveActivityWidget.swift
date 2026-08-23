@@ -156,14 +156,15 @@ private struct LockScreenView: View {
     let attributes: ZeroZeroWidgetActivityAttributes
     let state: ZeroZeroWidgetActivityAttributes.ContentState
 
-    // .small is Apple Watch Smart Stack; .medium is iPhone Lock Screen. The
-    // watch surface is much narrower and shorter, so it gets a tighter layout.
+    // .small covers every compact renderer of this activity — the Apple Watch
+    // Smart Stack, and from iOS 27 the CarPlay Dashboard and the macOS menu
+    // bar as well. .medium is the iPhone Lock Screen.
     @Environment(\.activityFamily) private var activityFamily
 
     var body: some View {
         switch activityFamily {
         case .small:
-            watchBody
+            smallBody
         default:
             lockScreenBody
         }
@@ -280,69 +281,83 @@ private struct LockScreenView: View {
         }
     }
 
-    private var watchBody: some View {
-        HStack(spacing: 8) {
+    /// One layout for every `.small` renderer, sized by the width it is given.
+    ///
+    /// Apple Watch and the CarPlay Dashboard share this family and nothing in
+    /// the environment separates them, so width is the only signal available.
+    /// A watch card is around 180pt across; a Dashboard cell is far wider and
+    /// is read at arm's length from a driving position, where the watch's
+    /// `.caption2`/`.headline` pairing is too small to be glanceable.
+    private var smallBody: some View {
+        GeometryReader { proxy in
+            smallContent(SmallActivityMetrics.forWidth(proxy.size.width))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+    }
+
+    private func smallContent(_ metrics: SmallActivityMetrics) -> some View {
+        HStack(spacing: metrics.spacing) {
             Image(systemName: iconName)
-                .font(.title3)
+                .font(metrics.icon)
                 .foregroundStyle(.secondary)
-            statusGlyph(.caption)
+            statusGlyph(metrics.statusGlyph)
             VStack(alignment: .leading, spacing: 1) {
                 Text(attributes.title)
-                    .font(.caption2)
+                    .font(metrics.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if !state.hasExplicitValue, let item = state.activeItems.first {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Image(systemName: item.icon ?? "circle.fill")
-                            .font(.caption2)
+                            .font(metrics.caption)
                             .foregroundStyle(item.status?.tint ?? .secondary)
                         Text(item.value ?? item.title)
-                            .font(.headline)
+                            .font(metrics.value)
                             .lineLimit(1)
                         if let unit = item.unit, item.value != nil {
-                            Text(unit).font(.caption2).foregroundStyle(.secondary)
+                            Text(unit).font(metrics.caption).foregroundStyle(.secondary)
                         }
                     }
                 } else {
-                    primaryWatchValue
+                    primarySmallValue(metrics)
                 }
             }
             Spacer(minLength: 0)
             if state.showsItemCount, state.activeItems.count > 1 {
                 Text("\(state.activeItems.count)")
-                    .font(.headline)
+                    .font(metrics.value)
                     .monospacedDigit()
             } else if let p = state.activeItems.first?.progress ?? state.progress,
                       state.endsAt == nil {
                 Gauge(value: max(0, min(p, 1))) { EmptyView() }
                     .gaugeStyle(.accessoryCircularCapacity)
-                    .scaleEffect(0.8)
+                    .scaleEffect(metrics.gaugeScale)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, metrics.horizontalPadding)
+        .padding(.vertical, metrics.verticalPadding)
     }
 
     @ViewBuilder
-    private var primaryWatchValue: some View {
+    private func primarySmallValue(_ metrics: SmallActivityMetrics) -> some View {
         if let endsAt = state.endsAt {
             LiveActivityCountdownText(
                 endsAt: endsAt,
                 granularity: state.countdownGranularity
             )
-                .font(.headline)
+                .font(metrics.value)
                 .monospacedDigit()
                 .lineLimit(1)
         } else if let value = state.value {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.headline).lineLimit(1)
+                Text(value).font(metrics.value).lineLimit(1)
                 if let unit = state.unit {
-                    Text(unit).font(.caption2).foregroundStyle(.secondary)
+                    Text(unit).font(metrics.caption).foregroundStyle(.secondary)
                 }
             }
         } else {
             Text(state.state.capitalized)
-                .font(.subheadline)
+                .font(metrics.state)
                 .lineLimit(1)
         }
     }
@@ -376,6 +391,58 @@ private struct LockScreenView: View {
         case .timer: return "timer"
         }
     }
+}
+
+/// Type, spacing, and padding for the `.small` activity family.
+///
+/// Two presets rather than a continuous scale: the family renders on a small
+/// number of very different surfaces, and a set of sizes each chosen to read
+/// well beats interpolating between them.
+private struct SmallActivityMetrics {
+    var icon: Font
+    var statusGlyph: Font
+    var caption: Font
+    var value: Font
+    var state: Font
+    var spacing: CGFloat
+    var horizontalPadding: CGFloat
+    var verticalPadding: CGFloat
+    var gaugeScale: CGFloat
+
+    /// Comfortably above the widest Apple Watch Smart Stack card and below the
+    /// narrowest CarPlay Dashboard cell. A container that reports no width yet
+    /// falls to `tight`, which is the layout this family had before CarPlay.
+    static let roomyWidthThreshold: CGFloat = 260
+
+    static func forWidth(_ width: CGFloat) -> SmallActivityMetrics {
+        width >= roomyWidthThreshold ? .roomy : .tight
+    }
+
+    static let tight = SmallActivityMetrics(
+        icon: .title3,
+        statusGlyph: .caption,
+        caption: .caption2,
+        value: .headline,
+        state: .subheadline,
+        spacing: 8,
+        horizontalPadding: 10,
+        verticalPadding: 6,
+        gaugeScale: 0.8
+    )
+
+    /// Everything a step up, and the gauge at full size: this is read from a
+    /// driving position rather than a raised wrist.
+    static let roomy = SmallActivityMetrics(
+        icon: .title2,
+        statusGlyph: .subheadline,
+        caption: .caption,
+        value: .title3,
+        state: .headline,
+        spacing: 12,
+        horizontalPadding: 16,
+        verticalPadding: 10,
+        gaugeScale: 1.0
+    )
 }
 
 private struct LiveActivityItemRow: View {
