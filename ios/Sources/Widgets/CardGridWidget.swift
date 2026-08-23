@@ -283,7 +283,7 @@ struct CardGridWidget: Widget {
         }
         .configurationDisplayName("00Widget Grid")
         .description("Show up to four 00Widget cards at once, highest priority first.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies(FullPageWidgetFamily.adding(to: [.systemSmall, .systemMedium, .systemLarge]))
         .pushHandler(ZeroZeroWidgetPushHandler.self)
     }
 }

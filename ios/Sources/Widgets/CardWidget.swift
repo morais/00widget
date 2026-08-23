@@ -15,10 +15,10 @@ struct CardWidget: Widget {
         }
         .configurationDisplayName("00Widget Card")
         .description("Show one 00Widget card.")
-        .supportedFamilies([
+        .supportedFamilies(FullPageWidgetFamily.adding(to: [
             .systemSmall, .systemMedium, .systemLarge,
             .accessoryRectangular, .accessoryCircular, .accessoryInline
-        ])
+        ]))
         .pushHandler(ZeroZeroWidgetPushHandler.self)
     }
 }
@@ -37,6 +37,7 @@ struct CardWidgetView: View {
     }
 
     private var isSystemFamily: Bool {
+        if FullPageWidgetFamily.contains(family) { return true }
         switch family {
         case .systemSmall, .systemMedium, .systemLarge, .systemExtraLarge: return true
         default: return false
@@ -62,11 +63,13 @@ struct CardWidgetView: View {
         case .accessoryCircular: return .accessoryCircular
         case .accessoryInline: return .accessoryInline
         // WidgetFamily is not frozen, so this branch is where every family
-        // Apple adds arrives first — `systemExtraLargePortrait` in iOS 27 is
-        // the current example. New families have consistently been *bigger*
-        // canvases, never smaller ones, so degrade to the roomiest layout.
-        // This used to return .widgetSmall, which meant a full-page widget
-        // would have rendered the small layout with nothing to indicate it.
+        // Apple adds arrives first. New families have consistently been
+        // *bigger* canvases, never smaller ones, so degrade to the roomiest
+        // layout. This used to return .widgetSmall, which meant a full-page
+        // widget would have rendered the small layout with nothing to indicate
+        // it. iOS 27's `systemExtraLargePortrait` is opted into deliberately
+        // (see FullPageWidgetFamily) and lands here on purpose rather than by
+        // omission — it wants .widgetExtraLarge too.
         default: return .widgetExtraLarge
         }
     }
