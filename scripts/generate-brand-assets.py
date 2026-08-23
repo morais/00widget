@@ -192,13 +192,14 @@ def generate() -> None:
             raise SystemExit(f"Missing approved identity source: {required}")
 
     mark = Image.open(MARK_MASTER).convert("RGBA")
-    app_icon = Image.open(APP_ICON_MASTER).convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    app_icon_master = Image.open(APP_ICON_MASTER).convert("RGB")
+    app_icon = app_icon_master.resize((1024, 1024), Image.Resampling.LANCZOS)
     wordmark_opaque = exact_wordmark(transparent=False).convert("RGB")
     wordmark_transparent = clean_wordmark((2400, 840), dark_surface=True)
 
     save(app_icon, BRAND_DIR / "mark-1024.png", opaque=True)
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
-    save(resize(app_icon, (512, 512), opaque=True), BRAND_DIR / "plugin-logo.png", opaque=True)
+    save(resize(app_icon_master, (512, 512), opaque=True), BRAND_DIR / "plugin-logo.png", opaque=True)
     save(contain(mark, (512, 512), padding=10), BRAND_DIR / "plugin-composer-icon.png")
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
