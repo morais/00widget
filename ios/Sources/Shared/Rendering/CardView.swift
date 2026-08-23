@@ -20,11 +20,16 @@ public enum CardRenderContext {
     case widgetSmall
     case widgetMedium
     case widgetLarge
-    /// Canvases larger than `systemLarge` — `systemExtraLarge` on iPad, and
-    /// `systemExtraLargePortrait` from iOS 27. It exists so that opting into
-    /// one of those families is a deliberate act with somewhere to land,
-    /// rather than a silent fall through to the smallest layout there is.
+    /// `systemExtraLarge` on iPad: roughly twice the width of `systemLarge`
+    /// at the same height. The room it adds is *horizontal*.
     case widgetExtraLarge
+    /// iOS 27's `systemExtraLargePortrait`: reportedly a 4x6 canvas, so the
+    /// same width as `systemLarge` and half again its height. The room it adds
+    /// is *vertical* — the opposite axis to `widgetExtraLarge`, which is why
+    /// the two are separate cases rather than one "extra large". Sharing a
+    /// layout between them would column-split a canvas that has no width to
+    /// spare.
+    case widgetExtraLargePortrait
     case accessoryRectangular
     case accessoryCircular
     case accessoryInline
@@ -73,6 +78,8 @@ public struct CardView: View {
             largeView
         case .widgetExtraLarge:
             extraLargeView
+        case .widgetExtraLargePortrait:
+            extraLargePortraitView
         case .app:
             appView
         }
@@ -429,6 +436,61 @@ public struct CardView: View {
                 }
             }
         }
+    }
+
+    /// The tall full-page canvas: iOS 27's `systemExtraLargePortrait`, the
+    /// same width as `systemLarge` and about half again its height. Where
+    /// `extraLargeView` answers extra width with a second column, this answers
+    /// extra height by giving each template a larger vertical budget — more
+    /// rows, a taller plot, more buttons — in the one column the width allows.
+    private var extraLargePortraitView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            switch card.template {
+            case .list:
+                listRows(max: density == .compact ? 7 : 10)
+            case .action:
+                actionSummary
+                actionButtons(max: density == .compact ? 5 : 8)
+            case .chart:
+                chartHeadline
+                sparkline(minHeight: density == .compact ? 100 : 150, lineWidth: 2.5)
+            case .history:
+                chartHeadline
+                statusStrip(limit: 30, height: 18)
+                listRows(max: density == .compact ? 4 : 7)
+            case .breakdown:
+                chartHeadline
+                compositionBar(height: 18)
+                breakdownLegend(max: density == .compact ? 5 : 8)
+            case .summary, .progress:
+                bigValue
+                if let subtitle = card.subtitle {
+                    Text(subtitle)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                if let p = card.progressValue {
+                    ProgressRow(progress: p, label: nil)
+                }
+            }
+            if card.template != .action {
+                actionButtons(max: density == .compact ? 3 : 6)
+            }
+            if !largePlotFillsHeight {
+                Spacer(minLength: 0)
+            }
+            if density != .compact {
+                if card.deadline != nil {
+                    footerLine
+                } else {
+                    Text("Updated \(card.updatedAt, style: .relative) ago")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(14)
     }
 
     /// Whether `actionButtons` would draw anything, mirroring the conditions
@@ -866,7 +928,7 @@ public struct CardView: View {
 
     private var addressableRows: Bool {
         switch context {
-        case .app, .widgetMedium, .widgetLarge, .widgetExtraLarge: return true
+        case .app, .widgetMedium, .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait: return true
         default: return false
         }
     }

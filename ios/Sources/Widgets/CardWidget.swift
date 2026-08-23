@@ -54,6 +54,10 @@ struct CardWidgetView: View {
     }
 
     private func contextFor(family: WidgetFamily) -> CardRenderContext {
+        // The two extra-large canvases grow on opposite axes — iPad's is wider
+        // at the same height, iOS 27's full page is taller at the same width —
+        // so they render through different contexts.
+        if FullPageWidgetFamily.contains(family) { return .widgetExtraLargePortrait }
         switch family {
         case .systemSmall: return .widgetSmall
         case .systemMedium: return .widgetMedium
@@ -67,9 +71,8 @@ struct CardWidgetView: View {
         // *bigger* canvases, never smaller ones, so degrade to the roomiest
         // layout. This used to return .widgetSmall, which meant a full-page
         // widget would have rendered the small layout with nothing to indicate
-        // it. iOS 27's `systemExtraLargePortrait` is opted into deliberately
-        // (see FullPageWidgetFamily) and lands here on purpose rather than by
-        // omission — it wants .widgetExtraLarge too.
+        // it. iOS 27's `systemExtraLargePortrait` never reaches this branch —
+        // it is opted into deliberately and mapped above.
         default: return .widgetExtraLarge
         }
     }

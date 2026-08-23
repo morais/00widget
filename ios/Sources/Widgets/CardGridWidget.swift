@@ -386,11 +386,13 @@ struct CardGridWidgetView: View {
                     cell(at: 3, linkable: linkable)
                 }
             default:
-                // Only the double-width families reach here: every other one
-                // is capped at four by `SelectGridCardsIntent.capacity(for:)`.
-                // Four columns keep the cells near the proportions a 2x2 has
-                // on `systemLarge`, on a canvas twice as wide as it is tall.
-                let columns = 4
+                // Only the extra-large families reach here: every other one is
+                // capped at four by `SelectGridCardsIntent.capacity(for:)`.
+                // Column count follows which way the canvas grew — iPad's is
+                // twice as wide at the same height, so four across; iOS 27's
+                // full page is `systemLarge`'s width and taller, so two across
+                // and more rows. Four columns there would be a strip of slivers.
+                let columns = FullPageWidgetFamily.contains(family) ? 2 : 4
                 ForEach(Array(stride(from: 0, to: entry.cards.count, by: columns)), id: \.self) { start in
                     GridRow {
                         ForEach(Array(start..<min(start + columns, entry.cards.count)), id: \.self) { index in
