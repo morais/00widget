@@ -81,17 +81,17 @@ public struct SelectCardIntent: WidgetConfigurationIntent {
     @Parameter(title: "Display density", default: .automatic)
     public var density: WidgetCardDensity
 
-    @Parameter(title: "Show status", default: .all)
-    public var statusFilter: WidgetStatusFilter
+    // Deliberately no status filter. This widget shows one named card, so a
+    // filter can only ever blank it — the reader already knows the status of
+    // the card they picked. Filtering belongs to the grid, where it chooses
+    // which of several cards get the cells.
 
     public init() {
         self.density = .automatic
-        self.statusFilter = .all
     }
 
     public init(card: CardEntity?) {
         self.card = card
         self.density = .automatic
-        self.statusFilter = .all
     }
 }

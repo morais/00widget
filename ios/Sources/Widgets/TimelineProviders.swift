@@ -132,19 +132,17 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: SelectCardIntent) -> CardTimelineEntry {
         let density = configuration.density.renderDensity
-        let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
 
-        // A widget nobody has configured yet renders the first card that passes
-        // its filter, so a placement made from the gallery shows something
+        // A widget nobody has configured yet renders the highest-priority card
+        // there is, so a placement made from the gallery shows something
         // instead of "Pick a card". This lives here rather than in
         // CardEntityQuery.defaultResult() because that query also backs the
-        // grid widget's four slots, where a single default is the same card
-        // four times.
+        // grid widget's card set, where one default result would be a single
+        // card repeated.
         guard let selection = configuration.card?.id else {
-            guard let card = cached.first(where: { filter.includes($0.status) }) else {
-                let reason: CardFallbackView.Reason = cached.isEmpty ? .noCachedData : .filtered(filter.fallbackLabel)
-                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: reason)
+            guard let card = cached.first else {
+                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCachedData)
             }
             return CardTimelineEntry(date: Date(), card: card, density: density, reason: card.isStale ? .stale(card.updatedAt) : nil)
         }
@@ -157,9 +155,6 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
         }
         guard let card = cached.first(where: { $0.id == selection }) else {
             return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCachedData)
-        }
-        guard filter.includes(card.status) else {
-            return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .filtered(filter.fallbackLabel))
         }
         if card.isStale {
             return CardTimelineEntry(date: Date(), card: card, density: density, reason: .stale(card.updatedAt))
