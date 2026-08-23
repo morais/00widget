@@ -4,12 +4,17 @@ import AppIntents
 import Foundation
 import os
 
+/// Only the small family asks this: it is a single tap target covering every
+/// cell, so the whole question is whether that tap opens the app or the card
+/// the grid leads with.
+///
+/// Deliberately not one case per cell. Naming cells stopped being possible
+/// when the count became dynamic — a grid draws as many cells as it has cards
+/// — and "the second card" is a weak thing to ask a reader to choose when
+/// priority decides which card that is and the producer can change it.
 public enum CardGridTapTarget: String, AppEnum {
     case app
-    case topLeft
-    case topRight
-    case bottomLeft
-    case bottomRight
+    case first
 
     public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "Tap action")
@@ -17,28 +22,43 @@ public enum CardGridTapTarget: String, AppEnum {
 
     public static var caseDisplayRepresentations: [CardGridTapTarget: DisplayRepresentation] = [
         .app: DisplayRepresentation(title: "Open the app"),
-        .topLeft: DisplayRepresentation(title: "Open top-left card"),
-        .topRight: DisplayRepresentation(title: "Open top-right card"),
-        .bottomLeft: DisplayRepresentation(title: "Open bottom-left card"),
-        .bottomRight: DisplayRepresentation(title: "Open bottom-right card")
+        .first: DisplayRepresentation(title: "Open the first card")
     ]
+
+    var cardIndex: Int? {
+        switch self {
+        case .app: return nil
+        case .first: return 0
+        }
+    }
 }
 
-public struct SelectFourCardsIntent: WidgetConfigurationIntent {
+public struct SelectGridCardsIntent: WidgetConfigurationIntent {
+    /// How many cells the grid ever draws. A selection may be longer: the
+    /// widget shows the highest-priority `maxCards` of whatever passes the
+    /// status filter, so picking eight and filtering to "needs attention" is a
+    /// meaningful configuration rather than a mistake.
+    public static let maxCards = 4
+
     public static var title: LocalizedStringResource = "Select cards"
-    public static var description = IntentDescription("Choose up to four cards to display as a 2x2 grid.")
+    public static var description = IntentDescription(
+        "Choose which cards this grid may show. The highest-priority four appear, and picking none follows your whole dashboard."
+    )
 
-    @Parameter(title: "Top left")
-    public var card1: CardEntity?
-
-    @Parameter(title: "Top right")
-    public var card2: CardEntity?
-
-    @Parameter(title: "Bottom left")
-    public var card3: CardEntity?
-
-    @Parameter(title: "Bottom right")
-    public var card4: CardEntity?
+    /// A set, not four ordered slots. Ordering comes from card priority, which
+    /// the producer controls and the cache already arrives sorted by — see
+    /// `entry(for:)`.
+    ///
+    /// Empty is meaningful and is the default: the grid follows the top cards
+    /// of the dashboard as they change. Seeding this with today's top four
+    /// instead, which the four-slot version did, froze a new placement to
+    /// whatever happened to be cached when it was placed.
+    ///
+    /// Optional because a `WidgetConfigurationIntent` refuses to export
+    /// AppIntents metadata for a non-optional parameter of any type. Nil and
+    /// empty mean the same thing here.
+    @Parameter(title: "Cards")
+    public var cards: [CardEntity]?
 
     @Parameter(title: "On compact tap", default: .app)
     public var compactTapTarget: CardGridTapTarget
@@ -50,18 +70,17 @@ public struct SelectFourCardsIntent: WidgetConfigurationIntent {
     public var statusFilter: WidgetStatusFilter
 
     public init() {
-        let cards = CardCache.cardsForWidgets()
-        func slot(_ index: Int) -> CardEntity? {
-            guard cards.indices.contains(index) else { return nil }
-            return CardEntity(id: cards[index].id, title: cards[index].title)
-        }
-        self.card1 = slot(0)
-        self.card2 = slot(1)
-        self.card3 = slot(2)
-        self.card4 = slot(3)
+        self.cards = nil
         self.compactTapTarget = .app
         self.density = .automatic
         self.statusFilter = .all
+    }
+
+    /// The picker is shared with the single-card widget, whose list carries a
+    /// "None" row so a placement can be deliberately blank. A set has no use
+    /// for it — empty already says that — so drop it wherever it is read.
+    var selectedCardIds: [String] {
+        (cards ?? []).map(\.id).filter { $0 != CardEntityQuery.noneId }
     }
 }
 
@@ -109,7 +128,7 @@ public struct CardGridEntry: TimelineEntry {
 }
 
 public struct CardGridTimelineProvider: AppIntentTimelineProvider {
-    public typealias Intent = SelectFourCardsIntent
+    public typealias Intent = SelectGridCardsIntent
     public typealias Entry = CardGridEntry
 
     private static let log = Logger(subsystem: "com.example.zerozerowidget", category: "Timeline")
@@ -119,23 +138,22 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
     public func placeholder(in context: Context) -> CardGridEntry {
         return CardGridEntry(
             date: Date(),
-            cards: Array(SampleDataFactory.makeCards().prefix(4)),
+            cards: Array(SampleDataFactory.makeCards().prefix(SelectGridCardsIntent.maxCards)),
             compactTapTarget: .app,
             density: .automatic,
             statusFilter: .all
         )
     }
 
-    public func snapshot(for configuration: SelectFourCardsIntent, in context: Context) async -> CardGridEntry {
+    public func snapshot(for configuration: SelectGridCardsIntent, in context: Context) async -> CardGridEntry {
         await refreshCacheIfPossible(reason: "snapshot")
         return entry(for: configuration)
     }
 
-    public func timeline(for configuration: SelectFourCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
+    public func timeline(for configuration: SelectGridCardsIntent, in context: Context) async -> Timeline<CardGridEntry> {
         // Keyed by what this placement shows, so two grids do not overwrite
         // each other's history.
-        let slots = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
-        let widgetKey = "grid.\(slots.compactMap { $0?.id }.joined(separator: "+"))"
+        let widgetKey = "grid.\(configuration.selectedCardIds.joined(separator: "+"))"
         let startedAt = Date()
         let decision = WidgetRefreshPolicy.decide(for: widgetKey, now: startedAt)
         let diagnosticRunId = SharedSettings.showWidgetTimestamps
@@ -170,19 +188,17 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         return Timeline(entries: [entry(for: configuration).marked(mark)], policy: .after(decision.next))
     }
 
-    private func repairPushSubscription(for configuration: SelectFourCardsIntent) async {
-        let selections = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
-        let cardIds = selections
-            .compactMap { $0?.id }
-            .filter { $0 != CardEntityQuery.noneId }
+    private func repairPushSubscription(for configuration: SelectGridCardsIntent) async {
+        let cardIds = configuration.selectedCardIds
         let subscription: WidgetPushSubscription
-        if selections.allSatisfy({ $0 == nil }) {
+        if cardIds.isEmpty {
+            // Following the dashboard rather than a set: any card can change
+            // which four this grid draws.
             subscription = WidgetPushSubscription(
                 widgetKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid,
                 allCards: true
             )
         } else {
-            guard !cardIds.isEmpty else { return }
             subscription = WidgetPushSubscription(
                 widgetKind: ZeroZeroWidgetConstants.WidgetKinds.cardGrid,
                 cardIds: cardIds
@@ -216,25 +232,27 @@ public struct CardGridTimelineProvider: AppIntentTimelineProvider {
         }
     }
 
-    private func entry(for configuration: SelectFourCardsIntent) -> CardGridEntry {
+    private func entry(for configuration: SelectGridCardsIntent) -> CardGridEntry {
         let filter = configuration.statusFilter
         let cached = CardCache.cardsForWidgets()
-        let selections = [configuration.card1, configuration.card2, configuration.card3, configuration.card4]
-        let isConfigured = selections.contains { $0 != nil }
-        let ids = selections.compactMap { $0?.id }.filter { $0 != CardEntityQuery.noneId }
+        let selected = Set(configuration.selectedCardIds)
 
-        // Nothing configured means a placement nobody has opened the sheet for.
-        // Fill it with the first cards there are — as many as exist, each one
-        // once — rather than showing four "Pick a card" cells.
-        let candidates = isConfigured ? ids.compactMap { id in cached.first(where: { $0.id == id }) } : cached
-        let cards = Array(candidates.filter { filter.includes($0.status) }.prefix(4))
+        // Filtering the cache down to the selection, rather than mapping the
+        // selection onto the cache, is the whole ordering rule: the cache
+        // arrives sorted by priority, so the producer decides which of a
+        // reader's picks lead. An empty selection selects everything, which is
+        // how a grid nobody has configured follows the dashboard's top cards.
+        let candidates = selected.isEmpty ? cached : cached.filter { selected.contains($0.id) }
+        let cards = Array(
+            candidates.filter { filter.includes($0.status) }.prefix(SelectGridCardsIntent.maxCards)
+        )
 
         let reason: CardFallbackView.Reason?
         if !cards.isEmpty {
             reason = nil
-        } else if isConfigured && ids.isEmpty {
-            reason = .noCardSelected            // every slot deliberately set to None
         } else if candidates.isEmpty {
+            // Either nothing is cached, or every picked card has since been
+            // deleted. Both read as "no data" from here.
             reason = .noCachedData
         } else {
             reason = .filtered(filter.fallbackLabel)
@@ -257,14 +275,14 @@ struct CardGridWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
             kind: kind,
-            intent: SelectFourCardsIntent.self,
+            intent: SelectGridCardsIntent.self,
             provider: CardGridTimelineProvider()
         ) { entry in
             CardGridWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("00Widget Grid")
-        .description("Show up to four 00Widget cards in a 2x2 grid.")
+        .description("Show up to four 00Widget cards at once, highest priority first.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .pushHandler(ZeroZeroWidgetPushHandler.self)
     }
@@ -290,14 +308,7 @@ struct CardGridWidgetView: View {
     }
 
     private var compactTapURL: URL? {
-        let index: Int
-        switch entry.compactTapTarget {
-        case .app: return nil
-        case .topLeft: index = 0
-        case .topRight: index = 1
-        case .bottomLeft: index = 2
-        case .bottomRight: index = 3
-        }
+        guard let index = entry.compactTapTarget.cardIndex else { return nil }
         return entry.cards[safe: index]?.deepLink
     }
 

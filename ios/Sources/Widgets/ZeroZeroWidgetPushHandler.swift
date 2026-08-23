@@ -72,18 +72,16 @@ struct ZeroZeroWidgetPushHandler: WidgetPushHandler {
                     subscription.allCards = true
                 }
             case ZeroZeroWidgetConstants.WidgetKinds.cardGrid:
-                guard let intent = widget.widgetConfigurationIntent(of: SelectFourCardsIntent.self) else {
+                guard let intent = widget.widgetConfigurationIntent(of: SelectGridCardsIntent.self) else {
                     subscription.allCards = true
                     subscriptions[widget.kind] = subscription
                     continue
                 }
-                let selections = [intent.card1, intent.card2, intent.card3, intent.card4]
-                subscription.cardIds.append(contentsOf: selections
-                    .compactMap { $0?.id }
-                    .filter { $0 != CardEntityQuery.noneId })
-                if selections.allSatisfy({ $0 == nil }) {
-                    // A grid nobody configured yet fills itself from the
-                    // current cache. Any card can change that default set.
+                let cardIds = intent.selectedCardIds
+                subscription.cardIds.append(contentsOf: cardIds)
+                if cardIds.isEmpty {
+                    // A grid with nothing picked follows the dashboard's
+                    // highest-priority cards. Any card can change that set.
                     subscription.allCards = true
                 }
             default:
