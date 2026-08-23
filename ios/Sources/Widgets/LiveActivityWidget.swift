@@ -6,7 +6,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ZeroZeroWidgetActivityAttributes.self) { context in
             LockScreenView(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(.black.opacity(0.6))
+                .activityBackgroundTint(LiveActivityBackground.tint(for: context.attributes.kind))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(tapURL(for: context.attributes))
         } dynamicIsland: { context in
@@ -161,6 +161,11 @@ private struct LockScreenView: View {
     // bar as well. .medium is the iPhone Lock Screen.
     @Environment(\.activityFamily) private var activityFamily
 
+    // False when the system draws no container around this presentation. From
+    // iOS 27 that is StandBy, which reuses the Lock Screen layout at 200% on a
+    // charging iPhone in landscape. See `LiveActivityBackground`.
+    @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
+
     var body: some View {
         switch activityFamily {
         case .small:
@@ -179,6 +184,14 @@ private struct LockScreenView: View {
             }
         }
         .padding()
+        .background {
+            // Only inside the system's container. Enlarged edge to edge for
+            // StandBy an inset wash of our own reads as stranded, so there the
+            // flat activityBackgroundTint carries the surface by itself.
+            if showsContainerBackground {
+                LiveActivityBackground.gradient(for: attributes.kind)
+            }
+        }
     }
 
     private var compositeLockScreenBody: some View {
@@ -390,6 +403,34 @@ private struct LockScreenView: View {
         case .job: return "hammer"
         case .timer: return "timer"
         }
+    }
+}
+
+/// The ground a Live Activity is drawn on.
+///
+/// `activityBackgroundTint` is what StandBy shows. It reuses the Lock Screen
+/// layout at 200% on a charging iPhone in landscape and draws no container of
+/// its own, so the tint runs edge to edge across a bedside display — where a
+/// flat 60% black filled the space with a slab carrying no identity at all.
+/// The tint now mixes the activity's own accent into a dark ground the white
+/// `activitySystemActionForegroundColor` stays legible against.
+enum LiveActivityBackground {
+    static func tint(for kind: LiveActivityKind) -> Color {
+        // Mostly ground, a little accent: enough to tell a charging session
+        // from a running job at a glance across a room, not enough to fight
+        // the foreground.
+        Color.black.mix(with: kind.tint, by: 0.16).opacity(0.72)
+    }
+
+    /// Drawn only where the system provides a container. Apple's guidance is
+    /// that an inset background of our own looks stranded once StandBy
+    /// enlarges it, so there this is omitted and `tint(for:)` stands alone.
+    static func gradient(for kind: LiveActivityKind) -> LinearGradient {
+        LinearGradient(
+            colors: [kind.tint.opacity(0.16), .clear],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 
