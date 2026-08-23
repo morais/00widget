@@ -265,6 +265,22 @@ targets:
         TEST_TARGET_NAME: ZeroZeroWidgetTV
         GENERATE_INFOPLIST_FILE: YES
 
+  # Logic tests for invariants that are written down but would otherwise only
+  # be enforced by reading. Hosted by the app so it can reach Sources/Shared,
+  # and reachable only from the ZeroZeroWidgetTests scheme below so it never
+  # enters an archive — the same containment the UI test targets have.
+  ZeroZeroWidgetTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: ZeroZeroWidgetApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tests
+        GENERATE_INFOPLIST_FILE: YES
+
   ZeroZeroWidgetTV:
     type: application
     platform: tvOS
@@ -346,6 +362,19 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  # Unit tests. Separate from ZeroZeroWidgetApp on purpose: that scheme is what
+  # upload-testflight.sh archives with, and a test target reachable from it is
+  # a test target one misconfiguration away from an archive.
+  ZeroZeroWidgetTests:
+    build:
+      targets:
+        ZeroZeroWidgetApp: all
+        ZeroZeroWidgetTests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetTests
 
   # Marketing screenshots only. Separate scheme so the UI test target never
   # enters an archive.

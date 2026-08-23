@@ -225,12 +225,14 @@ simulator builds and every shipping build do not compile these widget kinds.
 ### Schemes are declared explicitly
 
 `project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`,
-`ZeroZeroWidgetScreenshots`, and `ZeroZeroWidgetTVScreenshots`. This is
+`ZeroZeroWidgetTests`, `ZeroZeroWidgetScreenshots`, and
+`ZeroZeroWidgetTVScreenshots`. This is
 load-bearing: adding *any* `schemes:` entry
 turns off Xcode's scheme autocreation for every target, which silently removed
 the `ZeroZeroWidgetApp` scheme that `build-sim.sh` and `upload-testflight.sh`
-archive with. If you add a target, add its scheme too. The UI test target is
-reachable only from the screenshots scheme, so it never enters an archive.
+archive with. If you add a target, add its scheme too. Every test target — the
+two UI test bundles and the unit test bundle — is reachable only from its own
+scheme, never from `ZeroZeroWidgetApp`, so none of them can enter an archive.
 
 ## TestFlight submissions
 
@@ -471,4 +473,5 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 | -------- | --------------------------------------------------------- |
 | Backend  | `cd server && npx tsc --noEmit && npm test`               |
 | iOS      | `cd ios && xcodegen && xcodebuild -scheme ZeroZeroWidgetApp -destination 'generic/platform=iOS Simulator'` (requires full Xcode, not just CLT) |
+| iOS unit tests | `cd ios && xcodebuild test -scheme ZeroZeroWidgetTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` — Swift Testing, hosted by the app, covering `Sources/Shared`. Needs a *named* simulator, not `generic/platform` |
 | End-to-end (push) | requires a real Apple Developer account, an APNs `.p8`, and a physical device — flag this in the PR description if it wasn't tested |
