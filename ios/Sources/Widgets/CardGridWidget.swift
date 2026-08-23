@@ -369,7 +369,35 @@ struct CardGridWidgetView: View {
 }
 
 struct CardGridCell: View {
-    enum Style { case compact, standard, roomy }
+    enum Style {
+        case compact, standard, roomy
+
+        /// A compact cell is barely taller than its own headline number, so
+        /// there is no band to fill. The other two have roughly a third of
+        /// their height going spare between the title and the value.
+        var showsInlineVisual: Bool { self != .compact }
+
+        var plotLineWidth: CGFloat { self == .roomy ? 1.8 : 1.4 }
+        var barHeight: CGFloat { self == .roomy ? 10 : 8 }
+        var historyLimit: Int { self == .roomy ? 10 : 7 }
+    }
+
+    /// The visual a cell can draw in the space between its title and its
+    /// value, if the card carries what one needs.
+    enum InlineVisual {
+        case plot(DashboardChart)
+        case history([DashboardItem])
+        case breakdown([DashboardItem])
+        case progress(Double)
+
+        /// Only the plot wants the whole band. The others are a few points
+        /// tall and read better sitting just above the value, with the slack
+        /// above them.
+        var fillsBand: Bool {
+            if case .plot = self { return true }
+            return false
+        }
+    }
 
     let card: DashboardCard
     let style: Style
@@ -392,6 +420,63 @@ struct CardGridCell: View {
         case .compact: compactCell(card)
         case .standard: standardCell(card)
         case .roomy: roomyCell(card)
+        }
+    }
+
+    /// What the cell can draw in its spare band.
+    ///
+    /// A grid cell ignores `template` everywhere else — it is a compressed
+    /// view, and every card reduces to icon, title, value, subtitle. But each
+    /// template already has a glanceable visual built for exactly this kind of
+    /// constrained space, and the band was sitting empty. So the cell draws
+    /// whichever one the card can fill, and nothing when it carries none.
+    ///
+    /// The plot outranks progress, matching the Live Activity: a producer
+    /// sending both has a number that moves, and the plot says which way while
+    /// a bar only says how far.
+    private var inlineVisual: InlineVisual? {
+        guard style.showsInlineVisual else { return nil }
+        if let chart = card.chart, chart.isRenderable { return .plot(chart) }
+        if let items = card.items, !items.isEmpty {
+            switch card.template {
+            case .history: return .history(items)
+            case .breakdown: return .breakdown(items)
+            default: break
+            }
+        }
+        if let progress = card.progressValue { return .progress(progress) }
+        return nil
+    }
+
+    @ViewBuilder
+    private func inlineVisualBody(_ visual: InlineVisual) -> some View {
+        switch visual {
+        case .plot(let chart):
+            SparklineView(chart: chart, tint: card.status.tint, lineWidth: style.plotLineWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .history(let items):
+            StatusStripView(items: items, limit: style.historyLimit, height: style.barHeight)
+        case .breakdown(let items):
+            CompositionBarView(items: items, tint: card.status.tint, height: style.barHeight)
+        case .progress(let value):
+            ProgressRow(progress: value, label: nil)
+        }
+    }
+
+    /// The band itself. A plot takes the slack; anything else lets a `Spacer`
+    /// take it first and sits just above the value. With no visual at all this
+    /// is the plain `Spacer` the cell has always had.
+    @ViewBuilder
+    private var band: some View {
+        if let visual = inlineVisual {
+            if visual.fillsBand {
+                inlineVisualBody(visual)
+            } else {
+                Spacer(minLength: 0)
+                inlineVisualBody(visual)
+            }
+        } else {
+            Spacer(minLength: 0)
         }
     }
 
@@ -444,7 +529,7 @@ struct CardGridCell: View {
                         .foregroundStyle(card.status.tint)
                 }
             }
-            Spacer(minLength: 0)
+            band
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(card.value ?? "—")
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
@@ -479,7 +564,7 @@ struct CardGridCell: View {
                         .foregroundStyle(card.status.tint)
                 }
             }
-            Spacer(minLength: 0)
+            band
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(card.value ?? "—")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
