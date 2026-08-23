@@ -415,8 +415,16 @@ export const DashboardCardInputSchema = z.object({
     + "Letters, digits and . _ : - only, because it is also a URL path segment.",
   ),
   actions: z.array(ActionDefinitionInputSchema).max(FieldLimits.actionCount).optional().describe(
-    "Buttons, for `template: action`. Only `role: normal` with `confirm: false` "
-    + "can run straight from a widget; anything else routes through the iOS app "
+    "Buttons. They are not tied to `template: action` — any template can carry "
+    + "them, so a `chart` card can plot a series and offer a Retry button. "
+    + "`action` is simply the template whose whole point is the buttons, with no "
+    + "visual of its own. How many are drawn depends on the surface: a small "
+    + "widget shows 1, medium 2, large and extra-large 4, and the iOS app and "
+    + "Apple TV show all of them; the Lock Screen accessories show none, and a "
+    + "widget the operator has set to Compact density shows one fewer (none at "
+    + "all on a small one). Order them most useful first, because the tail is "
+    + "what gets cut. Only `role: normal` with `confirm: false` can run straight "
+    + "from a widget; anything else routes through the iOS app "
     + "for confirmation. A press is delivered to the account's action webhook, "
     + "so one must already be registered at PUT /v1/integrations/webhook or "
     + "every press fails with a 409. That call needs the `webhook:manage` "

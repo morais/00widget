@@ -209,14 +209,14 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
   "priority": "integer? (higher sorts first; absent counts as 0)",
-  "progress": "number? 0.0-1.0 (draws a bar; required by template=progress)",
+  "progress": "number? 0.0-1.0 (the bar on a progress card; also fills the circular Lock Screen gauge and a grid cell on any template)",
   "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
   "staleAfter": "ISO-8601 timestamp? (after this, widget shows a 'stale' state)",
   "deadline": "ISO-8601 timestamp? (drawn as a live countdown the device ticks)",
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
-  "chart": "DashboardChart? (only for template=chart)",
-  "actions": "ActionDefinition[]? (only for template=action; safe-only from widgets)"
+  "chart": "DashboardChart? (drawn by template=chart; ignored by other templates except in a grid cell)",
+  "actions": "ActionDefinition[]? (buttons on any template, not just action; safe-only from widgets)"
 }
 ```
 
@@ -439,6 +439,41 @@ Pick one based on the *shape* of the data, not the domain:
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
+
+### Buttons combine with any template
+
+`actions` is not tied to `template: action`. Every template renders its buttons
+underneath its own visual, so a `chart` card can plot the last hour of latency
+*and* offer a Retry button, and a `list` card can offer one per snapshot.
+`action` is simply the template with no visual of its own — pick it when the
+buttons are the whole card, not because you need buttons at all.
+
+How many are drawn depends on the surface, so order them most useful first:
+
+| Surface                          | Buttons drawn |
+| -------------------------------- | ------------- |
+| Small widget                     | 1             |
+| Medium widget                    | 2             |
+| Large and extra-large widget     | 4             |
+| iOS app card, Apple TV           | all of them   |
+| Grid widget cell                 | none          |
+| Lock Screen accessories          | none          |
+
+A widget the operator has set to **Compact** density draws one fewer than the
+table says, and none at all on a small one. Cards reaching a device through a
+share or a guest link have their `actions` stripped by the server, so a card you
+expect other people to view through a link should not depend on them.
+
+The reverse does **not** hold: `chart` is drawn only by `template: chart`. An
+`action` card carrying a `chart` renders its buttons and silently ignores the
+series everywhere except a grid cell and the guest web page. If you want a plot
+and a button, publish `template: chart` with `actions[]` — not the other way
+round.
+
+`progress` sits in between. It draws a bar on `template: progress` (and on a
+`summary` card at large widget sizes), and it fills the circular Lock Screen
+gauge and a grid cell's band on any template. It does not add a bar to a `list`
+or `chart` card's main layout.
 
 ## Publishing a card
 
@@ -1096,7 +1131,11 @@ An end is acknowledged with `200` only after APNs accepts the end event (or repo
 
 ## Actions
 
-If your card has buttons, define them as `actions` on the card:
+If your card has buttons, define them as `actions` on the card. Any template
+can carry them — `template: action` is the one for a card that is *only*
+buttons, not a precondition for having them, so a `chart` or `list` card can
+offer buttons under its own visual. See "Buttons combine with any template"
+under "Choosing a template" for how many each surface draws.
 
 ```json
 {
