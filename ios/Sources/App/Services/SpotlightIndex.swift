@@ -66,7 +66,11 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity {
     }
 }
 
-public struct DashboardCardEntityQuery: EntityQuery {
+/// `EntityStringQuery` rather than a plain `EntityQuery` because Siri resolves
+/// the card in "what's the status of <card>" from what it heard, not from an
+/// id. Without `entities(matching:)` the spoken half of `CardStatusIntent`
+/// cannot bind its parameter at all.
+public struct DashboardCardEntityQuery: EntityStringQuery {
     public init() {}
 
     public func entities(for identifiers: [DashboardCardEntity.ID]) async throws -> [DashboardCardEntity] {
@@ -76,8 +80,43 @@ public struct DashboardCardEntityQuery: EntityQuery {
         }
     }
 
+    public func entities(matching string: String) async throws -> [DashboardCardEntity] {
+        DashboardCardEntityQuery.matches(string, in: SpotlightIndex.indexable(CardCache.load().cards))
+            .map(DashboardCardEntity.init)
+    }
+
     public func suggestedEntities() async throws -> [DashboardCardEntity] {
         SpotlightIndex.indexable(CardCache.load().cards).map(DashboardCardEntity.init)
+    }
+
+    /// Title first, then subtitle, with an exact title winning outright.
+    ///
+    /// Speech arrives cased and accented however the recogniser felt, so the
+    /// comparison ignores both. Substring rather than equality because titles
+    /// are producer-chosen and usually longer than what anyone says out loud —
+    /// "washer" should find "Washer (kitchen)" — and an exact match is checked
+    /// first so a card titled "Solar" is not buried by "Solar forecast".
+    static func matches(_ query: String, in cards: [DashboardCard]) -> [DashboardCard] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return [] }
+
+        let exact = cards.filter { equal($0.title, needle) }
+        guard exact.isEmpty else { return exact }
+
+        let byTitle = cards.filter { contains($0.title, needle) }
+        guard byTitle.isEmpty else { return byTitle }
+
+        return cards.filter { contains($0.subtitle ?? "", needle) }
+    }
+
+    private static let looseComparison: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+
+    private static func equal(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.compare(rhs, options: looseComparison) == .orderedSame
+    }
+
+    private static func contains(_ haystack: String, _ needle: String) -> Bool {
+        haystack.range(of: needle, options: looseComparison) != nil
     }
 }
 
@@ -115,6 +154,12 @@ public enum SpotlightIndex {
     public static func donate(_ cards: [DashboardCard]) {
         let keep = indexable(cards)
         let currentIds = Set(keep.map(\.id))
+
+        // Siri's list of values for "what's the status of <card>" comes from
+        // the same query as the index, so the set of answerable cards changing
+        // is exactly this call. Refreshing here rather than at the eight call
+        // sites keeps the two from drifting.
+        ZeroZeroWidgetShortcuts.updateAppShortcutParameters()
         let previousIds = Set(UserDefaults.standard.stringArray(forKey: donatedIdsKey) ?? [])
         let departed = previousIds.subtracting(currentIds)
 
@@ -146,6 +191,7 @@ public enum SpotlightIndex {
     /// left behind here would answer for a tenant nobody is signed into.
     public static func removeAll() {
         UserDefaults.standard.removeObject(forKey: donatedIdsKey)
+        ZeroZeroWidgetShortcuts.updateAppShortcutParameters()
         Task {
             do {
                 try await CSSearchableIndex.default()

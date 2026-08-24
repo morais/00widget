@@ -35,6 +35,7 @@ struct ZeroZeroWidgetApp: App {
             .environmentObject(env)
             .onAppear {
                 delegate.env = env
+                IntentLanding.attach(env)
                 Task { await env.startupSync() }
                 #if ZW_SUBSCRIPTIONS_ENABLED
                 subscriptions.start()
