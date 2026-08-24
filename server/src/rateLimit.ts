@@ -139,16 +139,42 @@ export async function incrementRateLimitBuckets(
   if (buckets.length === 0) return null;
   const now = nowSeconds();
 
-  const planned = buckets.map((bucket) => {
-    const policy = RateLimitPolicies[bucket.policy];
-    const windowStart = Math.floor(now / policy.windowSeconds) * policy.windowSeconds;
-    return {
-      policy,
-      windowStart,
-      bucketKey: `${bucket.policy}:${bucket.key}`,
-      expiresAt: windowStart + policy.windowSeconds * 2,
-    };
-  });
+  // Coalesced by bucket key, because a caller may name the same bucket many
+  // times in one request and every repeat would otherwise be its own write to
+  // the same row. A ten-card batch upsert charges `cardUpsertTenantHour` once
+  // per card, which was ten identical upserts plus ten identical deletes; the
+  // policy name is part of the key, so grouping can never merge two policies.
+  //
+  // `weight` keeps the accounting identical — ten repeats still spend ten — so
+  // this is purely the same arithmetic done in one statement instead of ten.
+  // Insertion order is preserved so the first bucket to exceed is still
+  // reported first.
+  const planned = [...buckets
+    .reduce((grouped, bucket) => {
+      const policy = RateLimitPolicies[bucket.policy];
+      const bucketKey = `${bucket.policy}:${bucket.key}`;
+      const existing = grouped.get(bucketKey);
+      if (existing) {
+        existing.weight += 1;
+        return grouped;
+      }
+      const windowStart = Math.floor(now / policy.windowSeconds) * policy.windowSeconds;
+      grouped.set(bucketKey, {
+        policy,
+        windowStart,
+        bucketKey,
+        expiresAt: windowStart + policy.windowSeconds * 2,
+        weight: 1,
+      });
+      return grouped;
+    }, new Map<string, {
+      policy: typeof RateLimitPolicies[RateLimitPolicyName];
+      windowStart: number;
+      bucketKey: string;
+      expiresAt: number;
+      weight: number;
+    }>())
+    .values()];
 
   // Upserts first so a result index lines up with `planned`; the trailing
   // deletes are fire-and-forget.
@@ -156,12 +182,12 @@ export async function incrementRateLimitBuckets(
     ...planned.map((entry) =>
       env.ZW_DB.prepare(
         `INSERT INTO rate_limit_buckets (bucket_key, window_start, count, expires_at)
-         VALUES (?, ?, 1, ?)
+         VALUES (?, ?, ?, ?)
          ON CONFLICT(bucket_key, window_start) DO UPDATE SET
-           count = count + 1,
+           count = count + ?,
            expires_at = excluded.expires_at
          RETURNING count`,
-      ).bind(entry.bucketKey, entry.windowStart, entry.expiresAt),
+      ).bind(entry.bucketKey, entry.windowStart, entry.weight, entry.expiresAt, entry.weight),
     ),
     ...planned.map((entry) =>
       env.ZW_DB.prepare(

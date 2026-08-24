@@ -65,6 +65,65 @@ describe("incrementRateLimitBuckets", () => {
     expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(3);
   });
 
+  // A batch upsert charges `cardUpsertTenantHour` once per card, all under the
+  // same key. Ten cards used to mean ten identical upserts and ten identical
+  // deletes against one row — ten rows written where one does, on the write
+  // path D1 charges most for.
+  it("writes one statement per distinct bucket, however often a caller names it", async () => {
+    const env = makeEnv();
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+
+    await incrementRateLimitBuckets(env, [
+      { policy: "anyWriteTenantHour", key: tenantKey("t1") },
+      // Ten cards' worth of the same tenant-wide counter, plus two distinct
+      // per-card counters.
+      ...Array.from({ length: 10 }, () => ({
+        policy: "cardUpsertTenantHour" as const,
+        key: tenantKey("t1"),
+      })),
+      { policy: "cardUpsertCardHour", key: "tenant:t1:card:a" },
+      { policy: "cardUpsertCardHour", key: "tenant:t1:card:b" },
+    ]);
+
+    // Four distinct buckets from thirteen inputs, so four upserts and four
+    // deletes rather than thirteen of each.
+    const upserts = prepare.mock.calls.filter(([sql]) => sql.includes("RETURNING count"));
+    expect(upserts).toHaveLength(4);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(4);
+  });
+
+  it("still spends the full weight of a repeated bucket", async () => {
+    // The saving must be in the number of writes, never in the accounting: ten
+    // cards consume ten of the tenant's hourly card budget either way.
+    const env = makeEnv();
+    await incrementRateLimitBuckets(env, [
+      ...Array.from({ length: 10 }, () => ({
+        policy: "cardUpsertTenantHour" as const,
+        key: tenantKey("t1"),
+      })),
+    ]);
+
+    const view = (await listTenantRateLimitBuckets(env, "t1"))
+      .find((entry) => entry.label === RateLimitPolicies.cardUpsertTenantHour.label);
+    expect(view?.count).toBe(10);
+    expect(view?.remaining).toBe(RateLimitPolicies.cardUpsertTenantHour.limit - 10);
+  });
+
+  it("reports a repeated bucket that the batch itself pushes over the limit", async () => {
+    // One request can now cross the line on its own rather than one count at a
+    // time, so the overage has to be detected from the post-increment count
+    // rather than assumed to be exactly limit + 1.
+    const env = makeEnv();
+    const policy = RateLimitPolicies.cardUpsertCardHour;
+    const bucket = { policy: "cardUpsertCardHour", key: "tenant:t1:card:a" } as const;
+
+    const exceeded = await incrementRateLimitBuckets(
+      env,
+      Array.from({ length: policy.limit + 5 }, () => bucket),
+    );
+    expect(exceeded).toMatchObject({ label: policy.label, count: policy.limit + 5 });
+  });
+
   it("drops a key's closed windows as it counts the current one", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));

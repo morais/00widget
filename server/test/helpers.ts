@@ -182,15 +182,21 @@ export class FakeD1 {
     return count;
   }
 
+  // Binds as (bucket_key, window_start, weight, expires_at, weight): the weight
+  // appears twice because the statement names it once in VALUES and once in the
+  // ON CONFLICT increment. Keep this aligned with the statement in
+  // `incrementRateLimitBuckets` — reading a value from the wrong position here
+  // is invisible, since this class enforces no types and no constraints.
   private upsertRateLimitBucket(values: unknown[]): number {
-    const [bucket_key, window_start, expires_at] = [
+    const [bucket_key, window_start, weight, expires_at] = [
       String(values[0]),
       String(values[1]),
-      String(values[2]),
+      Number(values[2]),
+      String(values[3]),
     ];
     const key = `${bucket_key}:${window_start}`;
     const existing = this.rateLimitBuckets.get(key);
-    const count = Number(existing?.count ?? 0) + 1;
+    const count = Number(existing?.count ?? 0) + weight;
     this.rateLimitBuckets.set(key, {
       bucket_key,
       window_start,
