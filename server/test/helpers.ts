@@ -1273,7 +1273,7 @@ export class FakeD1 {
           "platform",
         ));
     }
-    if (normalized === "SELECT deliveries.api_key_hash AS api_key_hash, deliveries.activity_instance_id AS activity_instance_id, instances.external_id AS external_id, deliveries.json AS json FROM activity_deliveries AS deliveries JOIN activity_instances AS instances ON instances.id = deliveries.activity_instance_id WHERE deliveries.target_tenant_id = ? ORDER BY deliveries.api_key_hash, instances.external_id, deliveries.device_id") {
+    if (normalized === "SELECT deliveries.api_key_hash AS api_key_hash, deliveries.activity_instance_id AS activity_instance_id, instances.external_id AS external_id, instances.updated_at AS instance_updated_at, deliveries.json AS json FROM activity_deliveries AS deliveries JOIN activity_instances AS instances ON instances.id = deliveries.activity_instance_id WHERE deliveries.target_tenant_id = ? ORDER BY deliveries.api_key_hash, instances.external_id, deliveries.device_id") {
       const [target_tenant_id] = values.map(String);
       return [...this.activityDeliveries.values()]
         .filter((delivery) => delivery.target_tenant_id === target_tenant_id)
@@ -1287,6 +1287,7 @@ export class FakeD1 {
           api_key_hash: delivery.api_key_hash,
           activity_instance_id: delivery.activity_instance_id,
           external_id: instance?.external_id ?? "",
+          instance_updated_at: instance?.updated_at ?? "",
           json: delivery.json,
         }));
     }

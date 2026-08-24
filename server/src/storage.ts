@@ -37,7 +37,6 @@ export interface ActivityRecord {
   startedAt?: string;
   relevanceScore?: number;
   updatedAt: string;
-  lastState?: unknown;
 }
 
 export interface ActivityDelivery {
@@ -1123,6 +1122,7 @@ export async function listTenantActivities(
     `SELECT deliveries.api_key_hash AS api_key_hash,
             deliveries.activity_instance_id AS activity_instance_id,
             instances.external_id AS external_id,
+            instances.updated_at AS instance_updated_at,
             deliveries.json AS json
      FROM activity_deliveries AS deliveries
      JOIN activity_instances AS instances ON instances.id = deliveries.activity_instance_id
@@ -1130,7 +1130,13 @@ export async function listTenantActivities(
      ORDER BY deliveries.api_key_hash, instances.external_id, deliveries.device_id`,
   )
     .bind(tenantId)
-    .all<{ api_key_hash: string; activity_instance_id: string; external_id: string; json: string }>();
+    .all<{
+      api_key_hash: string;
+      activity_instance_id: string;
+      external_id: string;
+      instance_updated_at: string;
+      json: string;
+    }>();
   return rows.results.map((row) => ({
     apiKeyHash: row.api_key_hash,
     key: keys.activity(row.api_key_hash, row.activity_instance_id),
@@ -1138,6 +1144,11 @@ export async function listTenantActivities(
       ...parseJson<ActivityRecord>(row.json),
       activityInstanceId: row.activity_instance_id,
       externalActivityId: row.external_id,
+      // From the instance, not the delivery. The delivery row is written when a
+      // device registers and not touched again, so its own timestamp would show
+      // when the device attached rather than when the activity last changed —
+      // and the join was already here.
+      updatedAt: row.instance_updated_at,
     },
   }));
 }

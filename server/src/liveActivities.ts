@@ -180,7 +180,6 @@ export async function registerLiveActivity(
       startedAt: instance.startedAt,
       relevanceScore: instance.relevanceScore,
       updatedAt: now,
-      lastState: initialContentState(instance, instance.updatedAt),
     },
   });
   return json({ ok: true, activityInstanceId: instance.activityInstanceId });
@@ -582,18 +581,16 @@ export async function updateLiveActivity(
     } else {
       recipientResults.push(result);
     }
-    await storage.putActivityDelivery(env, {
-      ...delivery,
-      record: {
-        ...delivery.record,
-        title: updated.title,
-        icon: updated.icon,
-        deepLink: updated.deepLink,
-        relevanceScore: updated.relevanceScore,
-        updatedAt: now,
-        lastState: contentState,
-      },
-    });
+    // The delivery row is deliberately not rewritten here. It exists to address
+    // a device — `pushToken` and `deviceId` — and neither changes on an update.
+    // Everything this used to copy into it was already dead: `title`, `icon`
+    // and `deepLink` are ActivityAttributes frozen at start, so they cannot
+    // reach the device and nothing renders them from this row; and its
+    // `updated_at` column is written but never read. The new state lives on the
+    // activity instance, which `putActivityInstance` above has just stored.
+    //
+    // A Live Activity updated once a minute wrote one full-JSON row per device
+    // per minute for that.
   }
   return json({
     ok: true,

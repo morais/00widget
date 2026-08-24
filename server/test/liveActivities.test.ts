@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
 import { FieldLimits, StartLiveActivitySchema, UpdateLiveActivitySchema } from "../src/types";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
@@ -1263,6 +1263,88 @@ describe("live activities", () => {
     expect(endState.countdownGranularity).toBe("second");
     expect(typeof endState.updatedAt).toBe("number");
     expect(typeof endState.endsAt).toBe("number");
+  });
+
+  // An update stores the new state on the activity instance. The delivery rows
+  // only address devices, and nothing about addressing a device changes when
+  // the state does — so rewriting one per device per update was a full-JSON row
+  // write, per device, per minute, for a timer.
+  it("writes only the instance on update, not a row per device", async () => {
+    const env = makeEnv();
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-writes", kind: "appliance", title: "Washer", state: "running",
+        }),
+      }), env, executionCtx,
+    );
+    for (const [deviceId, localActivityId, pushToken] of [
+      ["device-a", "local-a", "aaaabbbbccccdddd"],
+      ["device-b", "local-b", "1111222233334444"],
+    ]) {
+      await (handler.fetch as any)(
+        authedRequest("https://x/v1/live-activities/register", {
+          method: "POST",
+          body: JSON.stringify({
+            deviceId, localActivityId, externalActivityId: "washer-writes",
+            kind: "appliance", pushToken,
+          }),
+        }), env, executionCtx,
+      );
+    }
+
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    const update = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "washer-writes", state: "rinse" }),
+      }), env, executionCtx,
+    );
+    expect(update.status).toBe(200);
+
+    const deliveryWrites = prepare.mock.calls.filter(([sql]) =>
+      sql.includes("INTO activity_deliveries"));
+    expect(deliveryWrites, "two devices, no delivery rewrites").toHaveLength(0);
+    // The state itself still lands.
+    expect(prepare.mock.calls.filter(([sql]) =>
+      sql.includes("INTO activity_instances"))).toHaveLength(1);
+  });
+
+  it("still reports a fresh update time to the admin listing", async () => {
+    // The delivery row used to carry its own copy of the timestamp and that is
+    // what admin rendered. It now comes from the instance, so dropping the
+    // rewrite must not make the listing look stale.
+    const env = makeEnv();
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "washer-stamp", kind: "appliance", title: "Washer", state: "running",
+        }),
+      }), env, executionCtx,
+    );
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/register", {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "device-a", localActivityId: "local-a",
+          externalActivityId: "washer-stamp", kind: "appliance", pushToken: "aaaabbbbccccdddd",
+        }),
+      }), env, executionCtx,
+    );
+    const atRegistration = (await storage.listTenantActivities(env, "test-tenant"))[0].value.updatedAt;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/update", {
+        method: "POST",
+        body: JSON.stringify({ externalActivityId: "washer-stamp", state: "rinse" }),
+      }), env, executionCtx,
+    );
+
+    const afterUpdate = (await storage.listTenantActivities(env, "test-tenant"))[0].value.updatedAt;
+    expect(afterUpdate.localeCompare(atRegistration)).toBeGreaterThan(0);
   });
 
   it("fans updates and end pushes out to every registered device", async () => {
