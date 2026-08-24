@@ -45,6 +45,19 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
     @Property(title: "Status")
     public var status: String
 
+    // The three groupings a person actually asks about, as Bools rather than
+    // one grouping property. They overlap — a paused washer needs attention
+    // *and* is active — so there is no single value a card could hold, and a
+    // partition would have to lie about one of them.
+    @Property(title: "Needs attention")
+    public var needsAttention: Bool
+
+    @Property(title: "Active")
+    public var isActive: Bool
+
+    @Property(title: "Healthy")
+    public var isHealthy: Bool
+
     @Property(title: "Last updated", indexingKey: \.contentModificationDate)
     public var updatedAt: Date
 
@@ -56,6 +69,9 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
         // "3.4 kW" should not have to know the two are separate fields.
         self.value = [card.value, card.unit].compactMap { $0 }.joined(separator: " ")
         self.status = card.status.label
+        self.needsAttention = card.status.needsAttention
+        self.isActive = card.status.isActive
+        self.isHealthy = card.status.isHealthy
         self.updatedAt = card.updatedAt
     }
 
@@ -112,7 +128,7 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
 /// the card in "what's the status of <card>" from what it heard, not from an
 /// id. Without `entities(matching:)` the spoken half of `CardStatusIntent`
 /// cannot bind its parameter at all.
-public struct DashboardCardEntityQuery: EntityStringQuery {
+public struct DashboardCardEntityQuery: EntityStringQuery, EntityPropertyQuery {
     public init() {}
 
     public func entities(for identifiers: [DashboardCardEntity.ID]) async throws -> [DashboardCardEntity] {
@@ -129,6 +145,172 @@ public struct DashboardCardEntityQuery: EntityStringQuery {
 
     public func suggestedEntities() async throws -> [DashboardCardEntity] {
         SpotlightIndex.indexable(CardCache.load().cards).map(DashboardCardEntity.init)
+    }
+
+    // MARK: - EntityPropertyQuery
+
+    /// What a comparator compiles down to: a test one card either passes or
+    /// fails.
+    ///
+    /// The framework wants a mapping type it can hand back as an array, and a
+    /// closure is the honest one here — the cards are already in memory, so
+    /// there is no store to translate a predicate for.
+    public struct CardPredicate {
+        let matches: (DashboardCard) -> Bool
+    }
+
+    public typealias ComparatorMappingType = CardPredicate
+
+    public static var properties = QueryProperties {
+        Property(\DashboardCardEntity.$needsAttention) {
+            EqualToComparator { wanted in CardPredicate { $0.status.needsAttention == wanted } }
+        }
+        Property(\DashboardCardEntity.$isActive) {
+            EqualToComparator { wanted in CardPredicate { $0.status.isActive == wanted } }
+        }
+        Property(\DashboardCardEntity.$isHealthy) {
+            EqualToComparator { wanted in CardPredicate { $0.status.isHealthy == wanted } }
+        }
+        Property(\DashboardCardEntity.$status) {
+            EqualToComparator { wanted in
+                CardPredicate { $0.status.label.compare(wanted, options: looseComparison) == .orderedSame }
+            }
+            NotEqualToComparator { wanted in
+                CardPredicate { $0.status.label.compare(wanted, options: looseComparison) != .orderedSame }
+            }
+        }
+        Property(\DashboardCardEntity.$title) {
+            ContainsComparator { text in CardPredicate { contains($0.title, text) } }
+            EqualToComparator { text in
+                CardPredicate { $0.title.compare(text, options: looseComparison) == .orderedSame }
+            }
+        }
+        Property(\DashboardCardEntity.$updatedAt) {
+            GreaterThanOrEqualToComparator { date in CardPredicate { $0.updatedAt >= date } }
+            LessThanOrEqualToComparator { date in CardPredicate { $0.updatedAt <= date } }
+        }
+    }
+
+    /// Names the Find action Shortcuts generates from the declarations above.
+    /// Without it the action is titled after the type and says nothing about
+    /// what it can be asked.
+    public static var findIntentDescription = IntentDescription(
+        "Finds published cards by status, title, or when they last changed.",
+        categoryName: "Cards"
+    )
+
+    public static var sortingOptions = SortingOptions {
+        SortableBy(\DashboardCardEntity.$title)
+        SortableBy(\DashboardCardEntity.$updatedAt)
+        SortableBy(\DashboardCardEntity.$status)
+    }
+
+    public func entities(
+        matching comparators: [CardPredicate],
+        mode: ComparatorMode,
+        sortedBy: [EntityQuerySort<DashboardCardEntity>],
+        limit: Int?
+    ) async throws -> [DashboardCardEntity] {
+        DashboardCardEntityQuery.filter(
+            SpotlightIndex.indexable(CardCache.load().cards),
+            matching: comparators,
+            mode: mode,
+            sortedBy: sortedBy.compactMap(CardSortOrder.init),
+            limit: limit
+        )
+        .map(DashboardCardEntity.init)
+    }
+
+    /// One sort the caller asked for, in terms this file can construct.
+    ///
+    /// `EntityQuerySort` has no public initialiser, so translating at the
+    /// boundary is what lets the ordering rules be tested at all — otherwise
+    /// the only way to exercise them is through the AppIntents runtime.
+    struct CardSortOrder: Equatable {
+        enum Field { case title, status, updatedAt }
+
+        let field: Field
+        let ascending: Bool
+
+        init(field: Field, ascending: Bool) {
+            self.field = field
+            self.ascending = ascending
+        }
+
+        /// Returns nil for a sortable property this build does not know how to
+        /// order, so an unrecognised one leaves the caller's order alone rather
+        /// than imposing an arbitrary one.
+        init?(_ sort: EntityQuerySort<DashboardCardEntity>) {
+            switch sort.by {
+            case \DashboardCardEntity.$title: field = .title
+            case \DashboardCardEntity.$status: field = .status
+            case \DashboardCardEntity.$updatedAt: field = .updatedAt
+            default: return nil
+            }
+            ascending = sort.order == .ascending
+        }
+    }
+
+    /// Pure, so the predicate and ordering semantics are testable without the
+    /// AppIntents runtime — which is much of the reason this query was worth
+    /// conforming.
+    static func filter(
+        _ cards: [DashboardCard],
+        matching comparators: [CardPredicate],
+        mode: ComparatorMode,
+        sortedBy: [CardSortOrder],
+        limit: Int?
+    ) -> [DashboardCard] {
+        // An empty comparator list means "everything", under either mode. `.or`
+        // over nothing is vacuously false, which would answer a Find action
+        // carrying no filters with an empty list — a wrong answer to a question
+        // nobody asked.
+        var result = comparators.isEmpty ? cards : cards.filter { card in
+            switch mode {
+            case .and: return comparators.allSatisfy { $0.matches(card) }
+            case .or: return comparators.contains { $0.matches(card) }
+            @unknown default: return comparators.allSatisfy { $0.matches(card) }
+            }
+        }
+
+        // Applied in reverse so the first sort the caller listed ends up the
+        // outermost one, which is what chaining stable sorts requires.
+        for sort in sortedBy.reversed() {
+            result = stableSorted(result, by: sort)
+        }
+
+        if let limit, result.count > limit {
+            result = Array(result.prefix(limit))
+        }
+        return result
+    }
+
+    private static func stableSorted(
+        _ cards: [DashboardCard],
+        by sort: CardSortOrder
+    ) -> [DashboardCard] {
+        // Swift's sort is not stable, so equal elements are tie-broken on their
+        // arrival index rather than trusting it to leave them alone. Without
+        // that, a second sort silently scrambles what the first one decided.
+        cards.enumerated().sorted { lhs, rhs in
+            let order: ComparisonResult
+            switch sort.field {
+            case .title:
+                order = lhs.element.title.compare(rhs.element.title, options: looseComparison)
+            case .status:
+                order = lhs.element.status.label.compare(rhs.element.status.label, options: looseComparison)
+            case .updatedAt:
+                order = compare(lhs.element.updatedAt, rhs.element.updatedAt)
+            }
+            if order == .orderedSame { return lhs.offset < rhs.offset }
+            return sort.ascending ? order == .orderedAscending : order == .orderedDescending
+        }
+        .map(\.element)
+    }
+
+    private static func compare(_ lhs: Date, _ rhs: Date) -> ComparisonResult {
+        if lhs == rhs { return .orderedSame }
+        return lhs < rhs ? .orderedAscending : .orderedDescending
     }
 
     /// Title first, then subtitle, with an exact title winning outright.
@@ -151,13 +333,13 @@ public struct DashboardCardEntityQuery: EntityStringQuery {
         return cards.filter { contains($0.subtitle ?? "", needle) }
     }
 
-    private static let looseComparison: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+    static let looseComparison: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
     private static func equal(_ lhs: String, _ rhs: String) -> Bool {
         lhs.compare(rhs, options: looseComparison) == .orderedSame
     }
 
-    private static func contains(_ haystack: String, _ needle: String) -> Bool {
+    static func contains(_ haystack: String, _ needle: String) -> Bool {
         haystack.range(of: needle, options: looseComparison) != nil
     }
 }

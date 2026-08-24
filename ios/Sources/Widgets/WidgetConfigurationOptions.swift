@@ -50,16 +50,17 @@ public enum WidgetStatusFilter: String, AppEnum {
         }
     }
 
+    /// Delegates to `DashboardStatus`, which is where the three groupings now
+    /// live. They were spelled out here, in the widget extension, which put the
+    /// vocabulary a person would ask out loud — "which cards need attention" —
+    /// somewhere the app target cannot see. `DashboardCardEntityQuery` filters
+    /// on the same predicates.
     func includes(_ status: DashboardStatus) -> Bool {
         switch self {
-        case .all:
-            return true
-        case .needsAttention:
-            return status == .warning || status == .critical || status == .offline || status == .paused || status == .unknown
-        case .active:
-            return status == .running || status == .paused
-        case .healthy:
-            return status == .good || status == .finished
+        case .all: return true
+        case .needsAttention: return status.needsAttention
+        case .active: return status.isActive
+        case .healthy: return status.isHealthy
         }
     }
 }

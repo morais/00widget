@@ -26,6 +26,28 @@ public enum DashboardStatus: String, Codable, CaseIterable, Hashable, Sendable {
         }
     }
 
+    /// Statuses worth surfacing when someone asks what needs looking at.
+    ///
+    /// `unknown` counts: it is the decoder's fallback for a status this build
+    /// predates, so a card wearing it is one the app cannot vouch for.
+    /// `paused` is deliberately in both this group and `isActive` — a paused
+    /// washer is running and stuck at the same time — which is why these are
+    /// three overlapping predicates rather than one partition.
+    public var needsAttention: Bool {
+        switch self {
+        case .warning, .critical, .offline, .paused, .unknown: return true
+        case .good, .finished, .running: return false
+        }
+    }
+
+    public var isActive: Bool {
+        self == .running || self == .paused
+    }
+
+    public var isHealthy: Bool {
+        self == .good || self == .finished
+    }
+
     public var label: String {
         switch self {
         case .unknown: return "Unknown"
