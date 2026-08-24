@@ -161,10 +161,25 @@ function cardWriteStatements(
       ),
     );
   }
+  // `ON CONFLICT DO UPDATE` rather than `INSERT OR REPLACE`: the latter deletes
+  // the existing row and inserts a new one, which D1 bills as two rows written
+  // where an update in place is one. Measured against the production database —
+  // republishing an existing card cost 2 rows written as `OR REPLACE` and costs
+  // 1 this way, out of 6 for the whole request.
+  //
+  // The two are otherwise the same here. Every non-key column is assigned from
+  // `excluded`, so the stored row is still replaced whole and the documented
+  // last-write-wins contract is unchanged; `cards` has no triggers and nothing
+  // references it, so there is no delete side effect to lose. Updating in place
+  // also keeps the rowid stable, which `OR REPLACE` reassigns.
   statements.push(
     env.ZW_DB.prepare(
-      `INSERT OR REPLACE INTO cards (tenant_id, api_key_hash, id, json, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO cards (tenant_id, api_key_hash, id, json, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tenant_id, id) DO UPDATE SET
+         api_key_hash = excluded.api_key_hash,
+         json = excluded.json,
+         updated_at = excluded.updated_at`,
     ).bind(tenantId, apiKeyHash, sanitized.id, json(sanitized), updatedAt),
   );
   return { card: sanitized, statements };

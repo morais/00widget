@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
 import {
   DashboardCardInputSchema,
@@ -7,7 +7,7 @@ import {
   RequestBodyLimits,
 } from "../src/types";
 import { sha256Hex } from "../src/auth";
-import { makeEnv, authedRequest, seedApiKey, TEST_API_KEY } from "./helpers";
+import { makeEnv, authedRequest, seedApiKey, testApiKey, TEST_API_KEY } from "./helpers";
 import * as storage from "../src/storage";
 
 const executionCtx = {} as ExecutionContext;
@@ -417,6 +417,55 @@ describe("cards endpoints", () => {
     const env = makeEnv();
     const res = await (handler.fetch as any)(new Request("https://x/v1/cards"), env, executionCtx);
     expect(res.status).toBe(401);
+  });
+
+  // `INSERT OR REPLACE` deletes the row and inserts a new one, which D1 bills
+  // as two rows written; updating in place is one. Measured against the
+  // production database: a republish went from 2 to 1, out of 6 for the whole
+  // request. The shape is asserted rather than only the behaviour, because the
+  // two forms are behaviourally identical here — nothing else would notice the
+  // cost doubling again.
+  it("updates a card in place rather than replacing the row", async () => {
+    const env = makeEnv();
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({ id: "solar", template: "summary", title: "Solar" }),
+      }),
+      env,
+      executionCtx,
+    );
+    const writes = prepare.mock.calls.filter(([sql]) => sql.includes("INTO cards"));
+    expect(writes).toHaveLength(1);
+    expect(writes[0][0]).toContain("ON CONFLICT(tenant_id, id) DO UPDATE");
+    expect(writes[0][0]).not.toContain("INSERT OR REPLACE");
+  });
+
+  it("still lets the last writer win on every column", async () => {
+    // What the cheaper statement must not change: an upsert replaces the stored
+    // card whole, including the api_key_hash recording which credential owns it.
+    // `DO UPDATE` assigns every non-key column from `excluded` to keep that true.
+    const env = makeEnv();
+    await seedApiKey(env, "second-producer", "test-tenant");
+    const publish = (apiKey: string, title: string) =>
+      (handler.fetch as any)(
+        authedRequest("https://x/v1/cards/upsert", {
+          method: "POST",
+          body: JSON.stringify({ id: "shared", template: "summary", title }),
+        }, apiKey),
+        env,
+        executionCtx,
+      );
+
+    expect((await publish(TEST_API_KEY, "First")).status).toBe(200);
+    expect((await publish("second-producer", "Second")).status).toBe(200);
+
+    await expect(storage.getCard(env, "test-tenant", "shared"))
+      .resolves.toMatchObject({ id: "shared", title: "Second" });
+    const stored = await storage.listTenantCards(env, "test-tenant");
+    const entry = stored.find((row) => row.value.id === "shared");
+    expect(entry?.apiKeyHash).toBe(await sha256Hex(testApiKey("second-producer")));
   });
 
   it("upserts and lists", async () => {

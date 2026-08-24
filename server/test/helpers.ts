@@ -329,7 +329,10 @@ export class FakeD1 {
       row.last_used_at = last_used_at;
       return 1;
     }
-    if (normalized.startsWith("INSERT OR REPLACE INTO cards")) {
+    // `INSERT ... ON CONFLICT(tenant_id, id) DO UPDATE`, which replaces the row
+    // whole exactly as `INSERT OR REPLACE` did — it is one row written against
+    // D1 rather than two. Same five bound values, same order.
+    if (normalized.startsWith("INSERT INTO cards")) {
       const [tenant_id, api_key_hash, id, json, updated_at] = values.map(String);
       this.cards.set(`${tenant_id}:${id}`, { tenant_id, api_key_hash, id, json, updated_at });
       return 1;
