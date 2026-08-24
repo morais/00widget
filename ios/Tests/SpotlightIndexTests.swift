@@ -80,6 +80,53 @@ struct SpotlightIndexTests {
         #expect(DashboardCardEntity(solar).value == "3.4 kW")
     }
 
+    /// The bound properties are what populate the attribute set now, so this
+    /// checks the wiring rather than the values: a hand-set `title` here would
+    /// win over the binding and quietly make it decorative again.
+    @Test("The attribute set is populated from the bound properties")
+    func attributeSetComesFromBindings() {
+        var solar = card(id: "solar")
+        solar.subtitle = "Roof array"
+        solar.value = "3.4"
+        solar.unit = "kW"
+        solar.updatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let attributes = DashboardCardEntity(solar).attributeSet
+        #expect(attributes.title == "Solar")
+        #expect(attributes.contentDescription == "Roof array")
+        #expect(attributes.contentModificationDate == solar.updatedAt)
+    }
+
+    /// The value is searchable without being asserted as the result's subtitle.
+    /// Spotlight renders `contentDescription` under the title, and the index
+    /// goes stale whenever the extension refreshes the cache with the app
+    /// closed — a number there reads confidently while being hours old.
+    @Test("The volatile value is a keyword, not the result subtitle")
+    func valueIsAKeywordNotADescription() {
+        var solar = card(id: "solar")
+        solar.subtitle = "Roof array"
+        solar.value = "3.4"
+        solar.unit = "kW"
+        solar.status = .critical
+
+        let attributes = DashboardCardEntity(solar).attributeSet
+        let keywords = attributes.keywords ?? []
+        #expect(keywords.contains("3.4 kW"))
+        #expect(keywords.contains("Critical"))
+        #expect(keywords.contains("Solar"))
+        #expect(attributes.contentDescription == "Roof array")
+    }
+
+    /// Empty strings would otherwise become blank keywords, which match
+    /// nothing and clutter the record.
+    @Test("Absent fields do not become empty keywords")
+    func absentFieldsAreNotKeywords() {
+        let bare = card(id: "solar")
+        let keywords = DashboardCardEntity(bare).attributeSet.keywords ?? []
+        #expect(!keywords.contains(""))
+        #expect(keywords.contains("Solar"))
+    }
+
     @Test("A card with no value still carries a searchable status")
     func statusIsAlwaysPresent() {
         var boiler = card(id: "boiler")

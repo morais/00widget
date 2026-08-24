@@ -21,19 +21,31 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
 
     public var id: String
 
-    @Property(title: "Title")
+    // Three of these carry an `indexingKey`, which is what connects the
+    // AppIntents property to the Spotlight attribute of the same meaning.
+    // Without it the two layers are unrelated — the properties feed parameter
+    // resolution, the attribute set feeds Spotlight, and nothing tells the
+    // index what a field *is*. A bound property is structure iOS 27's semantic
+    // layer can reason over; an unbound one is prose in a blob of text.
+
+    @Property(title: "Title", indexingKey: \.title)
     public var title: String
 
-    @Property(title: "Detail")
+    @Property(title: "Detail", indexingKey: \.contentDescription)
     public var detail: String?
 
+    // `value` and `status` stay unbound: CSSearchableItemAttributeSet has no
+    // attribute that means "what this thing currently reads", and binding them
+    // to an unrelated one would be worse than leaving them out. They reach
+    // Spotlight as keywords instead, which is a search term rather than a
+    // claim about meaning.
     @Property(title: "Value")
     public var value: String?
 
     @Property(title: "Status")
     public var status: String
 
-    @Property(title: "Last updated")
+    @Property(title: "Last updated", indexingKey: \.contentModificationDate)
     public var updatedAt: Date
 
     public init(_ card: DashboardCard) {
@@ -66,14 +78,32 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
         "zerozerowidget://card/\(.id)"
     }
 
+    /// The attributes still have to be set by hand. `indexingKey` declares what
+    /// a property *means*; it does not populate anything here.
+    ///
+    /// Measured, because it is easy to assume otherwise and the assumption
+    /// fails silently: with all three keys bound, `defaultAttributeSet` comes
+    /// back carrying only `title` — and removing `indexingKey: \.title` leaves
+    /// that title exactly where it was, because it is derived from
+    /// `displayRepresentation`. So a binding-only version of this type would
+    /// have shipped an index with no description and no modification date at
+    /// all. The bindings are still what iOS 27's semantic layer reads; they are
+    /// simply not the same channel as the attribute set.
+    ///
+    /// Note what is deliberately *not* here: the card's current value. Spotlight
+    /// renders `contentDescription` as the result's subtitle, and the index goes
+    /// stale whenever the widget extension refreshes the cache with the app
+    /// closed — so a number there is read confidently while being an unknown
+    /// number of hours old, under a `contentModificationDate` that looks fresh.
+    /// As a keyword it stays searchable without being asserted.
     public var attributeSet: CSSearchableItemAttributeSet {
-        let attributes = CSSearchableItemAttributeSet(contentType: .content)
+        let attributes = defaultAttributeSet
         attributes.title = title
-        attributes.contentDescription = [value, detail].compactMap { $0 }
-            .filter { !$0.isEmpty }
-            .joined(separator: " — ")
-        attributes.keywords = [title, status] + (detail.map { [$0] } ?? [])
+        attributes.contentDescription = detail?.isEmpty == false ? detail : nil
         attributes.contentModificationDate = updatedAt
+        attributes.keywords = [title, status, value, detail]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
         return attributes
     }
 }
