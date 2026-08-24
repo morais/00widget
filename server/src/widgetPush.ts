@@ -202,23 +202,39 @@ export async function enqueuePendingWidgetReload(
   tenantId: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
 ): Promise<void> {
-  const existing = await getPendingWidgetReload(env, tenantId);
-  if (!existing && env.WIDGET_RELOAD_QUEUE) {
-    const delaySeconds = await secondsUntilWidgetPushWindow(env, tenantId, nowSeconds);
-    await env.WIDGET_RELOAD_QUEUE.send(
-      { tenantId },
-      { delaySeconds: Math.max(1, delaySeconds) },
-    );
-  }
-  await env.ZW_DB.prepare(
+  // The row is claimed and inspected in one statement rather than read and then
+  // written. A returned generation of 1 means this call created the row, so
+  // nothing is scheduled to drain it and a queue message is owed; anything
+  // higher means an earlier publish already sent one and this change coalesces
+  // into it. As a separate read the answer could disagree with the write under
+  // concurrent publishes, and every caller had just read the same row anyway.
+  const result = await env.ZW_DB.prepare(
     `INSERT INTO widget_push_pending (tenant_id, generation, queued_at)
      VALUES (?, 1, ?)
      ON CONFLICT(tenant_id) DO UPDATE SET
        generation = widget_push_pending.generation + 1,
-       queued_at = excluded.queued_at`,
+       queued_at = excluded.queued_at
+     RETURNING generation`,
   )
     .bind(tenantId, nowSeconds)
-    .run();
+    .all<{ generation: number }>();
+  const created = Number(result.results[0]?.generation ?? 0) === 1;
+  if (!created || !env.WIDGET_RELOAD_QUEUE) return;
+
+  const delaySeconds = await secondsUntilWidgetPushWindow(env, tenantId, nowSeconds);
+  try {
+    await env.WIDGET_RELOAD_QUEUE.send({ tenantId }, { delaySeconds: Math.max(1, delaySeconds) });
+  } catch (error) {
+    // Writing the row before sending means a failed send would otherwise leave
+    // it behind with nothing to drain it, and the next publish would coalesce
+    // into it rather than scheduling a message of its own — the reload would
+    // never go out. Removing the row we just created puts that next publish
+    // back in charge. Guarded on the generation, so a publish that arrived in
+    // between keeps its own row.
+    await deletePendingWidgetReload(env, { tenantId, generation: 1, queuedAt: nowSeconds })
+      .catch(() => {});
+    throw error;
+  }
 }
 
 export async function getPendingWidgetReload(
@@ -245,7 +261,25 @@ export async function secondsUntilWidgetPushWindow(
   tenantId: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
 ): Promise<number> {
-  const tokens = [...new Set(await storage.listWidgetTokens(env, tenantId))];
+  return widgetPushWaitForTokens(
+    env,
+    await storage.listWidgetTokens(env, tenantId),
+    nowSeconds,
+  );
+}
+
+/// The same answer for a token list the caller already holds.
+///
+/// Split out because the callers that want this usually just listed the
+/// tenant's tokens for their own reasons, and asking by tenant would list them
+/// again. `processPendingWidgetReload` asked up to three times in one delivery,
+/// each costing a token listing it did not need.
+export async function widgetPushWaitForTokens(
+  env: Env,
+  allTokens: string[],
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): Promise<number> {
+  const tokens = [...new Set(allTokens)];
   if (tokens.length === 0) return 0;
   const rows = await env.ZW_DB.prepare(
     `SELECT token, last_sent_at, allowance
@@ -285,19 +319,18 @@ export async function processPendingWidgetReload(
   const pending = await getPendingWidgetReload(env, message.tenantId);
   if (!pending) return { delivered: false };
 
-  const delaySeconds = await secondsUntilWidgetPushWindow(
-    env,
-    pending.tenantId,
-    nowSeconds,
-  );
-  if (delaySeconds > 0) {
-    return { delivered: false, retryAfterSeconds: delaySeconds };
-  }
-
+  // Listed once and reused for every wait computed below. Each of those used to
+  // re-list them, so one delivery could enumerate the tenant's tokens three
+  // times over.
   const tokens = [...new Set(await storage.listWidgetTokens(env, pending.tenantId))];
   if (tokens.length === 0) {
     await deletePendingWidgetReload(env, pending);
     return { delivered: false };
+  }
+
+  const delaySeconds = await widgetPushWaitForTokens(env, tokens, nowSeconds);
+  if (delaySeconds > 0) {
+    return { delivered: false, retryAfterSeconds: delaySeconds };
   }
   // Each widget has its own allowance, so this claims per token rather than
   // for the tenant. A device with two widgets where only one has a slot free
@@ -309,10 +342,7 @@ export async function processPendingWidgetReload(
   if (claimed.length === 0) {
     return {
       delivered: false,
-      retryAfterSeconds: Math.max(
-        1,
-        await secondsUntilWidgetPushWindow(env, pending.tenantId, nowSeconds),
-      ),
+      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, tokens, nowSeconds)),
     };
   }
   const targets = claimed.map((token) => ({ token, tenantIds: [pending.tenantId] }));
@@ -330,10 +360,7 @@ export async function processPendingWidgetReload(
   if (claimed.length < tokens.length) {
     return {
       delivered: true,
-      retryAfterSeconds: Math.max(
-        1,
-        await secondsUntilWidgetPushWindow(env, pending.tenantId, nowSeconds),
-      ),
+      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, tokens, nowSeconds)),
     };
   }
   const cleared = await deletePendingWidgetReload(env, pending);

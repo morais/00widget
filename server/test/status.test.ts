@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
 import * as storage from "../src/storage";
 import { sha256Hex } from "../src/auth";
@@ -25,6 +25,23 @@ describe("GET /v1/status", () => {
     expect(body.delivery.canPushWidgets).toBe(false);
     expect(body.delivery.canStartLiveActivities).toBe(false);
     expect(body.delivery.devices).toBe(0);
+  });
+
+  // The endpoint already lists the tenant's widget tokens to count them, and
+  // used to list them a second time computing the reload wait from the tenant
+  // rather than from the list it was holding.
+  it("lists the tenant's widget tokens once", async () => {
+    const env = makeEnv();
+    await storage.putWidgetToken(
+      env, "test-tenant", await sha256Hex(TEST_API_KEY),
+      "device-1", "ZeroZeroWidgetCardWidget", "aa",
+    );
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    await status(env);
+
+    const listings = prepare.mock.calls.filter(([sql]) =>
+      sql.includes("SELECT token FROM widget_tokens"));
+    expect(listings).toHaveLength(1);
   });
 
   it("reports what a registered device can receive", async () => {

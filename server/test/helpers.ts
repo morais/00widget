@@ -187,6 +187,21 @@ export class FakeD1 {
   // ON CONFLICT increment. Keep this aligned with the statement in
   // `incrementRateLimitBuckets` — reading a value from the wrong position here
   // is invisible, since this class enforces no types and no constraints.
+  // Returns the new generation, which is what `RETURNING generation` yields and
+  // what `enqueuePendingWidgetReload` reads to decide whether it created the row
+  // and therefore owes a queue message.
+  private upsertWidgetPushPending(values: unknown[]): number {
+    const [tenant_id, queued_at] = values.map(String);
+    const existing = this.widgetPushPending.get(tenant_id);
+    const generation = Number(existing?.generation ?? 0) + 1;
+    this.widgetPushPending.set(tenant_id, {
+      tenant_id,
+      generation: String(generation),
+      queued_at,
+    });
+    return generation;
+  }
+
   private upsertRateLimitBucket(values: unknown[]): number {
     const [bucket_key, window_start, weight, expires_at] = [
       String(values[0]),
@@ -750,13 +765,7 @@ export class FakeD1 {
       return 1;
     }
     if (normalized.startsWith("INSERT INTO widget_push_pending")) {
-      const [tenant_id, queued_at] = values.map(String);
-      const existing = this.widgetPushPending.get(tenant_id);
-      this.widgetPushPending.set(tenant_id, {
-        tenant_id,
-        generation: String(Number(existing?.generation ?? 0) + 1),
-        queued_at,
-      });
+      this.upsertWidgetPushPending(values);
       return 1;
     }
     if (normalized.startsWith("INSERT INTO widget_push_delivery_diagnostics")) {
@@ -1013,6 +1022,9 @@ export class FakeD1 {
     if (normalized.startsWith("DELETE FROM rate_limit_buckets WHERE rowid IN")) {
       const removed = this.deleteExpiredRateLimitBuckets(values);
       return Array.from({ length: removed }, (_, index) => ({ rowid: index + 1 }));
+    }
+    if (normalized.startsWith("INSERT INTO widget_push_pending") && normalized.endsWith("RETURNING generation")) {
+      return [{ generation: this.upsertWidgetPushPending(values) } as unknown as FakeApiKeyRow];
     }
     if (normalized.startsWith("INSERT INTO rate_limit_buckets") && normalized.endsWith("RETURNING count")) {
       return [{ count: this.upsertRateLimitBucket(values) } as unknown as FakeApiKeyRow];

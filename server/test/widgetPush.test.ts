@@ -349,6 +349,78 @@ describe("widget push subscriptions", () => {
     });
   });
 
+  // The row is now claimed and inspected in one statement, so the decision to
+  // send is made from what the write returned rather than from a separate read.
+  it("reads the pending row once per enqueue", async () => {
+    const env = makeEnv();
+    await storage.putWidgetToken(
+      env, "test-tenant", await sha256Hex(TEST_API_KEY),
+      "device-1", "ZeroZeroWidgetCardWidget", "aabbccdd",
+    );
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
+
+    const reads = prepare.mock.calls.filter(([sql]) =>
+      sql.includes("FROM widget_push_pending") && sql.trim().startsWith("SELECT"));
+    expect(reads, "the upsert already reports the generation").toHaveLength(0);
+  });
+
+  // Writing the row before sending means a failed send would strand it: the row
+  // exists, so the next publish coalesces into it rather than scheduling its own
+  // message, and the reload never goes out.
+  it("removes the pending row it created when the queue send fails", async () => {
+    const queue = { send: vi.fn().mockRejectedValue(new Error("queue unavailable")) };
+    const env = { ...makeEnv(), WIDGET_RELOAD_QUEUE: queue } as unknown as ReturnType<typeof makeEnv>;
+    await storage.putWidgetToken(
+      env, "test-tenant", await sha256Hex(TEST_API_KEY),
+      "device-1", "ZeroZeroWidgetCardWidget", "aabbccdd",
+    );
+    await claimWidgetPushWindow(env, "aabbccdd", 10_000);
+
+    await expect(enqueuePendingWidgetReload(env, "test-tenant", 10_001)).rejects.toThrow();
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+
+    // So the next publish is the one that schedules, rather than assuming a
+    // message it never sent is already in flight.
+    queue.send.mockResolvedValue(undefined);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_002);
+    expect(queue.send).toHaveBeenCalledTimes(2);
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.not.toBeNull();
+  });
+
+  it("lists the tenant's widget tokens once per queue delivery", async () => {
+    // Deliberately the partial-claim path: one widget has a slot and the other
+    // does not, so the delivery runs to the end *and* computes a wait for the
+    // one left behind. That is where the listing used to happen three times —
+    // once for the opening wait, once to claim, once for the closing wait. The
+    // paths that return early only ever listed once, so they cannot show this.
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-1", "ZeroZeroWidgetCardWidget", "freshtok");
+    await storage.putWidgetToken(env, "test-tenant", hash, "device-2", "ZeroZeroWidgetCardWidget", "spenttok");
+    await claimWidgetPushWindow(env, "spenttok", 10_000);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_001);
+
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    const sender = vi.fn().mockResolvedValue({ status: 200, apnsId: "ok" });
+    const outcome = await processPendingWidgetReload(
+      env,
+      { tenantId: "test-tenant" },
+      { nowSeconds: 10_100, sender },
+    );
+
+    // The fresh widget was reloaded; the spent one still owes a push, so the
+    // message comes back rather than the pending row being cleared.
+    expect(sender).toHaveBeenCalledOnce();
+    expect(sender).toHaveBeenCalledWith(env, "freshtok");
+    expect(outcome.delivered).toBe(true);
+    expect(outcome.retryAfterSeconds).toBeGreaterThan(0);
+
+    const listings = prepare.mock.calls.filter(([sql]) =>
+      sql.includes("SELECT token FROM widget_tokens"));
+    expect(listings).toHaveLength(1);
+  });
+
   it("queues a second card change when the immediate push window is closed", async () => {
     const env = makeEnv();
     const hash = await sha256Hex(TEST_API_KEY);

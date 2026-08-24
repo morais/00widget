@@ -14,7 +14,7 @@ import {
   WIDGET_PUSH_BURST,
   WIDGET_PUSH_MIN_SPACING_SECONDS,
   WIDGET_PUSH_REFILL_SECONDS,
-  secondsUntilWidgetPushWindow,
+  widgetPushWaitForTokens,
   widgetPushApnsDiagnosticsEnabled,
 } from "./widgetPush";
 import type { Env } from "./types";
@@ -55,7 +55,9 @@ export async function getStatus(
       : Promise.resolve([]),
   ]);
 
-  const secondsUntilReload = await secondsUntilWidgetPushWindow(env, auth.tenantId);
+  // Reuses the token list already fetched above; asking by tenant would list
+  // them a second time for the same answer.
+  const secondsUntilReload = await widgetPushWaitForTokens(env, widgetTokens);
 
   const subscription = isSubscriptionsEnabled(env)
     ? {
