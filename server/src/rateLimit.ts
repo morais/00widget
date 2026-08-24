@@ -152,7 +152,7 @@ export async function incrementRateLimitBuckets(
   const planned = [...buckets
     .reduce((grouped, bucket) => {
       const policy = RateLimitPolicies[bucket.policy];
-      const bucketKey = `${bucket.policy}:${bucket.key}`;
+      const bucketKey = bucketKeyFor(bucket.policy, bucket.key);
       const existing = grouped.get(bucketKey);
       if (existing) {
         existing.weight += 1;
@@ -255,19 +255,54 @@ export async function listTenantRateLimitBuckets(
   tenantId: string,
 ): Promise<RateLimitBucketView[]> {
   const now = nowSeconds();
-  const prefix = `%:tenant:${tenantId}%`;
+  const [low, high] = scopeRange(tenantKey(tenantId));
   const rows = await env.ZW_DB.prepare(
     `SELECT bucket_key, window_start, count, expires_at
      FROM rate_limit_buckets
-     WHERE bucket_key LIKE ?
+     WHERE bucket_key >= ? AND bucket_key < ?
      ORDER BY bucket_key, window_start DESC`,
   )
-    .bind(prefix)
+    .bind(low, high)
     .all<BucketRow>();
 
   return rows.results
     .map((row) => bucketRowToView(row, now))
     .filter((row): row is RateLimitBucketView => Boolean(row));
+}
+
+// A bucket key is `<scope>|<policy>`, scope first.
+//
+// The policy used to lead, which meant one tenant's counters were scattered
+// across the key space and the only way to find them was a leading-wildcard
+// `LIKE`, which SQLite cannot answer from an index. `GET /v1/status` therefore
+// scanned the whole table — the hottest table in the system — on a route
+// producers are told to poll. Scope first makes a tenant's buckets one
+// contiguous range, which the primary key answers with a seek.
+//
+// `|` (0x7C) as the separator because it cannot occur in any scope: tenant and
+// guest scopes carry UUIDs, and the IP and Apple-subject scopes are their own
+// prefixes. No tenant id is a prefix of another either — they are fixed-length
+// UUIDs — so a range over one tenant cannot spill into the next.
+const SCOPE_SEPARATOR = "|";
+
+export function bucketKeyFor(policy: string, scope: string): string {
+  return `${scope}${SCOPE_SEPARATOR}${policy}`;
+}
+
+/// Half-open `[low, high)` bounds covering every bucket under one scope.
+///
+/// `}` is 0x7D, one past the separator, and above the `:` (0x3A) that appears
+/// inside a resource-qualified scope — so the range covers `tenant:<id>|policy`
+/// and `tenant:<id>:card:solar|policy` alike, and stops before any other scope.
+export function scopeRange(scope: string): [string, string] {
+  return [scope, `${scope}}`];
+}
+
+function policyOf(bucketKey: string): RateLimitPolicyName | undefined {
+  const separator = bucketKey.lastIndexOf(SCOPE_SEPARATOR);
+  if (separator < 0) return undefined;
+  const name = bucketKey.slice(separator + 1) as RateLimitPolicyName;
+  return name in RateLimitPolicies ? name : undefined;
 }
 
 export function tenantKey(tenantId: string): string {
@@ -287,8 +322,8 @@ export function appleSubKey(sub: string): string {
 }
 
 function bucketRowToView(row: BucketRow, now: number): RateLimitBucketView | null {
-  const policyName = row.bucket_key.split(":")[0] as RateLimitPolicyName;
-  const policy = RateLimitPolicies[policyName];
+  const policyName = policyOf(row.bucket_key);
+  const policy = policyName ? RateLimitPolicies[policyName] : undefined;
   if (!policy) return null;
   const resetAt = Number(row.window_start) + policy.windowSeconds;
   // Rows outlive their window by design — `expires_at` is two windows out, so

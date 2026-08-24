@@ -1041,11 +1041,13 @@ export class FakeD1 {
         "expires_at",
       ]);
     }
-    if (normalized === "SELECT bucket_key, window_start, count, expires_at FROM rate_limit_buckets WHERE bucket_key LIKE ? ORDER BY bucket_key, window_start DESC") {
-      const [pattern] = values.map(String);
-      const needle = pattern.replace(/^%|%$/g, "");
+    // Half-open range over one scope, matching the seek the real query does.
+    // Modelled as an actual string comparison rather than a prefix test, so a
+    // mistake in the bounds shows up here rather than only against D1.
+    if (normalized === "SELECT bucket_key, window_start, count, expires_at FROM rate_limit_buckets WHERE bucket_key >= ? AND bucket_key < ? ORDER BY bucket_key, window_start DESC") {
+      const [low, high] = values.map(String);
       return [...this.rateLimitBuckets.values()]
-        .filter((row) => row.bucket_key.includes(needle))
+        .filter((row) => row.bucket_key >= low && row.bucket_key < high)
         .sort(by("bucket_key", "window_start"))
         .reverse()
         .map(select("bucket_key", "window_start", "count", "expires_at"));

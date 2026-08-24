@@ -1,0 +1,33 @@
+-- Rate limit bucket keys are now `<scope>|<policy>` rather than
+-- `<policy>:<scope>`.
+--
+-- With the policy leading, one tenant's counters were scattered across the key
+-- space, and the only way to find them was `LIKE '%:tenant:<id>%'` — a
+-- leading-wildcard match, which SQLite cannot answer from an index. So
+-- `GET /v1/status` scanned the whole of the hottest table in the system, on a
+-- route the integration guide tells producers to poll. Confirmed against the
+-- production database:
+--
+--   LIKE 'prefix%'   -> SCAN rate_limit_buckets
+--   >= ? AND < ?     -> SEARCH ... USING INDEX sqlite_autoindex_rate_limit_buckets_1
+--
+-- Scope first makes a tenant's buckets one contiguous range that the primary
+-- key answers with a seek.
+--
+-- Old-format rows are deleted rather than rewritten. A bucket is a counter for
+-- a window that is at most a day long and carries an `expires_at` two windows
+-- out, so the alternative to deleting them is that they linger unread until the
+-- sweep collects them anyway. Rewriting would mean parsing a key format we are
+-- removing, to preserve counts that expire within the day, for windows that are
+-- mostly already closed.
+--
+-- The cost is that counters in flight at deploy time restart from zero, so a
+-- tenant could briefly spend up to two windows' allowance in one. That is the
+-- same trade migration 0026 made when it dropped `widget_push_cadence`, and for
+-- the same reason: the value being lost is smaller than the machinery to keep
+-- it.
+--
+-- Identified by the absence of the new separator. `|` cannot occur in a scope —
+-- tenant and guest scopes carry UUIDs, and the IP and Apple-subject scopes are
+-- their own prefixes — so every surviving row is new-format by construction.
+DELETE FROM rate_limit_buckets WHERE bucket_key NOT LIKE '%|%';

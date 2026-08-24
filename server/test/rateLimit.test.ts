@@ -6,6 +6,7 @@ import {
   listTenantRateLimitBuckets,
   sweepExpiredRateLimitBuckets,
   tenantKey,
+  tenantResourceKey,
 } from "../src/rateLimit";
 import { authedRequest, makeEnv } from "./helpers";
 
@@ -155,6 +156,41 @@ describe("incrementRateLimitBuckets", () => {
     const views = await listTenantRateLimitBuckets(env, "t1");
     const looseView = views.find((view) => view.label === RateLimitPolicies.anyWriteTenantHour.label);
     expect(looseView?.count).toBe(RateLimitPolicies.webhookTenantDay.limit + 1);
+  });
+
+  // The status route reads one tenant's buckets. With the policy leading the
+  // key those were scattered, and the only way to find them was a
+  // leading-wildcard LIKE, which SQLite answers by scanning — the whole of the
+  // hottest table in the system, on a route producers are told to poll.
+  // Confirmed against production: `LIKE 'prefix%'` plans as SCAN, a `>= ? AND
+  // < ?` range as SEARCH on the primary key.
+  it("reads a tenant's buckets by range rather than by scanning for them", async () => {
+    const env = makeEnv();
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+    await listTenantRateLimitBuckets(env, "t1");
+
+    const [sql] = prepare.mock.calls.at(-1)!;
+    expect(sql).toContain("bucket_key >= ?");
+    expect(sql).toContain("bucket_key < ?");
+    expect(sql).not.toContain("LIKE");
+  });
+
+  it("covers a tenant's resource-scoped buckets in that range, and no one else's", async () => {
+    // The range has to span both key shapes — `tenant:<id>|policy` and
+    // `tenant:<id>:card:solar|policy` — while stopping before the next scope.
+    const env = makeEnv();
+    await incrementRateLimitBuckets(env, [
+      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
+    ]);
+    await incrementRateLimitBuckets(env, [
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t2", "card", "solar") },
+    ]);
+
+    const labels = (await listTenantRateLimitBuckets(env, "t1")).map((view) => view.label).sort();
+    expect(labels).toEqual(["Card upserts", "Card upserts per card"]);
+    await expect(listTenantRateLimitBuckets(env, "t2"))
+      .resolves.toHaveLength(1);
   });
 
   it("does not touch D1 when there is nothing to count", async () => {
