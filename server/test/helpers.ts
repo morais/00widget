@@ -27,7 +27,10 @@ class FakeD1Statement {
     // A RETURNING statement mutates *and* yields rows, so it is served by the
     // read path and its rows travel back in `results` — that is what `batch`
     // hands the caller, and the rate limiter reads its new counts from there.
-    if (/\bRETURNING\b/i.test(this.sql)) {
+    // A batched SELECT reaches `run()` too, and real D1 answers it with rows —
+    // `batch` returns a result per statement whatever each one is. Route
+    // anything that yields rows to the read path, not just RETURNING writes.
+    if (/\bRETURNING\b/i.test(this.sql) || /^\s*SELECT\b/i.test(this.sql)) {
       const results = this.owner.all(this.sql, this.values) as T[];
       return { results, success: true, meta: { changes: results.length } } as D1Result<T>;
     }
@@ -1040,6 +1043,15 @@ export class FakeD1 {
         "count",
         "expires_at",
       ]);
+    }
+    // The derived-totals read inside incrementRateLimitBuckets. Same range, no
+    // ordering, three columns — a separate branch because FakeD1 matches the
+    // statement text exactly.
+    if (normalized === "SELECT bucket_key, window_start, count FROM rate_limit_buckets WHERE bucket_key >= ? AND bucket_key < ?") {
+      const [low, high] = values.map(String);
+      return [...this.rateLimitBuckets.values()]
+        .filter((row) => row.bucket_key >= low && row.bucket_key < high)
+        .map(select("bucket_key", "window_start", "count"));
     }
     // Half-open range over one scope, matching the seek the real query does.
     // Modelled as an actual string comparison rather than a prefix test, so a

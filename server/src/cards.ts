@@ -157,7 +157,15 @@ export async function deleteCard(
   id: string,
   ctx: ExecutionContext,
 ): Promise<Response> {
-  const limited = await enforceTenantRateLimits(env, auth, []);
+  // Charged to the card's own upsert bucket, because deleting a card is a
+  // publish — it needs the `publish` scope and it reloads every widget showing
+  // the card, exactly as republishing it would. It also has to be charged to
+  // *something* stored: the tenant-wide totals are derived from the buckets
+  // beneath them now, so a request that named only those would be counted by
+  // nothing and rate limited by nothing.
+  const limited = await enforceTenantRateLimits(env, auth, [
+    { policy: "cardUpsertCardHour", key: tenantResourceKey(auth.tenantId, "card", id) },
+  ]);
   if (limited) return limited;
   await deleteCardForTenant(env, auth.tenantId, id, ctx);
   return json({ ok: true }, 200);

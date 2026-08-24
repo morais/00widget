@@ -54,16 +54,19 @@ describe("incrementRateLimitBuckets", () => {
 
     await incrementRateLimitBuckets(env, [
       { policy: "anyWriteTenantHour", key: tenantKey("t1") },
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
       { policy: "cardUpsertCardHour", key: "tenant:t1:card:solar" },
     ]);
 
-    // Three counters and their three garbage-collecting deletes, in one trip.
+    // One stored counter, its garbage-collecting delete, and one range read
+    // answering both derived totals — still a single trip. `anyWriteTenantHour`
+    // and the per-tenant card total are summed from what is already stored
+    // rather than counted again.
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(batch.mock.calls[0][0]).toHaveLength(6);
-    expect(prepare).toHaveBeenCalledTimes(6);
-    expect(prepare.mock.calls.filter(([sql]) => sql.includes("RETURNING count"))).toHaveLength(3);
-    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(3);
+    expect(batch.mock.calls[0][0]).toHaveLength(3);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("RETURNING count"))).toHaveLength(1);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(1);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("bucket_key >= ?"))).toHaveLength(1);
   });
 
   // A batch upsert charges `cardUpsertTenantHour` once per card, all under the
@@ -86,11 +89,12 @@ describe("incrementRateLimitBuckets", () => {
       { policy: "cardUpsertCardHour", key: "tenant:t1:card:b" },
     ]);
 
-    // Four distinct buckets from thirteen inputs, so four upserts and four
-    // deletes rather than thirteen of each.
+    // Thirteen inputs, two stored buckets. The ten repeats of the tenant-wide
+    // card total collapse into one another *and* stop being written at all,
+    // because that total is derived; only the two distinct per-card keys remain.
     const upserts = prepare.mock.calls.filter(([sql]) => sql.includes("RETURNING count"));
-    expect(upserts).toHaveLength(4);
-    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(4);
+    expect(upserts).toHaveLength(2);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("window_start < ?"))).toHaveLength(2);
   });
 
   it("still spends the full weight of a repeated bucket", async () => {
@@ -99,8 +103,8 @@ describe("incrementRateLimitBuckets", () => {
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
       ...Array.from({ length: 10 }, () => ({
-        policy: "cardUpsertTenantHour" as const,
-        key: tenantKey("t1"),
+        policy: "cardUpsertCardHour" as const,
+        key: tenantResourceKey("t1", "card", "solar"),
       })),
     ]);
 
@@ -129,7 +133,7 @@ describe("incrementRateLimitBuckets", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
     const env = makeEnv();
-    const bucket = { policy: "cardUpsertTenantHour", key: tenantKey("t1") } as const;
+    const bucket = { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") } as const;
     await incrementRateLimitBuckets(env, [bucket]);
 
     // Two windows on, the 10:00 row is still inside its two-window expiry and
@@ -137,25 +141,49 @@ describe("incrementRateLimitBuckets", () => {
     vi.setSystemTime(new Date("2026-08-17T12:10:00Z"));
     await incrementRateLimitBuckets(env, [bucket]);
 
-    const views = await listTenantRateLimitBuckets(env, "t1");
+    const views = (await listTenantRateLimitBuckets(env, "t1"))
+      .filter((view) => view.label === RateLimitPolicies.cardUpsertCardHour.label);
     expect(views).toHaveLength(1);
     expect(views[0].count).toBe(1);
   });
 
   it("reports the first exceeded bucket while still counting the rest", async () => {
     const env = makeEnv();
-    const tight = { policy: "webhookTenantDay", key: tenantKey("t1") } as const;
+    const tight = { policy: "liveActivityStartTenantHour", key: tenantKey("t1") } as const;
     const loose = { policy: "anyWriteTenantHour", key: tenantKey("t1") } as const;
 
-    for (let attempt = 0; attempt < RateLimitPolicies.webhookTenantDay.limit; attempt += 1) {
+    for (let attempt = 0; attempt < RateLimitPolicies.liveActivityStartTenantHour.limit; attempt += 1) {
       await incrementRateLimitBuckets(env, [loose, tight]);
     }
     const exceeded = await incrementRateLimitBuckets(env, [loose, tight]);
-    expect(exceeded?.label).toBe(RateLimitPolicies.webhookTenantDay.label);
+    expect(exceeded?.label).toBe(RateLimitPolicies.liveActivityStartTenantHour.label);
 
+    // The aggregate is derived, so it still tracks the tighter bucket exactly
+    // without a counter of its own.
     const views = await listTenantRateLimitBuckets(env, "t1");
     const looseView = views.find((view) => view.label === RateLimitPolicies.anyWriteTenantHour.label);
-    expect(looseView?.count).toBe(RateLimitPolicies.webhookTenantDay.limit + 1);
+    expect(looseView?.count).toBe(RateLimitPolicies.liveActivityStartTenantHour.limit + 1);
+  });
+
+  it("keeps day-windowed policies out of the hourly aggregate", async () => {
+    // A deliberate narrowing that came with deriving the aggregate. It sums the
+    // hourly write buckets in the current hour; registrations, webhook changes
+    // and share mutations sit in a day-long window, so folding them in would
+    // mean comparing against a boundary that only coincides at midnight. They
+    // keep their own daily caps and the aggregate stays an hourly ceiling on
+    // publishing volume. Before this it counted them, and a day's registrations
+    // could exhaust an hour's allowance.
+    const env = makeEnv();
+    await incrementRateLimitBuckets(env, [
+      { policy: "anyWriteTenantHour", key: tenantKey("t1") },
+      { policy: "registrationTenantDay", key: tenantKey("t1") },
+    ]);
+
+    const views = await listTenantRateLimitBuckets(env, "t1");
+    expect(views.find((view) => view.label === RateLimitPolicies.registrationTenantDay.label)?.count)
+      .toBe(1);
+    expect(views.find((view) => view.label === RateLimitPolicies.anyWriteTenantHour.label))
+      .toBeUndefined();
   });
 
   // The status route reads one tenant's buckets. With the policy leading the
@@ -180,17 +208,21 @@ describe("incrementRateLimitBuckets", () => {
     // `tenant:<id>:card:solar|policy` — while stopping before the next scope.
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
       { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
     await incrementRateLimitBuckets(env, [
       { policy: "cardUpsertCardHour", key: tenantResourceKey("t2", "card", "solar") },
     ]);
 
+    // The stored per-card bucket, plus the two totals derived from it.
     const labels = (await listTenantRateLimitBuckets(env, "t1")).map((view) => view.label).sort();
-    expect(labels).toEqual(["Card upserts", "Card upserts per card"]);
-    await expect(listTenantRateLimitBuckets(env, "t2"))
-      .resolves.toHaveLength(1);
+    expect(labels).toEqual(["All writes", "Card upserts", "Card upserts per card"]);
+    // t2's single publish is reported for t2 and never appears under t1.
+    const other = await listTenantRateLimitBuckets(env, "t2");
+    expect(other.map((view) => view.label).sort())
+      .toEqual(["All writes", "Card upserts", "Card upserts per card"]);
+    expect(other.every((view) => view.count === 1)).toBe(true);
   });
 
   it("does not touch D1 when there is nothing to count", async () => {
@@ -207,9 +239,10 @@ describe("listTenantRateLimitBuckets", () => {
     vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
-    expect(await listTenantRateLimitBuckets(env, "t1")).toHaveLength(1);
+    expect((await listTenantRateLimitBuckets(env, "t1"))
+      .filter((view) => view.label === RateLimitPolicies.cardUpsertCardHour.label)).toHaveLength(1);
 
     // Still in D1 — rows outlive their window so the sweep cannot race a live
     // counter — but no longer current usage.
@@ -220,7 +253,7 @@ describe("listTenantRateLimitBuckets", () => {
   it("does not sweep on read", async () => {
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
     const prepare = vi.spyOn(env.ZW_DB, "prepare");
     await listTenantRateLimitBuckets(env, "t1");
@@ -235,16 +268,17 @@ describe("sweepExpiredRateLimitBuckets", () => {
     vi.setSystemTime(new Date("2026-08-17T10:00:00Z"));
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
 
     // expires_at is two windows out, so an hour later the row must survive.
     vi.setSystemTime(new Date("2026-08-17T11:30:00Z"));
     await sweepExpiredRateLimitBuckets(env);
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
-    expect(await listTenantRateLimitBuckets(env, "t1")).toHaveLength(1);
+    expect((await listTenantRateLimitBuckets(env, "t1"))
+      .filter((view) => view.label === RateLimitPolicies.cardUpsertCardHour.label)).toHaveLength(1);
 
     vi.setSystemTime(new Date("2026-08-17T14:00:00Z"));
     await sweepExpiredRateLimitBuckets(env);
@@ -257,7 +291,7 @@ describe("sweepExpiredRateLimitBuckets", () => {
   it("is what the scheduled handler runs", async () => {
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
     const prepare = vi.spyOn(env.ZW_DB, "prepare");
     await handler.scheduled!(scheduledEvent, env, executionCtx);
@@ -339,7 +373,7 @@ describe("the queue consumer sweep", () => {
   it("sweeps under waitUntil, and only after every message is settled", async () => {
     const env = makeEnv();
     await incrementRateLimitBuckets(env, [
-      { policy: "cardUpsertTenantHour", key: tenantKey("t1") },
+      { policy: "cardUpsertCardHour", key: tenantResourceKey("t1", "card", "solar") },
     ]);
     vi.spyOn(Math, "random").mockReturnValue(0);
     const prepare = vi.spyOn(env.ZW_DB, "prepare");

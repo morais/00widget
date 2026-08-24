@@ -46,6 +46,45 @@ export const RateLimitPolicies = {
 
 type RateLimitPolicyName = keyof typeof RateLimitPolicies;
 
+/// Sentinel for the aggregate, whose source is "every hourly write bucket this
+/// tenant holds" rather than one named policy.
+const AGGREGATE = "*" as const;
+
+/// Totals that are not stored, because they are already implied by the buckets
+/// underneath them. A tenant's card upserts in an hour *are* the sum of its
+/// per-card buckets in that hour; storing the sum too meant a second row write
+/// on every publish to record a fact the first row already contained.
+///
+/// Deriving costs a range read instead. Rows read are a thousandth the price of
+/// rows written, and the read is bounded by the very limits it enforces: a
+/// tenant cannot hold more per-card buckets in a window than the tenant-wide
+/// limit will admit publishes.
+const DERIVED_TOTALS: Partial<Record<RateLimitPolicyName, RateLimitPolicyName | typeof AGGREGATE>> = {
+  cardUpsertTenantHour: "cardUpsertCardHour",
+  liveActivityUpdateTenantHour: "liveActivityUpdateActivityHour",
+  actionRunTenantHour: "actionRunActionHour",
+  liveActivityRecoveryTenantHour: "liveActivityRecoveryDeviceActivityHour",
+  anyWriteTenantHour: AGGREGATE,
+};
+
+/// What the aggregate counts, named rather than inferred.
+///
+/// Every one is hourly and is a bucket that is actually written, so summing
+/// them double-counts nothing. The day-windowed policies — registrations,
+/// webhook changes, share mutations — are deliberately absent: they sit in a
+/// different window, so they could only be folded in by comparing against a
+/// boundary that happens to coincide at midnight and not otherwise. They keep
+/// their own daily caps, and the aggregate is what it says, an hourly ceiling
+/// on publishing volume.
+const AGGREGATE_WRITE_POLICIES = new Set<RateLimitPolicyName>([
+  "cardUpsertCardHour",
+  "liveActivityStartTenantHour",
+  "liveActivityUpdateActivityHour",
+  "liveActivityEndTenantHour",
+  "liveActivityRecoveryDeviceActivityHour",
+  "actionRunActionHour",
+]);
+
 export interface RateLimitBucketInput {
   policy: RateLimitPolicyName;
   key: string;
@@ -131,6 +170,25 @@ export async function enforceRateLimits(
 // writes nothing at all unless a window has actually rolled over. A key that
 // goes permanently silent keeps its last row or two until the sampled sweep on
 // the queue consumer reclaims it — see `sweepExpiredRateLimitBuckets`.
+/// Sums the stored buckets that make up a derived total, for one window.
+function deriveTotal(
+  rows: Array<{ bucket_key: string; window_start: number | string; count: number | string }>,
+  source: RateLimitPolicyName | typeof AGGREGATE,
+  windowStart: number,
+): number {
+  let total = 0;
+  for (const row of rows) {
+    if (Number(row.window_start) !== windowStart) continue;
+    const rowPolicy = policyOf(row.bucket_key);
+    if (!rowPolicy) continue;
+    const contributes = source === AGGREGATE
+      ? AGGREGATE_WRITE_POLICIES.has(rowPolicy)
+      : rowPolicy === source;
+    if (contributes) total += Number(row.count);
+  }
+  return total;
+}
+
 export async function incrementRateLimitBuckets(
   env: Env,
   buckets: RateLimitBucketInput[],
@@ -161,6 +219,8 @@ export async function incrementRateLimitBuckets(
       const windowStart = Math.floor(now / policy.windowSeconds) * policy.windowSeconds;
       grouped.set(bucketKey, {
         policy,
+        policyName: bucket.policy,
+        scope: bucket.key,
         windowStart,
         bucketKey,
         expiresAt: windowStart + policy.windowSeconds * 2,
@@ -169,6 +229,8 @@ export async function incrementRateLimitBuckets(
       return grouped;
     }, new Map<string, {
       policy: typeof RateLimitPolicies[RateLimitPolicyName];
+      policyName: RateLimitPolicyName;
+      scope: string;
       windowStart: number;
       bucketKey: string;
       expiresAt: number;
@@ -176,10 +238,23 @@ export async function incrementRateLimitBuckets(
     }>())
     .values()];
 
-  // Upserts first so a result index lines up with `planned`; the trailing
-  // deletes are fire-and-forget.
-  const results = await env.ZW_DB.batch<{ count: number }>([
-    ...planned.map((entry) =>
+  // Only the buckets that are actually stored get written. A tenant-wide total
+  // is the sum of the per-resource buckets underneath it, so counting it
+  // separately stored the same fact twice and paid a row write for the copy —
+  // and rows written cost 1000x rows read. `cardUpsertTenantHour` is exactly
+  // the sum of that tenant's `cardUpsertCardHour` buckets in the window, and
+  // the aggregate is the sum of every hourly write bucket it holds.
+  //
+  // So a card upsert writes one row where it used to write three, and reads a
+  // handful to check the two limits it no longer counts.
+  const written = planned.filter((entry) => !DERIVED_TOTALS[entry.policyName]);
+  const derived = planned.filter((entry) => DERIVED_TOTALS[entry.policyName]);
+  // Every derivable policy is tenant-scoped, and one request only ever touches
+  // one tenant, so a single range covers all of them.
+  const derivedScope = derived[0]?.scope;
+
+  const statements = [
+    ...written.map((entry) =>
       env.ZW_DB.prepare(
         `INSERT INTO rate_limit_buckets (bucket_key, window_start, count, expires_at)
          VALUES (?, ?, ?, ?)
@@ -189,18 +264,47 @@ export async function incrementRateLimitBuckets(
          RETURNING count`,
       ).bind(entry.bucketKey, entry.windowStart, entry.weight, entry.expiresAt, entry.weight),
     ),
-    ...planned.map((entry) =>
+    ...written.map((entry) =>
       env.ZW_DB.prepare(
         `DELETE FROM rate_limit_buckets WHERE bucket_key = ? AND window_start < ?`,
       ).bind(entry.bucketKey, entry.windowStart),
     ),
-  ]);
+  ];
+  // Last, so it observes this request's own increments: a D1 batch runs in
+  // order inside one transaction, which is what keeps the derived totals from
+  // lagging the write that just happened.
+  if (derivedScope !== undefined) {
+    const [low, high] = scopeRange(derivedScope);
+    statements.push(
+      env.ZW_DB.prepare(
+        `SELECT bucket_key, window_start, count
+         FROM rate_limit_buckets
+         WHERE bucket_key >= ? AND bucket_key < ?`,
+      ).bind(low, high),
+    );
+  }
+
+  const results = await env.ZW_DB.batch<{ count: number }>(statements);
+
+  const counts = new Map<string, number>();
+  for (const [index, entry] of written.entries()) {
+    counts.set(entry.bucketKey, Number(results[index]?.results?.[0]?.count ?? 0));
+  }
+  if (derivedScope !== undefined) {
+    const rows = (results[results.length - 1]?.results ?? []) as unknown as Array<{
+      bucket_key: string; window_start: number; count: number;
+    }>;
+    for (const entry of derived) {
+      const source = DERIVED_TOTALS[entry.policyName]!;
+      counts.set(entry.bucketKey, deriveTotal(rows, source, entry.windowStart));
+    }
+  }
 
   // The tightest bucket, whether or not anything was exceeded: it is the one
   // that will bite first, so it is the one worth reporting back.
   let tightest: RateLimitSnapshot | undefined;
-  for (const [index, entry] of planned.entries()) {
-    const count = Number(results[index]?.results?.[0]?.count ?? 0);
+  for (const entry of planned) {
+    const count = counts.get(entry.bucketKey) ?? 0;
     const remaining = Math.max(0, entry.policy.limit - count);
     if (!tightest || remaining < tightest.remaining) {
       tightest = {
@@ -213,8 +317,8 @@ export async function incrementRateLimitBuckets(
   }
   if (owner && tightest) snapshots.set(owner, tightest);
 
-  for (const [index, entry] of planned.entries()) {
-    const count = Number(results[index]?.results?.[0]?.count ?? 0);
+  for (const entry of planned) {
+    const count = counts.get(entry.bucketKey) ?? 0;
     if (count <= entry.policy.limit) continue;
     const resetAt = entry.windowStart + entry.policy.windowSeconds;
     return {
@@ -265,9 +369,34 @@ export async function listTenantRateLimitBuckets(
     .bind(low, high)
     .all<BucketRow>();
 
-  return rows.results
+  const stored = rows.results
     .map((row) => bucketRowToView(row, now))
     .filter((row): row is RateLimitBucketView => Boolean(row));
+
+  // The tenant-wide totals are no longer stored, so they have to be summed back
+  // out of the buckets beneath them or `/v1/status` would silently stop
+  // reporting the two limits a producer is most likely to pace itself against.
+  const derived: RateLimitBucketView[] = [];
+  for (const [name, source] of Object.entries(DERIVED_TOTALS)) {
+    const policy = RateLimitPolicies[name as RateLimitPolicyName];
+    const windowStart = Math.floor(now / policy.windowSeconds) * policy.windowSeconds;
+    const count = deriveTotal(rows.results, source!, windowStart);
+    // Same rule the stored rows follow: a window this account has not touched
+    // has its full allowance and nothing to report.
+    if (count === 0) continue;
+    const resetAt = windowStart + policy.windowSeconds;
+    derived.push({
+      bucketKey: bucketKeyFor(name, tenantKey(tenantId)),
+      label: policy.label,
+      count,
+      limit: policy.limit,
+      remaining: Math.max(0, policy.limit - count),
+      windowSeconds: policy.windowSeconds,
+      resetAt,
+      retryAfter: Math.max(0, resetAt - now),
+    });
+  }
+  return [...stored, ...derived];
 }
 
 // A bucket key is `<scope>|<policy>`, scope first.
