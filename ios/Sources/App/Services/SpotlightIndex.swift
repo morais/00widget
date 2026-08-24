@@ -161,9 +161,40 @@ public enum SpotlightIndex {
         cards.filter { !$0.isSample && !$0.isFromGuestLink && $0.sharedBy == nil }
     }
 
+    /// What the stored set should become, given what it held, what the snapshot
+    /// holds, and which of the two index operations actually succeeded.
+    ///
+    /// The whole point of the type is that a failure is not a state change. The
+    /// stored set is a claim about what is *in Spotlight*, not a copy of the
+    /// last snapshot, and writing the snapshot into it unconditionally — which
+    /// is what this code used to do, before the `Task` had even run — made a
+    /// throw indistinguishable from a success.
+    ///
+    /// The half that mattered was the delete. Departed ids were dropped from
+    /// the stored set whether or not `deleteAppEntities` succeeded, so a failed
+    /// delete left those cards in Spotlight with nothing left tracking them:
+    /// no later `donate` could compute them as departed again, and they
+    /// survived until the next `removeAll()` — that is, until sign-out. That is
+    /// the path a card deletion travels, which makes it the half with a privacy
+    /// consequence rather than a cosmetic one.
+    static func reconcile(
+        previous: Set<String>,
+        current: Set<String>,
+        deleted: Bool,
+        indexed: Bool
+    ) -> Set<String> {
+        var believed = previous
+        if deleted { believed.subtract(previous.subtracting(current)) }
+        if indexed { believed.formUnion(current) }
+        return believed
+    }
+
     /// Makes the index match `cards`, adding what is new and removing what has
     /// gone. Safe to call on every cache write.
-    public static func donate(_ cards: [DashboardCard]) {
+    ///
+    /// `defaults` is injectable so the diff-and-prune path is testable; nothing
+    /// in the app passes anything but the default.
+    public static func donate(_ cards: [DashboardCard], defaults: UserDefaults = .standard) {
         let keep = indexable(cards)
         let currentIds = Set(keep.map(\.id))
 
@@ -172,42 +203,63 @@ public enum SpotlightIndex {
         // is exactly this call. Refreshing here rather than at the eight call
         // sites keeps the two from drifting.
         ZeroZeroWidgetShortcuts.updateAppShortcutParameters()
-        let previousIds = Set(UserDefaults.standard.stringArray(forKey: donatedIdsKey) ?? [])
+        let previousIds = Set(defaults.stringArray(forKey: donatedIdsKey) ?? [])
         let departed = previousIds.subtracting(currentIds)
-
-        UserDefaults.standard.set(Array(currentIds), forKey: donatedIdsKey)
 
         Task {
             let index = CSSearchableIndex.default()
+            // An operation with nothing to do counts as done: there is no
+            // outstanding work for the bookkeeping to be pessimistic about.
+            var deleted = departed.isEmpty
+            var indexed = keep.isEmpty
+
             if !departed.isEmpty {
                 do {
                     try await index.deleteAppEntities(
                         identifiedBy: Array(departed),
                         ofType: DashboardCardEntity.self
                     )
+                    deleted = true
                 } catch {
                     log.error("removing \(departed.count, privacy: .public) cards from Spotlight failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            guard !keep.isEmpty else { return }
-            do {
-                try await index.indexAppEntities(keep.map(DashboardCardEntity.init))
-                log.info("donated \(keep.count, privacy: .public) cards to Spotlight")
-            } catch {
-                log.error("donating cards to Spotlight failed: \(error.localizedDescription, privacy: .public)")
+
+            if !keep.isEmpty {
+                do {
+                    try await index.indexAppEntities(keep.map(DashboardCardEntity.init))
+                    indexed = true
+                    log.info("donated \(keep.count, privacy: .public) cards to Spotlight")
+                } catch {
+                    log.error("donating cards to Spotlight failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
+
+            // Bookkeeping last, and only for the halves that actually ran.
+            let believed = reconcile(
+                previous: previousIds,
+                current: currentIds,
+                deleted: deleted,
+                indexed: indexed
+            )
+            defaults.set(Array(believed), forKey: donatedIdsKey)
         }
     }
 
     /// Everything out, for sign-out and for an explicit cache clear. A card
     /// left behind here would answer for a tenant nobody is signed into.
-    public static func removeAll() {
-        UserDefaults.standard.removeObject(forKey: donatedIdsKey)
+    ///
+    /// The stored set is cleared only if the delete succeeded, for the same
+    /// reason as `donate`: forgetting the ids on a failure orphans them
+    /// permanently, whereas keeping them lets the next `donate` — including
+    /// one under a different account — compute them as departed and try again.
+    public static func removeAll(defaults: UserDefaults = .standard) {
         ZeroZeroWidgetShortcuts.updateAppShortcutParameters()
         Task {
             do {
                 try await CSSearchableIndex.default()
                     .deleteAppEntities(ofType: DashboardCardEntity.self)
+                defaults.removeObject(forKey: donatedIdsKey)
                 log.info("cleared cards from Spotlight")
             } catch {
                 log.error("clearing Spotlight failed: \(error.localizedDescription, privacy: .public)")
