@@ -62,56 +62,62 @@ export async function collectWidgetPushTargetsForCard(
   ownerTenantId: string,
   cardId: string,
 ): Promise<WidgetPushTarget[]> {
-  const tenantIds = [ownerTenantId];
-  if (isSharingEnabled(env)) {
-    const accepted = await listAcceptedShares(env, ownerTenantId, "card", cardId);
-    for (const share of accepted) {
-      if (share.recipientTenantId) tenantIds.push(share.recipientTenantId);
-    }
-  }
-
-  const targets = new Map<string, Set<string>>();
-  const uniqueTenantIds = [...new Set(tenantIds)];
-  const tokenLists = await Promise.all(
-    uniqueTenantIds.map((tenantId) =>
-      storage.listWidgetTokensForCard(env, tenantId, cardId),
-    ),
-  );
-  for (const [index, tenantId] of uniqueTenantIds.entries()) {
-    const tokens = tokenLists[index];
-    for (const token of tokens) {
-      const tenants = targets.get(token) ?? new Set<string>();
-      tenants.add(tenantId);
-      targets.set(token, tenants);
-    }
-  }
-  return [...targets].map(([token, tenants]) => ({
-    token,
-    tenantIds: [...tenants],
-  }));
+  return collectWidgetPushTargetsForCards(env, ownerTenantId, [cardId]);
 }
 
+/// Which push tokens should be reloaded because these cards changed.
+///
+/// A tenant's widget subscriptions are read once for the whole snapshot rather
+/// than once per card. The query behind them names no card — which cards a
+/// token wants lives in JSON on the row — so asking per card re-ran the same
+/// tenant-wide scan every time: a ten-card batch upsert issued ten identical
+/// reads. Only the share lookup is genuinely per card, because a card can be
+/// shared with tenants the others are not.
 export async function collectWidgetPushTargetsForCards(
   env: Env,
   ownerTenantId: string,
   cardIds: string[],
 ): Promise<WidgetPushTarget[]> {
-  const collected = await Promise.all(
-    [...new Set(cardIds)].map((cardId) =>
-      collectWidgetPushTargetsForCard(env, ownerTenantId, cardId),
+  const uniqueCardIds = [...new Set(cardIds)];
+
+  // Which tenants care about each card: always the owner, plus anyone holding
+  // an accepted share of that specific card.
+  const tenantIdsByCard = new Map<string, string[]>();
+  const shareLookups = isSharingEnabled(env)
+    ? await Promise.all(
+      uniqueCardIds.map((cardId) => listAcceptedShares(env, ownerTenantId, "card", cardId)),
+    )
+    : [];
+  for (const [index, cardId] of uniqueCardIds.entries()) {
+    const recipients = (shareLookups[index] ?? [])
+      .map((share) => share.recipientTenantId)
+      .filter((tenantId): tenantId is string => Boolean(tenantId));
+    tenantIdsByCard.set(cardId, [...new Set([ownerTenantId, ...recipients])]);
+  }
+
+  const uniqueTenantIds = [...new Set([...tenantIdsByCard.values()].flat())];
+  const subscriptionsByTenant = new Map(
+    await Promise.all(
+      uniqueTenantIds.map(async (tenantId) =>
+        [tenantId, await storage.listWidgetTokenSubscriptions(env, tenantId)] as const,
+      ),
     ),
   );
+
   const targets = new Map<string, Set<string>>();
-  for (const entries of collected) {
-    for (const entry of entries) {
-      const tenants = targets.get(entry.token) ?? new Set<string>();
-      for (const tenantId of entry.tenantIds) tenants.add(tenantId);
-      targets.set(entry.token, tenants);
+  for (const cardId of uniqueCardIds) {
+    for (const tenantId of tenantIdsByCard.get(cardId) ?? []) {
+      for (const subscription of subscriptionsByTenant.get(tenantId) ?? []) {
+        if (!storage.subscriptionCoversCard(subscription, cardId)) continue;
+        const tenants = targets.get(subscription.token) ?? new Set<string>();
+        tenants.add(tenantId);
+        targets.set(subscription.token, tenants);
+      }
     }
   }
-  return [...targets].map(([token, tenantIds]) => ({
+  return [...targets].map(([token, tenants]) => ({
     token,
-    tenantIds: [...tenantIds],
+    tenantIds: [...tenants],
   }));
 }
 

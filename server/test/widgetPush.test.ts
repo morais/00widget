@@ -4,6 +4,7 @@ import { sha256Hex } from "../src/auth";
 import * as storage from "../src/storage";
 import {
   collectWidgetPushTargetsForCard,
+  collectWidgetPushTargetsForCards,
   claimWidgetPushWindow,
   secondsUntilWidgetPushWindow,
   deliverWidgetReloads,
@@ -424,6 +425,55 @@ describe("widget push subscriptions", () => {
     expect(response.status).toBe(400);
     await expect(storage.listWidgetTokensForCard(env, "test-tenant", "solar"))
       .resolves.toEqual(["aabbccdd"]);
+  });
+
+  // The query behind a tenant's subscriptions names no card — which cards a
+  // token wants is JSON on the row — so asking per card re-ran one tenant-wide
+  // scan for every card in the snapshot.
+  it("reads a tenant's widget subscriptions once per snapshot, not once per card", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.replaceWidgetTokensForDevice(
+      env, "test-tenant", hash, "device-1", "aabbccdd",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: [], allCards: true }],
+    );
+    const prepare = vi.spyOn(env.ZW_DB, "prepare");
+
+    const cardIds = Array.from({ length: 10 }, (_, i) => `ns.card${i}`);
+    const targets = await collectWidgetPushTargetsForCards(env, "test-tenant", cardIds);
+
+    expect(targets).toEqual([{ token: "aabbccdd", tenantIds: ["test-tenant"] }]);
+    const scans = prepare.mock.calls.filter(([sql]) => sql.includes("FROM widget_tokens"));
+    expect(scans, "ten cards, one tenant, one read").toHaveLength(1);
+  });
+
+  it("still targets only the tokens that asked for each card", async () => {
+    // Reading once must not turn into pushing to everyone: the per-card match
+    // moved from SQL into memory and has to keep the same answer.
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.replaceWidgetTokensForDevice(
+      env, "test-tenant", hash, "device-solar", "solartoken",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: ["solar"], allCards: false }],
+    );
+    await storage.replaceWidgetTokensForDevice(
+      env, "test-tenant", hash, "device-washer", "washertoken",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: ["washer"], allCards: false }],
+    );
+    await storage.replaceWidgetTokensForDevice(
+      env, "test-tenant", hash, "device-all", "alltoken",
+      [{ widgetKind: "ZeroZeroWidgetCardWidget", cardIds: [], allCards: true }],
+    );
+
+    const tokens = async (...cards: string[]) =>
+      (await collectWidgetPushTargetsForCards(env, "test-tenant", cards))
+        .map((target) => target.token).sort();
+
+    expect(await tokens("solar")).toEqual(["alltoken", "solartoken"]);
+    expect(await tokens("washer")).toEqual(["alltoken", "washertoken"]);
+    expect(await tokens("unrelated")).toEqual(["alltoken"]);
+    // A snapshot touching both reaches each once, not twice.
+    expect(await tokens("solar", "washer")).toEqual(["alltoken", "solartoken", "washertoken"]);
   });
 
   it("deduplicates one WidgetKit token across multiple widget kinds", async () => {

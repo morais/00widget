@@ -82,6 +82,13 @@ export interface WidgetPushSubscription {
   allCards: boolean;
 }
 
+/// One placed widget's push token and the cards it asked for.
+export interface WidgetTokenSubscription {
+  token: string;
+  cardIds: string[];
+  allCards: boolean;
+}
+
 export interface WidgetTokenMetadata {
   appVersion: string;
   platform: string;
@@ -432,11 +439,16 @@ export async function listWidgetTokensForKind(
   return rows.results.map((row) => row.token);
 }
 
-export async function listWidgetTokensForCard(
+/// Every widget subscription this tenant holds, one row per placed widget.
+///
+/// The query does not mention a card, because it cannot: which cards a token
+/// wants is stored as JSON in `card_ids_json`. Callers that need this for
+/// several cards should read it once and match in memory rather than asking per
+/// card — see `collectWidgetPushTargetsForCards`.
+export async function listWidgetTokenSubscriptions(
   env: Env,
   tenantId: string,
-  cardId: string,
-): Promise<string[]> {
+): Promise<WidgetTokenSubscription[]> {
   const rows = await env.ZW_DB.prepare(
     `SELECT token, card_ids_json, all_cards FROM widget_tokens
      WHERE tenant_id = ?
@@ -444,19 +456,40 @@ export async function listWidgetTokensForCard(
   )
     .bind(tenantId)
     .all<WidgetTokenRow>();
+  return rows.results.map((row) => {
+    if (Number(row.all_cards) === 1) return { token: row.token, cardIds: [], allCards: true };
+    try {
+      const cardIds = parseJson<unknown>(row.card_ids_json);
+      // Unparseable means we cannot tell what it wants, so it gets everything —
+      // a widget that silently stops reloading is worse than one that reloads
+      // when it need not have.
+      if (!Array.isArray(cardIds)) return { token: row.token, cardIds: [], allCards: true };
+      return { token: row.token, cardIds: cardIds.map(String), allCards: false };
+    } catch {
+      return { token: row.token, cardIds: [], allCards: true };
+    }
+  });
+}
+
+/// Whether this subscription wants to hear about `cardId`.
+export function subscriptionCoversCard(
+  subscription: WidgetTokenSubscription,
+  cardId: string,
+): boolean {
+  return subscription.allCards || subscription.cardIds.includes(cardId);
+}
+
+export async function listWidgetTokensForCard(
+  env: Env,
+  tenantId: string,
+  cardId: string,
+): Promise<string[]> {
+  const subscriptions = await listWidgetTokenSubscriptions(env, tenantId);
   return [
     ...new Set(
-      rows.results
-        .filter((row) => {
-          if (Number(row.all_cards) === 1) return true;
-          try {
-            const cardIds = parseJson<unknown>(row.card_ids_json);
-            return Array.isArray(cardIds) && cardIds.includes(cardId);
-          } catch {
-            return true;
-          }
-        })
-        .map((row) => row.token),
+      subscriptions
+        .filter((subscription) => subscriptionCoversCard(subscription, cardId))
+        .map((subscription) => subscription.token),
     ),
   ];
 }
