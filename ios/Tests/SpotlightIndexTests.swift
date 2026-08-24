@@ -231,3 +231,121 @@ struct SpotlightReconcileTests {
         #expect(SpotlightIndex.reconcile(previous: [], current: ["a"], deleted: true, indexed: false).isEmpty)
     }
 }
+
+/// The system's re-index request is the only path that repairs the index
+/// without the app being opened, which makes it the answer to the staleness
+/// `CardCache.save` from the widget extension creates. It speaks only for the
+/// ids it was handed, and that is the whole difference from a donation: a
+/// snapshot knows what has gone, a request does not.
+@Suite("Spotlight targeted re-index")
+struct SpotlightReindexTests {
+
+    @Test("Ids this device still holds are the ones re-donated")
+    func heldIdsAreReindexed() {
+        let (present, missing) = SpotlightIndex.split(
+            ids: ["solar", "boiler"],
+            among: [card(id: "solar"), card(id: "boiler"), card(id: "washer")]
+        )
+        #expect(present.map(\.id).sorted() == ["boiler", "solar"])
+        #expect(missing.isEmpty)
+    }
+
+    @Test("An id this device no longer holds is pruned, not skipped")
+    func deletedIdIsPruned() {
+        let (present, missing) = SpotlightIndex.split(
+            ids: ["solar", "deleted"],
+            among: [card(id: "solar")]
+        )
+        #expect(present.map(\.id) == ["solar"])
+        #expect(missing == ["deleted"])
+    }
+
+    /// The privacy-relevant half. The card is still in the cache, so a check
+    /// for "do we have this id" would answer yes and re-donate somebody else's
+    /// state. `indexable` is what decides, exactly as it does for a donation.
+    @Test("An id that stopped being ours to index is pruned")
+    func revokedIdIsPruned() {
+        var shared = card(id: "washer")
+        shared.sharedBy = SharedByInfo(ownerEmail: "someone@example.com", shareId: "s1")
+
+        let (present, missing) = SpotlightIndex.split(
+            ids: ["washer"],
+            among: [shared]
+        )
+        #expect(present.isEmpty)
+        #expect(missing == ["washer"])
+    }
+
+    @Test("Cards the request did not name are not touched either way")
+    func unmentionedCardsAreIgnored() {
+        let (present, missing) = SpotlightIndex.split(
+            ids: ["solar"],
+            among: [card(id: "solar"), card(id: "boiler")]
+        )
+        #expect(present.map(\.id) == ["solar"])
+        #expect(missing.isEmpty)
+    }
+
+    @Test("When both halves succeed the named ids move and nothing else does")
+    func bothSucceeded() {
+        let believed = SpotlightIndex.reconcile(
+            previous: ["solar", "boiler", "washer"],
+            reindexed: ["solar"],
+            pruned: ["boiler"],
+            deleted: true,
+            indexed: true
+        )
+        #expect(believed == ["solar", "washer"])
+    }
+
+    /// The same invariant the donation path has: a throw is not a state change,
+    /// and a failed delete must keep saying the entry is in Spotlight so a
+    /// later donate can compute it as departed and try again.
+    @Test("A failed prune keeps the id, so a later donate retries it")
+    func failedPruneRetains() {
+        let believed = SpotlightIndex.reconcile(
+            previous: ["solar", "boiler"],
+            reindexed: ["solar"],
+            pruned: ["boiler"],
+            deleted: false,
+            indexed: true
+        )
+        #expect(believed == ["solar", "boiler"])
+    }
+
+    @Test("A failed re-index does not claim a card is searchable")
+    func failedReindexDoesNotClaim() {
+        let believed = SpotlightIndex.reconcile(
+            previous: ["boiler"],
+            reindexed: ["solar"],
+            pruned: [],
+            deleted: true,
+            indexed: false
+        )
+        #expect(believed == ["boiler"])
+    }
+
+    /// What separates this overload from the snapshot one. Handed the same
+    /// arguments, the snapshot version reads every unmentioned card as departed
+    /// and prunes it; a request that named one id must leave the rest alone.
+    @Test("A request for one id never prunes the cards it did not mention")
+    func subsetDoesNotPruneTheRest() {
+        let previous: Set<String> = ["solar", "boiler", "washer"]
+
+        let subset = SpotlightIndex.reconcile(
+            previous: previous, reindexed: ["solar"], pruned: [], deleted: true, indexed: true
+        )
+        #expect(subset == ["solar", "boiler", "washer"])
+
+        let snapshot = SpotlightIndex.reconcile(
+            previous: previous, current: ["solar"], deleted: true, indexed: true
+        )
+        #expect(snapshot == ["solar"])
+    }
+
+    // MARK: - Helpers
+
+    private func card(id: String) -> DashboardCard {
+        DashboardCard(id: id, template: .summary, title: "Solar")
+    }
+}

@@ -415,61 +415,174 @@ public enum SpotlightIndex {
         return believed
     }
 
+    /// The same rule for a targeted re-index, where the ids came from the system
+    /// rather than from a snapshot of the cache.
+    ///
+    /// A separate overload rather than a reuse of the one above, because the two
+    /// disagree about what absence means. There, an id missing from `current` has
+    /// gone and should be pruned. Here the operation speaks only for the ids it
+    /// was handed, so everything the request did not mention has to be left
+    /// exactly as it was — passing a subset to the snapshot version would prune
+    /// every card the system happened not to ask about.
+    static func reconcile(
+        previous: Set<String>,
+        reindexed: Set<String>,
+        pruned: Set<String>,
+        deleted: Bool,
+        indexed: Bool
+    ) -> Set<String> {
+        var believed = previous
+        if deleted { believed.subtract(pruned) }
+        if indexed { believed.formUnion(reindexed) }
+        return believed
+    }
+
+    /// Splits the ids the system asked about into the cards to re-donate and the
+    /// ids to take out.
+    ///
+    /// `indexable` decides both halves, and that is the point: an id still in the
+    /// cache that has stopped being ours to index — a card that arrived through a
+    /// share since the last donation — belongs in `missing`. The right answer to
+    /// "re-index this" is then to remove it rather than to put it back, which is
+    /// the same policy `donate` applies and the reason there is only one gate on
+    /// what leaves the app.
+    static func split(
+        ids: Set<String>,
+        among cards: [DashboardCard]
+    ) -> (present: [DashboardCard], missing: Set<String>) {
+        let present = indexable(cards).filter { ids.contains($0.id) }
+        return (present, ids.subtracting(present.map(\.id)))
+    }
+
     /// Makes the index match `cards`, adding what is new and removing what has
     /// gone. Safe to call on every cache write.
     ///
     /// `defaults` is injectable so the diff-and-prune path is testable; nothing
     /// in the app passes anything but the default.
     public static func donate(_ cards: [DashboardCard], defaults: UserDefaults = .standard) {
-        let keep = indexable(cards)
-        let currentIds = Set(keep.map(\.id))
-
         // Siri's list of values for "what's the status of <card>" comes from
         // the same query as the index, so the set of answerable cards changing
         // is exactly this call. Refreshing here rather than at the eight call
         // sites keeps the two from drifting.
+        //
+        // It stays out of `matchIndex` deliberately: the system's re-index
+        // requests go through that and carry no change to the card data, so
+        // rebuilding Siri's parameter list from one would be work for nothing.
         ZeroZeroWidgetShortcuts.updateAppShortcutParameters()
+        Task { await matchIndex(to: cards, defaults: defaults) }
+    }
+
+    /// The awaitable half of `donate`.
+    ///
+    /// Split out so a caller that has to report completion can wait for it. The
+    /// only such caller is `IndexedEntityQuery.reindexAllEntities`, which is the
+    /// system asking whether the work is done — returning before the index has
+    /// been written would answer yes too early.
+    static func matchIndex(to cards: [DashboardCard], defaults: UserDefaults = .standard) async {
+        let keep = indexable(cards)
+        let currentIds = Set(keep.map(\.id))
         let previousIds = Set(defaults.stringArray(forKey: donatedIdsKey) ?? [])
         let departed = previousIds.subtracting(currentIds)
 
-        Task {
-            let index = CSSearchableIndex.default()
-            // An operation with nothing to do counts as done: there is no
-            // outstanding work for the bookkeeping to be pessimistic about.
-            var deleted = departed.isEmpty
-            var indexed = keep.isEmpty
+        let index = CSSearchableIndex.default()
+        // An operation with nothing to do counts as done: there is no
+        // outstanding work for the bookkeeping to be pessimistic about.
+        var deleted = departed.isEmpty
+        var indexed = keep.isEmpty
 
-            if !departed.isEmpty {
-                do {
-                    try await index.deleteAppEntities(
-                        identifiedBy: Array(departed),
-                        ofType: DashboardCardEntity.self
-                    )
-                    deleted = true
-                } catch {
-                    log.error("removing \(departed.count, privacy: .public) cards from Spotlight failed: \(error.localizedDescription, privacy: .public)")
-                }
+        if !departed.isEmpty {
+            do {
+                try await index.deleteAppEntities(
+                    identifiedBy: Array(departed),
+                    ofType: DashboardCardEntity.self
+                )
+                deleted = true
+            } catch {
+                log.error("removing \(departed.count, privacy: .public) cards from Spotlight failed: \(error.localizedDescription, privacy: .public)")
             }
-
-            if !keep.isEmpty {
-                do {
-                    try await index.indexAppEntities(keep.map(DashboardCardEntity.init))
-                    indexed = true
-                    log.info("donated \(keep.count, privacy: .public) cards to Spotlight")
-                } catch {
-                    log.error("donating cards to Spotlight failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-
-            // Bookkeeping last, and only for the halves that actually ran.
-            let believed = reconcile(
-                previous: previousIds,
-                current: currentIds,
-                deleted: deleted,
-                indexed: indexed
-            )
-            defaults.set(Array(believed), forKey: donatedIdsKey)
         }
+
+        if !keep.isEmpty {
+            do {
+                try await index.indexAppEntities(keep.map(DashboardCardEntity.init))
+                indexed = true
+                log.info("donated \(keep.count, privacy: .public) cards to Spotlight")
+            } catch {
+                log.error("donating cards to Spotlight failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        // Bookkeeping last, and only for the halves that actually ran.
+        let believed = reconcile(
+            previous: previousIds,
+            current: currentIds,
+            deleted: deleted,
+            indexed: indexed
+        )
+        defaults.set(Array(believed), forKey: donatedIdsKey)
+    }
+
+    /// Re-donates the cards the system named, and takes out the ones it named
+    /// that this app no longer holds.
+    ///
+    /// The system asks for this when it believes the index has lost or garbled
+    /// specific entries, which is the half of the staleness problem the app
+    /// cannot see: `CardCache.save` is called from both timeline providers, so a
+    /// push-driven refresh moves the cache while the app is closed and nothing
+    /// re-donates until it next opens. This is the only path that repairs the
+    /// index without the person launching anything.
+    ///
+    /// Deletion is deliberate rather than a fallthrough. An id the system asks
+    /// about that this app will not index — deleted, or now arriving through a
+    /// share — must come out, or the request to repair the index would leave
+    /// behind exactly the entries the policy exists to keep out of it.
+    static func reindex(
+        ids: Set<String>,
+        in cards: [DashboardCard],
+        defaults: UserDefaults = .standard
+    ) async {
+        guard !ids.isEmpty else { return }
+
+        let (present, missing) = split(ids: ids, among: cards)
+        let previousIds = Set(defaults.stringArray(forKey: donatedIdsKey) ?? [])
+        let index = CSSearchableIndex.default()
+
+        // Same rule as `matchIndex`: nothing to do counts as done, and a throw
+        // must not be written down as a success.
+        var indexed = present.isEmpty
+        var deleted = missing.isEmpty
+
+        if !present.isEmpty {
+            do {
+                try await index.indexAppEntities(present.map(DashboardCardEntity.init))
+                indexed = true
+                log.info("re-donated \(present.count, privacy: .public) cards Spotlight asked for")
+            } catch {
+                log.error("re-donating \(present.count, privacy: .public) cards to Spotlight failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        if !missing.isEmpty {
+            do {
+                try await index.deleteAppEntities(
+                    identifiedBy: Array(missing),
+                    ofType: DashboardCardEntity.self
+                )
+                deleted = true
+                log.info("removed \(missing.count, privacy: .public) cards Spotlight asked for but this device no longer indexes")
+            } catch {
+                log.error("removing \(missing.count, privacy: .public) cards from Spotlight failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        let believed = reconcile(
+            previous: previousIds,
+            reindexed: Set(present.map(\.id)),
+            pruned: missing,
+            deleted: deleted,
+            indexed: indexed
+        )
+        defaults.set(Array(believed), forKey: donatedIdsKey)
     }
 
     /// Everything out, for sign-out and for an explicit cache clear. A card
