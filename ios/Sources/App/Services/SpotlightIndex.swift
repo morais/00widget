@@ -31,7 +31,12 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
     @Property(title: "Title", indexingKey: \.title)
     public var title: String
 
-    @Property(title: "Detail", indexingKey: \.contentDescription)
+    // Deliberately *not* bound to `\.contentDescription`, though it is the
+    // obvious binding and was here once. See `attributeSet` below: an
+    // `indexingKey` wins over the attribute set at index time, and binding
+    // `detail` alone put the card's subtitle in the result row in place of its
+    // value — "Water heater · On schedule", where the number is the point.
+    @Property(title: "Detail")
     public var detail: String?
 
     // `value` and `status` stay unbound: CSSearchableItemAttributeSet has no
@@ -94,17 +99,30 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
         "zerozerowidget://card/\(.id)"
     }
 
-    /// The attributes still have to be set by hand. `indexingKey` declares what
-    /// a property *means*; it does not populate anything here.
+    /// The attributes are set by hand, and a binding that disagrees with one of
+    /// them **wins on device**.
     ///
-    /// Measured, because it is easy to assume otherwise and the assumption
-    /// fails silently: with all three keys bound, `defaultAttributeSet` comes
-    /// back carrying only `title` — and removing `indexingKey: \.title` leaves
-    /// that title exactly where it was, because it is derived from
-    /// `displayRepresentation`. So a binding-only version of this type would
-    /// have shipped an index with no description and no modification date at
-    /// all. The bindings are still what iOS 27's semantic layer reads; they are
-    /// simply not the same channel as the attribute set.
+    /// Both halves of that were learned the hard way, and they look
+    /// contradictory until you see which process is asking. In-process,
+    /// `defaultAttributeSet` ignores the bindings entirely: with all keys
+    /// bound it comes back carrying only `title`, and removing
+    /// `indexingKey: \.title` leaves that title exactly where it was, because
+    /// it is derived from `displayRepresentation`. So the attributes must be
+    /// set here or the index gets nothing. But the bindings are *also* carried
+    /// into the app's App Intents metadata as `spotlightAttributeKey`, and at
+    /// index time the system applies them over whatever this property built.
+    ///
+    /// That is why `detail` is no longer bound to `\.contentDescription`. The
+    /// binding quietly replaced "48 °C — On schedule" with "On schedule" on
+    /// device while every unit test here still passed, because a test can only
+    /// see the in-process value. `title` and `updatedAt` stay bound: they
+    /// resolve to exactly what is set below, so there is nothing to disagree
+    /// about.
+    ///
+    /// Check a change to this with
+    /// `Metadata.appintents/extract.actionsdata` in the built app, not with a
+    /// test. Any property carrying a `spotlightAttributeKey` is one the system
+    /// will overwrite this with.
     ///
     /// `contentDescription` leads with the card's current value, because that
     /// is the reason to put a dashboard card in a search index at all — a row

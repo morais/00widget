@@ -80,9 +80,12 @@ struct SpotlightIndexTests {
         #expect(DashboardCardEntity(solar).value == "3.4 kW")
     }
 
-    /// The bound properties are what populate the attribute set now, so this
-    /// checks the wiring rather than the values: a hand-set `title` here would
-    /// win over the binding and quietly make it decorative again.
+    /// Checks the in-process attribute set only — which is the limit of what a
+    /// test here can see, and worth stating because that limit has already cost
+    /// two shipped builds. An `indexingKey` binding is applied by the system
+    /// *over* this at index time, so a card can pass every assertion below and
+    /// still show something else on device. The binding list is verified
+    /// against `Metadata.appintents/extract.actionsdata` in the built app.
     @Test("The attribute set is populated from the bound properties")
     func attributeSetComesFromBindings() {
         var solar = card(id: "solar")
