@@ -93,16 +93,15 @@ struct SpotlightIndexTests {
 
         let attributes = DashboardCardEntity(solar).attributeSet
         #expect(attributes.title == "Solar")
-        #expect(attributes.contentDescription == "Roof array")
+        #expect(attributes.contentDescription == "3.4 kW — Roof array")
         #expect(attributes.contentModificationDate == solar.updatedAt)
     }
 
-    /// The value is searchable without being asserted as the result's subtitle.
-    /// Spotlight renders `contentDescription` under the title, and the index
-    /// goes stale whenever the extension refreshes the cache with the app
-    /// closed — a number there reads confidently while being hours old.
-    @Test("The volatile value is a keyword, not the result subtitle")
-    func valueIsAKeywordNotADescription() {
+    /// The value leads the result subtitle. A Spotlight row for a dashboard
+    /// card exists to answer "what does it say right now"; a row showing only
+    /// the card's static subtitle has told the person nothing.
+    @Test("The value leads the result subtitle, and is a keyword too")
+    func valueLeadsTheDescription() {
         var solar = card(id: "solar")
         solar.subtitle = "Roof array"
         solar.value = "3.4"
@@ -111,10 +110,27 @@ struct SpotlightIndexTests {
 
         let attributes = DashboardCardEntity(solar).attributeSet
         let keywords = attributes.keywords ?? []
+        #expect(attributes.contentDescription == "3.4 kW — Roof array")
         #expect(keywords.contains("3.4 kW"))
         #expect(keywords.contains("Critical"))
         #expect(keywords.contains("Solar"))
-        #expect(attributes.contentDescription == "Roof array")
+    }
+
+    /// A card with a value and no subtitle must not render a dangling
+    /// separator, and one with neither must not render a bare " — ".
+    @Test("The description joins only the parts that exist")
+    func descriptionJoinsWhatExists() {
+        var valueOnly = card(id: "solar")
+        valueOnly.value = "3.4"
+        valueOnly.unit = "kW"
+        #expect(DashboardCardEntity(valueOnly).attributeSet.contentDescription == "3.4 kW")
+
+        var subtitleOnly = card(id: "boiler")
+        subtitleOnly.subtitle = "Roof array"
+        #expect(DashboardCardEntity(subtitleOnly).attributeSet.contentDescription == "Roof array")
+
+        let neither = card(id: "bare")
+        #expect(DashboardCardEntity(neither).attributeSet.contentDescription == "")
     }
 
     /// Empty strings would otherwise become blank keywords, which match

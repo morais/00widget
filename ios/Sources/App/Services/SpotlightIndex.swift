@@ -106,17 +106,31 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEnt
     /// all. The bindings are still what iOS 27's semantic layer reads; they are
     /// simply not the same channel as the attribute set.
     ///
-    /// Note what is deliberately *not* here: the card's current value. Spotlight
-    /// renders `contentDescription` as the result's subtitle, and the index goes
-    /// stale whenever the widget extension refreshes the cache with the app
-    /// closed — so a number there is read confidently while being an unknown
-    /// number of hours old, under a `contentModificationDate` that looks fresh.
-    /// As a keyword it stays searchable without being asserted.
+    /// `contentDescription` leads with the card's current value, because that
+    /// is the reason to put a dashboard card in a search index at all — a row
+    /// reading "Water heater · On schedule" has told the person nothing they
+    /// could not have guessed, where "48 °C · On schedule" answers the question
+    /// they opened Spotlight to ask.
+    ///
+    /// This briefly did not carry the value, on the argument that the index
+    /// goes stale whenever the widget extension refreshes the cache with the
+    /// app closed, so a number here is read confidently while being an unknown
+    /// number of hours old. The staleness is real and `IndexedEntityQuery` is
+    /// the fix for it; withholding the number is not, because it degrades every
+    /// fresh result to buy nothing on the stale ones. `contentModificationDate`
+    /// carries the card's own `updatedAt`, so the age travels alongside the
+    /// number rather than in place of it.
     public var attributeSet: CSSearchableItemAttributeSet {
         let attributes = defaultAttributeSet
         attributes.title = title
-        attributes.contentDescription = detail?.isEmpty == false ? detail : nil
+        attributes.contentDescription = [value, detail]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " — ")
         attributes.contentModificationDate = updatedAt
+        // Status is here rather than in the description because it is a search
+        // term more than a thing to read: "critical" should find the card, but
+        // it is already the card's colour everywhere it renders.
         attributes.keywords = [title, status, value, detail]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
