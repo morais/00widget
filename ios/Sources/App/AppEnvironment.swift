@@ -156,6 +156,29 @@ public final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Re-reads the account this device is signed in as, from the server.
+    ///
+    /// Credentials live in the Keychain, which outlives an uninstall; the
+    /// email was written once at sign-in and kept only in UserDefaults, which
+    /// does not — so a reinstall left the device authenticated with no account
+    /// to show for it. The server is the authority, so this also picks up an
+    /// address changed elsewhere.
+    ///
+    /// Runs on the app credential, the only one `/v1/account` accepts. A
+    /// session predating app credentials has none and simply keeps its cached
+    /// value, as does a failed request: being offline is not a reason to
+    /// forget who you are signed in as.
+    public func refreshAccount() async {
+        guard !apiKey.isEmpty, let client = confirmedActionClient() else { return }
+        guard let response = try? await client.fetchAccount() else { return }
+        guard let email = response.account.ownerEmail, !email.isEmpty else { return }
+        appleLoginEmail = email
+        UserDefaults.standard.set(
+            email,
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail
+        )
+    }
+
     public func signOut() async -> Bool {
         signOutInProgress = true
         appleLoginError = nil
@@ -654,6 +677,7 @@ public final class AppEnvironment: ObservableObject {
             await requestNotificationAuthorization()
         }
         await refreshConnectionHealth()
+        await refreshAccount()
         await refreshGuestLinks()
         await registerDevice()
         // Send the durable handler snapshot before asking WidgetCenter for its

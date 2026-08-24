@@ -64,6 +64,7 @@ final class TVEnvironment: ObservableObject {
         #if ZW_SCREENSHOTS
         return
         #else
+        await refreshAccount()
         await fetchCards()
         startAutoRefresh()
         #endif
@@ -99,6 +100,20 @@ final class TVEnvironment: ObservableObject {
         } catch {
             appleLoginError = error.localizedDescription
         }
+    }
+
+    /// See `AppEnvironment.refreshAccount`: the credentials survive an
+    /// uninstall in the Keychain and the email did not, so the server is asked
+    /// again rather than the address being lost until the next sign-in.
+    func refreshAccount() async {
+        guard !apiKey.isEmpty, let client = confirmedActionClient() else { return }
+        guard let response = try? await client.fetchAccount() else { return }
+        guard let email = response.account.ownerEmail, !email.isEmpty else { return }
+        appleLoginEmail = email
+        UserDefaults.standard.set(
+            email,
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail
+        )
     }
 
     func clearAppleLoginError() {

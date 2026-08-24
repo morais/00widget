@@ -8,6 +8,7 @@ import {
   type CredentialKind,
 } from "./auth";
 import { json, notFound, unauthorized } from "./http";
+import * as account from "./account";
 import * as cards from "./cards";
 import * as devices from "./devices";
 import * as widgets from "./widgets";
@@ -186,6 +187,10 @@ const routes: Route[] = [
 
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
     sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },
+  ),
+  // App-only: the operator's email is not an agent's to read. See account.ts.
+  authed("GET", /^\/v1\/account\/?$/, null, (req, env, auth) =>
+    account.getAccount(req, env, auth), { credentialKind: "app" },
   ),
   // Admin dashboard. Every route asserts the admin capability on top of a
   // web session; being signed in is never sufficient.

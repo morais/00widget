@@ -6,6 +6,9 @@ export interface AuthContext {
   apiKeyHash: string;
   apiKeyId: string;
   tenantId: string;
+  /// The tenant's owner email. Carried on every AuthContext because the
+  /// lookup already joins `tenants`; reading it costs no extra query.
+  ownerEmail?: string;
   credentialKind: CredentialKind;
   sessionId?: string;
   deviceId?: string;
@@ -79,6 +82,7 @@ export const ApiScopePresets = {
 interface AuthRow {
   id: string;
   tenant_id: string;
+  owner_email: string | null;
   last_used_at: string | null;
   kind: CredentialKind;
   session_id: string | null;
@@ -162,7 +166,7 @@ export async function requireAuth(
     throw new AuthRateLimitError();
   }
   const row = await env.ZW_DB.prepare(
-    `SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at,
+    `SELECT api_keys.id, api_keys.tenant_id, tenants.owner_email, api_keys.last_used_at,
             api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at,
             api_keys.scopes_json, api_keys.renew_seconds,
             api_keys.resource_kind, api_keys.resource_id
@@ -189,6 +193,7 @@ export async function requireAuth(
     apiKeyHash,
     apiKeyId: row.id,
     tenantId: row.tenant_id,
+    ownerEmail: row.owner_email || undefined,
     credentialKind: row.kind,
     sessionId: row.session_id ?? undefined,
     deviceId: row.device_id ?? undefined,

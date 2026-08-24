@@ -224,6 +224,10 @@ struct OnboardingView: View {
             .task {
                 await env.refreshNotificationAuthorization()
                 await env.refreshConnectionHealth()
+                // Only when it is missing: launch already asked, and this is
+                // the one screen that shows the address, so a failure there
+                // shouldn't leave the row blank until the next launch.
+                if env.appleLoginEmail == nil { await env.refreshAccount() }
             }
             .onChange(of: env.serverBaseURL) { _, _ in scheduleHealthCheck() }
         }

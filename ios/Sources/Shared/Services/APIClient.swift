@@ -95,6 +95,17 @@ public struct AppleTokenResponse: Codable {
     public let publisherCredential: String?
 }
 
+/// GET /v1/account. Only the app-only credential can read this, which is why
+/// the email it carries never reaches an agent holding a publisher token.
+public struct AccountResponse: Codable, Sendable {
+    public struct Account: Codable, Sendable {
+        public let tenantId: String
+        public let ownerEmail: String?
+    }
+
+    public let account: Account
+}
+
 public struct EmptyBody: Codable {}
 
 public struct SubscriptionVerifyResponse: Codable, Sendable {
@@ -219,6 +230,10 @@ public final class APIClient {
             path: "/v1/subscription/verify",
             body: Body(signedTransactions: signedTransactions)
         )
+    }
+
+    public func fetchAccount() async throws -> AccountResponse {
+        try await request("GET", path: "/v1/account")
     }
 
     public func subscriptionStatus() async throws -> SubscriptionStatusResponse {

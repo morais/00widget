@@ -922,7 +922,7 @@ export class FakeD1 {
       const row = this.subscriptions.get(id);
       return row ? [{ tenant_id: row.tenant_id ?? null }] : [];
     }
-    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds, api_keys.resource_kind, api_keys.resource_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+    if (normalized === "SELECT api_keys.id, api_keys.tenant_id, tenants.owner_email, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds, api_keys.resource_kind, api_keys.resource_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
       const [token_hash] = values.map(String);
       const row = [...this.apiKeys.values()].find((candidate) => {
         const tenant = this.tenants.get(String(candidate.tenant_id ?? ""));
@@ -932,6 +932,7 @@ export class FakeD1 {
         ? [{
             id: row.id,
             tenant_id: row.tenant_id,
+            owner_email: this.tenants.get(String(row.tenant_id ?? ""))?.owner_email || null,
             last_used_at: row.last_used_at,
             kind: row.kind,
             session_id: row.session_id,
