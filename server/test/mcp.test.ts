@@ -576,6 +576,129 @@ describe("tool input schemas", () => {
   });
 });
 
+// `structuredContent` is the route's own JSON, passed through untouched — no
+// layer filters it against `outputSchema`. Zod converts a plain object to JSON
+// Schema with `additionalProperties: false`, so a strict client rejects the
+// whole response over one field the schema forgot to mention, and the tool
+// simply stops working with no server-side error to find.
+//
+// That is not hypothetical: `get_status` shipped broken for three days after
+// the delivery-diagnostics change added two fields to the handler and none to
+// the schema. The two tests above did not catch it because both only check that
+// everything *declared* is *present*. The direction that breaks clients is the
+// opposite one, and it needs the real response to detect.
+describe("tool output schemas match what the handlers return", () => {
+  interface JsonSchema {
+    type?: string;
+    properties?: Record<string, JsonSchema>;
+    items?: JsonSchema;
+    required?: string[];
+    additionalProperties?: boolean;
+    anyOf?: JsonSchema[];
+  }
+
+  /// Every place `value` disagrees with `schema`, as dotted paths. Models what a
+  /// strict client does, rather than trusting a validator dependency the Worker
+  /// does not otherwise need.
+  function violations(value: unknown, schema: JsonSchema, path = "$"): string[] {
+    if (!schema || typeof schema !== "object") return [];
+    if (Array.isArray(schema.anyOf)) {
+      // A union is satisfied by any one branch; report the closest miss.
+      const branches = schema.anyOf.map((branch) => violations(value, branch, path));
+      if (branches.some((found) => found.length === 0)) return [];
+      return [...branches].sort((a, b) => a.length - b.length)[0] ?? [];
+    }
+    if (schema.type === "array" && Array.isArray(value)) {
+      return value.flatMap((item, i) => violations(item, schema.items ?? {}, `${path}[${i}]`));
+    }
+    if (schema.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+      const properties = schema.properties ?? {};
+      const record = value as Record<string, unknown>;
+      const found: string[] = [];
+      for (const key of Object.keys(record)) {
+        if (key in properties) found.push(...violations(record[key], properties[key], `${path}.${key}`));
+        else if (schema.additionalProperties === false) found.push(`${path}.${key} (returned, undeclared)`);
+      }
+      for (const key of schema.required ?? []) {
+        if (!(key in record)) found.push(`${path}.${key} (declared required, absent)`);
+      }
+      return found;
+    }
+    return [];
+  }
+
+  const CARD = { id: "solar", template: "summary", title: "Solar" };
+  // Ordered so each tool has something to act on by the time it runs.
+  const CALLS: Array<[string, Record<string, unknown>]> = [
+    ["upsert_card", CARD],
+    ["upsert_cards_batch", { cards: [{ ...CARD, id: "ns.a" }, { ...CARD, id: "ns.b" }] }],
+    ["get_card", { id: "solar" }],
+    ["list_cards", {}],
+    ["get_dashboard", {}],
+    ["get_status", {}],
+    ["get_integration_guide", { section: "cards" }],
+    ["start_live_activity", {
+      externalActivityId: "wash-1", kind: "appliance", title: "Washer", state: "running",
+    }],
+    ["update_live_activity", { externalActivityId: "wash-1", state: "running", value: "5" }],
+    ["list_live_activities", {}],
+    ["end_live_activity", { externalActivityId: "wash-1" }],
+    ["delete_card", { id: "solar" }],
+  ];
+
+  async function scan(env: Env): Promise<string[]> {
+    const listed = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const tools = ((await listed.json()) as JsonRpcResult).result?.tools as Array<{
+      name: string;
+      outputSchema?: JsonSchema;
+    }>;
+    const schemas = new Map(tools.map((tool) => [tool.name, tool.outputSchema]));
+
+    const drifted: string[] = [];
+    let exercised = 0;
+    for (const [name, args] of CALLS) {
+      const result = await call(env, name, args);
+      const structured = result.result?.structuredContent as Record<string, unknown> | undefined;
+      // A tool that errored says nothing about its success shape.
+      if (!structured || result.result?.isError) continue;
+      exercised += 1;
+      const found = violations(structured, schemas.get(name) ?? {});
+      if (found.length) drifted.push(`${name}: ${found.join(", ")}`);
+    }
+    // Guards the guard: a harness that silently stopped calling anything would
+    // otherwise report a clean bill of health.
+    expect(exercised, "tools actually exercised").toBe(CALLS.length);
+    return drifted;
+  }
+
+  it("returns nothing a tool did not declare", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    expect(await scan(env)).toEqual([]);
+  });
+
+  it("returns nothing undeclared with widget push diagnostics on", async () => {
+    // The flag adds a field to `get_status`, and adds it only when on — so the
+    // off run above cannot cover it. This is the shape that actually broke.
+    const env = mcpEnv({ WIDGET_PUSH_APNS_DIAGNOSTICS: "true" });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    await storage.putWidgetToken(env, "test-tenant", "hash", "dev1", "CardWidget", "tok-abcdefghijkl");
+    await storage.putWidgetPushDeliveryDiagnostic(env, "tok-abcdefghijkl", {
+      status: 410, reason: "Unregistered", apnsId: "apns-1", attempts: 2,
+    });
+
+    // Assert the list is populated before scanning it: an empty array satisfies
+    // any item schema, so without this the element shape goes unchecked.
+    const status = await call(env, "get_status");
+    const delivery = (status.result?.structuredContent as {
+      delivery: { widgetPushLastDeliveries?: unknown[] };
+    }).delivery;
+    expect(delivery.widgetPushLastDeliveries?.length, "diagnostics must be non-empty").toBe(1);
+
+    expect(await scan(env)).toEqual([]);
+  });
+});
+
 describe("tools/call", () => {
   it("publishes a card through the same handler the REST route uses", async () => {
     const env = mcpEnv();

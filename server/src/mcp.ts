@@ -213,6 +213,20 @@ const ApnsResultSchema = z.object({
   retryAfterSeconds: z.number().optional(),
 });
 
+/// One entry of `get_status`'s delivery diagnostics. Mirrors
+/// `WidgetPushDeliveryDiagnostic` in storage.ts, whose optional fields are
+/// `undefined` rather than null and so are absent from the JSON.
+const WidgetPushDeliverySchema = z.object({
+  tokenPrefix: z.string().optional().describe(
+    "First 8 characters of the push token, enough to tell devices apart.",
+  ),
+  attemptedAt: z.string(),
+  status: z.number().describe("The HTTP status APNs answered with; 200 is delivered."),
+  reason: z.string().optional().describe("APNs failure reason, when it failed."),
+  apnsId: z.string().optional().describe("APNs' own id for the push."),
+  attempts: z.number().describe("How many times this reload was tried before giving up."),
+});
+
 const CardOutput = z.object({ card: DashboardCardSchema });
 const CardsOutput = z.object({
   cards: z.array(DashboardCardSchema),
@@ -547,6 +561,17 @@ const TOOLS: McpTool[] = [
           "How often one additional widget reload becomes available.",
         ),
         secondsUntilNextWidgetReload: z.number(),
+        widgetPushApnsDiagnosticsEnabled: z.boolean().describe(
+          "Whether this deployment is recording the APNs result of each widget "
+          + "reload. Off normally, because every attempt costs a row written.",
+        ),
+        // Present only while the flag above is on, which is why it is optional
+        // rather than an empty array: the handler omits the key entirely rather
+        // than paying for a read it would discard.
+        widgetPushLastDeliveries: z.array(WidgetPushDeliverySchema).optional().describe(
+          "The latest APNs result per registered widget push token, newest "
+          + "first. Only present while diagnostics are enabled.",
+        ),
       }),
       published: z.object({ cards: z.number(), liveActivities: z.number() }),
       features: z.object({ sharing: z.boolean(), mcp: z.boolean() }),
