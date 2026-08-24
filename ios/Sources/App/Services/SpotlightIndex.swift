@@ -12,7 +12,7 @@ import os
 /// rehydration path this repo already documents as fragile. Indexing is the
 /// app's job alone, so this type lives in the app target and is never compiled
 /// into the widget extension.
-public struct DashboardCardEntity: AppEntity, IndexedEntity {
+public struct DashboardCardEntity: AppEntity, IndexedEntity, URLRepresentableEntity {
     public static var typeDisplayRepresentation: TypeDisplayRepresentation {
         TypeDisplayRepresentation(name: "Card")
     }
@@ -52,6 +52,18 @@ public struct DashboardCardEntity: AppEntity, IndexedEntity {
             title: "\(title)",
             subtitle: "\(value?.isEmpty == false ? value! : status)"
         )
+    }
+
+    /// Where a Spotlight result goes when the system opens it as a URL rather
+    /// than through `OpenCardIntent`. Both land on the same route.
+    ///
+    /// The scheme is spelled out rather than interpolated from
+    /// `ZeroZeroWidgetInternalLink.scheme`: this literal is a compile-time
+    /// template whose only permitted interpolation is the framework's own
+    /// `.id` token, so a runtime string cannot appear in it.
+    /// `ZeroZeroWidgetInternalLinkTests` pins the two together.
+    public static var urlRepresentation: URLRepresentation {
+        "zerozerowidget://card/\(.id)"
     }
 
     public var attributeSet: CSSearchableItemAttributeSet {

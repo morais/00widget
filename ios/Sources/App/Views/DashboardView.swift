@@ -3,13 +3,20 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var showingWidgetGuide = false
+    /// Explicit rather than implicit so a Spotlight result, a shortcut, or a
+    /// `zerozerowidget://card/<id>` link can push a card the person never
+    /// tapped. The elements are the same destination strings the in-app
+    /// NavigationLinks use.
+    @State private var path: [String] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             content
                 .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
                 .task { await env.refreshInstalledWidgetCount() }
+                .onAppear { applyRequestedCard() }
+                .onChange(of: env.requestedCardId) { _, _ in applyRequestedCard() }
                 .navigationDestination(for: String.self) { id in
                     if let card = card(forDestination: id) {
                         CardDetailView(card: card)
@@ -50,6 +57,30 @@ struct DashboardView: View {
         .font(.callout)
         .padding(12)
         .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Pushes the card an intent or link asked for, replacing whatever was on
+    /// the stack.
+    ///
+    /// Deliberately pushes the id even when no matching card is in memory yet:
+    /// a cold launch runs this before the first fetch returns, and
+    /// `navigationDestination` already handles an id it cannot resolve by
+    /// popping back. Dropping the request instead would make the link do
+    /// nothing on exactly the launch where it was the reason the app opened.
+    private func applyRequestedCard() {
+        guard let id = env.requestedCardId else { return }
+        path = [destination(for: id)]
+        env.requestedCardId = nil
+    }
+
+    /// Cards reaching the app through a share or a guest link are namespaced in
+    /// the navigation path, so an incoming id has to be matched against all
+    /// three lists to be pushed to the right screen.
+    private func destination(for id: String) -> String {
+        if env.cards.contains(where: { $0.id == id }) { return id }
+        if env.sharedCards.contains(where: { $0.id == id }) { return "shared:\(id)" }
+        if env.guestCards.contains(where: { $0.id == id }) { return "guest:\(id)" }
+        return id
     }
 
     private func card(forDestination id: String) -> DashboardCard? {

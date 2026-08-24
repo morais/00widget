@@ -297,6 +297,28 @@ public final class AppEnvironment: ObservableObject {
     /// has finished constructing the tab bar.
     @Published public var requestedLandingTab: String?
 
+    /// Card the dashboard should push, set alongside `requestedLandingTab` so
+    /// the tab switch and the push are one act. Separate from the tab because
+    /// `DashboardView` owns its navigation path and `RootView` owns the tab —
+    /// two observers, one intent.
+    @Published public var requestedCardId: String?
+
+    /// Sends the app somewhere an intent, a widget, or a link asked for.
+    ///
+    /// The single funnel matters: a destination that set the tab but not the
+    /// card would land the person on a dashboard that looks like nothing
+    /// happened, which is the failure the guest-link landing rule already
+    /// calls out.
+    public func go(to destination: ZeroZeroWidgetInternalLink.Destination) {
+        switch destination {
+        case .activities:
+            requestedCardId = nil
+        case .card(let id):
+            requestedCardId = id
+        }
+        requestedLandingTab = destination.tab
+    }
+
     public func reportGuestLinkProblem(_ message: String) {
         guestLinkBanner = message
     }

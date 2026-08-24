@@ -27,7 +27,7 @@ public enum ZeroZeroWidgetConstants {
         guard
             let raw = Bundle.main.object(forInfoDictionaryKey: "ZWLiveActivityFallbackURL") as? String,
             let url = URL(string: raw),
-            ZeroZeroWidgetInternalLink.route(for: url) == "activities"
+            ZeroZeroWidgetInternalLink.destination(for: url) == .activities
         else {
             return nil
         }
@@ -131,17 +131,63 @@ public enum ZeroZeroWidgetConstants {
     }
 }
 
-/// Private navigation URLs emitted by our widget extension. They are separate
-/// from producer-owned HTTPS deep links, which must continue opening externally.
+/// Private navigation URLs emitted by our widget extension, our App Intents,
+/// and Spotlight. They are separate from producer-owned HTTPS deep links, which
+/// must continue opening externally.
 public enum ZeroZeroWidgetInternalLink {
     public static let scheme = "zerozerowidget"
 
-    public static func route(for url: URL) -> String? {
+    /// Somewhere inside the app, not merely a tab.
+    ///
+    /// This started as a bare tab name, which worked while `activities` was the
+    /// only destination. A card needs to carry an id as well, and returning
+    /// `"card/solar"` where a tab name was expected would have selected a tab
+    /// that does not exist — so the destination is modelled and the tab is
+    /// derived from it.
+    public enum Destination: Equatable, Sendable {
+        case activities
+        case card(id: String)
+
+        /// Which tab this destination lives on.
+        public var tab: String {
+            switch self {
+            case .activities: return "activities"
+            case .card: return "widgets"
+            }
+        }
+    }
+
+    public static func destination(for url: URL) -> Destination? {
         guard url.scheme?.lowercased() == scheme else { return nil }
         switch url.host?.lowercased() {
-        case "activities": return "activities"
-        default: return nil
+        case "activities":
+            return .activities
+        case "card":
+            // zerozerowidget://card/<id>. The id is percent-encoded by
+            // `cardURL(id:)` because card ids are producer-chosen and the
+            // stable-id guidance encourages namespacing them with characters
+            // that are not URL-safe.
+            let id = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
+            let decoded = id.removingPercentEncoding ?? id
+            return decoded.isEmpty ? nil : .card(id: decoded)
+        default:
+            return nil
         }
+    }
+
+    /// The link that opens one card. Shared by `DashboardCardEntity`'s URL
+    /// representation and anything else that needs to point at a card, so the
+    /// shape lives in one place rather than being spelled out at each site.
+    public static func cardURL(id: String) -> URL? {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove("/")
+        guard
+            !id.isEmpty,
+            let encoded = id.addingPercentEncoding(withAllowedCharacters: allowed)
+        else {
+            return nil
+        }
+        return URL(string: "\(scheme)://card/\(encoded)")
     }
 }
 

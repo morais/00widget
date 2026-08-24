@@ -54,8 +54,8 @@ struct ZeroZeroWidgetApp: App {
     /// to `UIApplication.open` gives it straight back to iOS, which routes it
     /// to this app again.
     private func handleIncomingURL(_ url: URL) {
-        if let tab = ZeroZeroWidgetInternalLink.route(for: url) {
-            env.requestedLandingTab = tab
+        if let destination = ZeroZeroWidgetInternalLink.destination(for: url) {
+            env.go(to: destination)
             return
         }
         if let route = ZeroZeroWidgetUniversalLink.route(for: url, serverBaseURL: env.serverBaseURL) {

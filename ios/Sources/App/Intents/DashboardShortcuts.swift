@@ -64,11 +64,11 @@ struct ShowDashboardIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        // Naming the tab rather than trusting the launch default: RootView
-        // opens on Settings for anyone with no API key and no guest links,
-        // which is the one case where "show my dashboard" would show anything
-        // but.
-        IntentLanding.request(tab: "widgets")
+        // Naming the destination rather than trusting the launch default:
+        // RootView opens on Settings for anyone with no API key and no guest
+        // links, which is the one case where "show my dashboard" would show
+        // anything but.
+        IntentLanding.request(.dashboard)
         return .result()
     }
 }
@@ -183,22 +183,40 @@ enum CardStatusReport {
 /// `requestedLandingTab` changing, so a warm launch needs nothing extra.
 @MainActor
 enum IntentLanding {
-    private static var pendingTab: String?
+    /// The dashboard as a whole, or one card on it. `.dashboard` is not a
+    /// `ZeroZeroWidgetInternalLink.Destination` because no URL points at it —
+    /// "show my dashboard" is a request to be somewhere, not to open a thing.
+    enum Request: Equatable {
+        case dashboard
+        case card(id: String)
+    }
+
+    private static var pending: Request?
     private static weak var environment: AppEnvironment?
 
     static func attach(_ env: AppEnvironment) {
         environment = env
-        if let tab = pendingTab {
-            pendingTab = nil
-            env.requestedLandingTab = tab
+        if let request = pending {
+            pending = nil
+            apply(request, to: env)
         }
     }
 
-    static func request(tab: String) {
+    static func request(_ request: Request) {
         if let environment {
-            environment.requestedLandingTab = tab
+            apply(request, to: environment)
         } else {
-            pendingTab = tab
+            pending = request
+        }
+    }
+
+    private static func apply(_ request: Request, to env: AppEnvironment) {
+        switch request {
+        case .dashboard:
+            env.requestedCardId = nil
+            env.requestedLandingTab = "widgets"
+        case .card(let id):
+            env.go(to: .card(id: id))
         }
     }
 }
