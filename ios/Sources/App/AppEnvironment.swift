@@ -303,6 +303,12 @@ public final class AppEnvironment: ObservableObject {
     /// two observers, one intent.
     @Published public var requestedCardId: String?
 
+    /// Search term delivered by "Search 00Widget for boiler". Set rather than
+    /// acted on directly for the same reason as `requestedCardId`: the search
+    /// field belongs to `DashboardView`, and the intent can run before it
+    /// exists.
+    @Published public var requestedSearchQuery: String?
+
     /// Sends the app somewhere an intent, a widget, or a link asked for.
     ///
     /// The single funnel matters: a destination that set the tab but not the

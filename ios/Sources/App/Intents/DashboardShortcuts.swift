@@ -189,6 +189,7 @@ enum IntentLanding {
     enum Request: Equatable {
         case dashboard
         case card(id: String)
+        case search(term: String)
     }
 
     private static var pending: Request?
@@ -217,6 +218,9 @@ enum IntentLanding {
             env.requestedLandingTab = "widgets"
         case .card(let id):
             env.go(to: .card(id: id))
+        case .search(let term):
+            env.requestedSearchQuery = term
+            env.requestedLandingTab = "widgets"
         }
     }
 }

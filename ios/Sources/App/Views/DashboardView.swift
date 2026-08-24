@@ -8,6 +8,7 @@ struct DashboardView: View {
     /// tapped. The elements are the same destination strings the in-app
     /// NavigationLinks use.
     @State private var path: [String] = []
+    @State private var searchText = ""
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -15,8 +16,13 @@ struct DashboardView: View {
                 .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
                 .task { await env.refreshInstalledWidgetCount() }
-                .onAppear { applyRequestedCard() }
+                .searchable(text: $searchText, prompt: "Search cards")
+                .onAppear {
+                    applyRequestedCard()
+                    applyRequestedSearch()
+                }
                 .onChange(of: env.requestedCardId) { _, _ in applyRequestedCard() }
+                .onChange(of: env.requestedSearchQuery) { _, _ in applyRequestedSearch() }
                 .navigationDestination(for: String.self) { id in
                     if let card = card(forDestination: id) {
                         CardDetailView(card: card)
@@ -73,6 +79,26 @@ struct DashboardView: View {
         env.requestedCardId = nil
     }
 
+    /// Fills the search field from "Search 00Widget for boiler".
+    ///
+    /// Pops the stack first: arriving from a search while a card detail is
+    /// pushed would run the search behind a screen the person cannot see past,
+    /// which reads as the phrase having done nothing.
+    private func applyRequestedSearch() {
+        guard let query = env.requestedSearchQuery else { return }
+        path = []
+        searchText = query
+        env.requestedSearchQuery = nil
+    }
+
+    private func matchesSearch(_ card: DashboardCard) -> Bool {
+        CardSearch.matches(card, term: searchText)
+    }
+
+    private var visibleCards: [DashboardCard] { env.cards.filter(matchesSearch) }
+    private var visibleSharedCards: [DashboardCard] { env.sharedCards.filter(matchesSearch) }
+    private var visibleGuestCards: [DashboardCard] { env.guestCards.filter(matchesSearch) }
+
     /// Cards reaching the app through a share or a guest link are namespaced in
     /// the navigation path, so an incoming id has to be matched against all
     /// three lists to be pushed to the right screen.
@@ -100,7 +126,7 @@ struct DashboardView: View {
         // Two scroll views rather than one with a branch inside: removing the
         // last card shrinks the content, and a shared scroll view keeps its old
         // offset, leaving the user parked on blank space below the empty state.
-        if env.cards.isEmpty && env.sharedCards.isEmpty && env.guestCards.isEmpty {
+        if visibleCards.isEmpty && visibleSharedCards.isEmpty && visibleGuestCards.isEmpty {
             ScrollView {
                 if let banner = env.guestLinkBanner {
                     guestLinkBanner(banner)
@@ -118,8 +144,16 @@ struct DashboardView: View {
                     .padding(.top, 12)
                 #endif
 
-                emptyState
-                    .frame(maxWidth: .infinity, minHeight: 420)
+                // "No widgets yet" is the wrong sentence for a search that
+                // matched nothing — the cards are there, the term is not.
+                Group {
+                    if hasAnyCard {
+                        noSearchResults
+                    } else {
+                        emptyState
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 420)
             }
             .id("empty")
             .background(Color.primary.opacity(0.025))
@@ -145,20 +179,20 @@ struct DashboardView: View {
                         sampleNotice
                     }
 
-                    ForEach(env.cards) { card in
+                    ForEach(visibleCards) { card in
                         NavigationLink(value: card.id) {
                             CardView(card: card, context: .app, density: .compact)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    if !env.sharedCards.isEmpty {
+                    if !visibleSharedCards.isEmpty {
                         Text("Shared with you")
                             .font(.title3.weight(.semibold))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 
-                        ForEach(env.sharedCards) { card in
+                        ForEach(visibleSharedCards) { card in
                             NavigationLink(value: "shared:\(card.id)") {
                                 VStack(alignment: .leading, spacing: 8) {
                                     if let owner = card.sharedBy?.ownerEmail {
@@ -173,13 +207,13 @@ struct DashboardView: View {
                         }
                     }
 
-                    if !env.guestCards.isEmpty {
+                    if !visibleGuestCards.isEmpty {
                         Text("Shared links")
                             .font(.title3.weight(.semibold))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 
-                        ForEach(env.guestCards) { card in
+                        ForEach(visibleGuestCards) { card in
                             NavigationLink(value: "guest:\(card.id)") {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Label("Read-only link", systemImage: "link")
@@ -201,6 +235,24 @@ struct DashboardView: View {
         }
     }
 
+
+    private var hasAnyCard: Bool {
+        !(env.cards.isEmpty && env.sharedCards.isEmpty && env.guestCards.isEmpty)
+    }
+
+    private var noSearchResults: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("No matching cards")
+                .font(.headline)
+            Text("Nothing published here matches \u{201C}\(searchText)\u{201D}.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 32)
+        }
+    }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
