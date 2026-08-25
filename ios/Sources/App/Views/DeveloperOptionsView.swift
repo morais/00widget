@@ -15,6 +15,11 @@ struct DeveloperOptionsView: View {
         store: UserDefaults(suiteName: ZeroZeroWidgetConstants.appGroupIdentifier)
     )
     private var showRawPayloads = false
+    @AppStorage(
+        ZeroZeroWidgetConstants.UserDefaultsKeys.showDummyAccountData,
+        store: UserDefaults(suiteName: ZeroZeroWidgetConstants.appGroupIdentifier)
+    )
+    private var showDummyAccountData = false
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
     @State private var timelineEvents = WidgetTimelineDiagnostics.recentEvents
     @State private var widgetPushSnapshot = WidgetPushTokenStore.load()
@@ -28,6 +33,14 @@ struct DeveloperOptionsView: View {
                 Text("Payloads")
             } footer: {
                 Text("Adds the stored wire format and an equivalent curl command to the detail screen of every card and Live Activity — the exact request an agent would send to publish it.")
+            }
+
+            Section {
+                Toggle("Show dummy account data", isOn: $showDummyAccountData)
+            } header: {
+                Text("Account")
+            } footer: {
+                Text("Shows \(DummyAccountData.email) and a visibly fake token on the Settings screen instead of your own, for a screenshot or a shared screen. Nothing else changes: the real token still authorizes every request. Copy agent config copies what is on screen, so turn this off before handing the token to an agent.")
             }
 
             Section {

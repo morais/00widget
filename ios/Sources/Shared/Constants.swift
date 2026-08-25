@@ -107,6 +107,10 @@ public enum ZeroZeroWidgetConstants {
         /// app-only and sits alongside it for one place to look.
         public static let showRawPayloads = "zw.showRawPayloads"
         public static let showWidgetTimestamps = "zw.showWidgetTimestamps"
+        /// Replaces the account address and the agent token on the Settings
+        /// screen with obvious stand-ins, for a screenshot or a shared screen.
+        /// App-only, and presentation-only: see `DummyAccountData`.
+        public static let showDummyAccountData = "zw.showDummyAccountData"
         /// When the app last asked WidgetKit to reload. Read by the extension
         /// to tell a reload the app requested from one a push delivered — both
         /// arrive ahead of schedule, and they mean different things.

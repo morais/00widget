@@ -15,6 +15,13 @@ struct OnboardingView: View {
     @State private var confirmingSignOut = false
     @State private var showScanner = false
     @State private var showDeveloperOptions = false
+    // Developer option, off by default: swaps the address and the token below
+    // for obvious stand-ins so this screen can be photographed or shared.
+    @AppStorage(
+        ZeroZeroWidgetConstants.UserDefaultsKeys.showDummyAccountData,
+        store: UserDefaults(suiteName: ZeroZeroWidgetConstants.appGroupIdentifier)
+    )
+    private var showDummyAccountData = false
 
     /// How long the copied agent config survives on the pasteboard. The label
     /// promises this, so the expiry below and the reset timer read it here.
@@ -240,7 +247,7 @@ struct OnboardingView: View {
         }
 
         if !env.apiKey.isEmpty {
-            if let email = env.appleLoginEmail {
+            if let email = displayedAccountEmail {
                 KeyValue(key: "Signed in", value: email)
             }
 
@@ -387,7 +394,23 @@ struct OnboardingView: View {
             return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and enter an API key above to use as the authorization token."
         }
 
-        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(env.agentApiKey) as the authorization token."
+        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(displayedAgentApiKey) as the authorization token."
+    }
+
+    /// The address to show, which is the real one unless the developer option
+    /// is on. A signed-out account has nothing to stand in for, so the row
+    /// stays absent rather than inventing a session.
+    private var displayedAccountEmail: String? {
+        guard let email = env.appleLoginEmail else { return nil }
+        return showDummyAccountData ? DummyAccountData.email : email
+    }
+
+    /// What the agent config displays *and* copies. The two are deliberately
+    /// the same string: a copy button that quietly puts the real token on the
+    /// pasteboard while the screen shows a placeholder is how the token ends
+    /// up pasted in front of whoever the placeholder was hiding it from.
+    private var displayedAgentApiKey: String {
+        showDummyAccountData ? DummyAccountData.apiKey : env.agentApiKey
     }
 }
 
