@@ -169,9 +169,20 @@ const SUPPORTED_PROTOCOL_VERSIONS = [
 ] as const;
 const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 
+// Seen at every handshake, before any tool call, and short enough to survive a
+// client's context compaction — which is why the one rule no schema can carry
+// lives here rather than only in the guide. A Live Activity that stops moving
+// while the work continues is the single failure on this API that answers 200
+// to every call and still misinforms the operator: the calls that would have
+// corrected it are the ones that were never made.
 const SERVER_INSTRUCTIONS =
   "Publish project state to the operator's iOS widgets and Live Activities. Call "
-  + "get_integration_guide first to learn the card templates and their fields.";
+  + "get_integration_guide first to learn the card templates and their fields. "
+  + "A Live Activity is a commitment to keep reporting: it sits on the operator's "
+  + "Lock Screen showing whatever you last sent. Update it at every step of the "
+  + "work it describes, set `staleAt` on every push so it marks itself out of date "
+  + "if you stop, and always end it. Going quiet is the one failure here that "
+  + "returns 200 on every call and still misleads.";
 
 // tools/list is a pure function of this file, so clients may cache it. The
 // 2026-07-28 revision reads these fields; older ones ignore them.

@@ -1029,6 +1029,30 @@ or `"items": null` returns the activity to its top-level fallback fields.
 Producers should send one coalesced snapshot rather than updating individual
 items independently.
 
+#### Keeping one honest
+
+A Live Activity is a commitment to keep reporting. It sits on the operator's
+Lock Screen showing whatever you last sent, indefinitely, and there is no
+timeout that retires it. So the cadence matters as much as the content:
+
+- **Update at every meaningful step of the work it describes.** An activity
+  that stops moving while the work continues is worse than one you never
+  started, because the operator reads it as current. If your run has natural
+  units — a commit, a test suite, a file — send one update per unit rather than
+  batching several and going quiet in between.
+- **Send `staleAt` on every push**, a little past when you next expect to
+  publish. It is the only thing that makes a stalled producer visible: past it,
+  iOS renders the activity as out of date rather than as fact. It costs nothing
+  when you do keep publishing, and it is what turns a silent failure into a
+  visible one.
+- **Always end it**, even when the run failed or was abandoned.
+
+This is the one failure on this API with no error surface. A bad card is a 400,
+a missing webhook is a 409, a dead push token shows up in `apnsResult` — but the
+updates you never send return nothing at all, and every call you *did* make
+answered `200`. Nothing will tell you an activity has gone stale; the guard is
+`staleAt` and your own cadence.
+
 ### List
 
 To inspect the tenant's currently ongoing activities, call

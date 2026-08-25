@@ -694,7 +694,10 @@ export const StartLiveActivitySchema = z.object({
   ),
   staleAt: IsoDate.optional().describe(
     "After this iOS renders the activity as out of date, so a run whose "
-    + "producer has gone quiet says so instead of looking current.",
+    + "producer has gone quiet says so instead of looking current. Send it on "
+    + "every push, a little past when you next expect to publish. It is the "
+    + "only thing that makes a stalled producer visible to the operator, and "
+    + "it costs nothing when you do keep publishing.",
   ),
   // Surfaced as aps.relevance-score on the APNs payload — Smart Stack on
   // iPhone and Apple Watch ranks Live Activities by this. Range is 0+;
@@ -773,7 +776,12 @@ export const UpdateLiveActivitySchema = z.object({
   countdownGranularity: CountdownGranularitySchema.nullish().describe(
     "How the countdown reads. Omitted, the activity keeps its current setting.",
   ),
-  staleAt: IsoDate.nullish().describe("New stale time. `null` removes it."),
+  staleAt: IsoDate.nullish().describe(
+    "New stale time. Send it on every update, a little past when you next "
+    + "expect to publish, so the activity marks itself out of date if this is "
+    + "the last update you send. `null` removes it, which leaves a stalled "
+    + "activity looking current — only do that on the way to `end`.",
+  ),
   relevanceScore: z.number().min(0).nullish().describe(
     "New Smart Stack ranking. Spike it on the finishing update so the wrist "
     + "surfaces it.",

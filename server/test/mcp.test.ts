@@ -151,6 +151,33 @@ describe("MCP handshake", () => {
     expect(body.result?.serverInfo).toMatchObject({ name: "00widget" });
   });
 
+  // A Live Activity that stops moving while the work continues is the one
+  // failure on this API with no error surface: every call that was made
+  // answered 200, and the corrective calls are the ones that were never made.
+  // No schema can carry that, so it rides on the handshake instructions, which
+  // are short enough to survive a client's context compaction — and on the
+  // guide, for a client that reads it. Both surfaces are pinned here because
+  // the guidance is the entire mitigation.
+  it("tells every client that a Live Activity must be kept current", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+
+    for (const method of ["initialize", "server/discover"]) {
+      const res = await rpc(env, { jsonrpc: "2.0", id: 1, method });
+      const instructions = (await res.json() as JsonRpcResult).result?.instructions as string;
+      expect(instructions, method).toMatch(/staleAt/);
+      expect(instructions, method).toMatch(/always end it/);
+    }
+
+    // And the field an agent has to actually send says so where it is read.
+    const tools = (await (await rpc(env, { jsonrpc: "2.0", id: 2, method: "tools/list" })).json() as JsonRpcResult)
+      .result?.tools as { name: string; inputSchema: any }[];
+    for (const name of ["start_live_activity", "update_live_activity"]) {
+      const staleAt = tools.find((tool) => tool.name === name)!.inputSchema.properties.staleAt;
+      expect(staleAt.description, name).toMatch(/every (push|update)/);
+    }
+  });
+
   it("falls back to the newest version it speaks when asked for one it does not", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
@@ -414,6 +441,20 @@ describe("get_integration_guide", () => {
       const text = await guide(env, { section });
       const fences = text.split("\n").filter((line) => line.startsWith("```")).length;
       expect(fences % 2, `${section} leaves an unbalanced fence`).toBe(0);
+    }
+  });
+
+  it("carries the rule that a Live Activity must be kept current", async () => {
+    // The heading test above proves the section survives the filter; this
+    // proves the cadence guidance inside it does. Losing either leaves an
+    // agent with no way to learn the one failure mode that never errors.
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    for (const section of ["essentials", "live-activities"]) {
+      const text = await guide(env, { section });
+      expect(text, section).toContain("Keeping one honest");
+      expect(text, section).toMatch(/Update at every meaningful step/);
+      expect(text, section).toMatch(/Send `staleAt` on every push/);
     }
   });
 
