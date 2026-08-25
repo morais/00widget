@@ -138,10 +138,17 @@ export async function getStatus(
 
 
 /// Seconds of silence after which an activity with no stale date is worth
-/// reporting. Long enough that no sane publishing cadence trips it, short
-/// enough that one status call catches a stall — there is no server-known
-/// cadence to derive it from, so it is a judgement, named rather than inline.
-const QUIET_SECONDS = 15 * 60;
+/// reporting. A judgement, not a derivation — there is no server-known
+/// publishing cadence to compare against — so it is named here rather than
+/// left inline at the one place it is read.
+///
+/// Deliberately shorter than a slow producer's cadence. This does not fire on
+/// "you publish infrequently"; it fires on "you publish infrequently *and* have
+/// no stale date", which is the combination that leaves a Lock Screen asserting
+/// old state as current. A producer that sets `staleAt` is never reported here
+/// however long it goes between updates, so the cure is always available and
+/// the nudge is worth making early.
+const QUIET_SECONDS = 5 * 60;
 
 interface ActivityAttention {
   externalActivityId: string;

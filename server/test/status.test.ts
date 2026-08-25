@@ -224,6 +224,25 @@ describe("GET /v1/status — activities needing attention", () => {
     expect(await attention(env)).toEqual([]);
   });
 
+  it("pins both sides of the quiet threshold", async () => {
+    // The threshold is a judgement rather than a derivation, so the boundary is
+    // worth stating in a test: moving the constant should break this
+    // deliberately rather than quietly change who gets reported.
+    const under = makeEnv();
+    await seedOwned(under, "under", {
+      updatedAt: new Date(Date.now() - 4 * MINUTE).toISOString(),
+    });
+    expect(await attention(under)).toEqual([]);
+
+    const over = makeEnv();
+    await seedOwned(over, "over", {
+      updatedAt: new Date(Date.now() - 6 * MINUTE).toISOString(),
+    });
+    expect(await attention(over)).toMatchObject([
+      { externalActivityId: "over", reason: "no-stale-date" },
+    ]);
+  });
+
   it("never reports an activity another tenant shared with this one", async () => {
     // It is visible here and this tenant cannot update it, so naming it would
     // be reporting somebody else's silence as this operator's neglect.

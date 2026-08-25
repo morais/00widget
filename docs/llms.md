@@ -205,8 +205,9 @@ reporting a problem:
   - `no-stale-date` — the dangerous one. This activity was never given a
     `staleAt`, so nothing will ever mark it stale and a Lock Screen shows its
     last state as current for as long as it exists. Send `staleAt` on the next
-    update. Only reported once an activity has been quiet for 15 minutes, so a
-    run that has just started is not flagged.
+    update. Only reported once an activity has been quiet for five minutes, so
+    a run that has just started is not flagged. Setting `staleAt` suppresses it
+    however long you then go between updates.
 - **`rateLimits`.** Only windows this account has touched appear; anything
   absent is untouched and has its full allowance.
 - **`subscription`.** Whether this deployment sells subscriptions at all, and
