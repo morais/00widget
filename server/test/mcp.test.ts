@@ -4,6 +4,7 @@ import * as storage from "../src/storage";
 import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY, testApiKey } from "./helpers";
 import { llmsMarkdown } from "../src/generated/llmsDoc";
+import { MAX_BATCH_LENGTH } from "../src/mcp";
 
 const ctx = {} as ExecutionContext;
 
@@ -814,6 +815,37 @@ describe("JSON-RPC framing", () => {
     expect(Array.isArray(body)).toBe(true);
     expect(body).toHaveLength(1);
     expect(body[0].id).toBe(1);
+  });
+
+  it("refuses a batch larger than any real client sends", async () => {
+    // The body cap is not a cap on work: 160 KiB holds thousands of minimal
+    // envelopes, and requireAuth's rate limiters run once for the whole
+    // request, so one authenticated call bought thousands of dispatches.
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const oversized = Array.from({ length: MAX_BATCH_LENGTH + 1 }, (_, i) => ({
+      jsonrpc: "2.0", id: i, method: "tools/list",
+    }));
+
+    const res = await rpc(env, oversized);
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as JsonRpcResult;
+    expect(body.error?.code).toBe(-32600);
+    expect(body.error?.message).toContain(String(MAX_BATCH_LENGTH));
+  });
+
+  it("still handles a batch at the limit", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const atLimit = Array.from({ length: MAX_BATCH_LENGTH }, (_, i) => ({
+      jsonrpc: "2.0", id: i, method: "ping",
+    }));
+
+    const res = await rpc(env, atLimit);
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as JsonRpcResult[]).toHaveLength(MAX_BATCH_LENGTH);
   });
 
   it("rejects a malformed body with -32700 once the caller is authenticated", async () => {

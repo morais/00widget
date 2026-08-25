@@ -25,6 +25,7 @@ import {
   RequestBodyLimits,
   StartLiveActivitySchema,
   UpdateLiveActivitySchema,
+  FieldLimits,
   type Env,
 } from "./types";
 
@@ -148,6 +149,11 @@ function stripShellExamples(markdown: string): string {
 }
 
 export const MCP_PATH = "/mcp";
+
+/// Most JSON-RPC requests here arrive one to a body. The cap matches
+/// `FieldLimits.cardBatchCount`, which is the largest number of things any
+/// single tool accepts, and is far above anything a real client sends.
+export const MAX_BATCH_LENGTH = FieldLimits.cardBatchCount;
 
 const SERVER_NAME = "00widget";
 const SERVER_VERSION = "1.0.0";
@@ -789,6 +795,22 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
   if (Array.isArray(payload)) {
     if (payload.length === 0) {
       return json(errorResponse(null, JSON_RPC_INVALID_REQUEST, "empty batch"), 400);
+    }
+    // The body cap alone is not a cap on work: 160 KiB holds thousands of
+    // minimal tools/call envelopes, and each one dispatches and does its own D1
+    // round trips. The per-tenant limiter still stops the writes, so this is
+    // amplification rather than a way past the gate — but requireAuth's source
+    // and token limiters run once for the whole request, so one authenticated
+    // call bought thousands of dispatches.
+    if (payload.length > MAX_BATCH_LENGTH) {
+      return json(
+        errorResponse(
+          null,
+          JSON_RPC_INVALID_REQUEST,
+          `batch holds ${payload.length} requests; the limit is ${MAX_BATCH_LENGTH}`,
+        ),
+        400,
+      );
     }
     const responses = [];
     for (const entry of payload) {
