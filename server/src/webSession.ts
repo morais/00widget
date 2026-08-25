@@ -56,6 +56,21 @@ export interface WebPrincipal extends WebSession {
 const COOKIE_NAME = "zw_session";
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
 
+// Domain separation, matching what mcpOAuth.ts does for its client ids and
+// authorization codes. All three are "<payload>.<hmac>" under SESSION_SECRET,
+// and this was the one signed over the bare payload — so it was the value a
+// fourth use of the key would have collided with. No attack was found through
+// it: the tagged verifiers reject an untagged signature, and the cookie payload
+// is a server-built object whose only caller-influenced field is `email`. The
+// asymmetry was the finding.
+const SESSION_SIGNING_PURPOSE = "web-session-v1";
+
+// Untagged cookies are still accepted for one deployment cycle, so sessions
+// issued before this shipped survive it rather than logging everyone out. They
+// expire on their own within SESSION_TTL_SECONDS; drop this and the branch in
+// `verifySessionSignature` that uses it once a day has passed.
+const ACCEPT_UNTAGGED_SESSION_SIGNATURES = true;
+
 // Path=/ because the web surface is no longer one directory. A session has to
 // reach /connect/* and /admin/* alike; SameSite=Lax keeps it off cross-site
 // requests, and it is HttpOnly, so widening the path does not widen who can
@@ -125,7 +140,7 @@ export async function makeSessionCookie(
     ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
   };
   const payload = b64url(JSON.stringify(session));
-  const sig = await hmacSha256Hex(env.SESSION_SECRET!, payload);
+  const sig = await hmacSha256Hex(env.SESSION_SECRET!, `${SESSION_SIGNING_PURPOSE}:${payload}`);
   return `${COOKIE_NAME}=${payload}.${sig}; Path=${COOKIE_PATH}; Max-Age=${SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
 }
 
@@ -140,8 +155,7 @@ export async function readSessionCookie(env: Env, req: Request): Promise<WebPrin
   const [payload, sig] = raw.split(".");
   if (!payload || !sig) return null;
 
-  const expected = await hmacSha256Hex(env.SESSION_SECRET!, payload);
-  if (!constantTimeEqual(sig, expected)) return null;
+  if (!(await verifySessionSignature(env, payload, sig))) return null;
 
   let session: WebSession;
   try {
@@ -169,6 +183,26 @@ export async function readSessionCookie(env: Env, req: Request): Promise<WebPrin
   }
   if (session.method !== "apple") return null;
   return { ...session, isAdmin: isAdminEmail(env, session.email) };
+}
+
+/// Constant-time on the tagged form, then — during the compatibility window —
+/// on the untagged one. Both comparisons run rather than short-circuiting on
+/// the first, so acceptance does not leak which form a cookie carried.
+async function verifySessionSignature(
+  env: Env,
+  payload: string,
+  sig: string,
+): Promise<boolean> {
+  const tagged = await hmacSha256Hex(
+    env.SESSION_SECRET!,
+    `${SESSION_SIGNING_PURPOSE}:${payload}`,
+  );
+  let valid = constantTimeEqual(sig, tagged);
+  if (ACCEPT_UNTAGGED_SESSION_SIGNATURES) {
+    const untagged = await hmacSha256Hex(env.SESSION_SECRET!, payload);
+    valid = constantTimeEqual(sig, untagged) || valid;
+  }
+  return valid;
 }
 
 export async function hashAdminApiToken(token: string): Promise<string> {

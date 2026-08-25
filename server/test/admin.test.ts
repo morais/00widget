@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
 import * as storage from "../src/storage";
-import { randomToken, __resetAppleJwksCache } from "../src/appleAuth";
+import { hmacSha256Hex, randomToken, __resetAppleJwksCache } from "../src/appleAuth";
 import {
   adminAccessConfigured,
   isAdminEmail,
@@ -999,6 +999,53 @@ describe("admin routes (no Apple call required)", () => {
     for (let i = 0; i < 12; i++) statuses.push((await attempt(`10.0.0.${i}`)).status);
 
     expect(statuses.filter((status) => status === 429).length).toBeGreaterThan(0);
+  });
+
+  // mcpOAuth.ts signs its client ids and authorization codes over a purpose tag
+  // so neither can be presented where the other is expected. The session cookie
+  // is signed with the same key and was the one value with no tag.
+  describe("session cookie signature", () => {
+    it("is signed over a purpose tag", async () => {
+      const env = adminEnv();
+      const cookie = await makeSessionCookie(env, "admin@example.com");
+      const [payload, sig] = cookie.split("=")[1].split(";")[0].split(".");
+
+      const untagged = await hmacSha256Hex(TEST_SESSION_SECRET, payload);
+      const tagged = await hmacSha256Hex(TEST_SESSION_SECRET, `web-session-v1:${payload}`);
+
+      expect(sig).toBe(tagged);
+      expect(sig).not.toBe(untagged);
+    });
+
+    it("still accepts a cookie signed before the tag existed", async () => {
+      // The compatibility window. Without it, shipping this logs out everyone
+      // holding a session, which is not a thing a signing-hygiene change should
+      // do to an operator mid-task.
+      const env = adminEnv();
+      const cookie = await makeSessionCookie(env, "admin@example.com");
+      const payload = cookie.split("=")[1].split(";")[0].split(".")[0];
+      const legacy = `zw_session=${payload}.${await hmacSha256Hex(TEST_SESSION_SECRET, payload)}`;
+
+      const session = await readSessionCookie(
+        env,
+        new Request("https://x/admin", { headers: { cookie: legacy } }),
+      );
+
+      expect(session?.email).toBe("admin@example.com");
+      expect(session?.isAdmin).toBe(true);
+    });
+
+    it("rejects a signature made with neither form", async () => {
+      const env = adminEnv();
+      const cookie = await makeSessionCookie(env, "admin@example.com");
+      const payload = cookie.split("=")[1].split(";")[0].split(".")[0];
+      const forged = `zw_session=${payload}.${await hmacSha256Hex("some-other-secret-entirely", payload)}`;
+
+      expect(await readSessionCookie(
+        env,
+        new Request("https://x/admin", { headers: { cookie: forged } }),
+      )).toBeNull();
+    });
   });
 
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {
