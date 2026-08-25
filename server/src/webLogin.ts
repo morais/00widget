@@ -6,7 +6,7 @@ import {
   validateAppleIdToken,
 } from "./appleAuth";
 import { adminApiTokensAreSecure, isSecureAdminSecret } from "./adminSecurity";
-import { createTenantForOwner, isValidApiKey } from "./auth";
+import { createTenantForOwner, isValidApiKey, TenantEmailTakenError } from "./auth";
 import { baseHTML, esc, enc, htmlResponse, renderError } from "./html";
 import { putAppleAccount, resolveIdentity } from "./identity";
 import { incrementRateLimitBuckets, rateLimitResponse } from "./rateLimit";
@@ -177,8 +177,20 @@ export async function handleAppleCallback(req: Request, env: Env): Promise<Respo
       email: identity.ownerEmail || email,
     });
   } else if (webSignupEnabled(env)) {
-    const tenant = await createTenantForOwner(env, email);
-    await putAppleAccount(env, { appleSub: claims.sub, tenantId: tenant.id, email });
+    try {
+      const tenant = await createTenantForOwner(env, email);
+      await putAppleAccount(env, { appleSub: claims.sub, tenantId: tenant.id, email });
+    } catch (err) {
+      // `resolveIdentity` found nothing a moment ago, so reaching this means
+      // another sign-in for the same address won the race between the two.
+      // The account now exists; a retry resolves it instead of creating a
+      // second. Better than the 500 an uncaught throw would render.
+      if (!(err instanceof TenantEmailTakenError)) throw err;
+      return htmlResponse(
+        renderError("An account for this address was just created. Try signing in again."),
+        409,
+      );
+    }
   } else if (!admin) {
     // Not an account, not an administrator, and this deployment does not sign
     // people up on the web. Nothing was created reaching this point.

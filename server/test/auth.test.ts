@@ -9,6 +9,8 @@ import {
   revokeApiKey,
   AuthError,
   AuthRateLimitError,
+  createTenantForOwner,
+  TenantEmailTakenError,
   sha256Hex,
 } from "../src/auth";
 import {
@@ -254,5 +256,66 @@ describe("requireAuth", () => {
     const b = await sha256Hex("hello");
     expect(a).toBe(b);
     expect(a).not.toBe(await sha256Hex("world"));
+  });
+});
+
+
+// One address, one tenant (migrations/0030). Enforced by a unique index, which
+// `INSERT OR IGNORE` swallows exactly as quietly as it swallows a repeated id —
+// so the write paths read `changes` to tell a refusal from a no-op.
+describe("a tenant's owner email is unique", () => {
+  it("refuses to create a second tenant for an address that has one", async () => {
+    const env = makeEnv();
+    const first = await createApiKey(env, { ownerEmail: "person@example.com" });
+    expect(first.tenant.id).toBeTruthy();
+
+    await expect(createApiKey(env, { ownerEmail: "Person@Example.com" }))
+      .rejects.toThrow(TenantEmailTakenError);
+  });
+
+  it("leaves no credential behind when it refuses", async () => {
+    // The failure this guards. Without the check, `OR IGNORE` skipped the
+    // tenant row and the function carried on to insert an api_keys row against
+    // a tenant id that does not exist — a token handed to an operator once
+    // that fails its very first request, because requireAuth joins tenants.
+    const env = makeEnv();
+    await createApiKey(env, { ownerEmail: "person@example.com" });
+    const before = (await listApiKeys(env)).length;
+
+    await expect(createApiKey(env, { ownerEmail: "person@example.com" }))
+      .rejects.toThrow(TenantEmailTakenError);
+
+    expect((await listApiKeys(env)).length).toBe(before);
+  });
+
+  it("still mints a credential for a tenant that already exists", async () => {
+    // The id path must keep working: `OR IGNORE` returning 0 for an existing
+    // tenant is the normal case, not a refusal.
+    const env = makeEnv();
+    const first = await createApiKey(env, { ownerEmail: "person@example.com" });
+
+    const second = await createApiKey(env, { tenantId: first.tenant.id, label: "second" });
+
+    expect(second.tenant.id).toBe(first.tenant.id);
+    expect(second.token).toMatch(/^zw_/);
+  });
+
+  it("refuses a fresh tenant for a taken address", async () => {
+    const env = makeEnv();
+    await createApiKey(env, { ownerEmail: "person@example.com" });
+
+    await expect(createTenantForOwner(env, "person@example.com"))
+      .rejects.toThrow(TenantEmailTakenError);
+  });
+
+  it("lets a disabled tenant release its address", async () => {
+    // The partial index is what makes retiring and re-provisioning possible.
+    const env = makeEnv();
+    const first = await createApiKey(env, { ownerEmail: "person@example.com" });
+    (env.ZW_DB as unknown as { disableTenant(id: string): void }).disableTenant(first.tenant.id);
+
+    const replacement = await createTenantForOwner(env, "person@example.com");
+
+    expect(replacement.id).not.toBe(first.tenant.id);
   });
 });

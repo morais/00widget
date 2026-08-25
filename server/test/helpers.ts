@@ -227,9 +227,24 @@ export class FakeD1 {
 
   run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
+    // Models tenants_by_owner_email_unique (migrations/0030) as well as the
+    // primary key, because `OR IGNORE` swallows both the same way — it returns
+    // changes=0 and writes nothing, which is exactly what createApiKey and
+    // createTenantForOwner now read to detect a refused address. Without the
+    // constraint here the fake would report success where D1 reports nothing,
+    // and the error path would be untestable.
     if (normalized.startsWith("INSERT OR IGNORE INTO tenants")) {
       const [id, name, owner_email, created_at] = values.map(String);
       if (this.tenants.has(id)) return 0;
+      // Partial index: NULL and '' addresses are outside it, and a disabled
+      // tenant releases its address.
+      const claimed = owner_email
+        && [...this.tenants.values()].some(
+          (tenant) => !tenant.disabled_at
+            && tenant.owner_email
+            && tenant.owner_email.toLowerCase() === owner_email.toLowerCase(),
+        );
+      if (claimed) return 0;
       this.tenants.set(id, { id, name, owner_email, created_at, disabled_at: "" });
       return 1;
     }
@@ -911,6 +926,15 @@ export class FakeD1 {
       updated_at: String(updated_at),
     });
     return 1;
+  }
+
+  /// Retires a tenant, the way an operator does directly in D1. No production
+  /// statement writes `disabled_at`, so this is a seed helper rather than a
+  /// SQL handler — teaching the fake a statement the Worker never issues would
+  /// be inventing behaviour to test against.
+  disableTenant(id: string, at = new Date().toISOString()): void {
+    const row = this.tenants.get(id);
+    if (row) row.disabled_at = at;
   }
 
   /// Seeds an entitlement directly, for tests about enforcement rather than

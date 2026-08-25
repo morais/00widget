@@ -204,6 +204,20 @@ export async function requireAuth(
   };
 }
 
+/// One address, one tenant — see migrations/0030. Thrown rather than returned
+/// because every caller was written for a create that cannot fail, and a
+/// silently-skipped insert is what this exists to stop.
+export class TenantEmailTakenError extends Error {
+  constructor(readonly email: string) {
+    super(`a tenant already exists for ${email}`);
+    this.name = "TenantEmailTakenError";
+  }
+}
+
+function changedRows(result: D1Result): number {
+  return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
+}
+
 export class AuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -252,12 +266,20 @@ export async function createTenantForOwner(env: Env, ownerEmail: string): Promis
   if (!isValidEmail(email)) throw new Error("ownerEmail must be a valid email address");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  await env.ZW_DB.prepare(
+  const result = await env.ZW_DB.prepare(
     `INSERT OR IGNORE INTO tenants (id, name, owner_email, created_at)
      VALUES (?, ?, ?, ?)`,
   )
     .bind(id, email, email, now)
     .run();
+  // `OR IGNORE` swallows a unique-address conflict as silently as it swallows
+  // a repeated id, and the id here is a fresh UUID that cannot collide — so no
+  // row written means `tenants_by_owner_email_unique` refused it. Returning the
+  // record anyway would hand back a tenant that does not exist, and the caller
+  // would bind an Apple subject to it.
+  if (changedRows(result) === 0) {
+    throw new TenantEmailTakenError(email);
+  }
   return { id, ownerEmail: email, createdAt: now };
 }
 
@@ -322,12 +344,20 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   const tokenHash = await sha256Hex(token);
   const apiKeyId = crypto.randomUUID();
 
-  await env.ZW_DB.prepare(
+  const tenantInsert = await env.ZW_DB.prepare(
     `INSERT OR IGNORE INTO tenants (id, name, owner_email, created_at)
      VALUES (?, ?, ?, ?)`,
   )
     .bind(tenantId, ownerEmail, ownerEmail, now)
     .run();
+  // Nothing written and no tenant already under this id means the unique
+  // address index refused the row. Everything below would then hang an
+  // `api_keys` row off a tenant that does not exist — a credential the caller
+  // is handed once and that fails its very first `requireAuth`, because the
+  // join to `tenants` finds nothing. Fail here instead, where it can be read.
+  if (!existingTenant && changedRows(tenantInsert) === 0) {
+    throw new TenantEmailTakenError(ownerEmail);
+  }
   await env.ZW_DB.prepare(
     `UPDATE tenants
      SET owner_email = ?

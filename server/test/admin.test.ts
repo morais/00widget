@@ -1048,6 +1048,35 @@ describe("admin routes (no Apple call required)", () => {
     });
   });
 
+  it("/admin/api-keys reports a taken owner email as a 400, not a 500", async () => {
+    // The operator-error path that duplicates came from. It has to read as a
+    // refusal the admin can act on — pick the existing tenant — rather than as
+    // a crash, and it must not leave a credential behind.
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const create = (ownerEmail: string) =>
+      (handler.fetch as any)(
+        new Request("https://x/admin/api-keys", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            "x-csrf-token": csrf,
+            cookie,
+          },
+          body: JSON.stringify({ ownerEmail, label: "x" }),
+        }),
+        env,
+        ctx,
+      );
+
+    expect((await create("dup@example.com")).status).toBe(201);
+
+    const second = await create("Dup@Example.com");
+    expect(second.status).toBe(400);
+    expect(((await second.json()) as { error: string }).error).toMatch(/already exists/);
+  });
+
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {
     const env = adminEnv();
     const { cookie, csrf } = await adminCookie(env);

@@ -74,7 +74,11 @@ project should be aware:
   that address as `owner_email`**, so a typo in the admin dashboard's "Owner
   email" field hands the tenant to a stranger. Treat that field as a security
   decision and correct mistakes by revoking the tenant's keys, not by editing
-  the address after the fact.
+  the address after the fact. The address is now unique across live tenants
+  (`tenants_by_owner_email_unique`), so a second tenant cannot be created for
+  one that already has an account — the admin form refuses it with a 400
+  instead of quietly producing a shadow account that would have seen the
+  first one's incoming shares. Disabling a tenant releases its address.
 - **`SHARING_ENABLED`** controls cross-tenant share fanout. Sharing by
   `activity_kind` is coarse-grained: accepting a share for kind `progress`
   exposes *all* of the owner's current and future `progress` Live Activities

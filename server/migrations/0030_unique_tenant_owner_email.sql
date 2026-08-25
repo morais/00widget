@@ -1,0 +1,43 @@
+-- One address, one tenant.
+--
+-- `owner_email` is not a label. It is what a first Apple sign-in resolves
+-- against (`getTenantByOwnerEmail`), and what an incoming share is matched on
+-- until it is accepted (`listIncoming`, `acceptShare`). Both read it as an
+-- identity, and neither could tell two tenants carrying the same address apart:
+-- sign-in silently picked the older one, and a second tenant sharing an address
+-- could see and accept shares meant for the first — which binds
+-- `recipient_tenant_id` to itself and leaves the intended recipient unable to
+-- accept, because the share is no longer pending.
+--
+-- Duplicates were only ever reachable by operator action: the app sign-in path
+-- joins to an existing tenant rather than creating a second, so it takes an
+-- administrator entering an address that already has a tenant. Production held
+-- none when this was written (2 tenants, 0 duplicate groups, 0 null or empty
+-- addresses, 0 disabled), which is why this can be a plain constraint with no
+-- reconciliation step. Adding it now, while that is provably true, is the whole
+-- point: after the row that breaks it exists, this migration fails mid-deploy
+-- and the untangling happens under pressure.
+--
+-- Rows written: effectively nothing. `tenants` is the coldest table here — one
+-- insert per account ever, plus the one-time `owner_email` backfill in
+-- `createApiKey` — so the index maintenance this bills for is per-signup, not
+-- per-request. Contrast `rate_limit_buckets`, which is why that table
+-- deliberately carries no index on `expires_at`.
+--
+-- Partial, and deliberately so:
+--   disabled_at IS NULL   a disabled tenant releases its address, so an
+--                         operator can retire one and re-provision.
+--   owner_email IS NOT NULL   NULLs are distinct to a unique index anyway;
+--                         excluding them keeps unindexed rows out entirely.
+--   owner_email != ''     '' is NOT distinct, so two blank addresses would
+--                         collide where two NULLs do not. Neither exists
+--                         today; this keeps the constraint about real
+--                         addresses rather than about placeholder rows.
+--
+-- lower() because every read already lower-cases: `getTenantByOwnerEmail`
+-- compares `lower(owner_email)`, and `normalizeEmail` lower-cases on the way
+-- in. A case-sensitive index would let Person@example.com and
+-- person@example.com coexist and resolve to one another.
+CREATE UNIQUE INDEX IF NOT EXISTS tenants_by_owner_email_unique
+  ON tenants(lower(owner_email))
+  WHERE disabled_at IS NULL AND owner_email IS NOT NULL AND owner_email != '';
