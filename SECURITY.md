@@ -80,6 +80,18 @@ project should be aware:
   exposes *all* of the owner's current and future `progress` Live Activities
   to the recipient. Disable if your tenants shouldn't be able to fan out to
   each other.
+- **`SUBSCRIPTIONS_ENABLED=true` requires `APNS_BUNDLE_ID`.** Verification
+  refuses every transaction without it rather than accepting any app's, so a
+  half-configured deployment sells nothing instead of entitling everyone. The
+  Worker logs `subscription.not_verifiable` naming the unset variable.
+- **The iOS API key is in encrypted device backups.** It is stored with
+  `kSecAttrAccessibleAfterFirstUnlock` rather than the `ThisDeviceOnly`
+  variant, deliberately, so widgets keep working after a device migration. The
+  consequence is that a credential carrying `read`, `device:register` and
+  `actions:run` survives into any encrypted iTunes/Finder backup and can be
+  restored onto another device; revoke the device's credentials in the app or
+  `/admin` if a backup is compromised. The app-only credential uses the
+  `ThisDeviceOnly` variant and does not travel.
 - The APNs `.p8` private key lives only as a Wrangler secret on the backend.
   Never put it on-device, in `wrangler.toml`, or in the repo.
 - Cloudflare observability logs (`[observability] enabled = true`) capture
@@ -112,10 +124,21 @@ If you find a way to break any of these, please report it:
    data, and no admin action on tenant A should mutate tenant B.
 2. **API key opacity.** API keys are stored only as SHA-256 hashes. The plain
    token is shown exactly once at creation time.
-3. **Apple id_token validation.** All flows verify the RS256 signature against
-   Apple's JWKS, `iss == https://appleid.apple.com`, `aud` matches the
-   configured client id, `exp` is in the future, and `nonce` matches the
-   expected value (when supplied).
+3. **Apple signature validation.** Sign-in flows verify the id_token's RS256
+   signature against Apple's JWKS, `iss == https://appleid.apple.com`, `aud`
+   matches the configured client id, `exp` is in the future, and `nonce`
+   matches the expected value (when supplied).
+
+   StoreKit and App Store Server Notification payloads go through
+   `appleJws.ts`, which pins Apple Root CA - G3 by byte equality *and* requires
+   every certificate between it and the leaf to be permitted to issue —
+   `basicConstraints cA`, its own `pathLenConstraint`, and `keyCertSign` where
+   a `keyUsage` is stated. Signature linkage without that authority check
+   accepts any certificate Apple issues to a developer as an intermediate.
+   Each payload is then checked to be *about* what it arrived with: a
+   notification's renewal info must name the same `originalTransactionId` as
+   the transaction it is paired with, and both must match this deployment's
+   bundle id, product list and environment.
 4. **CSRF protection.** Every state-changing admin endpoint requires a
    per-session CSRF token, validated in constant time, plus a same-origin
    Origin/Referer check.
