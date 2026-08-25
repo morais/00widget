@@ -421,6 +421,69 @@ describe("widget push subscriptions", () => {
     expect(listings).toHaveLength(1);
   });
 
+  // A tenant whose widgets sit on different cadences keeps the pending row
+  // alive until the slowest can be served. Every wake used to re-claim the
+  // whole token list, so a widget that still had budget was pushed again on its
+  // own five-minute spacing — the same unchanged state, over and over, until
+  // the queue exhausted max_retries and dropped the message. Those are reloads
+  // out of Apple's 40-70 a day for that widget, which is the scarcest thing
+  // this system spends.
+  it("never re-pushes a widget that already carries the queued change", async () => {
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.putWidgetToken(env, "test-tenant", hash, "d-fresh", "W", "freshtok");
+    await storage.putWidgetToken(env, "test-tenant", hash, "d-spent", "W", "spenttok");
+
+    // Drain one widget's bucket so it cannot be served for a long while.
+    let at = 10_000;
+    while (await claimWidgetPushWindow(env, "spenttok", at)) at += 300;
+    await enqueuePendingWidgetReload(env, "test-tenant", at);
+
+    const pushed: string[] = [];
+    const sender = vi.fn().mockImplementation(async (_env: unknown, token: string) => {
+      pushed.push(token);
+      return { status: 200, apnsId: "ok" };
+    });
+
+    // Drive the redeliveries the queue would drive, following the delay each
+    // one asks for.
+    for (let round = 0; round < 6; round += 1) {
+      const outcome = await processPendingWidgetReload(
+        env, { tenantId: "test-tenant" }, { nowSeconds: at, sender },
+      );
+      if (!outcome.retryAfterSeconds) break;
+      at += outcome.retryAfterSeconds;
+    }
+
+    // The fresh widget is served once and never again; the drained one is
+    // served when its allowance finally refills.
+    expect(pushed.filter((token) => token === "freshtok")).toHaveLength(1);
+    expect(pushed).toContain("spenttok");
+    // And once everyone carries it, the row is cleared rather than left to be
+    // retried until the message is dropped.
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+  });
+
+  it("clears a pending row whose widgets were all served by the publish itself", async () => {
+    // The publish path can serve every widget and still record a pending row
+    // (a transient APNs failure, say). Nothing is owed, so the next drain
+    // should retire the row rather than push everyone a second time.
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    await storage.putWidgetToken(env, "test-tenant", hash, "d-1", "W", "tok1");
+    await claimWidgetPushWindow(env, "tok1", 10_000);
+    await enqueuePendingWidgetReload(env, "test-tenant", 10_000);
+
+    const sender = vi.fn().mockResolvedValue({ status: 200, apnsId: "ok" });
+    const outcome = await processPendingWidgetReload(
+      env, { tenantId: "test-tenant" }, { nowSeconds: 10_000, sender },
+    );
+
+    expect(sender).not.toHaveBeenCalled();
+    expect(outcome.retryAfterSeconds).toBeUndefined();
+    await expect(getPendingWidgetReload(env, "test-tenant")).resolves.toBeNull();
+  });
+
   it("queues a second card change when the immediate push window is closed", async () => {
     const env = makeEnv();
     const hash = await sha256Hex(TEST_API_KEY);

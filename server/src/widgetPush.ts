@@ -281,15 +281,52 @@ export async function widgetPushWaitForTokens(
 ): Promise<number> {
   const tokens = [...new Set(allTokens)];
   if (tokens.length === 0) return 0;
+  return soonestWait(await widgetPushCadence(env, tokens), tokens, nowSeconds);
+}
+
+export interface WidgetPushCadenceRow {
+  token: string;
+  last_sent_at: number;
+  allowance: number;
+}
+
+/// The stored cadence for these tokens, keyed by token. A token with no row has
+/// never been pushed.
+export async function widgetPushCadence(
+  env: Env,
+  tokens: string[],
+): Promise<Map<string, WidgetPushCadenceRow>> {
+  if (tokens.length === 0) return new Map();
   const rows = await env.ZW_DB.prepare(
     `SELECT token, last_sent_at, allowance
      FROM widget_push_cadence
      WHERE token IN (${tokens.map(() => "?").join(", ")})`,
   )
     .bind(...tokens)
-    .all<{ token: string; last_sent_at: number; allowance: number }>();
+    .all<WidgetPushCadenceRow>();
+  return new Map(rows.results.map((row) => [row.token, row]));
+}
 
-  const known = new Map(rows.results.map((row) => [row.token, row]));
+/// Whether this token has already been pushed since the change was queued, and
+/// so is holding the current state.
+///
+/// `last_sent_at` and `queued_at` are both server-side unix seconds, and a
+/// token pushed at or after the moment a change was recorded has necessarily
+/// carried it. This is what stops a reload being delivered twice to the same
+/// widget: without it a tenant whose widgets sit on different cadences kept the
+/// pending row alive for the slowest of them, and every wake re-pushed the ones
+/// that were already current — spending the scarcest budget in the system,
+/// Apple's 40-70 reloads a day, on updates the widget already had.
+function hasSeenChange(row: WidgetPushCadenceRow | undefined, queuedAt: number): boolean {
+  return row !== undefined && Number(row.last_sent_at) >= queuedAt;
+}
+
+function soonestWait(
+  cadence: Map<string, WidgetPushCadenceRow>,
+  tokens: string[],
+  nowSeconds: number,
+): number {
+  const known = cadence;
   let soonest = Number.POSITIVE_INFINITY;
   for (const token of tokens) {
     const row = known.get(token);
@@ -328,7 +365,22 @@ export async function processPendingWidgetReload(
     return { delivered: false };
   }
 
-  const delaySeconds = await widgetPushWaitForTokens(env, tokens, nowSeconds);
+  // Only the widgets that have not already been pushed since this change was
+  // queued. The pending row stays alive until the slowest of them can be
+  // served, and without this filter every wake re-pushed the ones that were
+  // already current: a widget with budget was reloaded again every five
+  // minutes, for the same unchanged state, until the queue gave up on the
+  // message. Those are reloads out of Apple's daily allowance for that widget,
+  // which is the scarcest thing this system spends.
+  const cadence = await widgetPushCadence(env, tokens);
+  const owed = tokens.filter((token) => !hasSeenChange(cadence.get(token), pending.queuedAt));
+  if (owed.length === 0) {
+    // Everything already carries this change; the row is just stale.
+    await deletePendingWidgetReload(env, pending);
+    return { delivered: true };
+  }
+
+  const delaySeconds = soonestWait(cadence, owed, nowSeconds);
   if (delaySeconds > 0) {
     return { delivered: false, retryAfterSeconds: delaySeconds };
   }
@@ -336,13 +388,13 @@ export async function processPendingWidgetReload(
   // for the tenant. A device with two widgets where only one has a slot free
   // gets that one reloaded now and the other on a later pass.
   const claimed: string[] = [];
-  for (const token of tokens) {
+  for (const token of owed) {
     if (await claimWidgetPushWindow(env, token, nowSeconds)) claimed.push(token);
   }
   if (claimed.length === 0) {
     return {
       delivered: false,
-      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, tokens, nowSeconds)),
+      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, owed, nowSeconds)),
     };
   }
   const targets = claimed.map((token) => ({ token, tenantIds: [pending.tenantId] }));
@@ -356,11 +408,14 @@ export async function processPendingWidgetReload(
     return { delivered: false, retryAfterSeconds: TRANSIENT_QUEUE_RETRY_SECONDS };
   }
   // Any widget that had no slot still needs one, so the pending row stays and
-  // the message comes back when the soonest of them opens.
-  if (claimed.length < tokens.length) {
+  // the message comes back when the soonest of *those* opens. Waiting on the
+  // full token list instead would wake on the spacing of one just pushed, and
+  // push it again.
+  const stillOwed = owed.filter((token) => !claimed.includes(token));
+  if (stillOwed.length > 0) {
     return {
       delivered: true,
-      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, tokens, nowSeconds)),
+      retryAfterSeconds: Math.max(1, await widgetPushWaitForTokens(env, stillOwed, nowSeconds)),
     };
   }
   const cleared = await deletePendingWidgetReload(env, pending);
@@ -441,6 +496,11 @@ async function deliverOrEnqueueWidgetReloads(
   context: { tenantId: string; cardIds: string[] },
 ): Promise<void> {
   const grouped = groupTargetsByTenant(targets);
+  // One timestamp for the claims and for the pending row they may produce.
+  // Taking `Date.now()` separately in each let a token be claimed at t and the
+  // change recorded at t+1, so a widget that had just been pushed looked as
+  // though it still owed this change and was pushed again on the next drain.
+  const nowSeconds = Math.floor(Date.now() / 1_000);
   await Promise.all(
     [...grouped.entries()].map(async ([tenantId, tenantTargets]) => {
       // If an older suppressed change is already queued, one generic reload of
@@ -456,10 +516,10 @@ async function deliverOrEnqueueWidgetReloads(
       // must not hold back another that is ready.
       const deliveryTargets: WidgetPushTarget[] = [];
       for (const target of candidates) {
-        if (await claimWidgetPushWindow(env, target.token)) deliveryTargets.push(target);
+        if (await claimWidgetPushWindow(env, target.token, nowSeconds)) deliveryTargets.push(target);
       }
       if (deliveryTargets.length === 0) {
-        await enqueuePendingWidgetReload(env, tenantId);
+        await enqueuePendingWidgetReload(env, tenantId, nowSeconds);
         return;
       }
       const results = await deliverWidgetReloads(env, deliveryTargets);
@@ -469,7 +529,7 @@ async function deliverOrEnqueueWidgetReloads(
         results,
       );
       if (hasRetryableFailure(results) || deliveryTargets.length < candidates.length) {
-        await enqueuePendingWidgetReload(env, tenantId);
+        await enqueuePendingWidgetReload(env, tenantId, nowSeconds);
       } else if (pending) {
         await deletePendingWidgetReload(env, pending);
       }
