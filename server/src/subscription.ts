@@ -216,12 +216,32 @@ export async function verifyTransaction(
   // A signature only proves Apple signed it — not that it was signed for us.
   // Without this check, any Apple-signed transaction from any app on the store
   // would entitle a tenant here.
-  if (expectedBundleId && bundleId !== expectedBundleId) {
+  //
+  // Written as `if (expected && mismatch)`, an unset APNS_BUNDLE_ID did not
+  // fail the check, it removed it. Subscriptions and APNs are configured
+  // independently, so a deployment can plausibly turn SUBSCRIPTIONS_ENABLED on
+  // before the bundle id is set — and in that window every transaction on the
+  // App Store was ours. A security check with nothing to check against has to
+  // close, the way a weak SESSION_SECRET closes web sign-in.
+  if (!expectedBundleId) {
+    // Named in the log, generic to the caller — the same split the admin and
+    // sign-in config errors make. Which secret is unset is the operator's to
+    // know, and the caller here can be any credential with `read`.
+    console.warn("subscription.not_verifiable", { missing: "APNS_BUNDLE_ID" });
+    throw new SubscriptionRejected("this deployment cannot verify transactions");
+  }
+  if (bundleId !== expectedBundleId) {
     throw new SubscriptionRejected("transaction is for a different app");
   }
 
   const productId = requireString(payload, "productId");
   const allowed = configuredProductIds(env);
+  // Unlike the bundle id above, an empty list here is deliberately permissive
+  // rather than closed. By this point the transaction is known to be for this
+  // app, so the worst an unlisted product can do is entitle on another of our
+  // own in-app purchases — and a non-subscription one carries no expiresDate,
+  // which evaluateSubscription reads as expired. Failing closed would instead
+  // strand a deployment that sells a single product and never listed it.
   if (allowed.length > 0 && !allowed.includes(productId)) {
     throw new SubscriptionRejected("transaction is for an unrecognised product");
   }

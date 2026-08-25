@@ -140,6 +140,33 @@ describe("POST /v1/subscription/verify", () => {
     expect((await res.json() as any).error).toMatch(/different app/);
   });
 
+  it("rejects every transaction when there is no bundle id to check against", async () => {
+    // The check used to read `if (expected && mismatch)`, so an unset bundle
+    // id did not fail it, it removed it — and every transaction on the App
+    // Store verified. Subscriptions and APNs are configured independently, so
+    // this is a state a real deployment can be in.
+    const env = subscriptionEnv({ APNS_BUNDLE_ID: undefined });
+
+    const res = await verify(env, [await signedTransaction({ bundleId: "com.someone.else" })]);
+
+    expect(res.status).toBe(400);
+    const error = (await res.json() as any).error as string;
+    expect(error).toMatch(/cannot verify transactions/);
+    // Which variable is unset goes to the log, not to the caller.
+    expect(error).not.toMatch(/APNS_BUNDLE_ID/);
+  });
+
+  it("rejects our own app's transaction too when the bundle id is unset", async () => {
+    // Failing closed means closed: it does not quietly keep working for the
+    // transactions that would have passed anyway.
+    const env = subscriptionEnv({ APNS_BUNDLE_ID: undefined });
+
+    const res = await verify(env, [await signedTransaction({})]);
+
+    expect(res.status).toBe(400);
+    expect((await res.json() as any).error).toMatch(/cannot verify transactions/);
+  });
+
   it("rejects a product this deployment does not sell", async () => {
     const env = subscriptionEnv();
 
@@ -147,6 +174,17 @@ describe("POST /v1/subscription/verify", () => {
 
     expect(res.status).toBe(400);
     expect((await res.json() as any).error).toMatch(/unrecognised product/);
+  });
+
+  it("accepts any of our own products when none are listed", async () => {
+    // Deliberately permissive, unlike the bundle id: the transaction is
+    // already known to be for this app, and a deployment selling one product
+    // that never listed it should not be stranded.
+    const env = subscriptionEnv({ SUBSCRIPTION_PRODUCT_IDS: undefined });
+
+    const res = await verify(env, [await signedTransaction({ productId: "com.example.other" })]);
+
+    expect(res.status).toBe(200);
   });
 
   it("rejects a sandbox transaction on a production deployment", async () => {
