@@ -851,8 +851,10 @@ export const WebhookIntegrationSchema = z.object({
 });
 
 // SSRF guard for tenant-supplied webhook URLs. The check is **hostname-based**:
-// it rejects literal private/loopback/link-local IPs (including IPv6 forms that
-// embed one, such as ::ffff:127.0.0.1) and the `localhost`/`.local` names, but
+// it rejects literal private, loopback, link-local, carrier-grade-NAT,
+// protocol-assignment, benchmarking, multicast and reserved addresses —
+// including the IPv6 forms that embed one, such as ::ffff:127.0.0.1 and the
+// NAT64 prefix — and the `localhost`/`.local` names, but
 // does not resolve DNS, so a public hostname that resolves to an
 // internal IP (or a DNS-rebind attack) will pass this filter. We rely on the
 // Cloudflare Workers runtime to gate the actual fetch — Workers have no
@@ -887,14 +889,21 @@ function isPrivateIpv4(host: string): boolean {
   return octets ? isPrivateIpv4Octets(octets) : false;
 }
 
-function isPrivateIpv4Octets([a, b]: number[]): boolean {
+/// Anything that is not a normal public destination. Broader than "private":
+/// the point is that a webhook may only be posted to somewhere on the public
+/// internet, so every reserved range is refused whether or not it is routable.
+function isPrivateIpv4Octets([a, b, c]: number[]): boolean {
   return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
+    a === 0 ||                            // "this network"
+    a === 10 ||                           // RFC 1918
+    a === 127 ||                          // loopback
+    (a === 100 && b >= 64 && b <= 127) || // RFC 6598 carrier-grade NAT
+    (a === 169 && b === 254) ||           // link-local, incl. cloud metadata
+    (a === 172 && b >= 16 && b <= 31) ||  // RFC 1918
+    (a === 192 && b === 0 && c === 0) ||  // RFC 6890 protocol assignments
+    (a === 192 && b === 168) ||           // RFC 1918
+    (a === 198 && b >= 18 && b <= 19) ||  // RFC 2544 benchmarking
+    a >= 224                              // multicast, reserved, and broadcast
   );
 }
 

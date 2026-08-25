@@ -112,6 +112,19 @@ describe("webhook integrations and actions", () => {
       "https://[::ffff:10.0.0.1]/actions",
       "https://[::127.0.0.1]/actions",
       "https://[64:ff9b::127.0.0.1]/actions",
+      // Reserved ranges that are not RFC 1918 but are equally not a public
+      // destination for a webhook.
+      "https://100.64.0.1/actions",      // RFC 6598 carrier-grade NAT
+      "https://100.127.255.255/actions",
+      "https://192.0.0.1/actions",       // RFC 6890 protocol assignments
+      "https://198.18.0.1/actions",      // RFC 2544 benchmarking
+      "https://198.19.255.255/actions",
+      "https://224.0.0.1/actions",       // multicast
+      "https://239.255.255.250/actions", // SSDP
+      "https://240.0.0.1/actions",       // reserved
+      "https://255.255.255.255/actions", // broadcast
+      "https://[::ffff:100.64.0.1]/actions",
+      "https://[64:ff9b::169.254.169.254]/actions",
     ]) {
       const res = await (handler.fetch as any)(
         authedRequest("https://x/v1/integrations/webhook", {
@@ -129,6 +142,13 @@ describe("webhook integrations and actions", () => {
     for (const url of [
       "https://hooks.example.com/actions",
       "https://8.8.8.8/actions",
+      // Adjacent to the new blocks on both sides, so the boundaries are pinned.
+      "https://100.63.255.255/actions",
+      "https://100.128.0.1/actions",
+      "https://192.0.1.1/actions",
+      "https://198.17.255.255/actions",
+      "https://198.20.0.1/actions",
+      "https://223.255.255.255/actions",
       "https://[2606:4700:4700::1111]/actions",
       "https://[::ffff:8.8.8.8]/actions",
       "https://[fe00::1]/actions",
