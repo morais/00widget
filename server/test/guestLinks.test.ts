@@ -3,7 +3,7 @@ import handler from "../src/index";
 import { makeEnv, authedRequest, seedApiKey, testApiKey } from "./helpers";
 import * as storage from "../src/storage";
 import { sha256Hex, ApiScopePresets } from "../src/auth";
-import { GuestLinkTtl } from "../src/types";
+import { DashboardCardInputSchema, GuestLinkTtl } from "../src/types";
 import { MAX_LIVE_GUEST_LINKS } from "../src/guestLinks";
 
 const ctx = {} as ExecutionContext;
@@ -453,5 +453,49 @@ describe("guest link browser page", () => {
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');
+  });
+
+  // The page's esc() is textContent round-tripped through innerHTML. That is
+  // correct for text and wrong for an attribute: HTML text-node serialization
+  // does not escape quotes, because a text node never needs them escaped.
+  describe("producer-supplied values never reach an attribute by concatenation", () => {
+    it("accepts a deepLink carrying a double quote, which is why this matters", () => {
+      // The input half of the defect. z.url() validates and returns the string
+      // it was given rather than a normalised form, so the raw quote survives
+      // into storage and out to every renderer.
+      const hostile = 'https://example.com/a" onmouseover="alert(1)';
+      const parsed = DashboardCardInputSchema.safeParse({
+        id: "hostile",
+        template: "list",
+        title: "Rooms",
+        items: [{ id: "r1", title: "Kitchen", deepLink: hostile }],
+      });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.items?.[0].deepLink).toBe(hostile);
+    });
+
+    it("builds the item anchor through the DOM, not by string concatenation", async () => {
+      const res = await fetch(new Request("https://x/app/g"), makeEnv());
+      const script = /<script>([\s\S]*?)<\/script>/.exec(await res.text())?.[1] ?? "";
+
+      // The href goes through setAttribute, which cannot be escaped out of.
+      expect(script).toContain("var link=function(href,text)");
+      expect(script).toContain("a.setAttribute('href',href)");
+      expect(script).toContain("link(i.deepLink,i.title)");
+
+      // And the general rule, which is what stops this coming back somewhere
+      // else: no esc() output may sit next to an attribute quote, in either
+      // order. esc() is the marker for "this value came from a producer", and
+      // an attribute is the one place its escaping is not sufficient.
+      //
+      // Deliberately not a ban on all attribute interpolation. The script
+      // builds SVG geometry that way throughout — widths, offsets, and class
+      // names looked up in the fixed PIP table — because the CSP forbids
+      // inline styles, so per-segment sizing has to be an attribute. Those
+      // values are computed numbers and fixed strings, never producer text.
+      expect(script).not.toMatch(/="'\s*\+\s*esc\(/);
+      expect(script).not.toMatch(/esc\([^)]*\)\s*\+\s*'"/);
+    });
   });
 });

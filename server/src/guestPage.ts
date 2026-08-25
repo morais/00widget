@@ -156,7 +156,26 @@ const GUEST_SCRIPT = `
       +'<rect class="track" x="0" y="0" width="100" height="10"/>'
       +'<rect class="fill '+cls+'" x="0" y="0" width="'+(f*100).toFixed(2)+'" height="10"/></svg>';
   };
+  // Text-node serialization escapes &, < and >, and NOT quotes — a text node
+  // never needs them escaped. Every use of esc() below is text context except
+  // the anchor's href, which is why that one is built through the DOM instead:
+  // see link() and the note above it.
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
+  // An item's deepLink is producer-supplied, and https is not the property that
+  // matters here — a URL may legitimately contain a double quote, and zod's
+  // z.url() stores what it was given rather than a normalised form. Built as an
+  // element and serialized, so the value goes through an attribute setter that
+  // cannot be escaped out of, rather than through string concatenation. The
+  // page's CSP would refuse an injected handler either way; this is what stops
+  // it being the only thing that does.
+  var link=function(href,text){
+    var a=document.createElement('a');
+    a.className='k';
+    a.setAttribute('href',href);
+    a.setAttribute('rel','noopener noreferrer');
+    a.textContent=text==null?'':String(text);
+    return a.outerHTML;
+  };
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
     if(r.status===401){throw new Error('This link has expired or been revoked.')}
@@ -177,10 +196,8 @@ const GUEST_SCRIPT = `
       var widest=0;
       (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
       (c.items||[]).forEach(function(i){
-        // Only https reaches here — the server refuses any other scheme on the
-        // way in — but the anchor is still built from escaped text.
         var label=i.deepLink
-          ? '<a class="k" href="'+esc(i.deepLink)+'" rel="noopener noreferrer">'+esc(i.title)+'</a>'
+          ? link(i.deepLink,i.title)
           : '<span class="k">'+esc(i.title)+'</span>';
         h+='<div class="row">'+label+'<span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
         // Ranked against the widest row, matching the app. Width has to be an
