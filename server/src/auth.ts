@@ -204,7 +204,7 @@ export async function requireAuth(
   };
 }
 
-/// One address, one tenant — see migrations/0030. Thrown rather than returned
+/// One address, one tenant — see migrations/0031. Thrown rather than returned
 /// because every caller was written for a create that cannot fail, and a
 /// silently-skipped insert is what this exists to stop.
 export class TenantEmailTakenError extends Error {
