@@ -310,10 +310,18 @@ async function enforceAppleCallbackRateLimit(req: Request, env: Env): Promise<Re
   );
 }
 
+/// Cloudflare sets `cf-connecting-ip` and a client cannot forge it.
+///
+/// There used to be an `x-forwarded-for` fallback, which is entirely
+/// caller-controlled: wherever it applied, the caller chose its own bucket, and
+/// the admin API-token login limit — the control SECURITY.md names as the
+/// mitigation for ADMIN_API_TOKEN_LOGIN — became no limit at all. Falling back
+/// to one shared "unknown" bucket instead means a deployment reached by
+/// something that does not set the header rate-limits everyone together, which
+/// is the safe direction to fail.
 function loginIpKey(req: Request): string {
   const cfIp = req.headers.get("cf-connecting-ip")?.trim();
-  const forwardedIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return `web-login:${cfIp || forwardedIp || "unknown"}`;
+  return `web-login:${cfIp || "unknown"}`;
 }
 
 class AuthFormError extends Error {

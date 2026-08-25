@@ -657,10 +657,11 @@ function isAllowedRedirectUri(value: string): boolean {
     && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
 }
 
+/// See the note on `loginIpKey` in webLogin.ts: only the header Cloudflare
+/// sets, never the one the caller sends.
 function clientIpKey(req: Request): string {
   const cfIp = req.headers.get("cf-connecting-ip")?.trim();
-  const forwardedIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return `mcp-oauth:${cfIp || forwardedIp || "unknown"}`;
+  return `mcp-oauth:${cfIp || "unknown"}`;
 }
 
 function formEntries(form: FormData): [string, string][] {

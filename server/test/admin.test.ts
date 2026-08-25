@@ -973,6 +973,34 @@ describe("admin routes (no Apple call required)", () => {
     expect(await storage.getCard(env, "tenant-a", awkward)).toBeNull();
   });
 
+  // Cloudflare sets cf-connecting-ip and a client cannot forge it. There used
+  // to be an x-forwarded-for fallback, which is entirely caller-controlled — so
+  // wherever it applied, the caller chose its own bucket and the 10/hour limit
+  // SECURITY.md names as the mitigation for ADMIN_API_TOKEN_LOGIN was no limit.
+  it("does not let a caller pick its own rate-limit bucket", async () => {
+    const env = adminEnv({ ADMIN_API_TOKEN_LOGIN: "true" });
+    const attempt = (forwardedFor: string) =>
+      (handler.fetch as any)(
+        new Request("https://x/login/api-token", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "x-forwarded-for": forwardedFor,
+          },
+          body: new URLSearchParams({ apiKey: "wrong-token" }).toString(),
+        }),
+        env,
+        ctx,
+      );
+
+    // No cf-connecting-ip, so every one of these shares the "unknown" bucket
+    // however many distinct addresses the caller claims. The limit is 10/hour.
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i++) statuses.push((await attempt(`10.0.0.${i}`)).status);
+
+    expect(statuses.filter((status) => status === 429).length).toBeGreaterThan(0);
+  });
+
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {
     const env = adminEnv();
     const { cookie, csrf } = await adminCookie(env);
