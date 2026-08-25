@@ -110,10 +110,13 @@ project should be aware:
   corresponds to no APNs key, Apple account, or deployed system. The real APNs
   `.p8` exists only as a Wrangler secret. The key is allowlisted in
   `.gitleaks.toml`; expect other scanners to report it anyway.
-- The webhook integration accepts only `https://` URLs and rejects literal
-  private/loopback/link-local IPs (see `isBlockedWebhookHostname` in
-  `server/src/types.ts`). The check is hostname-based by design; on
-  Cloudflare Workers the runtime has no private-network reachability.
+- The webhook integration accepts only `https://` URLs and rejects every
+  literal address that is not a public destination — loopback, RFC 1918,
+  link-local, carrier-grade NAT, protocol assignments, benchmarking, multicast
+  and reserved, plus the IPv6 forms that embed one (see
+  `isBlockedWebhookHostname` in `server/src/types.ts`). The check is
+  hostname-based by design and does not resolve DNS; on Cloudflare Workers the
+  runtime has no private-network reachability.
 
 ## Defensive properties this project tries to maintain
 
@@ -141,7 +144,15 @@ If you find a way to break any of these, please report it:
    bundle id, product list and environment.
 4. **CSRF protection.** Every state-changing admin endpoint requires a
    per-session CSRF token, validated in constant time, plus a same-origin
-   Origin/Referer check.
+   Origin/Referer check. The session cookie itself is HMAC-signed over a
+   purpose tag, as are the MCP client ids and authorization codes that share
+   the same secret, so no one of them can be presented where another is
+   expected.
+
+   An MCP authorization code is redeemable exactly once — redemption records
+   its `jti`, and a replay is refused — so one approval mints one credential.
+   Rate limits that key on the caller's address use the header Cloudflare sets,
+   never one the caller supplies.
 5. **No remote-controlled UI.** The server only sends structured state. The
    iOS app/widget renders it through predefined SwiftUI views. There is no
    server-pushed HTML, no JavaScript-on-device, no dynamic code loading.
