@@ -681,6 +681,21 @@ const TOOLS: McpTool[] = [
 // Converted once per isolate. `io: "input"` describes what a caller may send —
 // fields carrying a zod default are optional here even though they are always
 // present in the stored card.
+/// The strict form of every tool's output schema, keyed by tool name.
+///
+/// Exported for `test/mcp.test.ts` and for nothing else. What ships to clients
+/// is the open form (see `toolOutputSchema`), so the sweep cannot read
+/// strictness off `tools/list` any more — it would be comparing against a
+/// schema that permits everything and would pass a handler returning fields no
+/// schema declares, which is the exact drift it exists to catch.
+export const STRICT_TOOL_OUTPUT_SCHEMAS: Record<string, unknown> = Object.fromEntries(
+  TOOLS.map((tool) => {
+    const converted = z.toJSONSchema(tool.outputSchema, { io: "output" }) as Record<string, unknown>;
+    delete converted.$schema;
+    return [tool.name, converted];
+  }),
+);
+
 const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
   name: tool.name,
   title: tool.title,
@@ -711,10 +726,43 @@ function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
 /// `io: "output"` rather than "input": a field carrying a zod default is
 /// optional to send and always present in what comes back, and the two schemas
 /// have to say so differently.
+///
+/// Published open, at every level. `tools/list` is cacheable and clients cache
+/// it — this server advertises a one-hour TTL and `cacheScope: "public"` — so a
+/// client can hold yesterday's schema and validate today's response against it.
+/// With `additionalProperties: false`, which is what zod emits, every field
+/// added to a handler is a breaking change for the length of that cache: the
+/// client rejects the whole response and the tool goes dark.
+///
+/// Observed, not theorised. Adding two fields to `update_live_activity` and one
+/// to `get_status` took both tools down for a connector holding the previous
+/// tool list — "data must NOT have additional properties" — while the server's
+/// own schema and handler agreed perfectly.
+///
+/// The strictness is not lost, only moved: `test/mcp.test.ts` compares each
+/// handler's real response against the strict zod schema, which is the check
+/// that catches a field the schema forgot. What that check must not do is
+/// travel to clients, where it turns an additive change into an outage.
 function toolOutputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
   delete converted.$schema;
-  return converted;
+  return openObjects(converted);
+}
+
+/// Recursively allows unknown properties on every object in a JSON Schema.
+function openObjects(node: unknown): Record<string, unknown> {
+  if (!node || typeof node !== "object") return node as Record<string, unknown>;
+  if (Array.isArray(node)) {
+    return node.map(openObjects) as unknown as Record<string, unknown>;
+  }
+  const schema = { ...(node as Record<string, unknown>) };
+  if (schema.type === "object" && schema.additionalProperties === false) {
+    schema.additionalProperties = true;
+  }
+  for (const key of ["properties", "items", "anyOf", "allOf", "oneOf", "$defs"]) {
+    if (key in schema) schema[key] = openObjects(schema[key]);
+  }
+  return schema;
 }
 
 // ---------- Discovery for humans and non-ChatGPT clients ----------

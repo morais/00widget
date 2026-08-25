@@ -4,7 +4,7 @@ import * as storage from "../src/storage";
 import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY, testApiKey } from "./helpers";
 import { llmsMarkdown } from "../src/generated/llmsDoc";
-import { MAX_BATCH_LENGTH } from "../src/mcp";
+import { MAX_BATCH_LENGTH, STRICT_TOOL_OUTPUT_SCHEMAS } from "../src/mcp";
 
 const ctx = {} as ExecutionContext;
 
@@ -694,7 +694,27 @@ describe("tool output schemas match what the handlers return", () => {
       name: string;
       outputSchema?: JsonSchema;
     }>;
-    const schemas = new Map(tools.map((tool) => [tool.name, tool.outputSchema]));
+    // Deliberately NOT `tool.outputSchema` from tools/list. What ships is the
+    // open form — `additionalProperties: true` — so that an additive change
+    // does not break a client holding a cached tool list. Comparing against
+    // that would permit everything and pass a handler returning fields no
+    // schema declares, which is precisely the drift this sweep exists to
+    // catch. The strict form is exported for exactly this.
+    const schemas = new Map(
+      tools.map((tool) => [
+        tool.name,
+        STRICT_TOOL_OUTPUT_SCHEMAS[tool.name] as JsonSchema | undefined,
+      ]),
+    );
+
+    // The published contract has to stay open, or the next added field is an
+    // outage rather than a feature.
+    for (const tool of tools) {
+      expect(
+        (tool.outputSchema as JsonSchema | undefined)?.additionalProperties,
+        `${tool.name} publishes a closed output schema`,
+      ).not.toBe(false);
+    }
 
     const drifted: string[] = [];
     let exercised = 0;
