@@ -76,7 +76,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: iconName(attributes: context.attributes, state: context.state))
+                IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
                     .foregroundStyle(context.attributes.kind.tint)
             } compactTrailing: {
                 // The compact trailing region is a few points wide. Without a
@@ -107,15 +107,21 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             } minimal: {
-                if !context.state.activeItems.isEmpty {
-                    Image(systemName: iconName(attributes: context.attributes, state: context.state))
-                } else if let p = context.state.progress {
+                if context.state.activeItems.isEmpty, let p = context.state.progress {
+                    // The label sits inside the capacity ring rather than
+                    // filling the circle, so it gets less room than the bare
+                    // glyph beside it.
                     Gauge(value: max(0, min(p, 1))) {
-                        Image(systemName: iconName(attributes: context.attributes, state: context.state))
+                        IslandGlyph(
+                            systemName: islandIconName(attributes: context.attributes, state: context.state),
+                            size: 10
+                        )
                     }
                     .gaugeStyle(.accessoryCircularCapacity)
+                    .tint(context.attributes.kind.tint)
                 } else {
-                    Image(systemName: iconName(attributes: context.attributes, state: context.state))
+                    IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
+                        .foregroundStyle(context.attributes.kind.tint)
                 }
             }
             .widgetURL(tapURL(for: context.attributes))
@@ -149,6 +155,51 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
         case .job: return "hammer"
         case .timer: return "timer"
         }
+    }
+
+    /// The Dynamic Island's identity glyph. A producer's own icon still wins,
+    /// as it does everywhere else; only the fallback differs from the Lock
+    /// Screen's, because the island's regions are round and about 24pt across.
+    private func islandIconName(
+        attributes: ZeroZeroWidgetActivityAttributes,
+        state: ZeroZeroWidgetActivityAttributes.ContentState
+    ) -> String {
+        state.icon ?? attributes.icon ?? islandIconName(for: attributes.kind)
+    }
+
+    /// Fitting a symbol into the island's circle trades width for height, so a
+    /// wide default becomes a short one. `bolt.car` is nearly 2:1 and survives
+    /// that badly; the filled variants are chosen for weight rather than shape,
+    /// which is what keeps them legible once fitted. The three kinds not listed
+    /// are already square enough to use their Lock Screen glyph unchanged.
+    private func islandIconName(for kind: LiveActivityKind) -> String {
+        switch kind {
+        case .charging: return "bolt.fill"
+        case .job: return "hammer.fill"
+        case .progress: return "chart.bar.fill"
+        case .generic, .appliance, .timer: return iconName(for: kind)
+        }
+    }
+}
+
+/// A glyph for the compact and minimal Dynamic Island regions.
+///
+/// Those regions clip rather than shrink, and `minimumScaleFactor` is text
+/// only, so a symbol laid out at the inherited font size overruns them
+/// horizontally whenever it is wider than it is tall — which `hammer` is, and
+/// `bolt.car` badly is. Producers may send any symbol name they like, so the
+/// widest dimension is fitted into a square instead of trusting the symbol's
+/// aspect ratio. `.resizable()` costs the glyph its text-baseline alignment,
+/// which does not matter where it is the only thing in the region.
+private struct IslandGlyph: View {
+    let systemName: String
+    var size: CGFloat = 16
+
+    var body: some View {
+        Image(systemName: systemName)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
     }
 }
 
