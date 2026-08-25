@@ -1,4 +1,4 @@
-import { b64url, b64urlDecodeToText, constantTimeEqual, hmacSha256Hex } from "./appleAuth";
+import { b64url, b64urlDecodeToText, constantTimeEqual, hmacSha256Hex, randomToken } from "./appleAuth";
 import { isSecureAdminSecret } from "./adminSecurity";
 import { ApiScopePresets, canonicalScope, createApiKey, type ApiScope } from "./auth";
 import { baseHTML, esc, htmlResponse } from "./html";
@@ -24,18 +24,25 @@ import { FieldLimits, type Env } from "./types";
 // producer scope preset, which means `requireAuth` needs no MCP special case
 // and the admin dashboard lists and revokes these credentials for free.
 //
-// Nothing here is persisted. Registered clients and authorization codes are
-// self-contained values signed with SESSION_SECRET:
+// Registered clients and authorization codes are self-contained values signed
+// with SESSION_SECRET rather than rows:
 //
 //   client_id  zwc_<b64url(JSON)>.<hmac>   redirect URIs + display name
-//   code       <b64url(JSON)>.<hmac>       client, tenant, redirect, PKCE
+//   code       <b64url(JSON)>.<hmac>       jti, client, tenant, redirect, PKCE
 //
 // D1 bills index maintenance as rows written at 1000x the cost of rows read
-// (see AGENTS.md), and an OAuth code table is pure write traffic that must then
-// be swept. Signing sidesteps the table, the migration, and the sweep. The
-// tradeoff is that a code cannot be marked used, so single-use rests on its
-// 60-second lifetime plus PKCE: redeeming one needs the `code_verifier`, which
-// never leaves the client that generated it. A code alone is inert.
+// (see AGENTS.md), and *issuing* is pure write traffic: a code is minted on
+// every authorize, and nothing needs to remember one that is never redeemed.
+// Signing sidesteps a table, a migration and a sweep for all of that.
+//
+// Redeeming is the exception, and `mcp_authorization_codes` is the one thing
+// here that is stored. A signed value cannot be marked used, so single-use once
+// rested on the 60-second lifetime plus PKCE — which makes a code inert to
+// anyone without the verifier, and does nothing about the client that holds it.
+// Every redemption calls `createApiKey`, so a retrying client silently
+// accumulated 90-day publisher credentials on the operator's account. One row
+// per successful exchange buys the property the signature cannot; the volume is
+// already capped by `mcpTokenIpHour`.
 
 const AUTHORIZE_PATH = "/connect/mcp/authorize";
 const TOKEN_PATH = "/oauth/token";
@@ -66,6 +73,9 @@ interface RegisteredClient {
 }
 
 interface AuthorizationCode {
+  /// Unique id for this code, recorded on redemption so it cannot be redeemed
+  /// twice. The one property a signed, storage-free value cannot carry.
+  jti: string;
   /// Client id the code was issued to.
   cid: string;
   /// Tenant the operator picked on the consent screen.
@@ -264,6 +274,7 @@ export async function handleAuthorizeDecision(req: Request, env: Env): Promise<R
   }
 
   const code = await signCode(env, {
+    jti: randomToken(18),
     cid: request.clientId,
     tid: identity.tenantId,
     ru: request.redirectUri,
@@ -379,6 +390,13 @@ export async function handleToken(req: Request, env: Env): Promise<Response> {
   if (!constantTimeEqual(await pkceChallenge(verifier), code.cc)) {
     return oauthError("invalid_grant", "code_verifier does not match code_challenge");
   }
+  // Last, and only once everything else about the code has checked out: a
+  // failed exchange must not burn a code the legitimate client is still going
+  // to present. Claiming is the same act as checking, so a concurrent retry
+  // cannot have both requests find the code unused.
+  if (!(await claimAuthorizationCode(env, code))) {
+    return oauthError("invalid_grant", "authorization code has already been redeemed");
+  }
 
   const client = await verifyClient(env, code.cid);
   let created: Awaited<ReturnType<typeof createApiKey>>;
@@ -465,6 +483,47 @@ async function verifyCode(env: Env, raw: string): Promise<AuthorizationCode | nu
   if (parsed.exp * 1000 <= Date.now()) return null;
   if (!Array.isArray(parsed.sc)) return null;
   return parsed;
+}
+
+/// Records this code as redeemed, or reports that it already was.
+///
+/// `INSERT OR IGNORE` on the primary key makes the check and the claim one
+/// statement, so two simultaneous exchanges cannot both find it unused. A code
+/// with no `jti` is one issued before this existed: those are accepted, because
+/// they expire 60 seconds after they were minted and refusing them would break
+/// an exchange already in flight during a deploy.
+async function claimAuthorizationCode(env: Env, code: AuthorizationCode): Promise<boolean> {
+  if (typeof code.jti !== "string" || !code.jti) return true;
+  const result = await env.ZW_DB.prepare(
+    `INSERT OR IGNORE INTO mcp_authorization_codes (jti, redeemed_at, expires_at)
+     VALUES (?, ?, ?)`,
+  )
+    .bind(code.jti, new Date().toISOString(), code.exp)
+    .run();
+  const claimed = (result.meta as { changes?: number } | undefined)?.changes !== 0;
+  // Opportunistic and bounded, in the manner of the guest-credential prune.
+  // A code lives 60 seconds, so this table is only ever a few rows deep and
+  // there is no cron trigger to spare for it.
+  if (claimed) await sweepRedeemedAuthorizationCodes(env);
+  return claimed;
+}
+
+/// Drops rows whose codes can no longer be presented. Failure is swallowed:
+/// housekeeping must never fail a token exchange that has already succeeded.
+async function sweepRedeemedAuthorizationCodes(env: Env): Promise<void> {
+  try {
+    await env.ZW_DB.prepare(
+      `DELETE FROM mcp_authorization_codes WHERE rowid IN (
+         SELECT rowid FROM mcp_authorization_codes WHERE expires_at < ? LIMIT 100
+       )`,
+    )
+      .bind(Math.floor(Date.now() / 1000))
+      .run();
+  } catch (err) {
+    console.warn("mcp_authorization_code.sweep_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 async function pkceChallenge(verifier: string): Promise<string> {

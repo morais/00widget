@@ -415,6 +415,89 @@ describe("authorization", () => {
 });
 
 describe("token exchange", () => {
+  // A signed code cannot be marked used, so single-use once rested on the
+  // 60-second lifetime plus PKCE. That makes a code inert to anyone without the
+  // verifier and does nothing about the client that holds it — and every
+  // redemption calls createApiKey.
+  it("mints exactly one credential per authorization code", async () => {
+    const env = oauthEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env)).json()) as { client_id: string }).client_id;
+    const code = new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
+    const exchangeOnce = () => exchange(env, {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+    });
+
+    const first = await exchangeOnce();
+    expect(first.status).toBe(200);
+
+    const second = await exchangeOnce();
+    expect(second.status).toBe(400);
+    const body = (await second.json()) as { error: string; error_description: string };
+    expect(body.error).toBe("invalid_grant");
+    expect(body.error_description).toMatch(/already been redeemed/);
+  });
+
+  it("does not burn a code on an exchange that fails for another reason", async () => {
+    // The claim is the last check, so a client that fumbles the verifier — or
+    // races itself with a stale redirect_uri — can still complete the flow it
+    // is in the middle of.
+    const env = oauthEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env)).json()) as { client_id: string }).client_id;
+    const code = new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
+
+    const wrongVerifier = await exchange(env, {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: "not-the-verifier-that-was-committed-to-at-authorize-time",
+    });
+    expect(wrongVerifier.status).toBe(400);
+
+    const retry = await exchange(env, {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+    });
+    expect(retry.status).toBe(200);
+  });
+
+  it("gives every authorization code a distinct id", async () => {
+    // Two codes for the same client and tenant must not collide, or approving
+    // a second connector would look like a replay of the first.
+    const env = oauthEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env)).json()) as { client_id: string }).client_id;
+    const codeOf = async () =>
+      new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
+
+    const [a, b] = [await codeOf(), await codeOf()];
+    const jti = (code: string) =>
+      JSON.parse(Buffer.from(code.split(".")[0], "base64url").toString()).jti as string;
+
+    expect(jti(a)).not.toBe(jti(b));
+    expect(jti(a)).toBeTruthy();
+
+    for (const code of [a, b]) {
+      const res = await exchange(env, {
+        grant_type: "authorization_code",
+        code,
+        client_id: clientId,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: VERIFIER,
+      });
+      expect(res.status).toBe(200);
+    }
+  });
+
   it("mints a working producer credential", async () => {
     const env = oauthEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");

@@ -70,6 +70,7 @@ export class FakeD1 {
   private widgetPushDeliveryDiagnostics = new Map<string, FakeApiKeyRow>();
   private subscriptions = new Map<string, FakeApiKeyRow>();
   private activityHistory = new Map<string, FakeApiKeyRow>();
+  private mcpAuthorizationCodes = new Map<string, FakeApiKeyRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -853,6 +854,31 @@ export class FakeD1 {
         updated_at: String(updated_at),
       });
       return 1;
+    }
+    // Mirrors claimAuthorizationCode in mcpOAuth.ts. INSERT OR IGNORE makes the
+    // check and the claim one statement, so `changes` is what says whether this
+    // caller won the race — modelled here as "was the key already present".
+    if (normalized === "INSERT OR IGNORE INTO mcp_authorization_codes (jti, redeemed_at, expires_at) VALUES (?, ?, ?)") {
+      const [jti, redeemed_at, expires_at] = values;
+      const key = String(jti);
+      if (this.mcpAuthorizationCodes.has(key)) return 0;
+      this.mcpAuthorizationCodes.set(key, {
+        jti: key,
+        redeemed_at: String(redeemed_at),
+        expires_at: Number(expires_at),
+      } as unknown as FakeApiKeyRow);
+      return 1;
+    }
+    if (normalized.startsWith("DELETE FROM mcp_authorization_codes WHERE rowid IN")) {
+      const [cutoff] = values;
+      let removed = 0;
+      for (const [key, row] of [...this.mcpAuthorizationCodes.entries()]) {
+        if (Number((row as any).expires_at) < Number(cutoff)) {
+          this.mcpAuthorizationCodes.delete(key);
+          removed++;
+        }
+      }
+      return removed;
     }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
   }
