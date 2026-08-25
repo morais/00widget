@@ -271,7 +271,14 @@ describe("POST /v1/apple/subscription-notifications", () => {
       signedTransactionInfo: await signedTransaction(input.transaction ?? {}),
     };
     if (input.renewalInfo) {
-      data.signedRenewalInfo = await signJws(chain, input.renewalInfo);
+      // Apple's JWSRenewalInfoDecodedPayload names the transaction it is about.
+      // Defaulted here so a test says only what it is varying; a test that is
+      // *about* the identity overrides it.
+      data.signedRenewalInfo = await signJws(chain, {
+        originalTransactionId:
+          input.transaction?.originalTransactionId ?? "original-1",
+        ...input.renewalInfo,
+      });
     }
     return signJws(chain, { notificationType: input.notificationType, data });
   }
@@ -404,6 +411,117 @@ describe("POST /v1/apple/subscription-notifications", () => {
     const body = await res.json() as any;
     expect(body.subscription.status).toBe("grace");
     expect(body.subscription.active).toBe(true);
+  });
+
+  // The two halves of a notification arrive in one body that anyone can
+  // compose — the endpoint is unauthenticated by necessity. A signature proves
+  // Apple signed each half, never that they are halves of the same thing.
+  describe("renewal info is bound to the transaction it arrives with", () => {
+    async function statusAfter(env: any): Promise<any> {
+      const res = await (handler.fetch as any)(
+        authedRequest("https://api.test/v1/subscription"),
+        env,
+        executionCtx,
+      );
+      return (await res.json() as any).subscription;
+    }
+
+    it("ignores a grace period signed for another transaction", async () => {
+      const env = subscriptionEnv({ SUBSCRIPTION_GRACE_DAYS: "0" });
+      await verify(env, [await signedTransaction({ signedDate: 1_000 })]);
+
+      // A real expired transaction, paired with renewal info Apple genuinely
+      // signed for a subscription the attacker owns. Before this was checked,
+      // its distant grace date held the victim's entitlement open.
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 2_000 },
+        renewalInfo: {
+          originalTransactionId: "somebody-elses",
+          autoRenewStatus: 1,
+          gracePeriodExpiresDate: Date.now() + 3650 * DAY_MS,
+        },
+      }));
+
+      expect((await statusAfter(env)).status).toBe("expired");
+      expect((await statusAfter(env)).active).toBe(false);
+    });
+
+    it("ignores renewal info that names no transaction at all", async () => {
+      const env = subscriptionEnv({ SUBSCRIPTION_GRACE_DAYS: "0" });
+      await verify(env, [await signedTransaction({ signedDate: 1_000 })]);
+
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 2_000 },
+        renewalInfo: {
+          originalTransactionId: undefined,
+          gracePeriodExpiresDate: Date.now() + 3650 * DAY_MS,
+        },
+      }));
+
+      expect((await statusAfter(env)).status).toBe("expired");
+    });
+
+    it("ignores renewal info signed for another app", async () => {
+      const env = subscriptionEnv({ SUBSCRIPTION_GRACE_DAYS: "0" });
+      await verify(env, [await signedTransaction({ signedDate: 1_000 })]);
+
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 2_000 },
+        renewalInfo: {
+          bundleId: "com.example.someone-elses-app",
+          gracePeriodExpiresDate: Date.now() + 3650 * DAY_MS,
+        },
+      }));
+
+      expect((await statusAfter(env)).status).toBe("expired");
+    });
+
+    it("ignores sandbox renewal info reaching a production deployment", async () => {
+      const env = subscriptionEnv({ SUBSCRIPTION_GRACE_DAYS: "0" });
+      await verify(env, [await signedTransaction({ signedDate: 1_000 })]);
+
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 2_000 },
+        renewalInfo: {
+          environment: "Sandbox",
+          gracePeriodExpiresDate: Date.now() + 3650 * DAY_MS,
+        },
+      }));
+
+      expect((await statusAfter(env)).status).toBe("expired");
+    });
+
+    it("does not let a replayed older notification rewind the grace date", async () => {
+      const env = subscriptionEnv({ SUBSCRIPTION_GRACE_DAYS: "0" });
+      await verify(env, [await signedTransaction({ signedDate: 1_000 })]);
+
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 5_000 },
+        renewalInfo: {
+          signedDate: 5_000,
+          autoRenewStatus: 1,
+          gracePeriodExpiresDate: Date.now() + 5 * DAY_MS,
+        },
+      }));
+      expect((await statusAfter(env)).status).toBe("grace");
+
+      // Apple does not guarantee ordering, and anyone can post an old body
+      // back. The stored state must not move backwards.
+      await notify(env, await signedNotification({
+        notificationType: "DID_FAIL_TO_RENEW",
+        transaction: { expiresDate: Date.now() - DAY_MS, signedDate: 2_000 },
+        renewalInfo: { signedDate: 2_000, autoRenewStatus: 0 },
+      }));
+
+      const after = await statusAfter(env);
+      expect(after.status).toBe("grace");
+      expect(after.autoRenew).toBe(true);
+    });
   });
 
   it("rejects a notification that is not signed by the trusted chain", async () => {

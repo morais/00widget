@@ -833,10 +833,19 @@ export class FakeD1 {
       this.subscriptions.set(original_transaction_id, { ...row, tenant_id, updated_at });
       return 1;
     }
-    if (normalized.startsWith("UPDATE subscriptions SET auto_renew = ?, grace_expires_at_ms = ?, updated_at = ? WHERE original_transaction_id = ?")) {
-      const [auto_renew, grace_expires_at_ms, updated_at, original_transaction_id] = values;
+    // Mirrors applyRenewalInfo's UPDATE, bind order and all:
+    //   auto_renew, grace_expires_at_ms, updated_at, original_transaction_id,
+    //   signed_date_ms
+    // The trailing `AND ? >= signed_date_ms` is the ordering guard, and it has
+    // to be modelled here or a replayed older notification passes the suite
+    // while D1 correctly refuses it. Matched on the whole statement rather than
+    // a prefix, so the next clause added to it fails loudly instead of being
+    // silently ignored the way this one was.
+    if (normalized === "UPDATE subscriptions SET auto_renew = ?, grace_expires_at_ms = ?, updated_at = ? WHERE original_transaction_id = ? AND ? >= signed_date_ms") {
+      const [auto_renew, grace_expires_at_ms, updated_at, original_transaction_id, signed_date_ms] = values;
       const row = this.subscriptions.get(String(original_transaction_id));
       if (!row) return 0;
+      if (Number(signed_date_ms) < Number(row.signed_date_ms ?? 0)) return 0;
       this.subscriptions.set(String(original_transaction_id), {
         ...row,
         auto_renew: Number(auto_renew),

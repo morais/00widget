@@ -548,7 +548,7 @@ export async function handleAppleNotification(req: Request, env: Env): Promise<R
     // No tenant: a notification proves a purchase changed, not who owns it. An
     // unclaimed row is adopted the next time that account's app verifies.
     await recordTransaction(env, transaction);
-    await applyRenewalInfo(env, payload, transaction.originalTransactionId, notificationType);
+    await applyRenewalInfo(env, payload, transaction, notificationType);
     return json({ ok: true, notificationType, applied: true });
   } catch (err) {
     if (err instanceof SubscriptionRejected) {
@@ -564,12 +564,23 @@ export async function handleAppleNotification(req: Request, env: Env): Promise<R
 
 /// Renewal info carries the two things a transaction does not: whether the
 /// subscription is set to renew, and Apple's own billing grace period.
+///
+/// A signature proves Apple signed this, not that Apple signed it *about the
+/// transaction it is paired with*. The two halves of a notification arrive in
+/// one body an anonymous caller composes, so they have to be checked to be
+/// halves of the same thing: renewal info legitimately signed for another app,
+/// another product, another environment or another subscriber is otherwise
+/// accepted as an authoritative statement about this one. That matters most
+/// for `gracePeriodExpiresDate`, which `evaluateSubscription` reads as a reason
+/// to keep an entitlement active — so pairing a real expired transaction with a
+/// borrowed renewal info carrying a distant grace date held one open forever.
 async function applyRenewalInfo(
   env: Env,
   payload: Record<string, unknown>,
-  originalTransactionId: string,
+  transaction: DecodedTransaction,
   notificationType: string,
 ): Promise<void> {
+  const originalTransactionId = transaction.originalTransactionId;
   const data = payload.data;
   const signedRenewalInfo =
     data && typeof data === "object" && typeof (data as Record<string, unknown>).signedRenewalInfo === "string"
@@ -588,16 +599,69 @@ async function applyRenewalInfo(
     return;
   }
 
+  const mismatch = renewalInfoMismatch(env, renewal, transaction);
+  if (mismatch) {
+    console.warn("apple_notification.renewal_info_mismatch", { notificationType, reason: mismatch });
+    return;
+  }
+
   const autoRenew = renewal.autoRenewStatus === 1 ? 1 : 0;
   const graceExpires = typeof renewal.gracePeriodExpiresDate === "number"
     ? renewal.gracePeriodExpiresDate
     : null;
 
+  // The same ordering guard `recordTransaction` carries, for the same reason:
+  // Apple does not guarantee notification ordering, and this endpoint is open,
+  // so a replayed old notification must not rewind auto_renew or the grace
+  // date. `signedDate` is the renewal info's own, not the transaction's.
+  const signedDate = optionalNumber(renewal, "signedDate") ?? transaction.signedDate ?? 0;
+
   await env.ZW_DB.prepare(
     `UPDATE subscriptions
      SET auto_renew = ?, grace_expires_at_ms = ?, updated_at = ?
-     WHERE original_transaction_id = ?`,
+     WHERE original_transaction_id = ? AND ? >= signed_date_ms`,
   )
-    .bind(autoRenew, graceExpires, new Date().toISOString(), originalTransactionId)
+    .bind(autoRenew, graceExpires, new Date().toISOString(), originalTransactionId, signedDate)
     .run();
+}
+
+/// Why this renewal info is not about this transaction, or null when it is.
+///
+/// The same three checks `verifyTransaction` makes, plus the identity that ties
+/// the two together. Each field is only checked when the payload carries it:
+/// Apple documents them all on JWSRenewalInfoDecodedPayload, but a field this
+/// server invents a requirement for is a field that breaks verification the day
+/// Apple stops sending it, and the identity check alone closes the swap.
+function renewalInfoMismatch(
+  env: Env,
+  renewal: Record<string, unknown>,
+  transaction: DecodedTransaction,
+): string | null {
+  const originalTransactionId = renewal.originalTransactionId;
+  if (typeof originalTransactionId !== "string" || !originalTransactionId.trim()) {
+    return "renewal info carries no originalTransactionId";
+  }
+  if (originalTransactionId.trim() !== transaction.originalTransactionId) {
+    return "renewal info is for a different transaction";
+  }
+
+  const expectedBundleId = (env.APNS_BUNDLE_ID ?? "").trim();
+  if (typeof renewal.bundleId === "string" && expectedBundleId
+      && renewal.bundleId !== expectedBundleId) {
+    return "renewal info is for a different app";
+  }
+
+  const allowed = configuredProductIds(env);
+  if (typeof renewal.productId === "string" && allowed.length > 0
+      && !allowed.includes(renewal.productId)) {
+    return "renewal info is for an unrecognised product";
+  }
+
+  const expectedEnvironment = (env.SUBSCRIPTION_ENVIRONMENT ?? "Production").trim();
+  if (typeof renewal.environment === "string"
+      && renewal.environment.toLowerCase() !== expectedEnvironment.toLowerCase()) {
+    return "renewal info is from a different environment";
+  }
+
+  return null;
 }
