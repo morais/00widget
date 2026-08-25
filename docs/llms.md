@@ -301,7 +301,7 @@ legend does not fit a small widget.
 
 ```json
 {
-  "points": "number[] (2-10 values, oldest first)",
+  "points": "number[] (2-60 values, oldest first)",
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
@@ -311,8 +311,18 @@ legend does not fit a small widget.
 
 Points are plotted evenly spaced in the order given — there are no timestamps,
 because a widget-sized plot has no room for an x axis. Send a fixed-length
-rolling window (the last 10 hours, days, builds) and say which in `subtitle`;
-that subtitle is the only axis label the card gets.
+rolling window (the last 24 hours, 30 days, 60 builds) and say which in
+`subtitle`; that subtitle is the only axis label the card gets.
+
+Send the resolution the data actually has, up to 60. The wide surfaces — medium
+and large widgets, the iPad and full-page families, the app, Apple TV, the Lock
+Screen Live Activity — draw every point. The narrow ones cannot fit 60 legibly,
+so they average the series into as many evenly spaced buckets as they have room
+for: 32 on a small widget, 24 on a Lock Screen accessory, 16-24 in a grid cell.
+The window and its direction are always what you sent; what a narrow surface
+gives up is amplitude, so a brief spike reads as a smaller bump there than on a
+large widget. If the peaks matter more than the resolution, publish fewer,
+already-aggregated points instead.
 
 Without `min`/`max` the plot scales to the series, so it always fills the card
 and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` —
@@ -385,7 +395,7 @@ Card field limits:
 | `deepLink` | HTTPS URL, 2048 chars |
 | `items` | 20 rows |
 | `progress` | number, 0.0–1.0 |
-| `chart.points` | 2–10 finite numbers |
+| `chart.points` | 2–60 finite numbers |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
 
@@ -429,7 +439,9 @@ Live Activity item limits match the corresponding top-level text limits: `id`
 chars, `value` 80
 chars, and `unit` 24 chars. Each item may also include `progress` (`0.0`–`1.0`)
 and `status`. Item ids must be unique within the activity. A `chart` on an activity costs roughly 100 bytes
-of that budget at ten points. ActivityKit limits
+of that budget at ten points, and 300-600 at sixty depending on how many
+decimals the numbers carry — round them before sending if the activity is
+otherwise full. ActivityKit limits
 the combined encoded static attributes and dynamic content state to 4 KiB;
 00Widget rejects a start or update that would exceed it.
 

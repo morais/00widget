@@ -521,6 +521,46 @@ describe("live activities", () => {
     });
   });
 
+  // The chart point limit and the 4 KB ActivityKit budget are set
+  // independently, so raising one has to be checked against the other: at the
+  // published maximum a chart is a few hundred bytes, which an ordinary
+  // activity has room for. It is only the already-maxed composite above that
+  // runs out, and it does so with or without a chart.
+  it("accepts a chart at the published point limit on a normal activity", async () => {
+    const env = makeEnv();
+    const response = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities/start", {
+        method: "POST",
+        body: JSON.stringify({
+          externalActivityId: "full-window",
+          kind: "job",
+          title: "Ingest backlog",
+          state: "draining",
+          subtitle: "Last 60 minutes",
+          value: "1,204",
+          unit: "rows",
+          chart: {
+            points: Array.from({ length: FieldLimits.chartPointCount }, (_, i) => 2000 - i * 13.5),
+            min: 0,
+            reference: 500,
+            style: "line",
+          },
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(response.status).toBe(200);
+
+    const list = await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const body = (await list.json()) as { activities: { chart?: { points: number[] } }[] };
+    expect(body.activities[0].chart?.points.length).toBe(FieldLimits.chartPointCount);
+  });
+
   it("carries a chart through start, update, and the stored session", async () => {
     const env = makeEnv();
     const start = await (handler.fetch as any)(

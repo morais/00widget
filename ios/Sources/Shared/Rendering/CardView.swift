@@ -194,7 +194,7 @@ public struct CardView: View {
                 listRows(max: 3)
             case .chart:
                 chartHeadline
-                sparkline(height: 30, lineWidth: 1.8)
+                sparkline(height: 30, lineWidth: 1.8, maxPoints: 32)
             case .history:
                 chartHeadline
                 statusStrip(limit: 10, height: 12)
@@ -524,8 +524,14 @@ public struct CardView: View {
             } else if card.template == .chart, let chart = card.chart, chart.isRenderable {
                 // The accessory families render monochrome, so the tint would
                 // be flattened anyway; an unfilled line stays legible.
-                SparklineView(chart: chart, tint: .primary, lineWidth: 1.5, showsArea: false)
-                    .frame(height: 14)
+                SparklineView(
+                    chart: chart,
+                    tint: .primary,
+                    lineWidth: 1.5,
+                    showsArea: false,
+                    maxPoints: 24
+                )
+                .frame(height: 14)
             } else if let subtitle = card.subtitle {
                 Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -874,11 +880,20 @@ public struct CardView: View {
     /// Nothing is drawn when the series is missing or too short to be a trend;
     /// the card's headline value carries it instead.
     @ViewBuilder
-    private func sparkline(height: CGFloat, lineWidth: CGFloat = 2) -> some View {
+    private func sparkline(
+        height: CGFloat,
+        lineWidth: CGFloat = 2,
+        maxPoints: Int? = nil
+    ) -> some View {
         if let chart = card.chart, chart.isRenderable {
-            SparklineView(chart: chart, tint: card.status.tint, lineWidth: lineWidth)
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
+            SparklineView(
+                chart: chart,
+                tint: card.status.tint,
+                lineWidth: lineWidth,
+                maxPoints: maxPoints
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
         }
     }
 
@@ -887,11 +902,20 @@ public struct CardView: View {
     /// mostly text, but a large widget is over twice the height of a medium one
     /// and a pinned plot leaves the bottom third of the card empty.
     @ViewBuilder
-    private func sparkline(minHeight: CGFloat, lineWidth: CGFloat = 2) -> some View {
+    private func sparkline(
+        minHeight: CGFloat,
+        lineWidth: CGFloat = 2,
+        maxPoints: Int? = nil
+    ) -> some View {
         if let chart = card.chart, chart.isRenderable {
-            SparklineView(chart: chart, tint: card.status.tint, lineWidth: lineWidth)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: minHeight, maxHeight: .infinity)
+            SparklineView(
+                chart: chart,
+                tint: card.status.tint,
+                lineWidth: lineWidth,
+                maxPoints: maxPoints
+            )
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: minHeight, maxHeight: .infinity)
         }
     }
 

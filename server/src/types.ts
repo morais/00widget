@@ -32,7 +32,7 @@ export const FieldLimits = {
   icon: 64,
   deepLink: 2048,
   itemCount: 20,
-  chartPointCount: 10,
+  chartPointCount: 60,
   actionCount: 8,
   actionLabel: 80,
   actionPayloadKeys: 16,
@@ -223,9 +223,12 @@ export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
 export const DashboardChartSchema = z
   .object({
     points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount).describe(
-      "2-10 values, oldest first, plotted evenly spaced. There are no "
+      "2-60 values, oldest first, plotted evenly spaced. There are no "
       + "timestamps: send a fixed rolling window and say which one in the "
-      + "card's `subtitle`, which is the only axis label the plot gets.",
+      + "card's `subtitle`, which is the only axis label the plot gets. The "
+      + "small surfaces — Lock Screen, small widget, grid cells — average a "
+      + "long series down to what they can draw, so the window you send is "
+      + "always the window shown; send the resolution the data actually has.",
     ),
     min: z.number().optional().describe(
       "Pins the bottom of the plot. Without a range the plot scales to the "

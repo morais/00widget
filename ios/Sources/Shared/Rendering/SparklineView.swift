@@ -12,30 +12,48 @@ public struct SparklineView: View {
     public let tint: Color
     public let lineWidth: CGFloat
     public let showsArea: Bool
+    /// How many points this surface has room to draw, or nil to draw the whole
+    /// series. A publisher may send up to `DashboardChart.publishedPointLimit`,
+    /// which the wide surfaces render in full and the narrow ones cannot: the
+    /// caller knows its own width, so the cap is set per call site the way
+    /// `lineWidth` already is.
+    public let maxPoints: Int?
 
     public init(
         chart: DashboardChart,
         tint: Color,
         lineWidth: CGFloat = 2,
-        showsArea: Bool = true
+        showsArea: Bool = true,
+        maxPoints: Int? = nil
     ) {
         self.chart = chart
         self.tint = tint
         self.lineWidth = lineWidth
         self.showsArea = showsArea
+        self.maxPoints = maxPoints
+    }
+
+    /// Every piece of drawn geometry reads from this one, never from `chart`.
+    /// The bounds of an unpinned axis are derived from the points themselves,
+    /// so mixing the two would put the reference rule and the zero line at
+    /// positions the plotted values were not scaled against.
+    private var plotted: DashboardChart {
+        guard let maxPoints else { return chart }
+        return chart.downsampled(toAtMost: maxPoints)
     }
 
     public var body: some View {
-        let values = chart.normalizedPoints
+        let plotted = self.plotted
+        let values = plotted.normalizedPoints
         ZStack {
-            if let reference = chart.normalizedReference {
+            if let reference = plotted.normalizedReference {
                 HorizontalRuleShape(position: reference)
                     .stroke(
                         .secondary,
                         style: StrokeStyle(lineWidth: 1, dash: [3, 3])
                     )
             }
-            switch chart.style {
+            switch plotted.style {
             case .line:
                 if showsArea {
                     SparklineAreaShape(values: values)
@@ -59,7 +77,7 @@ public struct SparklineView: View {
                 // Falling back to the bottom when a pinned axis excludes zero
                 // keeps the bars honest: they are then plain magnitudes, drawn
                 // without a zero rule that would not be where zero is.
-                let baseline = chart.normalizedZero
+                let baseline = plotted.normalizedZero
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .above)
                     .fill(tint.opacity(0.85))
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .below)
@@ -72,8 +90,12 @@ public struct SparklineView: View {
         }
         // A stroke is centred on the path, so the end points would be clipped
         // in half without room for it.
-        .padding(.vertical, chart.style == .line ? lineWidth / 2 : 0)
+        .padding(.vertical, plotted.style == .line ? lineWidth / 2 : 0)
         .accessibilityElement()
+        // Deliberately the full series, not the plotted one: the cap is a
+        // property of how much room this surface has, and VoiceOver has the
+        // same room everywhere. Someone listening should hear what was
+        // published.
         .accessibilityLabel(Text(chart.accessibilityDescription))
     }
 }

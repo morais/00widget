@@ -429,6 +429,13 @@ struct CardGridCell: View {
         var plotLineWidth: CGFloat { self == .roomy ? 1.8 : 1.4 }
         var barHeight: CGFloat { self == .roomy ? 10 : 8 }
         var historyLimit: Int { self == .roomy ? 10 : 7 }
+
+        /// A cell is the narrowest place a chart is drawn, and `.standard`
+        /// spans the widest range of them — two columns of a small widget in
+        /// detailed density are barely 65pt across, while four columns of an
+        /// iPad's extra-large canvas are nearer 170. The cap follows the
+        /// narrowest, because the same style has to hold up in both.
+        var plotPointLimit: Int { self == .roomy ? 24 : 16 }
     }
 
     /// The visual a cell can draw in the space between its title and its
@@ -501,8 +508,13 @@ struct CardGridCell: View {
     private func inlineVisualBody(_ visual: InlineVisual) -> some View {
         switch visual {
         case .plot(let chart):
-            SparklineView(chart: chart, tint: card.status.tint, lineWidth: style.plotLineWidth)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            SparklineView(
+                chart: chart,
+                tint: card.status.tint,
+                lineWidth: style.plotLineWidth,
+                maxPoints: style.plotPointLimit
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .history(let items):
             StatusStripView(items: items, limit: style.historyLimit, height: style.barHeight)
         case .breakdown(let items):

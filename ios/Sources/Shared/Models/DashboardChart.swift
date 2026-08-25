@@ -18,7 +18,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// What the server accepts from a publisher. Kept here as documentation
     /// rather than as a decoding limit — a longer series still draws, so a
     /// future server-side increase needs no app release.
-    public static let publishedPointLimit = 10
+    public static let publishedPointLimit = 60
 
     public var points: [Double]
     /// Pins the bottom of the plot. Nil scales to the series minimum.
@@ -60,6 +60,44 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// A single point is a dot, not a trend; the renderers fall back to the
     /// card's headline value instead of drawing one.
     public var isRenderable: Bool { points.count >= 2 }
+
+    /// The same series reduced to at most `maxPoints`, for a surface too narrow
+    /// to draw all of it — a 60-point series on the Lock Screen is 2.8pt per
+    /// point against a 1.5pt stroke, which is a band rather than a trend.
+    ///
+    /// Points are averaged into `maxPoints` equal-width buckets rather than
+    /// sampled. Both a stride and a shape-preserving pick (LTTB) were the
+    /// alternatives, and both misreport: a stride's output depends on which
+    /// phase it happens to land on, so a spike is drawn or lost depending on
+    /// where it sits, and LTTB keeps real points but at irregular indices,
+    /// which a renderer that spaces points evenly then draws at the wrong
+    /// place in the window. Averaging keeps the window, the spacing, and every
+    /// input point's contribution; what it gives up is amplitude, understating
+    /// a spike rather than moving or inventing one. That is the same call the
+    /// rest of this type makes — an out-of-range reference rule is dropped, not
+    /// clamped to an edge it does not sit on.
+    ///
+    /// The understatement is bounded by the published limit: at
+    /// `publishedPointLimit` into the narrowest cap the ratio is under 4:1, so
+    /// a bucket is a handful of adjacent readings, not a whole regime.
+    ///
+    /// `min`, `max`, `reference` and `style` carry over untouched — a bucket
+    /// mean lies between its inputs, so nothing that fitted a pinned axis
+    /// before can fall outside it now.
+    public func downsampled(toAtMost maxPoints: Int) -> DashboardChart {
+        guard maxPoints >= 2, points.count > maxPoints else { return self }
+        var reduced = self
+        reduced.points = (0..<maxPoints).map { bucket in
+            // Proportional boundaries, so a count that does not divide evenly
+            // spreads the remainder across the series instead of piling it
+            // into the last bucket.
+            let start = points.count * bucket / maxPoints
+            let end = Swift.max(start + 1, points.count * (bucket + 1) / maxPoints)
+            let slice = points[start..<end]
+            return slice.reduce(0, +) / Double(slice.count)
+        }
+        return reduced
+    }
 
     /// The plotted range. An unpinned edge stretches to include `reference`,
     /// because a target the plot cannot show is worse than no target at all,
