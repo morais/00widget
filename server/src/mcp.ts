@@ -681,6 +681,32 @@ const TOOLS: McpTool[] = [
 // Converted once per isolate. `io: "input"` describes what a caller may send —
 // fields carrying a zod default are optional here even though they are always
 // present in the stored card.
+/// Every bound a published output schema deliberately drops. Each one is a
+/// limit on data this API *reports*, and a client caches the schema it was
+/// given: when a limit later moves, the cached copy rejects a response that is
+/// perfectly valid, and the tool goes dark with no error on this side. That is
+/// how raising `chartPointCount` from 10 to 60 broke reads for connectors
+/// still holding `maxItems: 10` — the write path and the output schema moved
+/// together in this source and could not move together in someone's cache.
+///
+/// `type`, `required`, `enum` and the object structure stay: they say what the
+/// response *is*, which is what an output schema is for. These say how much of
+/// it there may be, which is the server's business and changes without notice.
+const OUTPUT_BOUND_KEYWORDS = [
+  "maxItems",
+  "minItems",
+  "maxLength",
+  "minLength",
+  "maximum",
+  "minimum",
+  "exclusiveMaximum",
+  "exclusiveMinimum",
+  "multipleOf",
+  "maxProperties",
+  "minProperties",
+  "pattern",
+] as const;
+
 /// The strict form of every tool's output schema, keyed by tool name.
 ///
 /// Exported for `test/mcp.test.ts` and for nothing else. What ships to clients
@@ -749,7 +775,9 @@ function toolOutputSchema(schema: z.ZodType): Record<string, unknown> {
   return openObjects(converted);
 }
 
-/// Recursively allows unknown properties on every object in a JSON Schema.
+/// Recursively allows unknown properties on every object in a JSON Schema and
+/// drops the size bounds above, so neither an added field nor a widened limit
+/// can turn into an outage for a client running on a cached `tools/list`.
 function openObjects(node: unknown): Record<string, unknown> {
   if (!node || typeof node !== "object") return node as Record<string, unknown>;
   if (Array.isArray(node)) {
@@ -759,8 +787,25 @@ function openObjects(node: unknown): Record<string, unknown> {
   if (schema.type === "object" && schema.additionalProperties === false) {
     schema.additionalProperties = true;
   }
-  for (const key of ["properties", "items", "anyOf", "allOf", "oneOf", "$defs"]) {
-    if (key in schema) schema[key] = openObjects(schema[key]);
+  for (const keyword of OUTPUT_BOUND_KEYWORDS) delete schema[keyword];
+  // `properties` and `$defs` are *dictionaries of* subschemas, not subschemas.
+  // Recursing into one as though it were a schema looks for a member named
+  // "properties" inside the dictionary, does not find one, and stops — which
+  // is why this used to open only the root object and left every nested card
+  // and activity closed.
+  for (const key of ["properties", "$defs", "definitions", "patternProperties"]) {
+    const dictionary = schema[key];
+    if (!dictionary || typeof dictionary !== "object" || Array.isArray(dictionary)) continue;
+    schema[key] = Object.fromEntries(
+      Object.entries(dictionary as Record<string, unknown>)
+        .map(([name, child]) => [name, openObjects(child)]),
+    );
+  }
+  // These hold a subschema directly, or an array of them.
+  for (const key of ["items", "prefixItems", "anyOf", "allOf", "oneOf", "not"]) {
+    if (key in schema && schema[key] && typeof schema[key] === "object") {
+      schema[key] = openObjects(schema[key]);
+    }
   }
   return schema;
 }

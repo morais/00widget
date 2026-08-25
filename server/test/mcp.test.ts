@@ -619,6 +619,24 @@ describe("tool input schemas", () => {
 });
 
 // `structuredContent` is the route's own JSON, passed through untouched — no
+/// Mirrors `OUTPUT_BOUND_KEYWORDS` in `src/mcp.ts`. Spelled out again rather
+/// than imported, so that deleting it there fails this test instead of
+/// silently agreeing with it.
+const OUTPUT_BOUNDS = new Set([
+  "maxItems",
+  "minItems",
+  "maxLength",
+  "minLength",
+  "maximum",
+  "minimum",
+  "exclusiveMaximum",
+  "exclusiveMinimum",
+  "multipleOf",
+  "maxProperties",
+  "minProperties",
+  "pattern",
+]);
+
 // layer filters it against `outputSchema`. Zod converts a plain object to JSON
 // Schema with `additionalProperties: false`, so a strict client rejects the
 // whole response over one field the schema forgot to mention, and the tool
@@ -708,13 +726,44 @@ describe("tool output schemas match what the handlers return", () => {
     );
 
     // The published contract has to stay open, or the next added field is an
-    // outage rather than a feature.
-    for (const tool of tools) {
-      expect(
-        (tool.outputSchema as JsonSchema | undefined)?.additionalProperties,
-        `${tool.name} publishes a closed output schema`,
-      ).not.toBe(false);
-    }
+    // outage rather than a feature. Checked at every depth, not just the root:
+    // asserting only the root is what let the traversal in `openObjects` stop
+    // at the first level for a while, leaving every nested card and activity
+    // closed while this test stayed green.
+    const closed: string[] = [];
+    const findClosed = (node: unknown, path: string): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach((child, i) => findClosed(child, `${path}[${i}]`));
+        return;
+      }
+      const schema = node as JsonSchema & Record<string, unknown>;
+      if (schema.type === "object" && schema.additionalProperties === false) closed.push(path);
+      for (const [key, value] of Object.entries(schema)) findClosed(value, `${path}.${key}`);
+    };
+    for (const tool of tools) findClosed(tool.outputSchema, tool.name);
+    expect(closed, "published output schemas are closed somewhere").toEqual([]);
+
+    // Same rule for size bounds, which fail the same way one keyword over: a
+    // client caches `tools/list`, so a `maxItems` that was true when it
+    // connected rejects a longer array afterwards and the tool goes dark with
+    // a 200 in our metrics. Raising the chart point limit from 10 to 60 is the
+    // change that proved it. Bounds belong to the request, which is validated
+    // here, not to the response, which is merely described.
+    const bounded: string[] = [];
+    const findBounds = (node: unknown, path: string): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach((child, i) => findBounds(child, `${path}[${i}]`));
+        return;
+      }
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        if (OUTPUT_BOUNDS.has(key)) bounded.push(`${path}.${key}`);
+        else findBounds(value, `${path}.${key}`);
+      }
+    };
+    for (const tool of tools) findBounds(tool.outputSchema, tool.name);
+    expect(bounded, "published output schemas carry size bounds").toEqual([]);
 
     const drifted: string[] = [];
     let exercised = 0;

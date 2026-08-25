@@ -789,9 +789,9 @@ public struct CardView: View {
         action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
     }
 
-    /// Value plus subtitle above a plot. The subtitle carries what the missing
-    /// axis labels would have said ("last 10 days"), so it stays on chart cards
-    /// even where `summary` drops it for space.
+    /// Value plus subtitle above a plot. A plot this size carries no axis
+    /// labels at all, so whatever context the card has is in its subtitle —
+    /// which is why this keeps it even where `summary` drops it for space.
     private var chartHeadline: some View {
         VStack(alignment: .leading, spacing: 2) {
             bigValue

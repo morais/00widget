@@ -311,8 +311,7 @@ legend does not fit a small widget.
 
 Points are plotted evenly spaced in the order given — there are no timestamps,
 because a widget-sized plot has no room for an x axis. Send a fixed-length
-rolling window (the last 24 hours, 30 days, 60 builds) and say which in
-`subtitle`; that subtitle is the only axis label the card gets.
+rolling window (the last 24 hours, 30 days, 60 builds), oldest first.
 
 Send the resolution the data actually has, up to 60. The wide surfaces — medium
 and large widgets, the iPad and full-page families, the app, Apple TV, the Lock
@@ -1532,7 +1531,7 @@ struct WidgetClient {
 - **Don't** name cards to control their order — `a-solar`, `b-washer`. Ids are the dedupe key; set `priority` instead.
 - **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it.
 - **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
-- **Don't** send a `chart` series longer than 10 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
+- **Don't** send a `chart` series longer than 60 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
 - **Don't** start a Live Activity without ending it. Always send `/v1/live-activities/end` when the work is done.
 - **Don't** put a counter, a countdown, or any other moving value in a Live Activity `title`. iOS freezes the title (along with `kind` and `deepLink`) when the activity starts, and no update can change it. Use `value`, `progress`, `subtitle`, `items`, or `endsAt`.
