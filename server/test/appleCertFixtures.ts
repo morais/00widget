@@ -134,9 +134,56 @@ export interface MintOptions {
   notAfter?: Date;
   serial?: number;
   curve?: TestCurve;
+  /// Emits basicConstraints. Omitted, no extension is written at all, which
+  /// RFC 5280 reads as cA=FALSE — the shape of an end-entity certificate.
+  ca?: boolean;
+  /// basicConstraints pathLenConstraint. Only meaningful alongside `ca: true`.
+  pathLen?: number;
+  /// Emits keyUsage. `true` asserts keyCertSign, `false` asserts a usage that
+  /// pointedly is not keyCertSign (digitalSignature), which is how a real
+  /// end-entity certificate says it may not issue.
+  keyCertSign?: boolean;
 }
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+const OID_BASIC_CONSTRAINTS = "2.5.29.19";
+const OID_KEY_USAGE = "2.5.29.15";
+
+function derBoolean(value: boolean): Uint8Array {
+  return der(0x01, new Uint8Array([value ? 0xff : 0x00]));
+}
+
+/// Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE,
+///                          extnValue OCTET STRING }
+/// Both extensions written here are critical, as a real CA writes them.
+function derExtension(oid: string, value: Uint8Array): Uint8Array {
+  return derSequence(derOid(oid), derBoolean(true), der(0x04, value));
+}
+
+/// The extensions block, or undefined when the caller asked for neither — so a
+/// certificate minted without them keeps exactly the bytes it had before.
+function derExtensions(options: MintOptions): Uint8Array | undefined {
+  const extensions: Uint8Array[] = [];
+  if (options.ca !== undefined) {
+    extensions.push(derExtension(
+      OID_BASIC_CONSTRAINTS,
+      derSequence(
+        ...(options.ca ? [derBoolean(true)] : []),
+        ...(options.pathLen !== undefined ? [derInteger(options.pathLen)] : []),
+      ),
+    ));
+  }
+  if (options.keyCertSign !== undefined) {
+    // KeyUsage BIT STRING: keyCertSign is bit 5, digitalSignature is bit 0.
+    // One content byte plus the leading unused-bit count — six bits used for
+    // keyCertSign, one for digitalSignature.
+    const bits = options.keyCertSign ? 0x04 : 0x80;
+    const unused = options.keyCertSign ? 2 : 7;
+    extensions.push(derExtension(OID_KEY_USAGE, der(0x03, new Uint8Array([unused, bits]))));
+  }
+  return extensions.length > 0 ? derSequence(...extensions) : undefined;
+}
 
 export async function mintCertificate(options: MintOptions): Promise<TestCertificate> {
   const curve = options.curve ?? "P-256";
@@ -157,6 +204,7 @@ export async function mintCertificate(options: MintOptions): Promise<TestCertifi
   // it — a P-256 leaf under a P-384 CA is signed with SHA-384.
   const signingAlgorithm = CURVES[options.issuer?.curve ?? curve];
 
+  const extensions = derExtensions(options);
   const tbs = derSequence(
     // [0] EXPLICIT version, v3.
     der(0xa0, derInteger(2)),
@@ -166,6 +214,8 @@ export async function mintCertificate(options: MintOptions): Promise<TestCertifi
     derSequence(derUtcTime(notBefore), derUtcTime(notAfter)),
     derName(options.commonName),
     spki,
+    // [3] EXPLICIT extensions, last in tbsCertificate.
+    ...(extensions ? [der(0xa3, extensions)] : []),
   );
 
   // A self-signed certificate signs itself; anything else is signed by its
@@ -193,22 +243,36 @@ export interface TestChain {
 }
 
 export async function mintChain(
-  overrides: { leaf?: Partial<MintOptions>; caCurve?: TestCurve } = {},
+  overrides: {
+    leaf?: Partial<MintOptions>;
+    intermediate?: Partial<MintOptions>;
+    caCurve?: TestCurve;
+  } = {},
 ): Promise<TestChain> {
   const caCurve = overrides.caCurve ?? "P-256";
-  const root = await mintCertificate({ commonName: "Test Root CA", curve: caCurve });
+  const root = await mintCertificate({
+    commonName: "Test Root CA",
+    curve: caCurve,
+    ca: true,
+    keyCertSign: true,
+  });
   const intermediate = await mintCertificate({
     commonName: "Test Intermediate CA",
     issuer: root,
     issuerCommonName: "Test Root CA",
     serial: 2,
     curve: caCurve,
+    ca: true,
+    keyCertSign: true,
+    ...overrides.intermediate,
   });
   const leaf = await mintCertificate({
     commonName: "Test Leaf",
     issuer: intermediate,
     issuerCommonName: "Test Intermediate CA",
     serial: 3,
+    ca: false,
+    keyCertSign: false,
     ...overrides.leaf,
   });
   return {

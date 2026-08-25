@@ -192,3 +192,148 @@ describe("the pinned Apple root", () => {
     );
   });
 });
+
+// The check that turns a set of signatures into a chain. Without it, any
+// end-entity certificate under the pinned root works as an intermediate — and
+// Apple issues those to every Developer Program member, so the trust anchor
+// stops meaning anything.
+describe("issuer authority", () => {
+  /// The attack, in full: a certificate the attacker owns, certified by an
+  /// ordinary end-entity leaf that legitimately chains to the trusted root.
+  async function forgeUnderEndEntity(chain: Awaited<ReturnType<typeof mintChain>>) {
+    const forged = await mintCertificate({
+      commonName: "Forged Receipt Signer",
+      issuer: chain.leaf,
+      issuerCommonName: "Test Leaf",
+      serial: 99,
+    });
+    const header = toBase64Url(JSON.stringify({
+      alg: "ES256",
+      x5c: [toBase64(forged.der), chain.leaf.base64, chain.intermediate.base64, chain.root.base64],
+    }));
+    const payload = toBase64Url(JSON.stringify({ bundleId: "com.example.app" }));
+    const signature = new Uint8Array(await crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" },
+      forged.keyPair.privateKey,
+      new TextEncoder().encode(`${header}.${payload}`),
+    ));
+    return `${header}.${payload}.${toBase64Url(signature)}`;
+  }
+
+  it("rejects a leaf certified by another leaf", async () => {
+    const chain = await mintChain();
+    const jws = await forgeUnderEndEntity(chain);
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[1\] is not a CA certificate/);
+  });
+
+  it("rejects an intermediate whose basicConstraints says cA is false", async () => {
+    const chain = await mintChain({ intermediate: { ca: false } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[1\] is not a CA certificate/);
+  });
+
+  it("rejects an intermediate with no basicConstraints at all", async () => {
+    // RFC 5280: an absent extension means cA is false. Reading a missing
+    // extension as permission is the same bug in a quieter form.
+    const chain = await mintChain({ intermediate: { ca: undefined, keyCertSign: undefined } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[1\] is not a CA certificate/);
+  });
+
+  it("rejects a CA whose keyUsage does not assert keyCertSign", async () => {
+    const chain = await mintChain({ intermediate: { ca: true, keyCertSign: false } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[1\] does not assert keyCertSign/);
+  });
+
+  it("accepts a CA that omits keyUsage entirely", async () => {
+    // Optional in RFC 5280, and absent is "unconstrained" rather than "denied".
+    const chain = await mintChain({ intermediate: { ca: true, keyCertSign: undefined } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    const payload = await verifyAppleJws(jws, { trustedRootDer: chain.root.der });
+
+    expect(payload.bundleId).toBe("com.example.app");
+  });
+
+  it("accepts a leaf that omits basicConstraints, as a real one may", async () => {
+    const chain = await mintChain({ leaf: { ca: undefined, keyCertSign: undefined } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    const payload = await verifyAppleJws(jws, { trustedRootDer: chain.root.der });
+
+    expect(payload.bundleId).toBe("com.example.app");
+  });
+
+  it("rejects a leaf that is itself a CA", async () => {
+    const chain = await mintChain({ leaf: { ca: true, keyCertSign: true } });
+    const jws = await signJws(chain, { bundleId: "com.example.app" });
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[0\] is a CA certificate, not a leaf/);
+  });
+
+  it("honours pathLenConstraint on an intermediate", async () => {
+    // pathLen 0 permits no intermediate below this one, so a four-element
+    // chain that puts a CA underneath it is out of bounds even when every
+    // certificate in it is a CA.
+    const chain = await mintChain({ intermediate: { pathLen: 0 } });
+    const subCa = await mintCertificate({
+      commonName: "Test Sub CA",
+      issuer: chain.intermediate,
+      issuerCommonName: "Test Intermediate CA",
+      serial: 4,
+      ca: true,
+      keyCertSign: true,
+    });
+    const leaf = await mintCertificate({
+      commonName: "Test Leaf",
+      issuer: subCa,
+      issuerCommonName: "Test Sub CA",
+      serial: 5,
+      ca: false,
+    });
+    const spliced = {
+      ...chain,
+      leaf,
+      x5c: [leaf.base64, subCa.base64, chain.intermediate.base64, chain.root.base64],
+    };
+    const jws = await signJws(spliced, { bundleId: "com.example.app" });
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c\[2\] exceeds its pathLenConstraint/);
+  });
+
+  it("rejects a chain longer than Apple sends, before verifying any of it", async () => {
+    const chain = await mintChain();
+    const jws = await signJws(
+      { ...chain, x5c: [...chain.x5c, chain.root.base64, chain.root.base64] },
+      { bundleId: "com.example.app" },
+    );
+
+    await expect(
+      verifyAppleJws(jws, { trustedRootDer: chain.root.der }),
+    ).rejects.toThrow(/x5c chain is too long/);
+  });
+});
+
+function toBase64Url(value: string | Uint8Array): string {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}

@@ -26,6 +26,10 @@ export interface AppleJwsVerifyOptions {
   now?: Date;
 }
 
+/// Apple's own chain is three long. The cap is on the parsing and verification
+/// an anonymous caller can make this Worker do, not on Apple.
+const MAX_X5C_CHAIN_LENGTH = 4;
+
 export class AppleJwsError extends Error {
   constructor(message: string) {
     super(message);
@@ -50,6 +54,12 @@ export async function verifyAppleJws(
   const x5c = header.x5c;
   if (!Array.isArray(x5c) || x5c.length < 2 || x5c.some((entry) => typeof entry !== "string")) {
     throw new AppleJwsError("JWS header has no usable x5c chain");
+  }
+  // Apple sends three: leaf, WWDR intermediate, root. One spare, and no more —
+  // every extra element is a certificate parse and an ECDSA verification that
+  // an unauthenticated caller can ask for on the notification endpoint.
+  if (x5c.length > MAX_X5C_CHAIN_LENGTH) {
+    throw new AppleJwsError("x5c chain is too long");
   }
 
   const chain = (x5c as string[]).map((entry, index) => {
@@ -119,6 +129,42 @@ async function verifyChain(
     if (now < certificate.notBefore || now > certificate.notAfter) {
       throw new AppleJwsError(`x5c[${index}] is outside its validity period`);
     }
+  }
+
+  // Signature linkage alone does not make a chain. Without asking whether each
+  // issuer is *allowed* to issue, any end-entity certificate under the pinned
+  // root works as an intermediate — and Apple hands those to every Developer
+  // Program member. An attacker signs a certificate for their own key with the
+  // one they legitimately hold and presents
+  //
+  //   [ forged leaf, their real leaf, WWDR intermediate, Apple Root CA - G3 ]
+  //
+  // which terminates at the pinned root and verifies link by link. That forges
+  // any transaction or notification payload, for any bundle id.
+  //
+  // The trust anchor is deliberately exempt: it is trusted because its bytes
+  // were pinned by configuration, which is a stronger statement than anything
+  // its own extensions could make (RFC 5280 §6.1 treats it the same way).
+  // Everything between it and the leaf has to prove it may sign.
+  for (let index = 1; index < chain.length - 1; index++) {
+    const issuer = chain[index];
+    if (!issuer.isCa) {
+      throw new AppleJwsError(`x5c[${index}] is not a CA certificate`);
+    }
+    // pathLenConstraint caps how many intermediates may appear *below* this
+    // one, which here is everything from index 1 up to but excluding it.
+    if (issuer.pathLenConstraint !== undefined && issuer.pathLenConstraint < index - 1) {
+      throw new AppleJwsError(`x5c[${index}] exceeds its pathLenConstraint`);
+    }
+    // keyUsage is optional; where it is asserted it is binding.
+    if (issuer.keyCertSign === false) {
+      throw new AppleJwsError(`x5c[${index}] does not assert keyCertSign`);
+    }
+  }
+  // A CA presenting itself as the signer of a JWS is not the shape Apple issues
+  // and not one this verifier should invent a meaning for.
+  if (chain[0].isCa) {
+    throw new AppleJwsError("x5c[0] is a CA certificate, not a leaf");
   }
 
   // Each certificate is signed by the next one along. The root signs itself and
@@ -218,11 +264,23 @@ function readDerChildren(content: Uint8Array): DerElement[] {
 }
 
 const DER_SEQUENCE = 0x30;
+const DER_BOOLEAN = 0x01;
+const DER_INTEGER = 0x02;
 const DER_BIT_STRING = 0x03;
+const DER_OCTET_STRING = 0x04;
 const DER_OID = 0x06;
 const DER_UTC_TIME = 0x17;
 const DER_GENERALIZED_TIME = 0x18;
 const DER_CONTEXT_0 = 0xa0;
+/// tbsCertificate's `[3] EXPLICIT Extensions OPTIONAL`.
+const DER_CONTEXT_3 = 0xa3;
+
+const OID_BASIC_CONSTRAINTS = "2.5.29.19";
+const OID_KEY_USAGE = "2.5.29.15";
+
+/// keyCertSign is bit 5 of the KeyUsage BIT STRING, counted from the most
+/// significant bit of the first content byte.
+const KEY_USAGE_KEY_CERT_SIGN = 0x04;
 
 /// The curves WebCrypto names, and the byte width of one half of an ECDSA
 /// signature on each. Anything outside this table is refused rather than
@@ -257,6 +315,13 @@ interface ParsedCertificate {
   componentLength: number;
   notBefore: Date;
   notAfter: Date;
+  /// basicConstraints cA. Absent extension means false, per RFC 5280.
+  isCa: boolean;
+  /// basicConstraints pathLenConstraint, when the certificate states one.
+  pathLenConstraint?: number;
+  /// keyUsage keyCertSign, or undefined when the extension is absent — which
+  /// RFC 5280 reads as "unconstrained", not as "denied".
+  keyCertSign?: boolean;
 }
 
 function parseCertificate(der: Uint8Array): ParsedCertificate {
@@ -292,6 +357,13 @@ function parseCertificate(der: Uint8Array): ParsedCertificate {
   const [notBefore, notAfter] = readDerChildren(validity.content);
   if (!notBefore || !notAfter) throw new Error("validity is malformed");
 
+  // What follows subjectPublicKeyInfo is optional and sparse: issuerUniqueID
+  // [1], subjectUniqueID [2], extensions [3]. Found by tag rather than by
+  // position, because any of them may be missing.
+  const extensions = parseExtensions(
+    tbsChildren.slice(index + 1).find((child) => child.tag === DER_CONTEXT_3),
+  );
+
   // SubjectPublicKeyInfo ::= SEQUENCE { algorithm AlgorithmIdentifier, ... },
   // where an EC AlgorithmIdentifier is SEQUENCE { id-ecPublicKey, namedCurve }.
   const spkiAlgorithm = readDerChildren(subjectPublicKeyInfo.content)[0];
@@ -310,7 +382,79 @@ function parseCertificate(der: Uint8Array): ParsedCertificate {
     componentLength: named.componentLength,
     notBefore: parseDerTime(notBefore),
     notAfter: parseDerTime(notAfter),
+    ...extensions,
   };
+}
+
+interface CertificateExtensions {
+  isCa: boolean;
+  pathLenConstraint?: number;
+  keyCertSign?: boolean;
+}
+
+/// The two extensions that decide whether a certificate may issue another.
+///
+/// Everything else in the extension list is skipped, including unrecognised
+/// critical extensions: this is not a general-purpose path validator, and the
+/// chain it validates is one Apple issues and a pinned root anchors.
+function parseExtensions(container: DerElement | undefined): CertificateExtensions {
+  const result: CertificateExtensions = { isCa: false };
+  if (!container) return result;
+
+  // [3] EXPLICIT wraps a single SEQUENCE OF Extension.
+  const [list] = readDerChildren(container.content);
+  if (!list || list.tag !== DER_SEQUENCE) return result;
+
+  for (const extension of readDerChildren(list.content)) {
+    if (extension.tag !== DER_SEQUENCE) continue;
+    const fields = readDerChildren(extension.content);
+    const oidElement = fields[0];
+    if (!oidElement || oidElement.tag !== DER_OID) continue;
+    const oid = readOid(oidElement);
+    if (oid !== OID_BASIC_CONSTRAINTS && oid !== OID_KEY_USAGE) continue;
+
+    // `critical` is a DEFAULT FALSE BOOLEAN that may or may not be encoded, so
+    // the OCTET STRING is found by tag rather than at a fixed offset.
+    const value = fields.find((field) => field.tag === DER_OCTET_STRING);
+    if (!value) continue;
+
+    if (oid === OID_BASIC_CONSTRAINTS) {
+      const [inner] = readDerChildren(value.content);
+      if (!inner || inner.tag !== DER_SEQUENCE) continue;
+      for (const field of readDerChildren(inner.content)) {
+        // BasicConstraints ::= SEQUENCE { cA BOOLEAN DEFAULT FALSE,
+        //                                 pathLenConstraint INTEGER OPTIONAL }
+        // Both are optional, so each is read by its tag.
+        if (field.tag === DER_BOOLEAN) {
+          result.isCa = field.content.some((byte) => byte !== 0);
+        } else if (field.tag === DER_INTEGER) {
+          result.pathLenConstraint = readSmallInteger(field.content);
+        }
+      }
+    } else {
+      // extnValue is an OCTET STRING wrapping the extension's own DER, so the
+      // BIT STRING is one level in — the same unwrap basicConstraints needs.
+      const [inner] = readDerChildren(value.content);
+      if (!inner || inner.tag !== DER_BIT_STRING) continue;
+      // First content byte counts unused trailing bits; an empty bit string
+      // asserts nothing at all.
+      const bits = inner.content.subarray(1);
+      result.keyCertSign = bits.length > 0 && (bits[0] & KEY_USAGE_KEY_CERT_SIGN) !== 0;
+    }
+  }
+  return result;
+}
+
+/// A non-negative DER INTEGER small enough to be a pathLenConstraint. Anything
+/// larger is treated as no constraint rather than silently truncated.
+function readSmallInteger(content: Uint8Array): number | undefined {
+  let start = 0;
+  while (start < content.length - 1 && content[start] === 0) start++;
+  const trimmed = content.subarray(start);
+  if (trimmed.length === 0 || trimmed.length > 4 || (trimmed[0] & 0x80) !== 0) return undefined;
+  let value = 0;
+  for (const byte of trimmed) value = value * 256 + byte;
+  return value;
 }
 
 /// An OBJECT IDENTIFIER as its dotted decimal form.
