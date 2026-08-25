@@ -146,6 +146,8 @@ export function enc(s: string): string {
   return encodeURIComponent(s);
 }
 
-export function dec(s: string): string {
-  return decodeURIComponent(s);
-}
+// No `dec` counterpart to `enc`. Route captures are decoded once by
+// `pathParam` in index.ts, which swallows a malformed escape rather than
+// throwing; a second decode here corrupted ids containing a literal `%` and
+// turned one into a 500. Anything that needs a decoded path segment already
+// has one by the time a handler sees it.

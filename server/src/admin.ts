@@ -8,7 +8,7 @@ import {
   type ApiScope,
   type TenantRecord,
 } from "./auth";
-import { baseHTML, dec, enc, esc, htmlResponse, renderError } from "./html";
+import { baseHTML, enc, esc, htmlResponse, renderError } from "./html";
 import {
   adminAccessConfigured,
   adminEmails,
@@ -120,41 +120,38 @@ export async function handleAdminRevokeApiKey(
 export async function handleAdminDeleteCard(
   req: Request,
   env: Env,
-  tenantIdRaw: string,
-  cardIdRaw: string,
+  tenantId: string,
+  cardId: string,
   ctx: ExecutionContext,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const tenantId = dec(tenantIdRaw);
-  await deleteCardForTenant(env, tenantId, dec(cardIdRaw), ctx);
+  await deleteCardForTenant(env, tenantId, cardId, ctx);
   return redirectToTenant(tenantId);
 }
 
 export async function handleAdminDeleteWidgetToken(
   req: Request,
   env: Env,
-  tenantIdRaw: string,
-  deviceIdRaw: string,
-  widgetKindRaw: string,
+  tenantId: string,
+  deviceId: string,
+  widgetKind: string,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const tenantId = dec(tenantIdRaw);
-  await storage.deleteWidgetToken(env, tenantId, dec(deviceIdRaw), dec(widgetKindRaw));
+  await storage.deleteWidgetToken(env, tenantId, deviceId, widgetKind);
   return redirectToTenant(tenantId);
 }
 
 export async function handleAdminDeleteLiveActivity(
   req: Request,
   env: Env,
-  tenantIdRaw: string,
-  externalActivityIdRaw: string,
+  tenantId: string,
+  externalActivityId: string,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const tenantId = dec(tenantIdRaw);
-  await endAndDeleteActivity(env, tenantId, dec(externalActivityIdRaw), {}, {
+  await endAndDeleteActivity(env, tenantId, externalActivityId, {}, {
     deleteOnDeliveryFailure: true,
   });
   return redirectToTenant(tenantId);
@@ -163,16 +160,15 @@ export async function handleAdminDeleteLiveActivity(
 export async function handleAdminDeletePendingLiveActivity(
   req: Request,
   env: Env,
-  tenantIdRaw: string,
-  externalActivityIdRaw: string,
+  tenantId: string,
+  externalActivityId: string,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const tenantId = dec(tenantIdRaw);
   const instance = await storage.getActivityInstanceByOwnerExternal(
     env,
     tenantId,
-    dec(externalActivityIdRaw),
+    externalActivityId,
   );
   if (instance) await storage.deleteActivityInstance(env, instance.activityInstanceId);
   return redirectToTenant(tenantId);
@@ -181,14 +177,13 @@ export async function handleAdminDeletePendingLiveActivity(
 export async function handleAdminDeleteStartToken(
   req: Request,
   env: Env,
-  tenantIdRaw: string,
-  deviceIdRaw: string,
-  attributesTypeRaw: string,
+  tenantId: string,
+  deviceId: string,
+  attributesType: string,
 ): Promise<Response> {
   const session = await requireAdminMutationSession(req, env);
   if (session instanceof Response) return session;
-  const tenantId = dec(tenantIdRaw);
-  await storage.deleteStartToken(env, tenantId, dec(deviceIdRaw), dec(attributesTypeRaw));
+  await storage.deleteStartToken(env, tenantId, deviceId, attributesType);
   return redirectToTenant(tenantId);
 }
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
+import * as storage from "../src/storage";
 import { randomToken, __resetAppleJwksCache } from "../src/appleAuth";
 import {
   adminAccessConfigured,
@@ -932,6 +933,44 @@ describe("admin routes (no Apple call required)", () => {
     expect(afterHtml).not.toContain("activity-a");
     expect(afterHtml).not.toContain("pending-a");
     expect(afterHtml).not.toContain("ZeroZeroWidgetActivityAttributes");
+  });
+
+  // index.ts decodes every route capture through pathParam(); the admin
+  // handlers then decoded again. A card id containing a literal % survived the
+  // first decode and threw URIError on the second, which the router turned into
+  // a 500 — so the one row an administrator most wanted to remove was the one
+  // the dashboard could not remove. Stored ids keep the older permissive shape
+  // deliberately, which is exactly where such an id lives.
+  it("deletes a card whose id contains characters that need escaping", async () => {
+    const env = adminEnv();
+    const awkward = "legacy 100%";
+    await storage.putCard(env, "tenant-a", "hash-a", {
+      id: awkward,
+      template: "summary",
+      title: "Awkward id",
+      status: "good",
+    });
+
+    const { cookie, csrf } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request(
+        `https://x/admin/tenants/tenant-a/cards/${encodeURIComponent(awkward)}/delete`,
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "https://x",
+          },
+          body: new URLSearchParams({ csrf }).toString(),
+        },
+      ),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(302);
+    expect(await storage.getCard(env, "tenant-a", awkward)).toBeNull();
   });
 
   it("/admin/api-keys/:id/revoke revokes a generated token", async () => {

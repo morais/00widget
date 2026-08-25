@@ -247,7 +247,12 @@ function withRateLimitHeaders(response: Response, auth: import("./auth").AuthCon
   return response;
 }
 
-/// A captured path segment, decoded. Route patterns capture the raw text, so
+/// A captured path segment, decoded. Every route hands its captures through
+/// here, `/admin/*` included — a handler receives a decoded value and must not
+/// decode again, which is what corrupted ids containing a literal `%` and made
+/// one 500 on the URIError.
+///
+/// Route patterns capture the raw text, so
 /// an id carrying anything that needs escaping used to be looked up in its
 /// still-encoded form and never found: `GET /v1/cards/my%20card` searched for
 /// the literal `my%20card`. A malformed escape is passed through rather than
