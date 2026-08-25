@@ -9,7 +9,7 @@ import { getAppleAccount, getTenantByOwnerEmail, putAppleAccount } from "./ident
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
-import { FieldLimits, RequestBodyLimits, type Env } from "./types";
+import { FieldLimits, RequestBodyLimits, isValidEmail, type Env } from "./types";
 
 // Caller-supplied nonce — bounded length, anything else lets the client be
 // the source of truth on encoding (hex, base64url, UUID, etc.).
@@ -95,6 +95,14 @@ export async function createTokenFromApple(
   }
   if (email && !isAppleEmailVerified(claims.email_verified)) {
     return json({ error: "Apple email is not verified" }, 403);
+  }
+  // Apple is not expected to assert a malformed address, and this costs
+  // nothing to be sure of. The claim becomes a tenant's owner_email, which
+  // joins later sign-ins to this account and is interpolated into RFC 5322
+  // headers by the signup alert — a control character in it would be a header
+  // injection, and it is not this module's job to trust an upstream for that.
+  if (email && !isValidEmail(email)) {
+    return json({ error: "Apple returned an email this server cannot accept" }, 403);
   }
   const existingTenant = existingAccount
     ? null

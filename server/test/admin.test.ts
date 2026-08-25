@@ -494,6 +494,40 @@ describe("admin routes (no Apple call required)", () => {
     expect(await dashRes.text()).toContain("via API token");
   });
 
+  // An owner email is not just a label: it decides which Apple identity can
+  // later claim the tenant, and it is interpolated into the signup alert's
+  // RFC 5322 headers. The form declares type="email" and the JSON path
+  // declared nothing, so this was the first unvalidated hop.
+  it("/admin/api-keys refuses an owner email that is not one", async () => {
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const crlf = String.fromCharCode(13, 10);
+
+    for (const ownerEmail of [
+      "not-an-email",
+      `victim@example.com${crlf}Bcc: attacker@example.com`,
+      `victim@example.com${String.fromCharCode(10)}Subject: spoofed`,
+    ]) {
+      const res = await (handler.fetch as any)(
+        new Request("https://x/admin/api-keys", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            "x-csrf-token": csrf,
+            cookie,
+          },
+          body: JSON.stringify({ ownerEmail, label: "x" }),
+        }),
+        env,
+        ctx,
+      );
+
+      expect(res.status, ownerEmail).toBe(400);
+      expect(((await res.json()) as { error: string }).error).toMatch(/valid email/);
+    }
+  });
+
   it("/admin/api-keys creates a tenant token and returns the raw token once", async () => {
     const env = adminEnv();
     const { cookie, csrf } = await adminCookie(env);

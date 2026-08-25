@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import { isValidEmail, type Env } from "./types";
 import { adminApiTokensAreSecure, configuredAdminApiTokens } from "./adminSecurity";
 
 export interface AuthContext {
@@ -249,6 +249,7 @@ export function isValidApiKey(env: Env, provided: string): boolean {
 export async function createTenantForOwner(env: Env, ownerEmail: string): Promise<TenantRecord> {
   const email = normalizeEmail(ownerEmail);
   if (!email) throw new Error("ownerEmail is required");
+  if (!isValidEmail(email)) throw new Error("ownerEmail must be a valid email address");
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   await env.ZW_DB.prepare(
@@ -277,9 +278,16 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
           disabled_at: string | null;
         }>()
     : null;
-  const ownerEmail = normalizeEmail(existingTenant?.owner_email) || normalizeEmail(input.ownerEmail);
+  const storedEmail = normalizeEmail(existingTenant?.owner_email);
+  const ownerEmail = storedEmail || normalizeEmail(input.ownerEmail);
   if (!ownerEmail) {
     throw new Error("ownerEmail is required");
+  }
+  // Only what the caller supplied. A stored address is account history and may
+  // predate this rule; refusing to mint a credential for an existing tenant
+  // because of how its email was once written would be the wrong trade.
+  if (!storedEmail && !isValidEmail(ownerEmail)) {
+    throw new Error("ownerEmail must be a valid email address");
   }
   const label = input.label?.trim() || "default";
   const kind = input.kind ?? "publisher";

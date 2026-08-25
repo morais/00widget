@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import { isValidEmail, type Env } from "./types";
 import {
   ApiScopePresets,
   createApiKey,
@@ -44,6 +44,19 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
   }
   if (!wantsJson(req) && !input.tenantId && !input.ownerEmail) {
     return htmlResponse(renderError("Select a tenant before creating an API token."), 400);
+  }
+  // The form declares type="email" and the JSON path declares nothing, so this
+  // is the first place the value is actually checked. An owner email decides
+  // which Apple identity can later claim the tenant, so a malformed one is a
+  // security decision made by typo — and it reaches the signup alert's headers.
+  if (input.ownerEmail && !isValidEmail(input.ownerEmail)) {
+    const message = "Owner email must be a valid email address.";
+    return wantsJson(req)
+      ? new Response(JSON.stringify({ error: message }), {
+          status: 400,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        })
+      : htmlResponse(renderError(message), 400);
   }
 
   let created: Awaited<ReturnType<typeof createApiKey>>;

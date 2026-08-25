@@ -1,4 +1,4 @@
-import type { Env } from "./types";
+import { isValidEmail, type Env } from "./types";
 import {
   buildAuthorizeURL,
   isAppleEmailVerified,
@@ -156,6 +156,12 @@ export async function handleAppleCallback(req: Request, env: Env): Promise<Respo
   }
   if (!isAppleEmailVerified(claims.email_verified)) {
     return htmlResponse(renderError("Apple email is not verified."), 403);
+  }
+  // Same check the app login makes, for the same reason: this becomes a
+  // tenant's owner_email, which joins later sign-ins and reaches the signup
+  // alert's mail headers.
+  if (!isValidEmail(claims.email)) {
+    return htmlResponse(renderError("Apple returned an email this server cannot accept."), 403);
   }
 
   const email = claims.email.trim().toLowerCase();

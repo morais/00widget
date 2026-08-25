@@ -35,7 +35,12 @@ export async function sendNewTenantAlert(env: Env, alert: NewTenantAlert): Promi
     // Node, where a top-level import would fail the entire file on load.
     const { EmailMessage } = await import("cloudflare:email");
 
-    const subject = `00Widget: new tenant ${alert.ownerEmail}`;
+    // Defence at the sink as well as the boundary. Every path that writes an
+    // owner_email now validates it, but this function hand-assembles a
+    // CRLF-delimited message, and a header built from a value that turns out to
+    // carry a newline is an injected Bcc. Rejecting at the boundary is the real
+    // control; this is what makes the sink safe regardless of what reaches it.
+    const subject = headerSafe(`00Widget: new tenant ${alert.ownerEmail}`);
     const body = [
       "A new tenant was created through Sign in with Apple.",
       "",
@@ -48,8 +53,8 @@ export async function sendNewTenantAlert(env: Env, alert: NewTenantAlert): Promi
     ].join("\n");
 
     const raw = [
-      `From: 00Widget <${from}>`,
-      `To: ${to}`,
+      `From: 00Widget <${headerSafe(from)}>`,
+      `To: ${headerSafe(to)}`,
       `Subject: ${subject}`,
       `Date: ${new Date().toUTCString()}`,
       `Message-ID: <${crypto.randomUUID()}@00widget.com>`,
@@ -69,4 +74,11 @@ export async function sendNewTenantAlert(env: Env, alert: NewTenantAlert): Promi
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+/// Strips anything that would end a header line. C0 controls and DEL have no
+/// legitimate place in an address or a subject, so removing them cannot damage
+/// a real value.
+function headerSafe(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/g, "");
 }

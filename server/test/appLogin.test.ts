@@ -221,6 +221,39 @@ describe("app Apple login", () => {
     expect(body.tenant.ownerEmail).toBe("test-tenant@example.com");
   });
 
+  // Apple is not expected to assert an address like this, and the claim becomes
+  // a tenant's owner_email — which joins later sign-ins to the account and is
+  // interpolated into the signup alert's RFC 5322 headers.
+  it("rejects an Apple email carrying a newline", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: clientId,
+      email: `customer@example.com${String.fromCharCode(13, 10)}Bcc: attacker@example.com`,
+      emailVerified: true,
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+
+    const res = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identityToken: token, nonce: TEST_RAW_NONCE }),
+      }),
+      makeEnv({
+        APPLE_APP_LOGIN_ENABLED: "true",
+        APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+      }),
+      ctx,
+    );
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("cannot accept");
+  });
+
   it("rejects Apple tokens with unverified email", async () => {
     const clientId = "com.example.zerozerowidget";
     const { token, jwk } = await makeAppleIdToken({

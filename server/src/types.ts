@@ -293,6 +293,19 @@ const PublicHttpsUrl = z
     message: "must be a public https URL",
   });
 
+/// An address this server will accept from a caller or from an identity
+/// provider, as opposed to one already stored.
+///
+/// Worth having in one place because an owner email is not only displayed: it
+/// joins an Apple sign-in to a tenant, and it is interpolated into RFC 5322
+/// headers by the signup alert. Anything carrying a control character is a
+/// header injection waiting for a deployment that has mail configured.
+export const EmailString = z.email().max(FieldLimits.email);
+
+export function isValidEmail(value: string | null | undefined): boolean {
+  return EmailString.safeParse(value ?? "").success;
+}
+
 export const SharedByInfoSchema = z.object({
   ownerEmail: z.string().max(FieldLimits.email),
   shareId: z.string().max(FieldLimits.id),
