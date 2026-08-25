@@ -4,12 +4,13 @@ import { listTenantRateLimitBuckets, tenantKey } from "./rateLimit";
 import { isSharingEnabled } from "./shares";
 import { mcpConfigured } from "./mcpOAuth";
 import * as storage from "./storage";
+import type { VisibleActivity } from "./storage";
 import {
   isSubscriptionRequired,
   isSubscriptionsEnabled,
   readSubscriptionState,
 } from "./subscription";
-import { listActiveActivitySessions } from "./liveActivities";
+import { listVisibleActivities } from "./liveActivities";
 import {
   WIDGET_PUSH_BURST,
   WIDGET_PUSH_MIN_SPACING_SECONDS,
@@ -45,7 +46,7 @@ export async function getStatus(
   const diagnosticsEnabled = widgetPushApnsDiagnosticsEnabled(env);
   const [cards, activities, devices, widgetTokens, startTokens, buckets, widgetDeliveries] = await Promise.all([
     storage.listCards(env, auth.tenantId),
-    listActiveActivitySessions(env, auth.tenantId),
+    listVisibleActivities(env, auth.tenantId),
     storage.listTenantDevices(env, auth.tenantId),
     storage.listWidgetTokens(env, auth.tenantId),
     storage.listStartTokens(env, auth.tenantId, DEFAULT_ATTRIBUTES_TYPE),
@@ -108,6 +109,13 @@ export async function getStatus(
       cards: cards.length,
       liveActivities: activities.length,
     },
+    // Only what is wrong, never the inventory — the same rule `rateLimits`
+    // below follows. A healthy account sends an empty array and costs nothing;
+    // listing every running activity would grow this response for the case
+    // where there is nothing to say.
+    attention: {
+      liveActivities: activitiesNeedingAttention(activities, auth.tenantId),
+    },
     // What this deployment has turned on, which a producer cannot otherwise
     // tell apart from a feature it is calling wrong.
     features: {
@@ -126,4 +134,71 @@ export async function getStatus(
         resetAt: new Date(bucket.resetAt * 1000).toISOString(),
       })),
   });
+}
+
+
+/// Seconds of silence after which an activity with no stale date is worth
+/// reporting. Long enough that no sane publishing cadence trips it, short
+/// enough that one status call catches a stall — there is no server-known
+/// cadence to derive it from, so it is a judgement, named rather than inline.
+const QUIET_SECONDS = 15 * 60;
+
+interface ActivityAttention {
+  externalActivityId: string;
+  secondsSinceUpdate: number;
+  staleAt: string | null;
+  reason: "no-stale-date" | "past-stale-date";
+}
+
+/// The activities this tenant owns that are not telling the operator the truth,
+/// or have stopped being able to.
+///
+/// Two distinct states, and they are not the same problem:
+///
+///   past-stale-date  The safety net worked. iOS is already drawing this as out
+///                    of date, so the operator is not being misled — but a run
+///                    that outlived its own estimate needs updating or ending.
+///   no-stale-date    The dangerous one. Nothing will ever mark this activity
+///                    stale, so a Lock Screen shows its last state as current
+///                    for as long as it exists. Reported only after
+///                    QUIET_SECONDS, or every status call right after a start
+///                    would flag an activity seconds old.
+///
+/// Activities shared *to* this tenant are excluded: it cannot update them, and
+/// naming them here would be reporting another account's silence as this one's
+/// neglect.
+function activitiesNeedingAttention(
+  activities: VisibleActivity[],
+  tenantId: string,
+  now = Date.now(),
+): ActivityAttention[] {
+  const attention: ActivityAttention[] = [];
+  for (const { session, ownerTenantId } of activities) {
+    if (ownerTenantId !== tenantId) continue;
+    const updatedMs = Date.parse(session.updatedAt);
+    if (!Number.isFinite(updatedMs)) continue;
+    const secondsSinceUpdate = Math.max(0, Math.round((now - updatedMs) / 1000));
+    const staleMs = session.staleAt ? Date.parse(session.staleAt) : NaN;
+
+    if (Number.isFinite(staleMs)) {
+      if (staleMs <= now) {
+        attention.push({
+          externalActivityId: session.externalActivityId,
+          secondsSinceUpdate,
+          staleAt: session.staleAt ?? null,
+          reason: "past-stale-date",
+        });
+      }
+      continue;
+    }
+    if (secondsSinceUpdate >= QUIET_SECONDS) {
+      attention.push({
+        externalActivityId: session.externalActivityId,
+        secondsSinceUpdate,
+        staleAt: null,
+        reason: "no-stale-date",
+      });
+    }
+  }
+  return attention;
 }

@@ -622,20 +622,36 @@ export async function getActivityInstanceByOwnerExternal(
   return row ? parseJson<LiveActivitySession>(row.json) : null;
 }
 
+/// An activity this tenant can see, and who owns it.
+///
+/// The owner is carried alongside rather than on the session, because
+/// `LiveActivitySession` is the shape rendered on the device and duplicated in
+/// Swift — a server-only bookkeeping field does not belong in it.
+export interface VisibleActivity {
+  session: LiveActivitySession;
+  ownerTenantId: string;
+}
+
+/// Everything targeted at this tenant: what it owns, plus what other tenants
+/// have shared with it. `owner_tenant_id` comes off the same row the join
+/// already reads, so telling the two apart costs no extra query.
 export async function listActivityInstancesForTarget(
   env: Env,
   targetTenantId: string,
-): Promise<LiveActivitySession[]> {
+): Promise<VisibleActivity[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT instances.json AS json
+    `SELECT instances.json AS json, instances.owner_tenant_id AS owner_tenant_id
      FROM activity_instances AS instances
      JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id
      WHERE targets.target_tenant_id = ?
      ORDER BY instances.updated_at DESC, instances.id`,
   )
     .bind(targetTenantId)
-    .all<JsonRow>();
-  return rows.results.map((row) => parseJson<LiveActivitySession>(row.json));
+    .all<JsonRow & { owner_tenant_id: string }>();
+  return rows.results.map((row) => ({
+    session: parseJson<LiveActivitySession>(row.json),
+    ownerTenantId: row.owner_tenant_id,
+  }));
 }
 
 export async function listActivityInstancesByOwnerKind(

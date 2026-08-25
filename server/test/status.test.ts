@@ -150,3 +150,97 @@ describe("GET /v1/status", () => {
     expect(on.subscription.state).toBeTruthy();
   });
 });
+
+
+// Going quiet has no error, so this is where a producer finds out it has. Only
+// exceptions are listed: a healthy account gets an empty array, the same rule
+// `rateLimits` follows by reporting only windows the tenant has touched.
+describe("GET /v1/status — activities needing attention", () => {
+  const MINUTE = 60 * 1000;
+  const hash = () => sha256Hex(TEST_API_KEY);
+
+  async function seedOwned(
+    env: ReturnType<typeof makeEnv>,
+    id: string,
+    fields: { updatedAt: string; staleAt?: string },
+  ) {
+    await storage.putActivityInstance(env, "test-tenant", await hash(), {
+      activityInstanceId: id,
+      externalActivityId: id,
+      kind: "job",
+      title: "Build",
+      state: "running",
+      ...fields,
+    });
+    await storage.putActivityTarget(env, id, "test-tenant", "test-tenant");
+  }
+
+  const attention = async (env: ReturnType<typeof makeEnv>) =>
+    (await status(env)).attention.liveActivities as Array<Record<string, unknown>>;
+
+  it("says nothing about an activity whose stale date is still ahead", async () => {
+    const env = makeEnv();
+    await seedOwned(env, "healthy", {
+      updatedAt: new Date(Date.now() - 30 * MINUTE).toISOString(),
+      staleAt: new Date(Date.now() + 30 * MINUTE).toISOString(),
+    });
+
+    expect(await attention(env)).toEqual([]);
+  });
+
+  it("reports an activity that outlived its own stale date", async () => {
+    // The safety net worked — iOS is already drawing this as out of date — but
+    // the run needs updating or ending.
+    const env = makeEnv();
+    await seedOwned(env, "overran", {
+      updatedAt: new Date(Date.now() - 40 * MINUTE).toISOString(),
+      staleAt: new Date(Date.now() - 10 * MINUTE).toISOString(),
+    });
+
+    expect(await attention(env)).toMatchObject([
+      { externalActivityId: "overran", reason: "past-stale-date" },
+    ]);
+  });
+
+  it("reports an activity that has gone quiet with no stale date at all", async () => {
+    // The dangerous one: nothing will ever mark it stale, so the Lock Screen
+    // shows its last state as current indefinitely.
+    const env = makeEnv();
+    await seedOwned(env, "silent", {
+      updatedAt: new Date(Date.now() - 20 * MINUTE).toISOString(),
+    });
+
+    const [entry] = await attention(env);
+    expect(entry).toMatchObject({ externalActivityId: "silent", reason: "no-stale-date", staleAt: null });
+    expect(entry.secondsSinceUpdate as number).toBeGreaterThanOrEqual(20 * 60);
+  });
+
+  it("does not flag an activity that has only just started", async () => {
+    // Without the quiet threshold, every status call right after a start would
+    // report an activity seconds old as neglected.
+    const env = makeEnv();
+    await seedOwned(env, "fresh", { updatedAt: new Date().toISOString() });
+
+    expect(await attention(env)).toEqual([]);
+  });
+
+  it("never reports an activity another tenant shared with this one", async () => {
+    // It is visible here and this tenant cannot update it, so naming it would
+    // be reporting somebody else's silence as this operator's neglect.
+    const env = makeEnv();
+    await storage.putActivityInstance(env, "other-tenant", "other-hash", {
+      activityInstanceId: "theirs",
+      externalActivityId: "theirs",
+      kind: "job",
+      title: "Their build",
+      state: "running",
+      updatedAt: new Date(Date.now() - 6 * 60 * MINUTE).toISOString(),
+    });
+    await storage.putActivityTarget(env, "theirs", "other-tenant", "test-tenant");
+
+    // Visible in the count, absent from the attention list.
+    const body = await status(env);
+    expect(body.published.liveActivities).toBe(1);
+    expect(body.attention.liveActivities).toEqual([]);
+  });
+});

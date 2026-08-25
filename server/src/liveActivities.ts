@@ -484,6 +484,16 @@ export async function listActiveActivitySessions(
   env: Env,
   tenantId: string,
 ): Promise<LiveActivitySession[]> {
+  return (await listVisibleActivities(env, tenantId)).map((entry) => entry.session);
+}
+
+/// As above, but keeping who owns each one. `get_status` needs the distinction:
+/// an activity shared *to* this tenant is not one it can update, so reporting
+/// it as neglected would be telling an operator off for someone else's silence.
+export async function listVisibleActivities(
+  env: Env,
+  tenantId: string,
+): Promise<storage.VisibleActivity[]> {
   return storage.listActivityInstancesForTarget(env, tenantId);
 }
 

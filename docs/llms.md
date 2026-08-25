@@ -161,6 +161,16 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/stat
     "widgetPushApnsDiagnosticsEnabled": false
   },
   "published": { "cards": 5, "liveActivities": 1 },
+  "attention": {
+    "liveActivities": [
+      {
+        "externalActivityId": "ci-build-2026-04-26-1234",
+        "secondsSinceUpdate": 1840,
+        "staleAt": null,
+        "reason": "no-stale-date"
+      }
+    ]
+  },
   "features": { "sharing": true, "mcp": true },
   "subscription": { "enabled": false, "required": false },
   "rateLimits": [
@@ -184,6 +194,19 @@ reporting a problem:
   temporarily persisting `widgetPushLastDeliveries`, one latest final APNs
   result per registered token. Use its status, reason, APNs id, attempts, and
   timestamp to separate server rejection from APNs-accepted/iOS-missed pushes.
+- **`attention.liveActivities`.** Activities *you own* that have stopped
+  telling the operator the truth. Empty when there is nothing to say, and
+  activities other tenants shared with you are never listed — you cannot update
+  those, so their silence is not yours. Two reasons, and they are different
+  problems:
+  - `past-stale-date` — the safety net worked. iOS is already drawing this as
+    out of date, so nobody is being misled, but a run that outlived its own
+    estimate needs updating or ending.
+  - `no-stale-date` — the dangerous one. This activity was never given a
+    `staleAt`, so nothing will ever mark it stale and a Lock Screen shows its
+    last state as current for as long as it exists. Send `staleAt` on the next
+    update. Only reported once an activity has been quiet for 15 minutes, so a
+    run that has just started is not flagged.
 - **`rateLimits`.** Only windows this account has touched appear; anything
   absent is untouched and has its full allowance.
 - **`subscription`.** Whether this deployment sells subscriptions at all, and

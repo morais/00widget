@@ -1155,14 +1155,18 @@ export class FakeD1 {
       );
       return pick(row, ["json"]);
     }
-    if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? ORDER BY instances.updated_at DESC, instances.id") {
+    // Mirrors listActivityInstancesForTarget. `owner_tenant_id` rides along on
+    // the same row so a caller can tell an owned activity from one shared to
+    // this tenant; selecting it here keeps the fake honest about which columns
+    // the real statement actually returns.
+    if (normalized === "SELECT instances.json AS json, instances.owner_tenant_id AS owner_tenant_id FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? ORDER BY instances.updated_at DESC, instances.id") {
       const [target_tenant_id] = values.map(String);
       return [...this.activityTargets.values()]
         .filter((target) => target.target_tenant_id === target_tenant_id)
         .map((target) => this.activityInstances.get(target.activity_instance_id))
         .filter((row): row is FakeRow => Boolean(row))
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
-        .map(select("json"));
+        .map(select("json", "owner_tenant_id"));
     }
     if (normalized === "SELECT instances.json AS json FROM activity_instances AS instances JOIN activity_targets AS targets ON targets.activity_instance_id = instances.id WHERE targets.target_tenant_id = ? AND NOT EXISTS ( SELECT 1 FROM activity_deliveries AS deliveries WHERE deliveries.activity_instance_id = instances.id AND deliveries.target_tenant_id = targets.target_tenant_id ) ORDER BY instances.updated_at DESC, instances.id") {
       const [target_tenant_id] = values.map(String);

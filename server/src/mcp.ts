@@ -557,7 +557,8 @@ const TOOLS: McpTool[] = [
       + "rate budget is left, and what this deployment has enabled. Worth one call before publishing "
       + "for the first time: if `delivery.canPushWidgets` is false, nothing you publish will be seen "
       + "by anyone, and the operator needs to install the app and allow notifications rather than "
-      + "you trying again.",
+      + "you trying again. `attention.liveActivities` names any activity of yours that has stopped "
+      + "telling the operator the truth; it is empty when there is nothing wrong.",
     schema: NoArguments,
     // Shaped by hand rather than from a zod schema: the route builds its
     // response literally, and inventing a schema module for one read would put
@@ -603,6 +604,23 @@ const TOOLS: McpTool[] = [
         ),
       }),
       published: z.object({ cards: z.number(), liveActivities: z.number() }),
+      attention: z.object({
+        liveActivities: z.array(z.object({
+          externalActivityId: z.string(),
+          secondsSinceUpdate: z.number(),
+          staleAt: z.string().nullable(),
+          reason: z.enum(["no-stale-date", "past-stale-date"]),
+        })).describe(
+          "Activities you own that are not telling the operator the truth. "
+          + "`past-stale-date` means the safety net worked and iOS is already "
+          + "drawing it as out of date, but the run outlived its estimate and "
+          + "needs updating or ending. `no-stale-date` is the dangerous one: "
+          + "nothing will ever mark it stale, so a Lock Screen shows its last "
+          + "state as current indefinitely — send `staleAt` on the next update. "
+          + "Empty when there is nothing to say; activities shared to you are "
+          + "never listed, because you cannot update them.",
+        ),
+      }),
       features: z.object({ sharing: z.boolean(), mcp: z.boolean() }),
       subscription: z.object({
         enabled: z.boolean(),
