@@ -978,9 +978,23 @@ The response:
   "activityInstanceId": "lai_9f3c1d7a2b",
   "apnsResult": { "status": 200, "apnsId": "…" },
   "recipientResults": [],
-  "pendingUpdated": false
+  "pendingUpdated": false,
+  "secondsSincePreviousUpdate": 47,
+  "staleAtPushed": "2026-04-26T19:00:00Z"
 }
 ```
+
+`secondsSincePreviousUpdate` is how long the activity spent showing its previous
+state. Going quiet has no error — the calls you make answer `200` and the ones
+you skip return nothing — so this is the only signal you get. If it is much
+larger than the work between updates should take, the operator has been reading
+a stale Lock Screen as current.
+
+`staleAtPushed` is the stale date **this push carried**, which is not always the
+one stored. The row keeps whatever `staleAt` it was last given, while the APNs
+payload sets `stale-date` only from the `staleAt` in *this* request — so an
+update that omits it stores a stale date and sends none. `null` means this push
+set none: nothing marks the activity out of date if you stop here.
 
 `pendingUpdated: true` means the new content state was stored but pushed
 nowhere: no device holds a token for this activity yet. Right after a `start`

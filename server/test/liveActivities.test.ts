@@ -1910,3 +1910,73 @@ async function startAndReadInstance(
   expect(response.status).toBe(200);
   return ((await response.json()) as { activityInstanceId: string }).activityInstanceId;
 }
+
+
+// Going quiet has no error: the calls a producer makes answer 200 and the ones
+// it skips return nothing. These two fields are the only signal it gets, and
+// both come from values the handler already had — the instance has to be loaded
+// to merge a partial update, so neither costs a read or a write.
+describe("an update reports how the producer is doing", () => {
+  const post = (env: any, path: string, body: unknown) =>
+    (handler.fetch as any)(
+      authedRequest(`https://x${path}`, { method: "POST", body: JSON.stringify(body) }),
+      env,
+      executionCtx,
+    );
+
+  async function started(env: any) {
+    await post(env, "/v1/live-activities/start", {
+      externalActivityId: "job-1",
+      kind: "job",
+      title: "Build",
+      state: "running",
+      staleAt: new Date(Date.now() + 600_000).toISOString(),
+    });
+  }
+
+  it("reports the gap since the previous update", async () => {
+    const env = makeEnv();
+    await started(env);
+
+    const res = await post(env, "/v1/live-activities/update", {
+      externalActivityId: "job-1",
+      state: "linting",
+    });
+    const body = (await res.json()) as any;
+
+    // Same tick as the start, so the gap is 0 rather than absent — the field is
+    // always a number when the activity has a parseable updatedAt.
+    expect(body.secondsSincePreviousUpdate).toBe(0);
+    expect(typeof body.secondsSincePreviousUpdate).toBe("number");
+  });
+
+  it("reports the stale date this push carried, not the one stored", async () => {
+    // The divergence this field exists for. The row keeps the staleAt it was
+    // last given; the APNs payload takes `stale-date` only from *this* request.
+    // Echoing the stored value would report cover the device may not have.
+    const env = makeEnv();
+    await started(env);
+
+    const omitted = (await (await post(env, "/v1/live-activities/update", {
+      externalActivityId: "job-1",
+      state: "linting",
+    })).json()) as any;
+    expect(omitted.staleAtPushed).toBeNull();
+
+    // ...while the stored value is still the one set at start.
+    const listed = (await (await (handler.fetch as any)(
+      authedRequest("https://x/v1/live-activities", { method: "GET" }),
+      env,
+      executionCtx,
+    )).json()) as any;
+    expect(listed.activities[0].staleAt).toBeTruthy();
+
+    const sent = new Date(Date.now() + 900_000).toISOString();
+    const supplied = (await (await post(env, "/v1/live-activities/update", {
+      externalActivityId: "job-1",
+      state: "testing",
+      staleAt: sent,
+    })).json()) as any;
+    expect(supplied.staleAtPushed).toBe(sent);
+  });
+});

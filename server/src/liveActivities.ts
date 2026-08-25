@@ -528,6 +528,14 @@ export async function updateLiveActivity(
   );
   if (!instance) return notFound();
   const now = new Date().toISOString();
+  // How long this activity spent showing its previous state. Both values are
+  // already in hand — the instance had to be loaded to merge the partial — so
+  // reporting it costs no read and no write. It is the only signal a producer
+  // gets that it has been going quiet, because there is no error for that.
+  const previousUpdateMs = Date.parse(instance.updatedAt);
+  const secondsSincePreviousUpdate = Number.isFinite(previousUpdateMs)
+    ? Math.max(0, Math.round((Date.parse(now) - previousUpdateMs) / 1000))
+    : null;
   const endsAt = merge(d.endsAt, instance.endsAt);
   // Clearing `endsAt` takes the granularity with it — it means nothing without
   // a date to count down to.
@@ -598,6 +606,14 @@ export async function updateLiveActivity(
     apnsResult,
     recipientResults,
     pendingUpdated: deliveries.length === 0,
+    secondsSincePreviousUpdate,
+    // What *this push* carried, which is not always what the row now holds.
+    // The stored value is `merge(d.staleAt, instance.staleAt)` and persists,
+    // while the payload sets `aps.stale-date` only from `d.staleAt` — so an
+    // update that omits it leaves a stale date in D1 and sends none. Echoing
+    // the stored value would tell a producer it is covered when the device may
+    // not be; this answers the question the producer can act on.
+    staleAtPushed: d.staleAt ?? null,
   });
 }
 

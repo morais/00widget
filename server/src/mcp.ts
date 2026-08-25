@@ -283,6 +283,18 @@ const UpdateActivityOutput = z.object({
     "True when the new state was stored but no device holds a token for this "
     + "activity yet, so nothing was pushed.",
   ),
+  secondsSincePreviousUpdate: z.number().nullable().describe(
+    "How long this activity spent showing its previous state. There is no "
+    + "error for going quiet — every call you make answers 200 and the ones "
+    + "you skip return nothing — so this is the signal that you have. If it is "
+    + "larger than the work between updates should take, the operator has been "
+    + "reading a stale Lock Screen as current.",
+  ),
+  staleAtPushed: z.string().nullable().describe(
+    "The stale date THIS push carried, not the one stored. `null` means this "
+    + "push set none, so nothing marks the activity out of date if you stop "
+    + "here — send `staleAt` on the next one.",
+  ),
 });
 const EndActivityOutput = z.object({
   ok: z.boolean(),
