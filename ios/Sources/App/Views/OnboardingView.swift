@@ -30,6 +30,12 @@ struct OnboardingView: View {
     private static var pasteboardLifetimeLabel: String {
         "\(Int(pasteboardLifetime / 60)) min"
     }
+
+    /// How long the checkmark and the notice below it stay up. Deliberately
+    /// shorter than `pasteboardLifetime`: this is an acknowledgement of the
+    /// tap, not a running status of the pasteboard, and the row should be back
+    /// to offering a copy long before the entry it made expires.
+    private static let copyConfirmationDuration: TimeInterval = 10
     // Raw nonce for the in-flight Sign in with Apple request. We hash it
     // (SHA-256) before handing it to ASAuthorizationAppleIDRequest so Apple
     // logs only the hash, and we send the raw value to the backend so it can
@@ -40,23 +46,30 @@ struct OnboardingView: View {
         NavigationStack {
             Form {
                 Section("Agent config") {
-                    Text(agentConfig)
-                        .font(.caption)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button(
-                        copiedAgentConfig
-                            ? "Copied — clipboard clears in \(Self.pasteboardLifetimeLabel)"
-                            : "Copy agent config"
-                    ) {
-                        copySensitiveText(agentConfig)
-                        copiedAgentConfig = true
-                        copyResetTask?.cancel()
-                        copyResetTask = Task {
-                            try? await Task.sleep(for: .seconds(Self.pasteboardLifetime))
-                            guard !Task.isCancelled else { return }
-                            copiedAgentConfig = false
+                    // The copy control sits on the text it copies rather than
+                    // in a row of its own, and the expiry notice appears only
+                    // once there is something on the pasteboard to expire.
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(agentConfig)
+                            .font(.caption)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            copyAgentConfig()
+                        } label: {
+                            Image(systemName: copiedAgentConfig ? "checkmark" : "doc.on.doc")
+                                .imageScale(.large)
                         }
+                        // Borderless, or the whole row becomes one tap target
+                        // and selecting the text triggers a copy instead.
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Copy agent config")
+                    }
+                    if copiedAgentConfig {
+                        Text("Copied — clipboard clears in \(Self.pasteboardLifetimeLabel)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                     NavigationLink("Connect Claude or ChatGPT") {
                         ConnectAgentGuideView().environmentObject(env)
@@ -371,6 +384,20 @@ struct OnboardingView: View {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
             await env.refreshConnectionHealth()
+        }
+    }
+
+    /// Copies the config, then takes the acknowledgement back down together —
+    /// checkmark and notice — a few seconds later. The pasteboard entry itself
+    /// still expires on its own, longer, schedule.
+    private func copyAgentConfig() {
+        copySensitiveText(agentConfig)
+        copiedAgentConfig = true
+        copyResetTask?.cancel()
+        copyResetTask = Task {
+            try? await Task.sleep(for: .seconds(Self.copyConfirmationDuration))
+            guard !Task.isCancelled else { return }
+            copiedAgentConfig = false
         }
     }
 
