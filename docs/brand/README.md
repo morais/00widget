@@ -58,6 +58,7 @@ byte-for-byte, which is the check to run after changing the pin.
 | `plugin-composer-icon.png`            | 88×88      | Opaque dark navy | Plugin composer icon (`interface.composerIcon`), exported at 2× its 44×44 display size.       |
 | `wordmark-horizontal.png`             | 2400×840   | Opaque light     | Pixel-exact approved horizontal lockup for light surfaces. |
 | `wordmark-horizontal-transparent.png` | 2400×840   | Transparent      | Clean dark-surface lockup using the approved typography and tagline. |
+| `app-clip-header.png`                 | 1800×1200  | Opaque dark navy | Default App Clip card header in App Store Connect. |
 | `branding-sheet.png`                  | 1536×1024  | Opaque light     | Authoritative approved U2 identity sheet, and the generator's source image.                   |
 | `mark-transparent-master.png`          | 1254×1254  | Transparent      | Generated cut-out of the approved master. Source for every transparent export and for the tvOS layered icon's front layer. |
 | `app-icon-master.png`                  | 1254×1254  | Opaque navy      | Exact approved playful master; do not redraw or reinterpret.                                  |

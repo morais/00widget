@@ -191,6 +191,13 @@ def launch(mark: Image.Image) -> Image.Image:
     return image
 
 
+def app_clip_header(mark: Image.Image) -> Image.Image:
+    """Build the 1800 × 1200 RGB image used by the default App Clip card."""
+    image = Image.new("RGBA", (1800, 1200), NAVY)
+    image.alpha_composite(contain(mark, (900, 900)), (450, 150))
+    return image
+
+
 def branding_sheet(mark: Image.Image, app_icon: Image.Image, wordmark: Image.Image) -> Image.Image:
     image = Image.new("RGBA", (1536, 1024), "#F5F7FA")
     draw = ImageDraw.Draw(image)
@@ -230,6 +237,7 @@ def generate() -> None:
     save(resize(app_icon_master, (88, 88), opaque=True), BRAND_DIR / "plugin-composer-icon.png", opaque=True)
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
+    save(app_clip_header(mark), BRAND_DIR / "app-clip-header.png", opaque=True)
 
     save(app_icon, REPO_ROOT / "ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
     save(app_icon, REPO_ROOT / "ios/Resources/Clip/Assets.xcassets/AppIcon.appiconset/Icon-1024.png", opaque=True)
