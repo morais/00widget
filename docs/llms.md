@@ -899,7 +899,7 @@ Live Activity rendering fields:
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `statusIcon`: optional second SF Symbol for what the activity is *doing* right now, drawn beside the main one — `bolt.fill` while boosting, `exclamationmark.triangle.fill` when something needs attention, `pause.fill` while held. Where `icon` says what the activity is, this says what it is doing, so it is content state and may change on every update; send `null` to remove it. The same field exists on each item. Omitted from the compact and minimal Dynamic Island, which have no room for a second glyph.
-- `progress`: optional `0.0`–`1.0` progress bar.
+- `progress`: optional `0.0`–`1.0` progress bar. It is also what fills the Dynamic Island's minimal ring — see ["When a second Live Activity is running"](#when-a-second-live-activity-is-running).
 - `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `statusIcon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen, the expanded Dynamic Island, the app's Activities tab, and the Apple TV dashboard, in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
 - `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. When both `chart` and `progress` are sent, the chart wins the space. When `items` are also sent, the chart loses it — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space) before sending both.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
@@ -907,6 +907,36 @@ Live Activity rendering fields:
 - `relevanceScore`: optional non-negative number. Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins, no fixed ceiling). Send a low score early in a long-running activity and ramp it up as the activity gets more urgent or interesting; spike it on the finishing update so the wrist surfaces it. Accepted on both `start` and `update`.
 
 For a time-bounded operation, prefer `endsAt` over server-ticked percentage updates. A "boosting until 21:30" activity can be `start` with `endsAt`, then `end` when finished or cancelled.
+
+#### When a second Live Activity is running
+
+As soon as a second Live Activity starts — anyone's, including the system's own
+Screen Recording — iOS collapses every activity in the Dynamic Island to its
+*minimal* presentation: one circle roughly 24pt across, in place of both compact
+regions. No app can decline this or influence which activities are shown, so
+whatever your compact presentation was saying disappears for as long as the
+other activity runs.
+
+00Widget fills that circle with the most informative thing your state carries,
+in this order:
+
+1. `endsAt` — the countdown in a single unit: `45s`, `12m`, `3h`, `2d`. Ticks
+   locally, no pushes needed.
+2. `progress` — a ring around the icon. Failing an explicit `progress`, a ring
+   is derived from `items` (how many have finished, or the mean of their own
+   `progress` when they all carry one), and failing that from a whole-number
+   counter written into `value` — `1/4`, `Capture 1/4`, `3 of 8`.
+3. `items` with no top-level `value` — the active-item count.
+4. `value`, when it is three characters or fewer — `1/4`, `78%`, `20°`.
+5. Otherwise the icon alone, which is what every activity used to show here.
+
+The practical advice: **send `progress` whenever your activity has one**, even
+alongside `value` or a `chart`. It costs nothing on the surfaces that have room
+for the real thing, and it is the difference between a ring that says how far
+along you are and a static icon that says nothing. If your headline number is
+short, keep `value` short too and put the prose in `subtitle` — `value: "1/4"`
+with `subtitle: "Capturing screenshots"` reads in the minimal circle, where
+`value: "Capture 1/4"` does not.
 
 #### `title` is frozen when the activity starts
 

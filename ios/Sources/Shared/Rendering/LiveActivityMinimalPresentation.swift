@@ -1,0 +1,102 @@
+import Foundation
+
+/// A step counter a producer wrote into `value` instead of into `progress` —
+/// "1/4", "Capture 1/4", "3 of 8".
+///
+/// Narrow on purpose: both sides whole numbers, each one adjacent to the
+/// separator, the second non-zero and no smaller than the first. Anything
+/// looser starts reading version strings and aspect ratios as completion.
+/// Sending `progress` remains the supported path; this exists because the
+/// Dynamic Island's minimal circle has no room for the string itself, so
+/// without it a producer who counts in prose gets a glyph and nothing else.
+/// A value that is genuinely a date — "3/4" — is read as a fraction here, and
+/// the only consequence is a ring drawn at three quarters.
+public enum LiveActivityValueFraction {
+    public static func value(in text: String) -> Double? {
+        let normalized = text.replacingOccurrences(of: " of ", with: "/", options: [.caseInsensitive])
+        let parts = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let done = trailingInteger(in: parts[0]),
+              let total = leadingInteger(in: parts[1]),
+              total > 0,
+              done <= total
+        else { return nil }
+        return Double(done) / Double(total)
+    }
+
+    /// The digits immediately before the separator, and only if what precedes
+    /// them is nothing or a space — so "Capture 1" counts and "v1.2" does not.
+    private static func trailingInteger(in text: Substring) -> Int? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let digits = trimmed.reversed().prefix(while: \.isWholeNumber).reversed()
+        guard !digits.isEmpty, digits.count <= 6 else { return nil }
+        let head = trimmed.dropLast(digits.count)
+        guard head.isEmpty || head.hasSuffix(" ") else { return nil }
+        return Int(String(digits))
+    }
+
+    private static func leadingInteger(in text: Substring) -> Int? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let digits = trimmed.prefix(while: \.isWholeNumber)
+        guard !digits.isEmpty, digits.count <= 6 else { return nil }
+        let tail = trimmed.dropFirst(digits.count)
+        guard tail.isEmpty || tail.hasPrefix(" ") else { return nil }
+        return Int(String(digits))
+    }
+}
+
+#if canImport(ActivityKit)
+public extension ZeroZeroWidgetActivityAttributes.ContentState {
+    var activeItems: [LiveActivityItem] {
+        (items ?? []).filter(\.isActive)
+    }
+
+    var hasExplicitValue: Bool {
+        !(value ?? "").isEmpty
+    }
+
+    // The active-item count is a *derived* stand-in for a value the producer
+    // did not send. A composite activity that publishes its own `value` means
+    // it, so the count must never overwrite it with "2 active".
+    var showsItemCount: Bool {
+        !activeItems.isEmpty && !hasExplicitValue
+    }
+
+    /// The fraction the Dynamic Island's minimal ring draws, or `nil` when
+    /// nothing about this activity honestly reads as completion.
+    ///
+    /// A ring stuck at zero is worse than no ring — it says "nothing has
+    /// happened" about an activity that may be halfway through — so each
+    /// derivation has to be earned. An explicit `progress` wins; then a set of
+    /// items far enough along to have finished one, or one where every item
+    /// carries its own progress; then a counter the producer wrote into
+    /// `value`. This is the minimal circle's ladder only: the Lock Screen and
+    /// the compact regions have room for the real thing and read `progress`
+    /// alone.
+    var minimalProgress: Double? {
+        if let progress { return max(0, min(progress, 1)) }
+        if let derived = itemProgress { return derived }
+        if let value, let fraction = LiveActivityValueFraction.value(in: value) { return fraction }
+        return nil
+    }
+
+    /// A `value` short enough to read in a circle about 24pt across. Three
+    /// glyphs is the budget — "1/4", "78%", "20°" fit; "Capture 1/4" does not,
+    /// and clipping it to "Cap" would read as a word rather than as truncation.
+    var minimalValueToken: String? {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 3 else { return nil }
+        return trimmed
+    }
+
+    private var itemProgress: Double? {
+        guard let items, !items.isEmpty else { return nil }
+        let finished = items.filter { !$0.isActive }.count
+        if finished > 0 { return Double(finished) / Double(items.count) }
+        let progresses = items.compactMap(\.progress)
+        guard progresses.count == items.count else { return nil }
+        let mean = progresses.reduce(0, +) / Double(progresses.count)
+        return max(0, min(mean, 1))
+    }
+}
+#endif

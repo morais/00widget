@@ -107,22 +107,11 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             } minimal: {
-                if context.state.activeItems.isEmpty, let p = context.state.progress {
-                    // The label sits inside the capacity ring rather than
-                    // filling the circle, so it gets less room than the bare
-                    // glyph beside it.
-                    Gauge(value: max(0, min(p, 1))) {
-                        IslandGlyph(
-                            systemName: islandIconName(attributes: context.attributes, state: context.state),
-                            size: 10
-                        )
-                    }
-                    .gaugeStyle(.accessoryCircularCapacity)
-                    .tint(context.attributes.kind.tint)
-                } else {
-                    IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
-                        .foregroundStyle(context.attributes.kind.tint)
-                }
+                MinimalIslandView(
+                    state: context.state,
+                    tint: context.attributes.kind.tint,
+                    glyph: islandIconName(attributes: context.attributes, state: context.state)
+                )
             }
             .widgetURL(tapURL(for: context.attributes))
         }
@@ -200,6 +189,65 @@ private struct IslandGlyph: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: size, height: size)
+    }
+}
+
+/// The island's minimal presentation: one circle about 24pt across, which the
+/// system substitutes for *both* compact regions the moment a second Live
+/// Activity starts — anyone's, including Screen Recording. There is no API to
+/// decline it, no way to influence which two activities are shown, and nothing
+/// that says what we are sharing the island with. The only thing under our
+/// control is what goes in the circle.
+///
+/// So: state first, identity last. The app icon sits beside this circle and
+/// `kind.tint` colours everything inside it, which means a glyph spends the
+/// one surface left on the thing the operator already knows. Each rung takes
+/// the most informative token that fits, and the glyph is what remains when
+/// the activity genuinely has nothing to say. `endsAt` leads because it was
+/// the one case that rendered no information at all — a deadline drew a static
+/// glyph while the compact region it replaced had been counting down.
+private struct MinimalIslandView: View {
+    let state: ZeroZeroWidgetActivityAttributes.ContentState
+    let tint: Color
+    let glyph: String
+
+    @ViewBuilder
+    var body: some View {
+        if let endsAt = state.endsAt {
+            LiveActivityCountdownToken(endsAt: endsAt, granularity: state.countdownGranularity)
+                .minimalIslandToken(tint: tint)
+        } else if let progress = state.minimalProgress {
+            // The label sits inside the capacity ring rather than filling the
+            // circle, so it gets less room than the bare glyph beside it.
+            Gauge(value: progress) {
+                IslandGlyph(systemName: glyph, size: 10)
+            }
+            .gaugeStyle(.accessoryCircularCapacity)
+            .tint(tint)
+        } else if state.showsItemCount {
+            Text("\(state.activeItems.count)")
+                .minimalIslandToken(tint: tint)
+        } else if let token = state.minimalValueToken {
+            Text(token)
+                .minimalIslandToken(tint: tint)
+        } else {
+            IslandGlyph(systemName: glyph)
+                .foregroundStyle(tint)
+        }
+    }
+}
+
+private extension View {
+    /// Text in the minimal circle. The region clips rather than shrinks, and it
+    /// clips from the leading edge — the trap `compactTrailing` documents, in a
+    /// third of the width. The tint is what keeps identity when the glyph that
+    /// usually carries it has given up its place to a number.
+    func minimalIslandToken(tint: Color) -> some View {
+        font(.caption2)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .foregroundStyle(tint)
     }
 }
 
@@ -590,22 +638,5 @@ private struct LiveActivityItemRow: View {
                     .tint(item.status?.tint)
             }
         }
-    }
-}
-
-private extension ZeroZeroWidgetActivityAttributes.ContentState {
-    var activeItems: [LiveActivityItem] {
-        (items ?? []).filter(\.isActive)
-    }
-
-    var hasExplicitValue: Bool {
-        !(value ?? "").isEmpty
-    }
-
-    // The active-item count is a *derived* stand-in for a value the producer
-    // did not send. A composite activity that publishes its own `value` means
-    // it, so the count must never overwrite it with "2 active".
-    var showsItemCount: Bool {
-        !activeItems.isEmpty && !hasExplicitValue
     }
 }
