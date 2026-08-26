@@ -32,6 +32,13 @@ ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
 
 For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --only activities`. Use `--only app` to capture the four in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
 
+The subscription QA suite is separate from the public product-page set. Run
+`ios/scripts/capture-screenshots.sh --only subscriptions` to capture the free,
+trial, active, billing-retry, grace-period, expired, and publishing-paused
+states under `ios/build/screenshots/subscriptions/`. The command runs both the
+paywall-state test and the dashboard notice test; keep both filters when
+changing this mode.
+
 Both capture scripts keep incremental DerivedData under the gitignored `ios/build/` directory. Delete the corresponding `ScreenshotDerivedData-*` directory only when a clean rebuild is intentional; normal iterative runs should reuse it.
 
 ## Apple TV
@@ -54,12 +61,35 @@ Refresh only the Live Activities image with `ios/scripts/capture-tv-screenshots.
 
 ## iPhone without Dynamic Island
 
-Older iPhones use the same four in-app screenshots, captured with `--only app` and an explicit `--device`. They do not produce the compact or expanded Dynamic Island images, and the current flow deliberately avoids relying on their different Home Screen layout. If these display classes are published, place them in a separate output directory with `--out`; they are not a separate set understood by `copy-screenshots.sh`.
+Older iPhones use the same four in-app screenshots, captured with `--only app` and an explicit `--device`. They do not produce the compact or expanded Dynamic Island images, and the current flow deliberately avoids relying on their different Home Screen layout. The App Store 6.5-inch set is captured with:
+
+```sh
+ios/scripts/capture-screenshots.sh \
+  --device "iPhone 14 Plus – App Store 6.5" \
+  --only app \
+  --out build/screenshots/iphone-6.5
+```
+
+`--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
 
 ## iPad
 
 iPad captures the same four in-app surfaces plus the classic and insights Home Screen layouts. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart rather than an expanded Live Activity, and no `screenshot-home-dynamic-island.png` is created. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
+## App Store Connect
+
+After all four device sets pass visual QA, preview the replacement plan with:
+
+```sh
+ios/scripts/upload-appstore-screenshots.py --dry-run
+```
+
+Run the same command without `--dry-run` to publish the canonical iPhone,
+6.5-inch iPhone, iPad, and Apple TV sets. The helper stages and waits for every
+new asset before deleting an old one, then applies the marketing order declared
+in the script. It uses the App Store Connect credentials documented for
+`upload-testflight.sh`; the API key must have permission to manage app metadata.
+
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, and `ios/scripts/copy-screenshots.sh`.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/copy-screenshots.sh`, and `ios/scripts/upload-appstore-screenshots.py`.

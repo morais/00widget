@@ -126,19 +126,28 @@ XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
 
 echo "→ running ScreenshotTests"
 if [[ "$ONLY" == "activities" ]]; then
-  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot"
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot
+  )
 elif [[ "$ONLY" == "app" ]]; then
-  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureAppScreenshots"
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureAppScreenshots
+  )
 elif [[ "$ONLY" == "subscriptions" ]]; then
-  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionScreenshots"
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionScreenshots
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionNotice
+  )
 else
-  TEST_FILTER="-only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots"
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots
+  )
 fi
 xcodebuild test-without-building \
   -xctestrun "$XCTESTRUN" \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -resultBundlePath "$RESULT" \
-  "$TEST_FILTER" \
+  "${TEST_FILTERS[@]}" \
   > "$WORK/xcodebuild.log" 2>&1 || {
     echo "✗ UI test failed — tail of log:" >&2
     tail -40 "$WORK/xcodebuild.log" >&2

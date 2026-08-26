@@ -588,6 +588,11 @@ final class ScreenshotTests: XCTestCase {
                     "StoreKit plans did not load for state \(state)."
                 )
             }
+            scrollToTop(in: app)
+            XCTAssertTrue(
+                app.staticTexts["Subscription"].firstMatch.isHittable,
+                "Subscription title is not visible for state \(state)."
+            )
             capture(named: "screenshot-subscription-\(state)")
             app.terminate()
         }
@@ -621,12 +626,20 @@ final class ScreenshotTests: XCTestCase {
         // Then again with cards, where it has to sit above them.
         hideSampleIndicators(in: app)
         widgetsTab.tap()
+        scrollToTop(in: app)
         XCTAssertTrue(
-            app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15),
+            app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15)
+                && app.staticTexts["Publishing is paused"].isHittable,
             "Subscription notice did not appear on the populated dashboard."
         )
         XCTAssertTrue(app.staticTexts["Solar"].exists, "Sample cards did not render.")
         capture(named: "screenshot-subscription-notice")
+    }
+
+    private func scrollToTop(in app: XCUIApplication) {
+        for _ in 0..<6 {
+            app.swipeDown()
+        }
     }
 #endif
 
