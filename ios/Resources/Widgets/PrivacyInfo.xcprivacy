@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Privacy manifest for the widget and Live Activity extension.
+
+  Apple requires a reason for every "required reason" API a binary calls.
+  This target uses one category, UserDefaults, in two ways, and both are
+  declared: CA92.1 for the app's own defaults, and 1C8F.1 for the App Group
+  suite the app and its extensions share. Declaring only CA92.1 would not
+  cover the group container, which is where nearly all of this app's state
+  lives.
+
+  No other required-reason category applies: nothing here reads file
+  timestamps, disk space, system boot time, or the active keyboard list.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <!-- Collection is declared by the containing app. This target reads and
+       writes the shared App Group container and sends nothing of its own. -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+        <string>1C8F.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

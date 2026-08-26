@@ -46,6 +46,8 @@ targets:
       - path: Sources/App
       - path: Sources/Shared
       - path: Resources/App/Assets.xcassets
+      - path: Resources/App/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Resources/App/Info.plist
       properties:
@@ -118,6 +120,8 @@ targets:
       - path: Sources/Widgets
       - path: Sources/Shared
       - path: Resources/Widgets/Assets.xcassets
+      - path: Resources/Widgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Resources/Widgets/Info.plist
       properties:
@@ -154,6 +158,8 @@ targets:
       - path: Sources/Clip
       - path: Sources/Shared
       - path: Resources/Clip/Assets.xcassets
+      - path: Resources/Clip/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Resources/Clip/Info.plist
       properties:
@@ -211,6 +217,8 @@ targets:
       - path: Sources/ClipWidgets
       - path: Sources/Widgets/LiveActivityWidget.swift
       - path: Sources/Shared
+      - path: Resources/ClipWidgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Resources/ClipWidgets/Info.plist
       properties:
@@ -288,6 +296,8 @@ targets:
       - path: Sources/TV
       - path: Sources/Shared
       - path: Resources/TV/Assets.xcassets
+      - path: Resources/TV/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Resources/TV/Info.plist
       properties:
