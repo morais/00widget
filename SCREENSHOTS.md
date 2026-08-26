@@ -61,15 +61,21 @@ Refresh only the Live Activities image with `ios/scripts/capture-tv-screenshots.
 
 ## iPhone without Dynamic Island
 
-Older iPhones use the same four in-app screenshots, captured with `--only app` and an explicit `--device`. They do not produce the compact or expanded Dynamic Island images, and the current flow deliberately avoids relying on their different Home Screen layout. The App Store 6.5-inch set is captured with:
+The App Store 6.5-inch set contains the same four in-app screenshots plus
+`screenshot-home-widgets.png`, showing the classic Home Screen layout without a
+Dynamic Island. Capture the full marketing suite with an explicit device; do
+not use `--only app`, because that mode intentionally omits the required Home
+Screen image:
 
 ```sh
 ios/scripts/capture-screenshots.sh \
   --device "iPhone 14 Plus – App Store 6.5" \
-  --only app \
   --out build/screenshots/iphone-6.5
 ```
 
+The canonical published order is Widgets, Home Screen widgets, Activities,
+Insights, and Breakdown. The full run may produce additional Home Screen
+captures, but only `screenshot-home-widgets.png` belongs to this App Store set.
 `--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
 
 ## iPad

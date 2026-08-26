@@ -48,6 +48,7 @@ CAPTURE_SETS = {
             IOS_ROOT / "build/screenshots/iphone-6.5",
             [
                 "screenshot-widgets.png",
+                "screenshot-home-widgets.png",
                 "screenshot-activities.png",
                 "screenshot-insights.png",
                 "screenshot-breakdown.png",
