@@ -59,7 +59,14 @@ struct LiveActivitiesView: View {
             Image(systemName: "waveform")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No activities yet")
+            // "Right now", not "yet": an empty list is the normal resting
+            // state, not a device that has never seen one. Activities end and
+            // the screen is empty again — "yet" would tell someone whose
+            // morning deploy finished that nothing had ever run. It stays the
+            // same sentence where ActivityKit is unavailable, because this
+            // page still lists activities the server reports; only starting
+            // one locally is off, which the message below says.
+            Text("No activities right now")
                 .font(.headline)
             Text(emptyMessage)
                 .multilineTextAlignment(.center)
