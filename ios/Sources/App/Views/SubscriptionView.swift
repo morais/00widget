@@ -181,10 +181,8 @@ struct SubscriptionView: View {
 
     private static let manageSubscriptionsURL =
         URL(string: "https://apps.apple.com/account/subscriptions")!
-    private static let termsURL =
-        URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-    private static let privacyURL =
-        URL(string: "https://00widget.com/privacy")!
+    private static let termsURL = ZeroZeroWidgetConstants.Legal.terms
+    private static let privacyURL = ZeroZeroWidgetConstants.Legal.privacy
 }
 
 /// The banner the rest of the app shows when publishing is blocked.

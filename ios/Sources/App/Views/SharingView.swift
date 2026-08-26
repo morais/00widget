@@ -67,6 +67,7 @@ struct SharingView: View {
                             }
                         }
                     }
+                    ReportProblemLink()
                 }
             }
 

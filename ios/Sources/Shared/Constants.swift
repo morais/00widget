@@ -87,6 +87,26 @@ public enum ZeroZeroWidgetConstants {
         public static let all: [String] = [card, cardGrid]
     }
 
+    /// The public pages the app links to.
+    ///
+    /// One definition because they are shown in two places that answer
+    /// different App Store rules: the paywall must carry them (3.1.2, next to
+    /// the price, for someone about to be charged) and Settings must carry the
+    /// privacy policy (5.1.1, reachable by anyone). A URL that changed in one
+    /// place and not the other would leave a broken link on whichever surface
+    /// was forgotten.
+    public enum Legal {
+        public static let privacy = URL(string: "https://00widget.com/privacy")!
+        public static let support = URL(string: "https://00widget.com/support")!
+
+        /// Apple's standard EULA. The app licenses under Apple's standard
+        /// terms rather than its own, so both the paywall and Settings point
+        /// here — the site's Terms of Service is a separate document and is
+        /// deliberately not what the app links as its terms.
+        public static let terms =
+            URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    }
+
     public enum UserDefaultsKeys {
         public static let serverBaseURL = "zw.serverBaseURL"
         public static let deviceId = "zw.deviceId"

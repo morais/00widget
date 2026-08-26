@@ -359,6 +359,17 @@ private struct ActivityDetailView: View {
                     payload: currentSession,
                     endpoint: "/v1/live-activities/start"
                 )
+
+                // A guest link is the only way another account's activity
+                // reaches this screen; there is no sharedBy on a session the
+                // way there is on a card.
+                if isGuestActivity {
+                    HStack {
+                        Spacer()
+                        ReportProblemLink()
+                            .font(.footnote)
+                    }
+                }
             }
             .padding()
         }

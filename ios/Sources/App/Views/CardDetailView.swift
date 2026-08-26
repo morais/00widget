@@ -51,6 +51,17 @@ struct CardDetailView: View {
 
                 RawPayloadDisclosure(payload: currentCard, endpoint: "/v1/cards/upsert")
 
+                if !canDelete {
+                    // Someone else published this. There is nothing to delete
+                    // and nothing to revoke from here, so reporting is the one
+                    // thing this screen can offer about it.
+                    HStack {
+                        Spacer()
+                        ReportProblemLink()
+                            .font(.footnote)
+                    }
+                }
+
                 if canDelete {
                     if let deleteError {
                         Text(deleteError)

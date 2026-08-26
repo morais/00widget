@@ -189,6 +189,12 @@ struct OnboardingView: View {
                             env.removeGuestLink(token: env.guestLinks[index].token)
                         }
                     }
+
+                    // Beside the control that stops it: someone who wants
+                    // shared content gone often wants it reported too.
+                    if !env.guestLinks.isEmpty {
+                        ReportProblemLink()
+                    }
                 } header: {
                     Text("Shared with you")
                 } footer: {
@@ -223,6 +229,13 @@ struct OnboardingView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+
+                    // Reachable without going near the paywall, and without
+                    // depending on whether subscriptions are compiled in: the
+                    // privacy policy has to be findable by everyone, not only
+                    // by someone about to be charged.
+                    Link("Privacy Policy", destination: ZeroZeroWidgetConstants.Legal.privacy)
+                    Link("Terms of Use", destination: ZeroZeroWidgetConstants.Legal.terms)
                 }
 
                 // Reached from Settings rather than the tab bar: a fourth tab
