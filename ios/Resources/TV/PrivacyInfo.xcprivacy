@@ -12,6 +12,22 @@
 
   No other required-reason category applies: nothing here reads file
   timestamps, disk space, system boot time, or the active keyboard list.
+
+  Other Diagnostic Data covers the app version and platform sent with a
+  device registration: they are kept on the server, shown in the admin
+  device list, and used to work out why a push is not landing. There is no
+  crash or performance data — no analytics SDK, no crash reporter — and the
+  widget timeline records the Developer screen shows never leave the device.
+
+  Device ID covers two values, and the second is the one that decides it. The
+  first is the UUID this app generates per install — weak on its own, but
+  shared through the App Group, so the app, the widget extension and the App
+  Clip all report the same value across three bundle ids. The second is the
+  APNs token: issued by the system per app and device, sent with every
+  registration, and kept in `devices` and `widget_tokens` for as long as the
+  registration lives. Apple's definition is "the device's advertising
+  identifier, or other device-level ID", with no carve-out for an identifier
+  that is not derived from hardware.
 -->
 <plist version="1.0">
 <dict>
@@ -35,6 +51,18 @@
     </dict>
     <dict>
       <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
       <string>NSPrivacyCollectedDataTypeDeviceID</string>
       <key>NSPrivacyCollectedDataTypeLinked</key>
       <true/>
@@ -47,7 +75,7 @@
     </dict>
     <dict>
       <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+      <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
       <key>NSPrivacyCollectedDataTypeLinked</key>
       <true/>
       <key>NSPrivacyCollectedDataTypeTracking</key>
