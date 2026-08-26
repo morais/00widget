@@ -63,6 +63,16 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
             && externalActivityId.hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix)
     }
 
+    /// Mirrors `DashboardCard.isStale`, hour-long fallback included, for a
+    /// producer that never sent `staleAt`. ActivityKit applies `staleAt` for
+    /// itself on the Lock Screen, so nothing had to decide this in-app; a
+    /// surface that draws a session fetched from the API — the Apple TV
+    /// dashboard — gets no such help and has to ask.
+    public var isStale: Bool {
+        if let staleAt { return Date() >= staleAt }
+        return Date().timeIntervalSince(updatedAt) > 3600
+    }
+
     public init(
         activityInstanceId: String? = nil,
         externalActivityId: String,

@@ -9,11 +9,7 @@ struct TVDashboardView: View {
     @State private var actionError: String?
     @FocusState private var settingsFocused: Bool
 
-    private let widgetColumns = Array(
-        repeating: GridItem(.flexible(), spacing: 40, alignment: .top),
-        count: 3
-    )
-    private let activityColumns = [GridItem(.flexible(), alignment: .top)]
+    private let widgetColumnCount = 3
 
     var body: some View {
         VStack(spacing: 32) {
@@ -126,15 +122,14 @@ struct TVDashboardView: View {
                         dashboardSection(
                             title: "Ongoing Activities",
                             icon: "waveform",
-                            columns: activityColumns
-                        ) {
-                            ForEach(env.liveActivities) { activity in
-                                TVLiveActivityCardView(
-                                    activity: activity,
-                                    openLink: { openLink(for: activity) },
-                                    focusSettings: { settingsFocused = true }
-                                )
-                            }
+                            items: env.liveActivities,
+                            columns: 1
+                        ) { activity in
+                            TVLiveActivityCardView(
+                                activity: activity,
+                                openLink: { openLink(for: activity) },
+                                focusSettings: { settingsFocused = true }
+                            )
                         }
                     }
 
@@ -142,16 +137,15 @@ struct TVDashboardView: View {
                         dashboardSection(
                             title: "Widgets",
                             icon: "square.grid.2x2",
-                            columns: widgetColumns
-                        ) {
-                            ForEach(env.cards) { card in
-                                TVDashboardCardView(
-                                    card: card,
-                                    runningActionID: runningActionID,
-                                    openLink: { openLink(for: card) },
-                                    runAction: { request($0, for: card) }
-                                )
-                            }
+                            items: env.cards,
+                            columns: widgetColumnCount
+                        ) { card in
+                            TVDashboardCardView(
+                                card: card,
+                                runningActionID: runningActionID,
+                                openLink: { openLink(for: card) },
+                                runAction: { request($0, for: card) }
+                            )
                         }
                     }
                 }
@@ -162,19 +156,54 @@ struct TVDashboardView: View {
         }
     }
 
-    private func dashboardSection<Content: View>(
+    private func dashboardSection<Item: Identifiable, Content: View>(
         title: String,
         icon: String,
-        columns: [GridItem],
-        @ViewBuilder content: () -> Content
+        items: [Item],
+        columns: Int,
+        @ViewBuilder content: @escaping (Item) -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             Label(title, systemImage: icon)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 40) {
-                content()
+            grid(items, columns: columns, content: content)
+        }
+    }
+
+    /// Rows assembled by hand rather than by a `LazyVGrid`, because tvOS moves
+    /// focus only to views that exist and a lazy grid does not build what is
+    /// off screen. Nothing had ever fallen far enough below the fold to show
+    /// it: when the Live Activity card grew tall enough to push the Widgets
+    /// row past the bottom of the screen, pressing down found no focusable
+    /// view, so focus stayed put, so the scroll view never scrolled, so the
+    /// row it would have built stayed unreachable — the whole section
+    /// unreachable with no way back to it. A dashboard holds a handful of
+    /// cards, so building every one of them up front costs nothing.
+    private func grid<Item: Identifiable, Content: View>(
+        _ items: [Item],
+        columns: Int,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View {
+        let rows = stride(from: 0, to: items.count, by: columns).map { start in
+            Array(items[start..<min(start + columns, items.count)])
+        }
+        return VStack(alignment: .leading, spacing: 40) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: 40) {
+                    ForEach(row) { item in
+                        content(item)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    // A short last row keeps its cards the width they have in a
+                    // full one rather than stretching to share the space.
+                    if row.count < columns {
+                        ForEach(row.count..<columns, id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
             }
         }
     }
@@ -242,6 +271,16 @@ private struct TVLiveActivityCardView: View {
     let openLink: () -> Void
     let focusSettings: () -> Void
 
+    /// Two columns rather than one row per item. Six rows is the published
+    /// maximum, so the grid is at most three rows tall, and each row keeps
+    /// roughly the proportions the phone card gives it. Stacking them full
+    /// width would leave the same empty band across the middle of the card
+    /// that drawing no items at all left.
+    private let itemColumns = Array(
+        repeating: GridItem(.flexible(), spacing: 16, alignment: .top),
+        count: 2
+    )
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Button(action: openLink) {
@@ -255,15 +294,34 @@ private struct TVLiveActivityCardView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
                             }
+                            freshness
                         }
                         Spacer(minLength: 12)
                         trailingValue
                     }
 
+                    // A composite activity says what it is doing through its
+                    // rows; dropping them left this card showing a title and a
+                    // number where the phone showed four.
+                    if !activeItems.isEmpty {
+                        LazyVGrid(columns: itemColumns, alignment: .leading, spacing: 16) {
+                            ForEach(activeItems) { item in
+                                TVLiveActivityItemRow(item: item)
+                            }
+                        }
+                    }
+
                     if let chart = activity.chart, chart.isRenderable {
-                        SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 3)
-                            .frame(height: 46)
-                    } else if let progress = activity.progress, activity.endsAt == nil {
+                        // Taller than the widget card's plot: this one has the
+                        // full width of the screen, and a 46-point trace read
+                        // as a flat line from a sofa.
+                        SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 4)
+                            .frame(height: 72)
+                    } else if let progress = activity.progress,
+                              activity.endsAt == nil,
+                              // Rows replace the progress bar, as they do on
+                              // every other surface.
+                              activeItems.isEmpty {
                         ProgressView(value: max(0, min(progress, 1)))
                             .tint(activity.kind.tint)
                     }
@@ -273,11 +331,14 @@ private struct TVLiveActivityCardView: View {
                 .padding(.horizontal, 28)
                 .padding(.vertical, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // The header, value row, chart, and inter-row spacing need
-                // enough height for the requested inset to survive layout.
-                // At 220 points SwiftUI compressed the vertical padding to
-                // almost zero, leaving the focused card against its content.
-                .frame(height: 260)
+                // A floor, not a fixed height. The header, value row, chart,
+                // and inter-row spacing need enough height for the requested
+                // inset to survive layout: at 220 points SwiftUI compressed the
+                // vertical padding to almost zero, leaving the focused card
+                // against its content. Item rows then need more room than any
+                // one number can reserve, so the card grows past the floor
+                // rather than clipping them.
+                .frame(minHeight: 260)
                 .contentShape(RoundedRectangle(cornerRadius: 24))
             }
             .buttonStyle(.card)
@@ -308,6 +369,12 @@ private struct TVLiveActivityCardView: View {
             Image(systemName: iconName)
                 .font(.title2)
                 .foregroundStyle(activity.kind.tint)
+            // What the activity is doing right now, beside what it is.
+            if let statusIcon = activity.statusIcon {
+                Image(systemName: statusIcon)
+                    .font(.headline)
+                    .foregroundStyle(activity.kind.tint)
+            }
             Text(activity.title)
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
@@ -320,6 +387,29 @@ private struct TVLiveActivityCardView: View {
                 .padding(.vertical, 5)
                 .background(Capsule().fill(activity.kind.tint.opacity(0.18)))
                 .foregroundStyle(activity.kind.tint)
+        }
+    }
+
+    /// The page header's "Updated" is when this device last synced; this is
+    /// when the *producer* last published, which is a different fact and the
+    /// one that goes wrong quietly. A television is left running on a wall, so
+    /// an activity whose producer stopped an hour ago has to say so rather than
+    /// keep presenting its last numbers as current.
+    @ViewBuilder
+    private var freshness: some View {
+        if activity.isStale {
+            Label(
+                "Not updating · last update \(activity.updatedAt.formatted(.relative(presentation: .named)))",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.callout.weight(.medium))
+            .foregroundStyle(.orange)
+            .lineLimit(1)
+        } else {
+            Text("Updated \(activity.updatedAt.formatted(.relative(presentation: .named)))")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
         }
     }
 
@@ -343,10 +433,19 @@ private struct TVLiveActivityCardView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        } else if !activeItems.isEmpty {
+            // A derived stand-in for a value the producer did not send, and
+            // only ever that: an explicit `value` above keeps the slot.
+            Text("\(activeItems.count) active")
+                .font(.title3.weight(.semibold))
         } else {
             Text(activity.state.capitalized)
                 .font(.title3.weight(.semibold))
         }
+    }
+
+    private var activeItems: [LiveActivityItem] {
+        (activity.items ?? []).filter(\.isActive)
     }
 
     private var iconName: String {
@@ -359,6 +458,74 @@ private struct TVLiveActivityCardView: View {
         case .job: return "hammer"
         case .timer: return "timer"
         }
+    }
+}
+
+/// The phone's activity row at television scale. Kept beside the card rather
+/// than shared with `LiveActivitiesView`: that one is compiled into the app
+/// target only, and the two surfaces size their type independently.
+private struct TVLiveActivityItemRow: View {
+    let item: LiveActivityItem
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Image(systemName: item.icon ?? "circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(item.status?.tint ?? .secondary)
+                    .frame(width: 32)
+                if let statusIcon = item.statusIcon {
+                    Image(systemName: statusIcon)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    if let subtitle = item.subtitle {
+                        Text(subtitle)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                if let value = item.value {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(value)
+                            .font(.title3.weight(.semibold))
+                            .lineLimit(1)
+                        if let unit = item.unit {
+                            Text(unit)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                } else if let status = item.status {
+                    Text(status.label)
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(status.tint)
+                        .lineLimit(1)
+                }
+            }
+
+            if let progress = item.progress {
+                ProgressView(value: max(0, min(progress, 1)))
+                    .progressViewStyle(.linear)
+                    .tint(item.status?.tint)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+        )
     }
 }
 

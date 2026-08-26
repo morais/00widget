@@ -39,7 +39,7 @@ final class TVEnvironment: ObservableObject {
         }
         self.liveActivities = screenshotSection == "widgets"
             ? []
-            : [SampleDataFactory.makeLiveActivitySession()]
+            : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]
         SharedSettings.setHideSampleIndicators(true)
         #else
         let defaults = UserDefaults.standard
@@ -49,6 +49,26 @@ final class TVEnvironment: ObservableObject {
         self.cards = CardCache.load().cards
         #endif
     }
+
+    #if ZW_SCREENSHOTS
+    /// The `focus` section is not a marketing shot. It is the one geometry in
+    /// which the Widgets section sits entirely below the fold — a composite
+    /// activity draws a row per item, and a card tall enough to push the
+    /// widgets off screen is what made them unreachable when the grid building
+    /// them was lazy. `TVFocusNavigationTests` needs that state to exist to
+    /// press down against it.
+    private static func screenshotLiveActivity(section: String?) -> LiveActivitySession {
+        var session = SampleDataFactory.makeLiveActivitySession()
+        guard section == "focus" else { return session }
+        session.items = [
+            LiveActivityItem(id: "1", title: "Master Bedroom", subtitle: "Cooling to 20°C", icon: "snowflake", value: "23.2", unit: "°C", status: .running),
+            LiveActivityItem(id: "2", title: "Office", subtitle: "Cooling to 20°C", icon: "snowflake", value: "23.6", unit: "°C", status: .running),
+            LiveActivityItem(id: "3", title: "Kitchen", subtitle: "Cooling to 20°C", icon: "snowflake", value: "22.6", unit: "°C", status: .running),
+            LiveActivityItem(id: "4", title: "Living Room", subtitle: "Cooling to 20°C", icon: "snowflake", value: "23.3", unit: "°C", status: .running),
+        ]
+        return session
+    }
+    #endif
 
     var isSignedIn: Bool { !apiKey.isEmpty }
 
