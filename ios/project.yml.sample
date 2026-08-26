@@ -192,8 +192,10 @@ targets:
       properties:
         com.apple.developer.parent-application-identifiers:
           - $(AppIdentifierPrefix)com.example.zerozerowidget
+        # App Clip invocation URLs use the appclips service; applinks belongs
+        # to the containing app's universal-link entitlement above.
         com.apple.developer.associated-domains:
-          - applinks:api.example.com
+          - appclips:api.example.com
         com.apple.security.application-groups:
           - group.com.example.zerozerowidget
     settings:
