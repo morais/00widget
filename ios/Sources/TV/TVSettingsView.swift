@@ -3,6 +3,7 @@ import SwiftUI
 struct TVSettingsView: View {
     @EnvironmentObject var env: TVEnvironment
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmingDelete = false
     #if ZW_SUBSCRIPTIONS_ENABLED
     @State private var subscription: SubscriptionState?
     #endif
@@ -15,7 +16,11 @@ struct TVSettingsView: View {
                 Text("Settings")
                     .font(.system(size: 56, weight: .bold))
 
-                VStack(alignment: .leading, spacing: 18) {
+                // A Grid rather than a stack of fixed-width labels: the first
+                // column takes the width of the widest key, so a long one like
+                // "Subscription" is never hyphenated across two lines and a
+                // short one wastes no space.
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 28, verticalSpacing: 18) {
                     row("Signed in as", value: env.appleLoginEmail ?? "—")
                     row("Server", value: env.serverBaseURL)
                     row("Version", value: appVersionString)
@@ -24,6 +29,11 @@ struct TVSettingsView: View {
                     }
                     if let error = env.lastSyncError {
                         row("Last error", value: error, valueColor: .red)
+                    }
+                    // Where a failed deletion or sign-out reports itself: this
+                    // screen has no other place to put an account error.
+                    if let error = env.appleLoginError {
+                        row("Account", value: error, valueColor: .red)
                     }
                     #if ZW_SUBSCRIPTIONS_ENABLED
                     if let subscription {
@@ -36,7 +46,7 @@ struct TVSettingsView: View {
                 .background(RoundedRectangle(cornerRadius: 24).fill(Color.white.opacity(0.08)))
 
                 HStack(spacing: 24) {
-                    Button(role: .destructive) {
+                    Button {
                         Task {
                             if await env.signOut() {
                                 dismiss()
@@ -48,6 +58,41 @@ struct TVSettingsView: View {
                             .padding(.vertical, 16)
                     }
                     .disabled(env.signOutInProgress)
+
+                    // Apple requires deletion to be offered wherever an account
+                    // can be created, and this app signs in with Apple too.
+                    // No destructive role, for the reason above; the danger is
+                    // carried by the red label and by the confirmation, which
+                    // does use the role — a dialog draws it as emphasis rather
+                    // than as a fill.
+                    Button {
+                        confirmingDelete = true
+                    } label: {
+                        Label(
+                            env.accountDeletionInProgress ? "Deleting…" : "Delete account",
+                            systemImage: "trash"
+                        )
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 16)
+                    }
+                    .disabled(env.accountDeletionInProgress)
+                    // On the button rather than on the screen: a confirmation
+                    // presented from a container anchors to the container.
+                    .confirmationDialog(
+                        "Delete your account?",
+                        isPresented: $confirmingDelete,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete account", role: .destructive) {
+                            Task {
+                                if await env.deleteAccount() { dismiss() }
+                            }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("This permanently deletes your account and everything in it: every card, every Live Activity, every agent token, and the widgets on your other devices. It cannot be undone, and signing in again starts an empty account.")
+                    }
 
                     Button {
                         dismiss()
@@ -87,19 +132,20 @@ struct TVSettingsView: View {
     }
     #endif
 
-    @ViewBuilder
     private func row(_ key: String, value: String, valueColor: Color = .primary) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        GridRow {
             Text(key)
                 .font(.title3)
                 .foregroundStyle(.secondary)
-                .frame(width: 240, alignment: .leading)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .gridColumnAlignment(.leading)
             Text(value)
                 .font(.title3)
                 .foregroundStyle(valueColor)
                 .lineLimit(2)
                 .truncationMode(.middle)
-            Spacer()
+                .gridColumnAlignment(.leading)
         }
     }
 

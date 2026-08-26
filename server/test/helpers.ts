@@ -227,6 +227,32 @@ export class FakeD1 {
 
   run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
+    // The account-deletion batch in `src/account.ts`: one table, one equality,
+    // one bound value. Matched by shape rather than listed statement by
+    // statement — and deliberately *first*, because several handlers below
+    // match on a prefix like "DELETE FROM cards" and would swallow a
+    // tenant-wide delete, read the missing second bind as undefined, delete
+    // nothing, and still report a change. The single-value guard is what keeps
+    // it from claiming any of their narrower statements.
+    const accountWipe = values.length === 1
+      ? /^DELETE FROM (\w+) WHERE (tenant_id|owner_tenant_id|target_tenant_id|recipient_tenant_id|token|id) = \?$/.exec(
+          normalized,
+        )
+      : null;
+    if (accountWipe) {
+      const [, table, column] = accountWipe;
+      const rows = this.tableRows(table);
+      if (rows) {
+        const [value] = values.map(String);
+        let removed = 0;
+        for (const [key, row] of [...rows.entries()]) {
+          if (String((row as Record<string, unknown>)[column] ?? "") !== value) continue;
+          rows.delete(key);
+          removed++;
+        }
+        return removed;
+      }
+    }
     // Models tenants_by_owner_email_unique (migrations/0030) as well as the
     // primary key, because `OR IGNORE` swallows both the same way — it returns
     // changes=0 and writes nothing, which is exactly what createApiKey and
@@ -895,7 +921,54 @@ export class FakeD1 {
       }
       return removed;
     }
+    if (normalized === "DELETE FROM shares WHERE lower(recipient_email) = ?") {
+      const [email] = values.map(String);
+      let removed = 0;
+      for (const [key, row] of [...this.shares.entries()]) {
+        if (String(row.recipient_email ?? "").toLowerCase() !== email) continue;
+        this.shares.delete(key);
+        removed++;
+      }
+      return removed;
+    }
+    if (normalized === "UPDATE subscriptions SET tenant_id = NULL, updated_at = ? WHERE tenant_id = ?") {
+      const [updated_at, tenant_id] = values.map(String);
+      let changed = 0;
+      for (const row of this.subscriptions.values()) {
+        if (String(row.tenant_id ?? "") !== tenant_id) continue;
+        row.tenant_id = null;
+        row.updated_at = updated_at;
+        changed++;
+      }
+      return changed;
+    }
     throw new Error(`Unhandled FakeD1 run SQL: ${normalized}`);
+  }
+
+  /// Table name to backing store, for statements the fake matches by shape.
+  /// Only the tables the account-deletion batch touches are listed; anything
+  /// else falls through to its own handler or to the unhandled-SQL error.
+  private tableRows(table: string): Map<string, Record<string, unknown>> | undefined {
+    const stores: Record<string, Map<string, unknown>> = {
+      tenants: this.tenants,
+      api_keys: this.apiKeys,
+      apple_accounts: this.appleAccounts,
+      cards: this.cards,
+      action_payloads: this.actionPayloads,
+      devices: this.devices,
+      widget_tokens: this.widgetTokens,
+      start_tokens: this.startTokens,
+      webhook_integrations: this.webhookIntegrations,
+      activity_history: this.activityHistory,
+      widget_push_pending: this.widgetPushPending,
+      widget_push_cadence: this.widgetPushCadence,
+      widget_push_delivery_diagnostics: this.widgetPushDeliveryDiagnostics,
+      activity_instances: this.activityInstances,
+      activity_targets: this.activityTargets,
+      activity_deliveries: this.activityDeliveries,
+      shares: this.shares,
+    };
+    return stores[table] as Map<string, Record<string, unknown>> | undefined;
   }
 
   // Mirrors the ON CONFLICT clause in recordTransaction: an existing tenant_id

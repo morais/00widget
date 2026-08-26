@@ -12,7 +12,6 @@ struct OnboardingView: View {
     @State private var healthCheckTask: Task<Void, Never>?
     @State private var copiedAgentConfig = false
     @State private var copyResetTask: Task<Void, Never>?
-    @State private var confirmingSignOut = false
     @State private var showScanner = false
     @State private var showDeveloperOptions = false
     // Developer option, off by default: swaps the address and the token below
@@ -267,29 +266,16 @@ struct OnboardingView: View {
                 KeyValue(key: "Signed in", value: email)
             }
 
-            Button(env.signOutInProgress ? "Signing out…" : "Sign out", role: .destructive) {
-                confirmingSignOut = true
-            }
-            .disabled(env.signOutInProgress)
-            .confirmationDialog(
-                "Sign out?",
-                isPresented: $confirmingSignOut,
-                titleVisibility: .visible
-            ) {
-                Button("Sign out", role: .destructive) {
-                    Task {
-                        if await env.signOut() {
-                            copiedAgentConfig = false
-                            scheduleHealthCheck()
-                        }
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                // Sign out revokes the whole session, agent publisher token
-                // included, so every agent stops publishing until it gets the
-                // new token from Agent config.
-                Text("This revokes your agent token. Any agent publishing cards will stop working until you sign in again and give it the new token.")
+            // Both ways out live behind one row, named for both: Apple wants
+            // deletion findable, and a row called "Sign out" would have hidden
+            // it. Neither control is on this screen, where the destructive one
+            // would sit among switches.
+            NavigationLink("Sign out or delete account") {
+                AccountExitView(onSignOut: {
+                    copiedAgentConfig = false
+                    scheduleHealthCheck()
+                })
+                .environmentObject(env)
             }
         } else {
             SignInWithAppleButton(.signIn) { request in

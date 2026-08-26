@@ -480,6 +480,13 @@ public final class APIClient {
         let _: EmptyBody = try await request("DELETE", path: "/v1/auth/token")
     }
 
+    /// Erases the account and everything it holds. App credential only, which
+    /// is why callers reach for `confirmedActionClient()` rather than the
+    /// device token they use for most requests.
+    public func deleteAccount() async throws {
+        let _: EmptyBody = try await request("DELETE", path: "/v1/account")
+    }
+
     // MARK: - Internal
 
     /// Resolves a `/v1/...` path against the configured base URL.

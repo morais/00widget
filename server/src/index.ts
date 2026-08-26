@@ -192,6 +192,11 @@ const routes: Route[] = [
   authed("GET", /^\/v1\/account\/?$/, null, (req, env, auth) =>
     account.getAccount(req, env, auth), { credentialKind: "app" },
   ),
+  // Same gate, for the same reason: deleting the account is the owner's act,
+  // not an agent's. Apple requires this to be reachable from the app.
+  authed("DELETE", /^\/v1\/account\/?$/, null, (req, env, auth) =>
+    account.deleteAccount(req, env, auth), { credentialKind: "app" },
+  ),
   // Admin dashboard. Every route asserts the admin capability on top of a
   // web session; being signed in is never sufficient.
   // Web sign-in. Not under /admin: authenticating says who you are, and only

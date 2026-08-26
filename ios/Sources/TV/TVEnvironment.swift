@@ -8,6 +8,7 @@ final class TVEnvironment: ObservableObject {
     @Published private(set) var appleLoginError: String?
     @Published private(set) var appleLoginInProgress = false
     @Published private(set) var signOutInProgress = false
+    @Published private(set) var accountDeletionInProgress = false
     @Published private(set) var cards: [DashboardCard] = []
     @Published private(set) var sharedCards: [DashboardCard] = []
     @Published private(set) var liveActivities: [LiveActivitySession] = []
@@ -156,6 +157,34 @@ final class TVEnvironment: ObservableObject {
             }
         } catch {
             appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+            return false
+        }
+
+        clearLocalCredentials()
+        return true
+    }
+
+    /// Same act as the iOS app's, and deliberately the same endpoint: Apple
+    /// requires deletion wherever the account can be created, and this app
+    /// signs in with Apple too. The app credential is the only one the route
+    /// accepts, so a device that has lost it says so rather than clearing up
+    /// locally and calling the account gone.
+    func deleteAccount() async -> Bool {
+        accountDeletionInProgress = true
+        appleLoginError = nil
+        defer { accountDeletionInProgress = false }
+
+        guard let client = confirmedActionClient() else {
+            appleLoginError = "This device isn't authorized for that. Sign out and sign in again."
+            return false
+        }
+        do {
+            try await client.deleteAccount()
+        } catch let error as APIClientError where error.status == 401 || error.status == 403 {
+            appleLoginError = "This device isn't authorized for that. Sign out and sign in again."
+            return false
+        } catch {
+            appleLoginError = "Could not delete the account: \(error.localizedDescription)"
             return false
         }
 

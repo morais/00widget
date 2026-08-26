@@ -43,6 +43,7 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
     @Published public private(set) var signOutInProgress = false
+    @Published public private(set) var accountDeletionInProgress = false
     @Published public private(set) var lastSyncAt: Date?
     @Published public private(set) var lastSyncError: String?
     @Published public private(set) var cards: [DashboardCard] = []
@@ -203,6 +204,38 @@ public final class AppEnvironment: ObservableObject {
             }
         } catch {
             appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
+            return false
+        }
+
+        clearLocalCredentials()
+        return true
+    }
+
+    /// Deletes the account on the server, then wipes what this device holds.
+    ///
+    /// Runs on the app credential, which only a Sign in with Apple round trip
+    /// mints — the device token cannot do this, and neither can any token an
+    /// agent was given. Local cleanup is sign-out's: `clearLocalCredentials`
+    /// empties the Keychain and, through `saveApiKey`, the cached cards and
+    /// Spotlight index with it.
+    public func deleteAccount() async -> Bool {
+        accountDeletionInProgress = true
+        appleLoginError = nil
+        defer { accountDeletionInProgress = false }
+
+        guard let client = confirmedActionClient() else {
+            appleLoginError = AppEnvironment.reauthorizationMessage
+            return false
+        }
+        do {
+            try await client.deleteAccount()
+        } catch let error as APIClientError where error.status == 401 || error.status == 403 {
+            // Say so rather than clearing up locally and calling it deleted: a
+            // credential this device cannot use is not proof the account went.
+            appleLoginError = AppEnvironment.reauthorizationMessage
+            return false
+        } catch {
+            appleLoginError = "Could not delete the account: \(error.localizedDescription)"
             return false
         }
 
