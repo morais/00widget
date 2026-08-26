@@ -58,6 +58,9 @@ struct OnboardingView: View {
                             copiedAgentConfig = false
                         }
                     }
+                    NavigationLink("Connect Claude or ChatGPT") {
+                        ConnectAgentGuideView().environmentObject(env)
+                    }
                 }
 
                 Section {
@@ -387,14 +390,14 @@ struct OnboardingView: View {
 
     private var agentConfig: String {
         if ZeroZeroWidgetConstants.appleLoginEnabled, env.apiKey.isEmpty {
-            return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL. You'll need an authorization token, which will be available after you sign in."
+            return "Dear agent, to integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL. You'll need an authorization token, which will be available after you sign in."
         }
 
         if env.apiKey.isEmpty {
-            return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and enter an API key above to use as the authorization token."
+            return "Dear agent, to integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and enter an API key above to use as the authorization token."
         }
 
-        return "To integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(displayedAgentApiKey) as the authorization token."
+        return "Dear agent, to integrate with 00Widget, read the instructions at \(env.serverBaseURL); use that as the base URL, and use \(displayedAgentApiKey) as the authorization token."
     }
 
     /// The address to show, which is the real one unless the developer option
