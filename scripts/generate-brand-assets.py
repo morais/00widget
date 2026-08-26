@@ -227,7 +227,7 @@ def generate() -> None:
     save(app_icon, BRAND_DIR / "mark-1024.png", opaque=True)
     save(contain(mark, (1024, 1024), padding=20), BRAND_DIR / "mark-transparent-1024.png")
     save(resize(app_icon_master, (512, 512), opaque=True), BRAND_DIR / "plugin-logo.png", opaque=True)
-    save(contain(mark, (512, 512), padding=10), BRAND_DIR / "plugin-composer-icon.png")
+    save(resize(app_icon_master, (88, 88), opaque=True), BRAND_DIR / "plugin-composer-icon.png", opaque=True)
     save(wordmark_opaque, BRAND_DIR / "wordmark-horizontal.png", opaque=True)
     save(wordmark_transparent, BRAND_DIR / "wordmark-horizontal-transparent.png")
 

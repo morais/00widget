@@ -55,7 +55,7 @@ byte-for-byte, which is the check to run after changing the pin.
 | `mark-1024.png`                       | 1024×1024  | Opaque dark navy | iOS App Icon. Already wired into `ios/Resources/App/Assets.xcassets/AppIcon.appiconset/Icon-1024.png`. |
 | `mark-transparent-1024.png`           | 1024×1024  | Transparent clearspace | Approved icon artwork for buttons, badges, and headers.                                  |
 | `plugin-logo.png`                     | 512×512    | Opaque dark navy | Plugin directory logo (`interface.logo`).                                                     |
-| `plugin-composer-icon.png`            | 512×512    | Transparent      | Plugin composer icon (`interface.composerIcon`).                                              |
+| `plugin-composer-icon.png`            | 88×88      | Opaque dark navy | Plugin composer icon (`interface.composerIcon`), exported at 2× its 44×44 display size.       |
 | `wordmark-horizontal.png`             | 2400×840   | Opaque light     | Pixel-exact approved horizontal lockup for light surfaces. |
 | `wordmark-horizontal-transparent.png` | 2400×840   | Transparent      | Clean dark-surface lockup using the approved typography and tagline. |
 | `branding-sheet.png`                  | 1536×1024  | Opaque light     | Authoritative approved U2 identity sheet, and the generator's source image.                   |
