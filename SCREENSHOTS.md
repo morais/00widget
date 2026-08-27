@@ -4,7 +4,7 @@ The marketing screenshot suite is driven by XCUITest and uses built-in sample da
 
 ## iPhone with Dynamic Island
 
-This is the primary iPhone set. The default capture device is **iPhone 17 Pro**, and the files are written to `ios/build/screenshots/` at 1206×2622.
+This is the primary iPhone set. The default capture device is **iPhone 17 Pro**, and the files are written to `ios/build/screenshots/iphone-6.3/` at 1206×2622.
 
 Run the full capture with:
 
@@ -17,17 +17,17 @@ The test captures these surfaces in order:
 | File | Surface |
 | --- | --- |
 | `screenshot-widgets.png` | The in-app Widgets dashboard with the Solar, Washer, Boiler, and other sample cards. |
-| `screenshot-insights.png` | The in-app chart section centered on the Energy and Deploys cards. |
+| `screenshot-insights.png` | The in-app chart section centered on the 30-day Energy and 20-run Deploys cards. |
 | `screenshot-breakdown.png` | The in-app Device fleet breakdown, with status-colored Healthy, Updating, Attention, and Offline segments. |
-| `screenshot-activities.png` | The in-app Activities screen with a green home-battery curve that rises and dips with solar input and household load, currently ending at 95%. |
+| `screenshot-activities.png` | The in-app Activities screen with a 24-reading green home-battery curve that rises and dips with solar input and household load, currently ending at 95%. |
 | `screenshot-home-dynamic-island.png` | The Home Screen with the compact battery Live Activity, three small Solar, Washer, and Boiler widgets, and a wide Energy chart. |
 | `screenshot-home-widgets.png` | The same Home Screen after a long press expands the Dynamic Island Live Activity. This is the Home Screen image in the canonical published set. |
-| `screenshot-home-insights.png` | A second Home Screen layout with the Energy, Deploys, and Device fleet widgets. |
+| `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
 
 The compact Dynamic Island image is retained as an additional capture. The canonical copy command publishes the other six iPhone images:
 
 ```sh
-ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
+ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
 
 For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --only activities`. Use `--only app` to capture the four in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
@@ -35,7 +35,7 @@ For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --o
 The subscription QA suite is separate from the public product-page set. Run
 `ios/scripts/capture-screenshots.sh --only subscriptions` to capture the free,
 trial, active, billing-retry, grace-period, expired, and publishing-paused
-states under `ios/build/screenshots/subscriptions/`. The command runs both the
+states under `ios/build/screenshots/iphone-6.3/subscriptions/`. The command runs both the
 paywall-state test and the dashboard notice test; keep both filters when
 changing this mode.
 
@@ -77,12 +77,25 @@ The canonical published order is Widgets, Home Screen widgets, Activities,
 Insights, and Breakdown. The full run may produce additional Home Screen
 captures, but only `screenshot-home-widgets.png` belongs to this App Store set.
 `--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
+Copy it with `ios/scripts/copy-screenshots.sh --set iphone-6.5 --to
+/path/to/site/public/assets`.
 
 ## iPad
 
 iPad captures the same four in-app surfaces plus the classic and insights Home Screen layouts. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart rather than an expanded Live Activity, and no `screenshot-home-dynamic-island.png` is created. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## App Store Connect
+
+The screenshot root contains one directory per App Store device class and no
+PNG files directly inside it:
+
+```text
+ios/build/screenshots/
+├── iphone-6.3/
+├── iphone-6.5/
+├── ipad/
+└── tvos/
+```
 
 After all four device sets pass visual QA, preview the replacement plan with:
 

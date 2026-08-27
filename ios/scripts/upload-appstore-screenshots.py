@@ -34,7 +34,7 @@ spec.loader.exec_module(asc)
 CAPTURE_SETS = {
     "IOS": {
         "APP_IPHONE_61": (
-            IOS_ROOT / "build/screenshots",
+            IOS_ROOT / "build/screenshots/iphone-6.3",
             [
                 "screenshot-widgets.png",
                 "screenshot-home-widgets.png",

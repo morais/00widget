@@ -10,7 +10,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotSolarWidget()
         ScreenshotWasherWidget()
         ScreenshotBoilerWidget()
-        ScreenshotEnergyWidget()
+        ScreenshotEnergyLargeWidget()
         ScreenshotEnergyWideWidget()
         ScreenshotDeploysWidget()
         ScreenshotDeviceFleetWidget()

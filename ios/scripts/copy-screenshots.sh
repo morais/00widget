@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Copies the canonical marketing screenshot set into any website asset folder.
 #
-#   ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
+#   ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
+#   ios/scripts/copy-screenshots.sh --set iphone-6.5 --to /path/to/site/public/assets
 #   ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
 #   ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
 #   ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
@@ -37,10 +38,11 @@ fi
 
 IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$SET" in
-  iphone) SOURCE="$IOS_ROOT/build/screenshots" ;;
+  iphone|iphone-6.3) SOURCE="$IOS_ROOT/build/screenshots/iphone-6.3" ;;
+  iphone-6.5) SOURCE="$IOS_ROOT/build/screenshots/iphone-6.5" ;;
   ipad) SOURCE="$IOS_ROOT/build/screenshots/ipad" ;;
   tvos) SOURCE="$IOS_ROOT/build/screenshots/tvos" ;;
-  *) echo "--set must be 'iphone', 'ipad', or 'tvos'" >&2; exit 2 ;;
+  *) echo "--set must be 'iphone-6.3', 'iphone-6.5', 'ipad', or 'tvos'" >&2; exit 2 ;;
 esac
 
 if [[ "$SET" == "tvos" ]]; then
@@ -51,6 +53,14 @@ if [[ "$SET" == "tvos" ]]; then
   fi
 elif [[ "$ONLY" == "activities" ]]; then
   FILES=(screenshot-activities.png)
+elif [[ "$SET" == "iphone-6.5" ]]; then
+  FILES=(
+    screenshot-widgets.png
+    screenshot-home-widgets.png
+    screenshot-activities.png
+    screenshot-insights.png
+    screenshot-breakdown.png
+  )
 else
   FILES=(
     screenshot-widgets.png

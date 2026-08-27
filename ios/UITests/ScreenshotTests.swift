@@ -105,8 +105,13 @@ final class ScreenshotTests: XCTestCase {
             )
             XCTAssertEqual(
                 insightWidgets.filter { isSmallWidget($0) }.count,
-                3,
-                "Every widget on the insights page must be small."
+                2,
+                "The insights page must contain two small widgets."
+            )
+            XCTAssertEqual(
+                insightWidgets.filter { isLargeWidget($0) }.count,
+                1,
+                "The insights page must contain one large widget."
             )
             capture(named: "screenshot-home-insights")
         }
@@ -198,7 +203,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private var insightWidgetNames: [String] {
-        ["Screenshot Energy", "Screenshot Deploys", "Screenshot Device Fleet"]
+        ["Screenshot Energy Large", "Screenshot Deploys", "Screenshot Device Fleet"]
     }
 
     /// Replaces the retained layout with the requested screenshot-only widgets.
@@ -230,31 +235,50 @@ final class ScreenshotTests: XCTestCase {
         }
 
         let existing = marketingWidgets(in: springboard)
-        let hasNonSmall = existing.contains { !isSmallWidget($0) }
-        let smallCount = existing.filter { isSmallWidget($0) }.count
-        // The iPad page also contains apps, so removing every widget cannot
-        // delete it. The iPhone marketing page is widget-only and needs one
-        // temporary anchor to survive while its layout is rebuilt.
-        let keepSmallAnchor = !isIPad(springboard) && !hasNonSmall && smallCount > 0
-        let smallsToRemove = keepSmallAnchor ? smallCount - 1 : smallCount
-        for _ in 0..<smallsToRemove {
-            removeWidget(in: springboard, matching: isSmallWidget)
-        }
-
-        let insertionOrder = isIPad(springboard) ? displayNames : Array(displayNames.reversed())
-        for (index, name) in insertionOrder.enumerated() {
-            addWidget(named: name, in: springboard)
-            if keepSmallAnchor && index == 0 {
-                // Once a replacement exists, the page no longer needs the old
-                // small widget as an anchor. At this point it is still the last
-                // retained widget in Home Screen order.
-                removeWidget(in: springboard, matching: isSmallWidget, last: true)
+        let onIPad = isIPad(springboard)
+        var anchorIsSmall: Bool?
+        if onIPad {
+            // Apps keep an iPad page alive, so it needs no temporary widget.
+            for _ in existing.indices {
+                removeWidget(in: springboard) { _ in true }
+            }
+        } else {
+            let smallCount = existing.filter { isSmallWidget($0) }.count
+            let nonSmallCount = existing.count - smallCount
+            if smallCount > 0 {
+                // Retain one small anchor and remove wider widgets first. A
+                // retained medium widget plus the new large insights layout
+                // exceeds an iPhone page's capacity before cleanup can run.
+                for _ in 0..<nonSmallCount {
+                    removeWidget(in: springboard) { !isSmallWidget($0) }
+                }
+                for _ in 0..<(smallCount - 1) {
+                    removeWidget(in: springboard, matching: isSmallWidget)
+                }
+                anchorIsSmall = true
+            } else if nonSmallCount > 0 {
+                for _ in 0..<(nonSmallCount - 1) {
+                    removeWidget(in: springboard) { !isSmallWidget($0) }
+                }
+                anchorIsSmall = false
             }
         }
-        if hasNonSmall {
-            removeWidget(in: springboard) { !isSmallWidget($0) }
+
+        let insertionOrder = onIPad ? displayNames : Array(displayNames.reversed())
+        for (index, name) in insertionOrder.enumerated() {
+            addWidget(named: name, in: springboard)
+            if let anchorIsSmall, index == 0 {
+                // Once a replacement exists, the page no longer needs the old
+                // widget as an anchor. At this point it is still the last
+                // retained widget of its size class in Home Screen order.
+                removeWidget(
+                    in: springboard,
+                    matching: { isSmallWidget($0) == anchorIsSmall },
+                    last: true
+                )
+            }
         }
-        if isIPad(springboard) {
+        if onIPad {
             hideTestRunnerIconIfPresent(in: springboard)
         }
 
@@ -323,7 +347,11 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func isSmallWidget(_ widget: XCUIElement) -> Bool {
-        widget.frame.width > 120 && widget.frame.width / widget.frame.height < 1.3
+        widget.frame.width < 250 && widget.frame.height < 250
+    }
+
+    private func isLargeWidget(_ widget: XCUIElement) -> Bool {
+        widget.frame.width >= 250 && widget.frame.height >= 250
     }
 
     private func isIPad(_ application: XCUIApplication) -> Bool {

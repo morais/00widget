@@ -39,10 +39,17 @@ fi
 
 IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -z "$OUT" ]]; then
-  if [[ "$DEVICE" == iPad* ]]; then
-    OUT="$IOS_ROOT/build/screenshots/ipad"
-  else
-    OUT="$IOS_ROOT/build/screenshots"
+  case "$DEVICE" in
+    "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
+    "iPhone 14 Plus – App Store 6.5") DEVICE_FOLDER="iphone-6.5" ;;
+    iPad*) DEVICE_FOLDER="ipad" ;;
+    *)
+      DEVICE_FOLDER="$(printf '%s' "$DEVICE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')"
+      ;;
+  esac
+  OUT="$IOS_ROOT/build/screenshots/$DEVICE_FOLDER"
+  if [[ "$ONLY" == "subscriptions" ]]; then
+    OUT="$OUT/subscriptions"
   fi
 fi
 

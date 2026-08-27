@@ -129,14 +129,17 @@ survive it. Use `xcrun simctl erase` for a genuinely clean device.
 ## Marketing screenshots
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
-(`ios/UITests/ScreenshotTests.swift`) and writes PNGs to
-`ios/build/screenshots/`. To publish the canonical iPhone set, pass the
+(`ios/UITests/ScreenshotTests.swift`) and writes the default iPhone PNGs to
+`ios/build/screenshots/iphone-6.3/`. Each App Store device class owns a folder
+under `ios/build/screenshots/`; no PNG belongs directly in that root. To publish
+the canonical iPhone set, pass the
 destination asset directory explicitly; the repository location is never
 assumed:
 
 ```
-ios/scripts/copy-screenshots.sh --to /path/to/site/public/assets
+ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
 ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
+ios/scripts/copy-screenshots.sh --set iphone-6.5 --to /path/to/site/public/assets
 ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
 ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
 ios/scripts/copy-screenshots.sh --set tvos --only activities --to /path/to/site/public/assets/tvos
@@ -198,10 +201,11 @@ XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 captured — a long-press on the island after backgrounding the app. The same test
 also rebuilds the dedicated marketing Home Screen page twice on every run. The
 classic capture has three small Solar, Washer, and Boiler widgets plus a wide
-Energy chart; the insights capture uses small Energy, Deploys, and Device fleet
-widgets. It removes any previous 00Widget layout, adds each set through
-SpringBoard's widget gallery, and asserts the expected sizes exist before capturing
-`screenshot-home-widgets.png` and `screenshot-home-insights.png`.
+Energy chart; the insights capture uses a large 30-day Energy widget plus small
+Deploys and Device fleet widgets. It removes any previous 00Widget layout, adds
+each set through SpringBoard's widget gallery, and asserts the expected sizes
+exist before capturing `screenshot-home-widgets.png` and
+`screenshot-home-insights.png`.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `ios/build/screenshots/ipad/`. It produces native 2064×2752 images, uses the
@@ -214,10 +218,9 @@ variants, because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
 condition. It adds static widget kinds that feed Solar, Washer, Boiler, Energy,
-Deploys, and Device fleet through the production card renderer, including a
-medium Energy variant for the classic layout. The latter three small variants
-power the chart-focused Home Screen capture. This is necessary
-because the Simulator does not rehydrate stored AppIntent card selections (see
+Deploys, and Device fleet through the production card renderer, including
+medium and large Energy variants for the classic and insights layouts. This is
+necessary because the Simulator does not rehydrate stored AppIntent card selections (see
 "Widget configuration cannot be verified on the Simulator" above), so three
 normal configurable widgets cannot retain three distinct cards there. Ordinary
 simulator builds and every shipping build do not compile these widget kinds.

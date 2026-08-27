@@ -4,8 +4,8 @@ import WidgetKit
 
 /// Fixed sample widgets used only by the marketing screenshot build.
 ///
-/// The Simulator does not rehydrate AppIntent entity selections, so three
-/// configurable small CardWidget instances cannot retain three distinct cards.
+/// The Simulator does not rehydrate AppIntent entity selections, so multiple
+/// configurable CardWidget instances cannot retain distinct cards.
 /// These static configurations exercise the same production renderer while
 /// giving the screenshot harness stable, independently identifiable widgets.
 private struct ScreenshotCardProvider: TimelineProvider {
@@ -81,12 +81,14 @@ struct ScreenshotBoilerWidget: Widget {
     }
 }
 
-struct ScreenshotEnergyWidget: Widget {
+struct ScreenshotEnergyLargeWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.energy",
+            kind: "com.00widget.screenshot.energy-large",
             sampleSuffix: "energy-trend",
-            displayName: "Screenshot Energy"
+            displayName: "Screenshot Energy Large",
+            density: .automatic,
+            supportedFamilies: [.systemLarge]
         )
     }
 }
