@@ -126,15 +126,54 @@ describe("app Apple login", () => {
     );
     expect(devicePublish.status).toBe(403);
 
+    const issuedKeys = await listApiKeys(env);
+    expect(issuedKeys.filter((key) => key.sessionId).map((key) => key.scopes)).toEqual(
+      expect.arrayContaining([
+        ["read", "device:register", "actions:run"],
+        ["actions:confirm", "shares:manage"],
+      ]),
+    );
+    const agentKey = issuedKeys.find((key) => key.scopes.includes("webhook:manage"));
+    expect(agentKey?.sessionId).toBeFalsy();
+    expect(agentKey?.deviceId).toBeFalsy();
+  });
+
+  it("does not mint an invisible Agent-config token for tvOS", async () => {
+    const clientId = "com.example.zerozerowidget";
+    const { token, jwk } = await makeAppleIdToken({
+      aud: clientId,
+      email: "tv@example.com",
+      nonce: await sha256HexTest(TEST_RAW_NONCE),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 })),
+    );
+    const env = makeEnv({
+      APPLE_APP_LOGIN_ENABLED: "true",
+      APPLE_APP_SIGN_IN_CLIENT_ID: clientId,
+    });
+
+    const response = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/apple/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          identityToken: token,
+          nonce: TEST_RAW_NONCE,
+          label: "tvOS",
+          issuePublisherCredential: false,
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(response.status).toBe(201);
+    const body = await response.json() as { publisherCredential?: string };
+    expect(body.publisherCredential).toBeUndefined();
     expect(
-      (await listApiKeys(env))
-        .filter((key) => key.sessionId)
-        .map((key) => key.scopes),
-    ).toEqual(expect.arrayContaining([
-      ["read", "publish", "webhook:manage"],
-      ["read", "device:register", "actions:run"],
-      ["actions:confirm", "shares:manage"],
-    ]));
+      (await listApiKeys(env)).filter((key) => key.label.includes("(agent publisher)")),
+    ).toEqual([]);
   });
 
   it("uses the stored Apple account mapping when a later token omits email", async () => {

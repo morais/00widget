@@ -157,6 +157,15 @@ struct RootView: View {
         .onChange(of: env.requestedLandingTab) { _, _ in
             applyRequestedLandingTab()
         }
+        .onChange(of: env.apiKey) { _, key in
+            // Account deletion on another device turns the surviving Keychain
+            // credential into a 401. Startup clears it authoritatively; take
+            // the reader to the sign-in control instead of leaving an empty
+            // dashboard selected. Guest-only access still has a dashboard.
+            if key.isEmpty && env.guestLinks.isEmpty {
+                selectedTab = "settings"
+            }
+        }
     }
 
     private func applyRequestedLandingTab() {

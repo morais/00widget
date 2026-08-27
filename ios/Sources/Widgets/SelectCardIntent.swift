@@ -22,6 +22,43 @@ public struct CardEntity: AppEntity {
     }
 }
 
+/// The grid gets its own entity type because an `AppEntity` has one fixed
+/// `defaultQuery`. The single-card picker needs a synthetic "None" choice to
+/// override its automatic first-card fallback; an empty grid selection already
+/// means "follow the dashboard", so exposing that choice there is redundant.
+public struct GridCardEntity: AppEntity {
+    public static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        TypeDisplayRepresentation(name: "Dashboard card")
+    }
+
+    public static var defaultQuery = GridCardEntityQuery()
+
+    public var id: String
+    public var title: String
+
+    public var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+
+    public init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
+private enum WidgetCardPickerSource {
+    static var cards: [DashboardCard] {
+        CardCache.cardsForWidgets()
+    }
+
+    /// A shared card and one of your own can carry the same title — ids are
+    /// unique per tenant, not globally — so the picker has to say which is
+    /// which. The rendered widget carries the link badge; this list is text.
+    static func title(for card: DashboardCard) -> String {
+        card.isFromGuestLink ? "\(card.title) (shared)" : card.title
+    }
+}
+
 public struct CardEntityQuery: EntityQuery {
     public static let noneId = "__none__"
 
@@ -37,38 +74,52 @@ public struct CardEntityQuery: EntityQuery {
     /// alive lets `CardTimelineProvider` say `.noCachedData` about the right
     /// card instead.
     public func entities(for identifiers: [CardEntity.ID]) async throws -> [CardEntity] {
-        let cards = CardCache.cardsForWidgets()
+        let cards = WidgetCardPickerSource.cards
         return identifiers.map { id in
             if id == Self.noneId { return CardEntity(id: id, title: "None") }
             guard let card = cards.first(where: { $0.id == id }) else {
                 return CardEntity(id: id, title: id)
             }
-            return CardEntity(id: card.id, title: Self.pickerTitle(for: card))
+            return CardEntity(id: card.id, title: WidgetCardPickerSource.title(for: card))
         }
     }
 
     public func suggestedEntities() async throws -> [CardEntity] {
-        let cards = CardCache.cardsForWidgets()
-            .map { CardEntity(id: $0.id, title: Self.pickerTitle(for: $0)) }
+        let cards = WidgetCardPickerSource.cards
+            .map { CardEntity(id: $0.id, title: WidgetCardPickerSource.title(for: $0)) }
         return [CardEntity(id: Self.noneId, title: "None")] + cards
-    }
-
-    /// A shared card and one of your own can carry the same title — ids are
-    /// unique per tenant, not globally — so the picker has to say which is
-    /// which. The rendered widget carries the link badge; this list is text.
-    private static func pickerTitle(for card: DashboardCard) -> String {
-        card.isFromGuestLink ? "\(card.title) (shared)" : card.title
     }
 
     /// Deliberately no `defaultResult()`.
     ///
-    /// A freshly placed widget should render a card rather than "Pick a card",
-    /// but this query cannot be where that is decided: it backs all four slots
-    /// of the grid widget as well, so one default for every slot is the same
-    /// card four times. The default is a property of the widget, not of the
-    /// card list, so each timeline provider picks its own — one card for
-    /// `CardTimelineProvider`, four distinct ones for
-    /// `CardGridTimelineProvider`.
+    /// The single-card timeline owns its automatic first-card fallback so nil
+    /// remains distinct from the explicit "None" entity.
+}
+
+public struct GridCardEntityQuery: EntityQuery {
+    public init() {}
+
+    /// As with the single-card query, keep stored ids alive when a card is not
+    /// currently cached. That lets the timeline distinguish a missing selected
+    /// card from an unconfigured grid.
+    public func entities(for identifiers: [GridCardEntity.ID]) async throws -> [GridCardEntity] {
+        let cards = WidgetCardPickerSource.cards
+        return identifiers.map { id in
+            guard let card = cards.first(where: { $0.id == id }) else {
+                return GridCardEntity(id: id, title: id)
+            }
+            return GridCardEntity(
+                id: card.id,
+                title: WidgetCardPickerSource.title(for: card)
+            )
+        }
+    }
+
+    public func suggestedEntities() async throws -> [GridCardEntity] {
+        WidgetCardPickerSource.cards.map {
+            GridCardEntity(id: $0.id, title: WidgetCardPickerSource.title(for: $0))
+        }
+    }
 }
 
 public struct SelectCardIntent: WidgetConfigurationIntent {

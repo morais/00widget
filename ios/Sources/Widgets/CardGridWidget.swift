@@ -76,7 +76,7 @@ public struct SelectGridCardsIntent: WidgetConfigurationIntent {
     /// AppIntents metadata for a non-optional parameter of any type. Nil and
     /// empty mean the same thing here.
     @Parameter(title: "Cards")
-    public var cards: [CardEntity]?
+    public var cards: [GridCardEntity]?
 
     @Parameter(title: "On compact tap", default: .app)
     public var compactTapTarget: CardGridTapTarget
@@ -94,11 +94,8 @@ public struct SelectGridCardsIntent: WidgetConfigurationIntent {
         self.statusFilter = .all
     }
 
-    /// The picker is shared with the single-card widget, whose list carries a
-    /// "None" row so a placement can be deliberately blank. A set has no use
-    /// for it — empty already says that — so drop it wherever it is read.
     var selectedCardIds: [String] {
-        (cards ?? []).map(\.id).filter { $0 != CardEntityQuery.noneId }
+        (cards ?? []).map(\.id)
     }
 }
 

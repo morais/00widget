@@ -32,6 +32,39 @@ private struct ScreenshotCardProvider: TimelineProvider {
     }
 }
 
+private struct ScreenshotMetricsGridProvider: TimelineProvider {
+    private let sampleSuffixes = ["solar", "car-charge", "energy-trend", "deploys"]
+
+    func placeholder(in context: Context) -> CardGridEntry {
+        entry()
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (CardGridEntry) -> Void) {
+        completion(entry())
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CardGridEntry>) -> Void) {
+        completion(Timeline(entries: [entry()], policy: .never))
+    }
+
+    private func entry() -> CardGridEntry {
+        let cached = CardCache.load().cards
+        let samples = SampleDataFactory.makeCards()
+        let cards = sampleSuffixes.compactMap { suffix in
+            let id = SampleDataFactory.sampleId(suffix)
+            return cached.first(where: { $0.id == id })
+                ?? samples.first(where: { $0.id == id })
+        }
+        return CardGridEntry(
+            date: Date(),
+            cards: cards,
+            compactTapTarget: .app,
+            density: .automatic,
+            statusFilter: .all
+        )
+    }
+}
+
 private func screenshotCardConfiguration(
     kind: String,
     sampleSuffix: String,
@@ -122,6 +155,36 @@ struct ScreenshotDeviceFleetWidget: Widget {
             sampleSuffix: "device-fleet",
             displayName: "Screenshot Device Fleet"
         )
+    }
+}
+
+struct ScreenshotMetricsLargeWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: "com.00widget.screenshot.metrics-large",
+            provider: ScreenshotMetricsGridProvider()
+        ) { entry in
+            CardGridWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Screenshot Four Metrics Large")
+        .description("Marketing screenshot sample.")
+        .supportedFamilies([.systemLarge])
+    }
+}
+
+struct ScreenshotMetricsExtraLargeWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: "com.00widget.screenshot.metrics-extra-large",
+            provider: ScreenshotMetricsGridProvider()
+        ) { entry in
+            CardGridWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Screenshot Four Metrics Extra Large")
+        .description("Marketing screenshot sample.")
+        .supportedFamilies([.systemExtraLarge])
     }
 }
 #endif

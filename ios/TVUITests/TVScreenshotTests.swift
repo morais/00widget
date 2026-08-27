@@ -6,18 +6,6 @@ final class TVScreenshotTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testCaptureActivitiesScreenshot() {
-        let app = XCUIApplication()
-        app.launchArguments = ["--screenshot-section", "activities"]
-        app.launch()
-
-        XCTAssertTrue(
-            app.staticTexts["Home battery"].waitForExistence(timeout: 30),
-            "Sample Live Activity did not render on Apple TV."
-        )
-        capture(named: "screenshot-tv-activities")
-    }
-
     func testCaptureWidgetsScreenshot() {
         let app = XCUIApplication()
         app.launchArguments = ["--screenshot-section", "widgets"]

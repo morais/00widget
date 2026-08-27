@@ -188,6 +188,9 @@ const routes: Route[] = [
   authed("DELETE", /^\/v1\/auth\/token\/?$/, null, (req, env, auth) =>
     sessions.revokeCurrentCredential(req, env, auth), { allowExpired: true },
   ),
+  authed("POST", /^\/v1\/auth\/agent-token\/rotate\/?$/, null, (req, env, auth) =>
+    sessions.rotateAgentCredentials(req, env, auth), { credentialKind: "app" },
+  ),
   // App-only: the operator's email is not an agent's to read. See account.ts.
   authed("GET", /^\/v1\/account\/?$/, null, (req, env, auth) =>
     account.getAccount(req, env, auth), { credentialKind: "app" },

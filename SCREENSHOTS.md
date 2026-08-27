@@ -18,21 +18,19 @@ The test captures these surfaces in order:
 | --- | --- |
 | `screenshot-widgets.png` | The in-app Widgets dashboard with the Solar, Washer, Boiler, and other sample cards. |
 | `screenshot-insights.png` | The in-app chart section centered on the 30-day Energy and 20-run Deploys cards. |
-| `screenshot-breakdown.png` | The in-app Device fleet breakdown, with status-colored Healthy, Updating, Attention, and Offline segments. |
 | `screenshot-activities.png` | The in-app Activities screen with a 24-reading green home-battery curve that rises and dips with solar input and household load, currently ending at 95%. |
-| `screenshot-home-dynamic-island.png` | The Home Screen with the compact battery Live Activity, three small Solar, Washer, and Boiler widgets, and a wide Energy chart. |
-| `screenshot-home-widgets.png` | The same Home Screen after a long press expands the Dynamic Island Live Activity. This is the Home Screen image in the canonical published set. |
+| `screenshot-home-widgets.png` | The Home Screen with three small Solar, Washer, and Boiler widgets, a wide Energy chart, and the expanded Dynamic Island Live Activity. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
+| `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Solar, Car, Energy, and Deploys. |
 
-The compact Dynamic Island and in-app breakdown images are retained as
-additional captures. The canonical App Store set contains Widgets, Home Screen
-widgets, Insights, Home Screen insights, and Activities, in that order:
+The canonical App Store set contains Home Screen widgets, Home Screen insights,
+Home Screen metrics, Insights, Widgets, and Activities, in that order:
 
 ```sh
 ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
 
-For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --only activities`. Use `--only app` to capture the four in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
+For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
 
 The subscription QA suite is separate from the public product-page set. Run
 `ios/scripts/capture-screenshots.sh --only subscriptions` to capture the free,
@@ -63,19 +61,19 @@ It writes the following files to `ios/build/screenshots/tvos/`:
 
 | File | Surface |
 | --- | --- |
-| `screenshot-tv-widgets.png` | The general dashboard with the Solar and other classic cards. |
 | `screenshot-tv-insights.png` | The insights dashboard with Energy, Deploys, Device fleet, and the running home battery activity. |
-| `screenshot-tv-activities.png` | The Live Activities dashboard with the green home-battery curve rising and dipping before ending at 95%. |
+| `screenshot-tv-widgets.png` | The general dashboard with the Solar and other classic cards. |
 
-Refresh only the Live Activities image with `ios/scripts/capture-tv-screenshots.sh --only activities`. The canonical App Store set publishes Widgets and Insights; the Activities image remains available for other marketing use. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
+The canonical App Store order is Insights, then Widgets. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
 
 ## iPhone without Dynamic Island
 
-The App Store 6.5-inch set contains the same four in-app screenshots plus
-`screenshot-home-widgets.png`, showing the classic Home Screen layout without a
-Dynamic Island. Capture the full marketing suite with an explicit device; do
-not use `--only app`, because that mode intentionally omits the required Home
-Screen image:
+The App Store 6.5-inch set follows the same six-image story as the 6.3-inch set.
+`screenshot-home-widgets.png` shows the classic Home Screen layout without a
+Dynamic Island, and `screenshot-home-metrics.png` uses the same large
+four-metric widget. Capture the full marketing suite with an explicit device;
+do not use `--only app`, because that mode intentionally omits the required
+Home Screen images:
 
 ```sh
 ios/scripts/capture-screenshots.sh \
@@ -83,16 +81,15 @@ ios/scripts/capture-screenshots.sh \
   --out build/screenshots/iphone-6.5
 ```
 
-The canonical published order is Widgets, Home Screen widgets, Insights, and
-Activities. The full run also captures Breakdown and may produce additional
-Home Screen images, but they do not belong to this App Store set.
+The canonical published order is Home Screen widgets, Home Screen insights,
+Home Screen metrics, Insights, Widgets, and Activities.
 `--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
 Copy it with `ios/scripts/copy-screenshots.sh --set iphone-6.5 --to
 /path/to/site/public/assets`.
 
 ## iPad
 
-iPad captures the same four in-app surfaces plus the classic and insights Home Screen layouts. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart rather than an expanded Live Activity, and no `screenshot-home-dynamic-island.png` is created. The canonical App Store order is Widgets, Home Screen widgets, Insights, Home Screen insights, and Activities; Breakdown remains an additional capture. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Insights, Widgets, and Activities. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## App Store Connect
 

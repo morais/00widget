@@ -99,9 +99,10 @@ export async function createGuestLink(
   const created = await createApiKey(env, {
     tenantId: auth.tenantId,
     kind: "guest",
-    // Inherit the minting session so signing out revokes this link along with
-    // everything else that session issued.
-    sessionId: auth.sessionId,
+    purpose: "guest",
+    // A shared link belongs to the account, not to the phone used to display
+    // its QR code. It survives device sign-out and is revoked explicitly or by
+    // account deletion.
     label: label ?? `guest ${resourceKind}`,
     scopes: ApiScopePresets.guest,
     resourceKind,

@@ -1,4 +1,4 @@
-import type { AuthContext } from "./auth";
+import { rotateAgentApiKeys, type AuthContext } from "./auth";
 import { json } from "./http";
 import type { Env } from "./types";
 
@@ -34,6 +34,18 @@ export async function revokeCurrentCredential(
 ): Promise<Response> {
   const outcome = await revokeAndCleanup(env, auth);
   return json({ ok: true, ...outcome });
+}
+
+/// Revokes only the account-level tokens issued through the app's Agent config
+/// and returns their one replacement. Device sessions, guest links and MCP
+/// connector credentials carry different explicit purposes and are untouched.
+export async function rotateAgentCredentials(
+  _req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  const rotated = await rotateAgentApiKeys(env, auth.tenantId);
+  return json({ ok: true, ...rotated });
 }
 
 export async function revokeCredentialById(env: Env, apiKeyId: string): Promise<boolean> {

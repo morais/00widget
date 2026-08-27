@@ -97,6 +97,9 @@ export class FakeD1 {
       : ApiScopePresets.legacyPublisher,
     // Mirrors what `createApiKey` writes. Pass null for a fixed-deadline key.
     renewSeconds: number | null = DEFAULT_TOKEN_LIFETIME_SECONDS,
+    purpose: "general" | "device" | "app" | "agent" | "connector" | "guest" = kind === "app"
+      ? "app"
+      : "general",
   ): void {
     const now = "2026-01-01T00:00:00.000Z";
     if (!this.tenants.has(tenantId)) {
@@ -117,6 +120,7 @@ export class FakeD1 {
       last_used_at: "",
       revoked_at: "",
       kind,
+      purpose,
       session_id: sessionId,
       device_id: deviceId,
       expires_at: expiresAt,
@@ -148,6 +152,7 @@ export class FakeD1 {
         last_used_at: "",
         revoked_at: "",
         kind: "guest",
+        purpose: "guest",
         session_id: "",
         device_id: "",
         expires_at: "2099-01-01T00:00:00.000Z",
@@ -289,6 +294,7 @@ export class FakeD1 {
         label,
         created_at,
         kind,
+        purpose,
         session_id,
         device_id,
         expires_at,
@@ -296,7 +302,7 @@ export class FakeD1 {
       ] = values.map((value) => value == null ? "" : String(value));
       // Read straight from `values` so the number/null distinction survives the
       // String() mapping above — NULL here means "fixed deadline, never renew".
-      const renew_seconds = typeof values[10] === "number" ? values[10] : null;
+      const renew_seconds = typeof values[11] === "number" ? values[11] : null;
       // api_keys.kind carries a CHECK constraint in the real schema. This fake
       // enforces no constraints, which is how a guest kind reached production
       // against a CHECK that still read ('publisher', 'app') and 500'd every
@@ -305,8 +311,8 @@ export class FakeD1 {
         throw new Error(`CHECK constraint failed: kind IN ('publisher','app','guest') — got ${kind}`);
       }
       // Guest links bind a credential to one resource; NULL for every other kind.
-      const resource_kind = values[11] == null ? "" : String(values[11]);
-      const resource_id = values[12] == null ? "" : String(values[12]);
+      const resource_kind = values[12] == null ? "" : String(values[12]);
+      const resource_id = values[13] == null ? "" : String(values[13]);
       this.apiKeys.set(id, {
         id,
         tenant_id,
@@ -316,6 +322,7 @@ export class FakeD1 {
         last_used_at: "",
         revoked_at: "",
         kind,
+        purpose,
         session_id,
         device_id,
         expires_at,
@@ -350,6 +357,21 @@ export class FakeD1 {
       let count = 0;
       for (const row of this.apiKeys.values()) {
         if (row.tenant_id === tenant_id && row.session_id === session_id && !row.revoked_at) {
+          row.revoked_at = revoked_at;
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized === "UPDATE api_keys SET revoked_at = ? WHERE tenant_id = ? AND kind = 'publisher' AND purpose = 'agent' AND id <> ? AND revoked_at IS NULL") {
+      const [revoked_at, tenant_id, excluded_id] = values.map(String);
+      let count = 0;
+      for (const row of this.apiKeys.values()) {
+        if (row.tenant_id === tenant_id
+          && row.kind === "publisher"
+          && row.purpose === "agent"
+          && row.id !== excluded_id
+          && !row.revoked_at) {
           row.revoked_at = revoked_at;
           count++;
         }

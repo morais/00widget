@@ -279,14 +279,14 @@ struct OnboardingView: View {
                 KeyValue(key: "Signed in", value: email)
             }
 
-            // Both ways out live behind one row, named for both: Apple wants
-            // deletion findable, and a row called "Sign out" would have hidden
-            // it. Neither control is on this screen, where the destructive one
-            // would sit among switches.
-            NavigationLink("Sign out or delete account") {
+            // Device sign-out, agent-token rotation and account deletion live
+            // together, while the Settings surface itself stays routine.
+            NavigationLink("Account and access") {
                 AccountExitView(onSignOut: {
                     copiedAgentConfig = false
                     scheduleHealthCheck()
+                }, onAgentTokenRotated: {
+                    copiedAgentConfig = false
                 })
                 .environmentObject(env)
             }

@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// The two ways out of an account: sign this device out, or delete the account
-/// outright.
+/// Device sign-out, account-level Agent-token rotation, and account deletion.
 ///
-/// Together on one screen because they are the same question asked with
-/// different force, and because it keeps a destructive, irreversible control
-/// off the Settings screen proper, where it would sit among switches people
-/// use every day.
+/// Together on one screen because each controls the lifetime of account access,
+/// and because it keeps destructive controls off the Settings screen proper,
+/// where they would sit among switches people use every day.
 ///
 /// Apple requires an account an app can create to be deletable from that app,
 /// and requires deletion rather than deactivation. The consequences are stated
@@ -17,12 +15,16 @@ struct AccountExitView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var confirmingSignOut = false
+    @State private var confirmingAgentTokenRotation = false
     @State private var confirmingDelete = false
 
     /// Called after a successful sign-out so Settings can reset what it was
     /// showing — the copied-config acknowledgement refers to a token that no
     /// longer exists.
     var onSignOut: () -> Void = {}
+    /// Called after rotation so Settings stops treating the superseded token as
+    /// one the user has already copied.
+    var onAgentTokenRotated: () -> Void = {}
 
     var body: some View {
         List {
@@ -49,15 +51,49 @@ struct AccountExitView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    // Sign out revokes the whole session, agent publisher token
-                    // included, so every agent stops publishing until it gets
-                    // the new token from Agent config.
-                    Text("This revokes your agent token. Any agent publishing cards will stop working until you sign in again and give it the new token.")
+                    Text("This signs out only this device. Your agents, connectors, shared links, and account remain active.")
                 }
             } header: {
                 blockHeader("Sign out")
             } footer: {
                 Text("Signs this device out and leaves your account and everything in it untouched. You can sign back in at any time.")
+            }
+
+            Section {
+                Text("Use this if a token copied from Agent config may have been exposed. Every old Agent-config token stops working and one replacement is created.")
+                    .font(.subheadline)
+
+                Button(role: .destructive) {
+                    confirmingAgentTokenRotation = true
+                } label: {
+                    if env.agentTokenRotationInProgress {
+                        Label("Rotating…", systemImage: "hourglass")
+                    } else {
+                        Label("Rotate agent token", systemImage: "key.fill")
+                    }
+                }
+                .disabled(env.agentTokenRotationInProgress)
+                .confirmationDialog(
+                    "Rotate the agent token?",
+                    isPresented: $confirmingAgentTokenRotation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Rotate agent token", role: .destructive) {
+                        Task {
+                            if await env.rotateAgentToken() {
+                                onAgentTokenRotated()
+                                dismiss()
+                            }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("All existing Agent-config tokens will be revoked. Agents using them stop publishing until you give them the replacement shown in Settings. Approved connectors stay connected.")
+                }
+            } header: {
+                blockHeader("Agent access")
+            } footer: {
+                Text("This does not sign out your devices, delete any data, revoke shared links, or disconnect approved connectors.")
             }
 
             // One section, not four. Split across several, the list of what
@@ -127,13 +163,16 @@ struct AccountExitView: View {
                     Text("This permanently deletes your account and everything in it. It cannot be undone.")
                 }
 
-                if let error = env.appleLoginError {
+            } footer: {
+                Text("You can sign in again afterwards, but it starts a new, empty account.")
+            }
+
+            if let error = env.appleLoginError {
+                Section {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-            } footer: {
-                Text("You can sign in again afterwards, but it starts a new, empty account.")
             }
         }
         .navigationTitle("Account")

@@ -105,7 +105,11 @@ final class TVEnvironment: ObservableObject {
                 identityToken: identityToken,
                 rawNonce: rawNonce,
                 label: appVersion(),
-                deviceId: SharedSettings.deviceId()
+                deviceId: SharedSettings.deviceId(),
+                // Apple TV has no Agent-config surface. Minting a publisher
+                // token here would create a secret the television never shows
+                // or stores.
+                issuePublisherCredential: false
             )
             apiKey = response.token
             KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.appCredential)
@@ -128,7 +132,15 @@ final class TVEnvironment: ObservableObject {
     /// again rather than the address being lost until the next sign-in.
     func refreshAccount() async {
         guard !apiKey.isEmpty, let client = confirmedActionClient() else { return }
-        guard let response = try? await client.fetchAccount() else { return }
+        let response: AccountResponse
+        do {
+            response = try await client.fetchAccount()
+        } catch let error as APIClientError where error.status == 401 {
+            clearLocalCredentials()
+            return
+        } catch {
+            return
+        }
         guard let email = response.account.ownerEmail, !email.isEmpty else { return }
         appleLoginEmail = email
         UserDefaults.standard.set(
@@ -158,26 +170,19 @@ final class TVEnvironment: ObservableObject {
         signOutInProgress = true
         appleLoginError = nil
         defer { signOutInProgress = false }
-        if let client = confirmedActionClient() {
+        let appClient = confirmedActionClient()
+        var shouldTryDeviceCredential = appClient == nil
+        if let client = appClient {
             do {
                 try await client.revokeCurrentCredential()
-                clearLocalCredentials()
-                return true
             } catch let error as APIClientError where error.status == 401 {
-                // Fall through to the publisher token when the private half
-                // of the credential pair was already revoked.
+                shouldTryDeviceCredential = true
             } catch {
-                appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
-                return false
+                // Local sign-out must complete even when server cleanup cannot.
             }
         }
-        do {
-            if let client = apiClient() {
-                try await client.revokeCurrentCredential()
-            }
-        } catch {
-            appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
-            return false
+        if shouldTryDeviceCredential, let client = apiClient() {
+            try? await client.revokeCurrentCredential()
         }
 
         clearLocalCredentials()
@@ -244,6 +249,10 @@ final class TVEnvironment: ObservableObject {
             lastSyncAt = Date()
             lastSyncError = nil
         } catch {
+            if let error = error as? APIClientError, error.status == 401 {
+                clearLocalCredentials()
+                return
+            }
             lastSyncError = error.localizedDescription
         }
     }

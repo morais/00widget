@@ -80,12 +80,11 @@ final class ScreenshotTests: XCTestCase {
                     testRunnerIcon(in: springboard).exists,
                     "The UI test runner must not appear in a marketing screenshot."
                 )
-                // iPad has no Dynamic Island. Its applicable Home Screen shot
-                // is the classic widget layout without an island presentation.
+                capture(named: "screenshot-home-widgets")
+            } else if screenshotDeviceClass != "iphone-6.3" {
+                // The 6.5-inch capture device has no Dynamic Island.
                 capture(named: "screenshot-home-widgets")
             } else {
-                capture(named: "screenshot-home-dynamic-island")
-
                 // Long-press the island to reach the expanded presentation,
                 // which is what the published iPhone screenshot shows.
                 springboard
@@ -114,6 +113,29 @@ final class ScreenshotTests: XCTestCase {
                 "The insights page must contain one large widget."
             )
             capture(named: "screenshot-home-insights")
+
+            app.activate()
+            prepareHomeScreenWidgets(displayNames: metricWidgetNames)
+            let metricWidgets = marketingWidgets(in: springboard)
+            XCTAssertEqual(
+                metricWidgets.count,
+                1,
+                "The metrics page must contain exactly one widget."
+            )
+            if isIPad(springboard) {
+                XCTAssertEqual(
+                    metricWidgets.filter { isExtraLargeWidget($0) }.count,
+                    1,
+                    "The iPad metrics page must contain one extra-large widget."
+                )
+            } else {
+                XCTAssertEqual(
+                    metricWidgets.filter { isLargeWidget($0) }.count,
+                    1,
+                    "The iPhone metrics page must contain one large widget."
+                )
+            }
+            capture(named: "screenshot-home-metrics")
         }
     }
 
@@ -187,15 +209,6 @@ final class ScreenshotTests: XCTestCase {
             )
         XCTAssertTrue(app.staticTexts["Deploys"].firstMatch.waitForExistence(timeout: 5))
         capture(named: "screenshot-insights")
-
-        let deviceFleet = app.staticTexts["Device fleet"].firstMatch
-        XCTAssertTrue(scrollTo(deviceFleet, in: app, swipes: 4), "Device fleet sample card not found.")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
-            .press(
-                forDuration: 0.05,
-                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
-            )
-        capture(named: "screenshot-breakdown")
     }
 
     private var classicWidgetNames: [String] {
@@ -204,6 +217,17 @@ final class ScreenshotTests: XCTestCase {
 
     private var insightWidgetNames: [String] {
         ["Screenshot Energy Large", "Screenshot Deploys", "Screenshot Device Fleet"]
+    }
+
+    private var metricWidgetNames: [String] {
+        if screenshotDeviceClass == "ipad" {
+            return ["Screenshot Four Metrics Extra Large"]
+        }
+        return ["Screenshot Four Metrics Large"]
+    }
+
+    private var screenshotDeviceClass: String {
+        ProcessInfo.processInfo.environment["ZW_SCREENSHOT_DEVICE_CLASS"] ?? "iphone-6.3"
     }
 
     /// Replaces the retained layout with the requested screenshot-only widgets.
@@ -330,8 +354,11 @@ final class ScreenshotTests: XCTestCase {
         in springboard: XCUIApplication
     ) {
         widget.buttons["DeleteButton"].tap()
-        XCTAssertTrue(springboard.buttons["Remove"].waitForExistence(timeout: 5))
-        springboard.buttons["Remove"].tap()
+        let remove = springboard.buttons
+            .matching(NSPredicate(format: "label == 'Remove' OR label == 'Remove Widget'"))
+            .firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 8))
+        remove.tap()
         Thread.sleep(forTimeInterval: 1)
     }
 
@@ -352,6 +379,10 @@ final class ScreenshotTests: XCTestCase {
 
     private func isLargeWidget(_ widget: XCUIElement) -> Bool {
         widget.frame.width >= 250 && widget.frame.height >= 250
+    }
+
+    private func isExtraLargeWidget(_ widget: XCUIElement) -> Bool {
+        widget.frame.width >= 500 && widget.frame.height >= 250
     }
 
     private func isIPad(_ application: XCUIApplication) -> Bool {

@@ -14,6 +14,8 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotEnergyWideWidget()
         ScreenshotDeploysWidget()
         ScreenshotDeviceFleetWidget()
+        ScreenshotMetricsLargeWidget()
+        ScreenshotMetricsExtraLargeWidget()
 #endif
         CardWidget()
         CardGridWidget()

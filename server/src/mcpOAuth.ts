@@ -404,6 +404,7 @@ export async function handleToken(req: Request, env: Env): Promise<Response> {
     created = await createApiKey(env, {
       tenantId: code.tid,
       label: mcpCredentialLabel(client?.n, code.sub),
+      purpose: "connector",
       scopes: code.sc,
     });
   } catch (err) {

@@ -36,29 +36,33 @@ CAPTURE_SETS = {
         "APP_IPHONE_61": (
             IOS_ROOT / "build/screenshots/iphone-6.3",
             [
-                "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
-                "screenshot-insights.png",
                 "screenshot-home-insights.png",
+                "screenshot-home-metrics.png",
+                "screenshot-insights.png",
+                "screenshot-widgets.png",
                 "screenshot-activities.png",
             ],
         ),
         "APP_IPHONE_65": (
             IOS_ROOT / "build/screenshots/iphone-6.5",
             [
-                "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
+                "screenshot-home-insights.png",
+                "screenshot-home-metrics.png",
                 "screenshot-insights.png",
+                "screenshot-widgets.png",
                 "screenshot-activities.png",
             ],
         ),
         "APP_IPAD_PRO_3GEN_129": (
             IOS_ROOT / "build/screenshots/ipad",
             [
-                "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
-                "screenshot-insights.png",
                 "screenshot-home-insights.png",
+                "screenshot-home-metrics.png",
+                "screenshot-insights.png",
+                "screenshot-widgets.png",
                 "screenshot-activities.png",
             ],
         ),
@@ -67,8 +71,8 @@ CAPTURE_SETS = {
         "APP_APPLE_TV": (
             IOS_ROOT / "build/screenshots/tvos",
             [
-                "screenshot-tv-widgets.png",
                 "screenshot-tv-insights.png",
+                "screenshot-tv-widgets.png",
             ],
         ),
     },

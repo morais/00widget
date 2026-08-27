@@ -46,26 +46,20 @@ case "$SET" in
 esac
 
 if [[ "$SET" == "tvos" ]]; then
-  if [[ "$ONLY" == "activities" ]]; then
-    FILES=(screenshot-tv-activities.png)
-  else
-    FILES=(screenshot-tv-widgets.png screenshot-tv-insights.png)
+  if [[ "$ONLY" != "all" ]]; then
+    echo "--only activities is not available for tvOS" >&2
+    exit 2
   fi
+  FILES=(screenshot-tv-insights.png screenshot-tv-widgets.png)
 elif [[ "$ONLY" == "activities" ]]; then
   FILES=(screenshot-activities.png)
-elif [[ "$SET" == "iphone-6.5" ]]; then
-  FILES=(
-    screenshot-widgets.png
-    screenshot-home-widgets.png
-    screenshot-insights.png
-    screenshot-activities.png
-  )
 else
   FILES=(
-    screenshot-widgets.png
     screenshot-home-widgets.png
-    screenshot-insights.png
     screenshot-home-insights.png
+    screenshot-home-metrics.png
+    screenshot-insights.png
+    screenshot-widgets.png
     screenshot-activities.png
   )
 fi

@@ -24,6 +24,10 @@ interface AppleTokenRequest {
   // leaked identity token from a different login attempt.
   nonce?: string;
   deviceId?: string;
+  /// tvOS has no Agent-config surface, so it asks for only the two credentials
+  /// the television itself needs. iOS defaults to issuing an account-level
+  /// Agent-config token for compatibility with older builds.
+  issuePublisherCredential?: boolean;
 }
 
 export async function createTokenFromApple(
@@ -123,6 +127,7 @@ export async function createTokenFromApple(
     ownerEmail,
     label,
     kind: "publisher",
+    purpose: "device",
     sessionId,
     deviceId,
     scopes: ApiScopePresets.device,
@@ -132,19 +137,24 @@ export async function createTokenFromApple(
     ownerEmail: created.tenant.ownerEmail,
     label: `${label} (app only)`,
     kind: "app",
+    purpose: "app",
     sessionId,
     deviceId,
     scopes: ApiScopePresets.appOnly,
   });
-  const publisherCredential = await createApiKey(env, {
-    tenantId: created.tenant.id,
-    ownerEmail: created.tenant.ownerEmail,
-    label: `${label} (agent publisher)`,
-    kind: "publisher",
-    sessionId,
-    deviceId,
-    scopes: ApiScopePresets.producer,
-  });
+  const publisherCredential = input.issuePublisherCredential === false
+    ? null
+    : await createApiKey(env, {
+        tenantId: created.tenant.id,
+        ownerEmail: created.tenant.ownerEmail,
+        label: `${label} (agent publisher)`,
+        kind: "publisher",
+        purpose: "agent",
+        // An agent token belongs to the account. It deliberately has neither
+        // the phone's session id nor its device id, so signing out one device
+        // cannot stop an agent that may be running somewhere else.
+        scopes: ApiScopePresets.producer,
+      });
   await putAppleAccount(env, {
     appleSub: claims.sub,
     tenantId: created.tenant.id,
@@ -164,7 +174,7 @@ export async function createTokenFromApple(
   return json({
     ...created,
     appCredential: appCredential.token,
-    publisherCredential: publisherCredential.token,
+    ...(publisherCredential ? { publisherCredential: publisherCredential.token } : {}),
   }, 201);
 }
 
@@ -172,7 +182,6 @@ function appleLoginIpKey(req: Request): string {
   const ip = req.headers.get("cf-connecting-ip")?.trim();
   return `apple-login:${ip || "unknown"}`;
 }
-
 
 
 

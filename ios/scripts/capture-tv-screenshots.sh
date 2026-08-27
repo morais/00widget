@@ -2,29 +2,21 @@
 # Captures native 1920x1080 Apple TV marketing screenshots via XCUITest.
 #
 #   ios/scripts/capture-tv-screenshots.sh
-#   ios/scripts/capture-tv-screenshots.sh --only activities
 #   ios/scripts/capture-tv-screenshots.sh --device "Apple TV 4K (3rd generation) (at 1080p)"
 #   ios/scripts/capture-tv-screenshots.sh --out /tmp/tv-shots
 set -euo pipefail
 
 DEVICE="Apple TV 4K (3rd generation) (at 1080p)"
 OUT=""
-ONLY="all"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
-    --only) ONLY="$2"; shift 2 ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" ]]; then
-  echo "--only must be 'all' or 'activities'" >&2
-  exit 2
-fi
 
 IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${OUT:-$IOS_ROOT/build/screenshots/tvos}"
@@ -45,17 +37,10 @@ xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
 echo "→ running TVScreenshotTests"
-if [[ "$ONLY" == "activities" ]]; then
-  TEST_FILTERS=(
-    -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureActivitiesScreenshot
-  )
-else
-  TEST_FILTERS=(
-    -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureActivitiesScreenshot
-    -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureInsightsScreenshot
-    -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureWidgetsScreenshot
-  )
-fi
+TEST_FILTERS=(
+  -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureInsightsScreenshot
+  -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureWidgetsScreenshot
+)
 
 xcodebuild test \
   -project ZeroZeroWidget.xcodeproj \
@@ -76,10 +61,10 @@ echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null
 
 mkdir -p "$OUT"
-python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" <<'PY'
+python3 - "$WORK/attachments" "$OUT" "$DEVICE" <<'PY'
 import datetime, hashlib, json, os, re, shutil, sys
 
-src, dest, mode, device = sys.argv[1:]
+src, dest, device = sys.argv[1:]
 manifest = json.load(open(os.path.join(src, "manifest.json")))
 
 def entries(node):
@@ -103,10 +88,9 @@ for entry in entries(manifest):
 if count == 0:
     raise SystemExit("no screenshot attachments found in result bundle")
 
-required = {"screenshot-tv-activities.png"} if mode == "activities" else {
-    "screenshot-tv-widgets.png",
+required = {
     "screenshot-tv-insights.png",
-    "screenshot-tv-activities.png",
+    "screenshot-tv-widgets.png",
 }
 missing = sorted(required - produced)
 if missing:
@@ -114,22 +98,25 @@ if missing:
         "capture did not produce required fresh attachments: " + ", ".join(missing)
     )
 
-if mode == "all":
-    files = {}
-    for name in sorted(produced):
-        path = os.path.join(dest, name)
-        if os.path.isfile(path) and name.endswith(".png"):
-            with open(path, "rb") as handle:
-                files[name] = hashlib.md5(handle.read()).hexdigest()
-    provenance = {
-        "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "device": device,
-        "mode": mode,
-        "files": files,
-    }
-    with open(os.path.join(dest, ".capture-manifest.json"), "w") as handle:
-        json.dump(provenance, handle, indent=2, sort_keys=True)
-        handle.write("\n")
+for name in os.listdir(dest):
+    if name.startswith("screenshot-") and name.endswith(".png") and name not in required:
+        os.unlink(os.path.join(dest, name))
+
+files = {}
+for name in sorted(produced):
+    path = os.path.join(dest, name)
+    if os.path.isfile(path) and name.endswith(".png"):
+        with open(path, "rb") as handle:
+            files[name] = hashlib.md5(handle.read()).hexdigest()
+provenance = {
+    "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "device": device,
+    "mode": "all",
+    "files": files,
+}
+with open(os.path.join(dest, ".capture-manifest.json"), "w") as handle:
+    json.dump(provenance, handle, indent=2, sort_keys=True)
+    handle.write("\n")
 PY
 
 echo "✓ Apple TV screenshots in $OUT"

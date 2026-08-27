@@ -279,10 +279,7 @@ describe("guest links — listing and revocation", () => {
     expect((await asGuest(env, minted.token)).status).toBe(200);
   });
 
-  it("signing out revokes every guest link the session minted", async () => {
-    // The reason guest links are api_keys rows: sign-out already revokes every
-    // credential sharing a session_id, so this needs no revocation code of
-    // its own. If this test fails, that inheritance has been broken.
+  it("keeps account-level guest links alive when one device signs out", async () => {
     const env = await ownerEnv();
     await seedCard(env);
     await seedActivity(env);
@@ -293,8 +290,8 @@ describe("guest links — listing and revocation", () => {
     const signOut = await asOwner(env, "/v1/auth/token", { method: "DELETE" });
     expect(signOut.status).toBe(200);
 
-    expect((await asGuest(env, cardLink.token)).status).toBe(401);
-    expect((await asGuest(env, activityLink.token)).status).toBe(401);
+    expect((await asGuest(env, cardLink.token)).status).toBe(200);
+    expect((await asGuest(env, activityLink.token)).status).toBe(200);
   });
 });
 

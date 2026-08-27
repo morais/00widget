@@ -49,7 +49,6 @@ open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
 ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
 ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
-ios/scripts/capture-tv-screenshots.sh --only activities  # quick Apple TV refresh
 ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
 ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
 
@@ -142,7 +141,6 @@ ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/asse
 ios/scripts/copy-screenshots.sh --set iphone-6.5 --to /path/to/site/public/assets
 ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
 ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
-ios/scripts/copy-screenshots.sh --set tvos --only activities --to /path/to/site/public/assets/tvos
 ```
 
 For a quick Activities-only refresh, use
@@ -162,9 +160,8 @@ Apple TV uses `ios/scripts/capture-tv-screenshots.sh`, which builds a private
 `ZeroZeroWidgetTVScreenshots` scheme and writes native 1920×1080 PNGs to
 `ios/build/screenshots/tvos/`. The screenshot-only state and UI-test target are
 not compiled into the shipping tvOS scheme. A full run captures the general
-dashboard, the Energy/Deploys/Device fleet insights dashboard with a running
-Live Activity, and the Live Activity dashboard. Pass `--only activities` for a
-quick Activities-only refresh.
+dashboard and the Energy/Deploys/Device fleet insights dashboard with a running
+Live Activity. The App Store order is Insights, then Widgets.
 
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
@@ -199,27 +196,31 @@ and fails closed on anything else.
 XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 "com.apple.springboard")`), which is how the expanded Dynamic Island is
 captured — a long-press on the island after backgrounding the app. The same test
-also rebuilds the dedicated marketing Home Screen page twice on every run. The
+also rebuilds the dedicated marketing Home Screen page three times on every
+full run. The
 classic capture has three small Solar, Washer, and Boiler widgets plus a wide
 Energy chart; the insights capture uses a large 30-day Energy widget plus small
-Deploys and Device fleet widgets. It removes any previous 00Widget layout, adds
+Deploys and Device fleet widgets; the metrics capture uses one grid with Solar,
+Car, Energy, and Deploys. That grid uses the large family on iPhone and the
+extra-large family on iPad. It removes any previous 00Widget layout, adds
 each set through SpringBoard's widget gallery, and asserts the expected sizes
-exist before capturing `screenshot-home-widgets.png` and
-`screenshot-home-insights.png`.
+exist before capturing `screenshot-home-widgets.png`,
+`screenshot-home-insights.png`, and `screenshot-home-metrics.png`.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `ios/build/screenshots/ipad/`. It produces native 2064×2752 images, uses the
-same two layouts on a clean regular Home Screen page, and captures
-the Widgets, insights, breakdown, and Activities app surfaces. The run turns
+all three layouts on a clean regular Home Screen page, and captures
+the Widgets, insights, and Activities app surfaces. The run turns
 off both optional iPad dock sections through Settings; otherwise the App
 Library button previews the installed UI-test runner as an apparent extra
-00Widget icon. It intentionally omits the compact and expanded Dynamic Island
-variants, because iPad has no Dynamic Island.
+00Widget icon. Its Home Screen capture has no Dynamic Island presentation,
+because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
 condition. It adds static widget kinds that feed Solar, Washer, Boiler, Energy,
 Deploys, and Device fleet through the production card renderer, including
-medium and large Energy variants for the classic and insights layouts. This is
+medium and large Energy variants for the classic and insights layouts and a
+large four-card grid for the metrics layout. This is
 necessary because the Simulator does not rehydrate stored AppIntent card selections (see
 "Widget configuration cannot be verified on the Simulator" above), so three
 normal configurable widgets cannot retain three distinct cards there. Ordinary
@@ -425,7 +426,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **App Group and shared Keychain identifiers come from `project.yml`.** The generated Info.plists and entitlements must match across the app and widget targets; edit `project.yml.sample` for shared changes and rerun `xcodegen`.
 - **The iOS app never holds the APNs `.p8`.** Only the backend has it, as a Wrangler secret. Don't introduce code that reads APNs private material on-device.
 - **Destructive actions don't run from widgets.** `RunDashboardActionIntent` checks `ActionDefinition.isSafeFromWidget` and silently no-ops for `role == .destructive` or `confirm == true`. Route those to the app via `deepLink` instead — don't loosen this without explicit user signoff.
-- **Guest links are view-only and bound to one resource id.** A `zwg_` credential carries only the `guest:read` scope, which no other route accepts, so the existing scope check is the whole enforcement — don't add `guest:read` to another route, and don't widen the guest preset. Cards come back with `actions` stripped. Links are bound to a resource *id*, never a resource kind: binding by kind is the sharp edge that made `SHARING_ENABLED` default to off, since a share for kind `progress` exposes every current and future progress activity. They are `api_keys` rows carrying the minting session's `session_id` so sign-out revokes them for free, and they never renew on use, because sliding expiry on a credential printed on a QR code would let anyone holding it keep it alive indefinitely.
+- **Guest links are view-only and bound to one resource id.** A `zwg_` credential carries only the `guest:read` scope, which no other route accepts, so the existing scope check is the whole enforcement — don't add `guest:read` to another route, and don't widen the guest preset. Cards come back with `actions` stripped. Links are bound to a resource *id*, never a resource kind: binding by kind is the sharp edge that made `SHARING_ENABLED` default to off, since a share for kind `progress` exposes every current and future progress activity. They are account-level `api_keys` rows with purpose `guest`, so signing one device out leaves links active; explicit link revocation and account deletion are the two ways to end them. They never renew on use, because sliding expiry on a credential printed on a QR code would let anyone holding it keep it alive indefinitely.
 - **A guest link's token lives in the URL fragment** (`/app/g#<token>`), never the path, so it is never sent to the Worker and never reaches Cloudflare's request logs. `server/test/guestLinks.test.ts` pins the URL shape; if you change how links are built, keep the `#`.
 - **Account deletion is deletion, and it is one list that has to stay complete.** Apple requires an account an app can create to be deletable from that app, and requires removal rather than deactivation — so `deleteAccount` in `server/src/account.ts` erases rows and the `tenants` row itself, and there is deliberately no `disabled_at` path in it. Every tenant-scoped table is named there explicitly, because nothing in the schema enumerates them: D1 has no cascading deletes here, `FakeD1` models no foreign keys, and a table left out simply keeps the data with no test able to see it. Three deliberate exceptions, each with a reason at the call site: the two push-cadence tables are keyed by APNs token, so the tokens are read before the rows naming them go; `rate_limit_buckets` is ephemeral and swept on expiry; and `subscriptions` is *detached* rather than deleted — `tenant_id` goes to NULL, because the row is an App Store account rather than this one and is what stops a second tenant claiming the same purchase. Deleting an account does not cancel a subscription, which the app says on the way in.
 - **D1 tenant isolation and scopes.** Every app/agent token is stored hashed in `api_keys`, maps to a `tenant_id`, and has explicit capability scopes; tenants store `owner_email` for ops/account ownership, and storage tables use `tenant_id` in their primary keys. New `/v1/*` routes must use `authed(...)` with a required scope and scope queries through `auth.tenantId`.

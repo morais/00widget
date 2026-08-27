@@ -43,6 +43,7 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
     @Published public private(set) var signOutInProgress = false
+    @Published public private(set) var agentTokenRotationInProgress = false
     @Published public private(set) var accountDeletionInProgress = false
     @Published public private(set) var lastSyncAt: Date?
     @Published public private(set) var lastSyncError: String?
@@ -171,7 +172,19 @@ public final class AppEnvironment: ObservableObject {
     /// forget who you are signed in as.
     public func refreshAccount() async {
         guard !apiKey.isEmpty, let client = confirmedActionClient() else { return }
-        guard let response = try? await client.fetchAccount() else { return }
+        let response: AccountResponse
+        do {
+            response = try await client.fetchAccount()
+        } catch let error as APIClientError where error.status == 401 {
+            // The account may have been deleted from another device. A
+            // definitive authentication failure is different from being
+            // offline: keeping the dead Keychain credential would survive an
+            // uninstall and leave this phone looking signed in forever.
+            clearLocalCredentials()
+            return
+        } catch {
+            return
+        }
         guard let email = response.account.ownerEmail, !email.isEmpty else { return }
         appleLoginEmail = email
         UserDefaults.standard.set(
@@ -185,30 +198,57 @@ public final class AppEnvironment: ObservableObject {
         appleLoginError = nil
         defer { signOutInProgress = false }
 
-        if let client = confirmedActionClient() {
+        let appClient = confirmedActionClient()
+        var shouldTryDeviceCredential = appClient == nil
+        if let client = appClient {
             do {
                 try await client.revokeCurrentCredential()
-                clearLocalCredentials()
-                return true
             } catch let error as APIClientError where error.status == 401 {
-                // The app credential may have been revoked independently;
-                // fall back to the paired publisher token for cleanup.
+                // The app half may already be gone while the paired device
+                // credential remains, so give that half one cleanup attempt.
+                shouldTryDeviceCredential = true
             } catch {
-                appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
-                return false
+                // Sign-out is a local state transition, not a server
+                // transaction. Offline cleanup may fail, but that must never
+                // trap somebody behind a credential they are trying to leave.
             }
         }
-        do {
-            if let client = apiClient() {
-                try await client.revokeCurrentCredential()
-            }
-        } catch {
-            appleLoginError = "Could not revoke this session: \(error.localizedDescription)"
-            return false
+        if shouldTryDeviceCredential, let client = apiClient() {
+            try? await client.revokeCurrentCredential()
         }
 
         clearLocalCredentials()
         return true
+    }
+
+    /// Invalidates every account-level token previously shown in Agent config
+    /// and installs the one replacement returned by the same atomic server
+    /// operation. MCP connectors and this device's own credentials have
+    /// different purposes and are not part of the rotation.
+    public func rotateAgentToken() async -> Bool {
+        agentTokenRotationInProgress = true
+        appleLoginError = nil
+        defer { agentTokenRotationInProgress = false }
+
+        guard let client = confirmedActionClient() else {
+            appleLoginError = AppEnvironment.reauthorizationMessage
+            return false
+        }
+        do {
+            let response = try await client.rotateAgentToken()
+            try KeychainStore.setAppOnly(
+                response.token,
+                for: ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
+            )
+            publisherCredential = response.token
+            return true
+        } catch let error as APIClientError where error.status == 401 || error.status == 403 {
+            appleLoginError = AppEnvironment.reauthorizationMessage
+            return false
+        } catch {
+            appleLoginError = "Could not rotate the agent token: \(error.localizedDescription)"
+            return false
+        }
     }
 
     /// Deletes the account on the server, then wipes what this device holds.
@@ -1062,9 +1102,18 @@ public final class AppEnvironment: ObservableObject {
             return false
         }
         connectionHealth = .checking
-        let ok = (try? await client.fetchCards()) != nil
-        connectionHealth = ok ? .ok : .failed
-        return ok
+        do {
+            _ = try await client.fetchCards()
+            connectionHealth = .ok
+            return true
+        } catch let error as APIClientError where error.status == 401 {
+            clearLocalCredentials()
+            connectionHealth = .notConfigured
+            return false
+        } catch {
+            connectionHealth = .failed
+            return false
+        }
     }
 
     public func testConnection() async -> Bool {

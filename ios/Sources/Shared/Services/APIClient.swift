@@ -106,6 +106,12 @@ public struct AccountResponse: Codable, Sendable {
     public let account: Account
 }
 
+public struct AgentTokenRotationResponse: Codable, Sendable {
+    public let ok: Bool
+    public let token: String
+    public let revokedAgentTokens: Int
+}
+
 public struct EmptyBody: Codable {}
 
 public struct SubscriptionVerifyResponse: Codable, Sendable {
@@ -252,7 +258,8 @@ public final class APIClient {
         identityToken: String,
         rawNonce: String,
         label: String,
-        deviceId: String
+        deviceId: String,
+        issuePublisherCredential: Bool = true
     ) async throws -> AppleTokenResponse {
         guard APIClientConfig.validatedBaseURL(from: baseURL.absoluteString) != nil else {
             throw APIClientError(status: 0, message: "Server URL must use HTTPS")
@@ -262,13 +269,20 @@ public final class APIClient {
             let nonce: String
             let label: String
             let deviceId: String
+            let issuePublisherCredential: Bool
         }
         var req = URLRequest(url: baseURL.appendingPathComponent("/v1/auth/apple/token"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.httpBody = try CardCache.jsonEncoder().encode(
-            Body(identityToken: identityToken, nonce: rawNonce, label: label, deviceId: deviceId),
+            Body(
+                identityToken: identityToken,
+                nonce: rawNonce,
+                label: label,
+                deviceId: deviceId,
+                issuePublisherCredential: issuePublisherCredential
+            ),
         )
 
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -478,6 +492,10 @@ public final class APIClient {
 
     public func revokeCurrentCredential() async throws {
         let _: EmptyBody = try await request("DELETE", path: "/v1/auth/token")
+    }
+
+    public func rotateAgentToken() async throws -> AgentTokenRotationResponse {
+        try await request("POST", path: "/v1/auth/agent-token/rotate")
     }
 
     /// Erases the account and everything it holds. App credential only, which

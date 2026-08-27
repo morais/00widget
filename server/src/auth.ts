@@ -21,6 +21,10 @@ export interface AuthContext {
 
 export type CredentialKind = "publisher" | "app" | "guest";
 
+/// Why a credential exists. `kind` remains the authorization-level shape;
+/// purpose separates credentials with the same shape but different lifecycle.
+export type CredentialPurpose = "general" | "device" | "app" | "agent" | "connector" | "guest";
+
 const API_TOKEN_PATTERN = /^(?:zw_[A-Za-z0-9_-]{43}|zwa_[A-Za-z0-9_-]{43}|zwg_[A-Za-z0-9_-]{43})$/;
 
 export const DEFAULT_TOKEN_LIFETIME_SECONDS = 90 * 24 * 60 * 60;
@@ -126,6 +130,7 @@ export interface CreateApiKeyInput {
   ownerEmail?: string;
   label?: string;
   kind?: CredentialKind;
+  purpose?: CredentialPurpose;
   sessionId?: string;
   deviceId?: string;
   expiresAt?: string;
@@ -313,6 +318,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   }
   const label = input.label?.trim() || "default";
   const kind = input.kind ?? "publisher";
+  const purpose = input.purpose
+    ?? (kind === "app" ? "app" : kind === "guest" ? "guest" : "general");
   const scopes = normalizeScopes(
     input.scopes ?? (kind === "app"
       ? ApiScopePresets.appOnly
@@ -367,9 +374,9 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     .run();
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
-       (id, tenant_id, token_hash, label, created_at, kind, session_id, device_id,
+       (id, tenant_id, token_hash, label, created_at, kind, purpose, session_id, device_id,
         expires_at, scopes_json, renew_seconds, resource_kind, resource_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       apiKeyId,
@@ -378,6 +385,7 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       label,
       now,
       kind,
+      purpose,
       sessionId ?? null,
       deviceId ?? null,
       expiresAt,
@@ -411,6 +419,59 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
       renewSeconds: renewSeconds ?? undefined,
     },
     token,
+  };
+}
+
+/// Replaces every token ever shown by Agent config with one new token.
+///
+/// D1 batches are transactions, so there is no state in which all old tokens
+/// are gone and the replacement was not inserted. The new id is excluded from
+/// the revocation statement because it carries the same explicit purpose.
+export async function rotateAgentApiKeys(
+  env: Env,
+  tenantId: string,
+  label = "Agent config (rotated)",
+): Promise<{ token: string; revokedAgentTokens: number }> {
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + DEFAULT_TOKEN_LIFETIME_SECONDS * 1000).toISOString();
+  const token = `zw_${randomUrlToken(32)}`;
+  const tokenHash = await sha256Hex(token);
+  const apiKeyId = crypto.randomUUID();
+  const scopes = normalizeScopes(ApiScopePresets.producer);
+
+  const results = await env.ZW_DB.batch([
+    env.ZW_DB.prepare(
+      `INSERT INTO api_keys
+         (id, tenant_id, token_hash, label, created_at, kind, purpose, session_id, device_id,
+          expires_at, scopes_json, renew_seconds, resource_kind, resource_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      apiKeyId,
+      tenantId,
+      tokenHash,
+      label,
+      now,
+      "publisher",
+      "agent",
+      null,
+      null,
+      expiresAt,
+      JSON.stringify(scopes),
+      DEFAULT_TOKEN_LIFETIME_SECONDS,
+      null,
+      null,
+    ),
+    env.ZW_DB.prepare(
+      `UPDATE api_keys
+       SET revoked_at = ?
+       WHERE tenant_id = ? AND kind = 'publisher' AND purpose = 'agent'
+         AND id <> ? AND revoked_at IS NULL`,
+    ).bind(now, tenantId, apiKeyId),
+  ]);
+
+  return {
+    token,
+    revokedAgentTokens: changedRows(results[1]),
   };
 }
 

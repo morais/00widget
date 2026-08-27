@@ -38,15 +38,15 @@ if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY"
 fi
 
 IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+case "$DEVICE" in
+  "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
+  "iPhone 14 Plus – App Store 6.5") DEVICE_FOLDER="iphone-6.5" ;;
+  iPad*) DEVICE_FOLDER="ipad" ;;
+  *)
+    DEVICE_FOLDER="$(printf '%s' "$DEVICE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')"
+    ;;
+esac
 if [[ -z "$OUT" ]]; then
-  case "$DEVICE" in
-    "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
-    "iPhone 14 Plus – App Store 6.5") DEVICE_FOLDER="iphone-6.5" ;;
-    iPad*) DEVICE_FOLDER="ipad" ;;
-    *)
-      DEVICE_FOLDER="$(printf '%s' "$DEVICE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g')"
-      ;;
-  esac
   OUT="$IOS_ROOT/build/screenshots/$DEVICE_FOLDER"
   if [[ "$ONLY" == "subscriptions" ]]; then
     OUT="$OUT/subscriptions"
@@ -130,6 +130,12 @@ codesign --force --sign - --entitlements "$ENTITLEMENTS" "$EXT" >/dev/null 2>&1
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP" >/dev/null 2>&1
 
 XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
+/usr/libexec/PlistBuddy \
+  -c "Delete :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_SCREENSHOT_DEVICE_CLASS" \
+  "$XCTESTRUN" 2>/dev/null || true
+/usr/libexec/PlistBuddy \
+  -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_SCREENSHOT_DEVICE_CLASS string $DEVICE_FOLDER" \
+  "$XCTESTRUN"
 
 echo "→ running ScreenshotTests"
 if [[ "$ONLY" == "activities" ]]; then
@@ -165,10 +171,6 @@ echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null
 
 mkdir -p "$OUT"
-# `screenshot-home-expanded.png` was an identical legacy alias for the
-# canonical expanded `screenshot-home-widgets.png`. Clear it so old captures
-# cannot make the output look as though two distinct screenshots still exist.
-rm -f "$OUT/screenshot-home-expanded.png"
 python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" <<'PY'
 import datetime, hashlib, json, os, re, shutil, sys
 
@@ -204,19 +206,17 @@ elif mode == "app":
     required = {
         "screenshot-widgets.png",
         "screenshot-insights.png",
-        "screenshot-breakdown.png",
         "screenshot-activities.png",
     }
 elif mode == "all":
     required = {
         "screenshot-widgets.png",
         "screenshot-home-widgets.png",
+        "screenshot-home-insights.png",
+        "screenshot-home-metrics.png",
         "screenshot-insights.png",
-        "screenshot-breakdown.png",
         "screenshot-activities.png",
     }
-    if device == "iPhone 17 Pro" or device.startswith("iPad"):
-        required.add("screenshot-home-insights.png")
 
 missing = sorted(required - produced)
 if missing:
@@ -225,6 +225,10 @@ if missing:
     )
 
 if mode == "all":
+    for name in os.listdir(dest):
+        if name.startswith("screenshot-") and name.endswith(".png") and name not in required:
+            os.unlink(os.path.join(dest, name))
+
     files = {}
     for name in sorted(produced):
         path = os.path.join(dest, name)
