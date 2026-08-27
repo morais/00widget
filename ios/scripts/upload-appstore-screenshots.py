@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Replace 00Widget's App Store screenshots with the locally captured sets.
 
-Uploads every replacement alongside the current screenshots, waits for Apple to
-finish processing all of them, and only then deletes the old assets and applies
-the intended order. Credentials and the bundle id follow the same conventions
-as set-appclip-invocation.py and upload-testflight.sh.
+Stages as many replacements as Apple's ten-image limit permits, verifies their
+processing, then removes only the old assets needed to finish the replacement
+and applies the intended order. Credentials and the bundle id follow the same
+conventions as set-appclip-invocation.py and upload-testflight.sh.
 """
 
 import argparse
@@ -38,10 +38,9 @@ CAPTURE_SETS = {
             [
                 "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
-                "screenshot-activities.png",
                 "screenshot-insights.png",
-                "screenshot-breakdown.png",
                 "screenshot-home-insights.png",
+                "screenshot-activities.png",
             ],
         ),
         "APP_IPHONE_65": (
@@ -49,9 +48,8 @@ CAPTURE_SETS = {
             [
                 "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
-                "screenshot-activities.png",
                 "screenshot-insights.png",
-                "screenshot-breakdown.png",
+                "screenshot-activities.png",
             ],
         ),
         "APP_IPAD_PRO_3GEN_129": (
@@ -59,10 +57,9 @@ CAPTURE_SETS = {
             [
                 "screenshot-widgets.png",
                 "screenshot-home-widgets.png",
-                "screenshot-activities.png",
                 "screenshot-insights.png",
-                "screenshot-breakdown.png",
                 "screenshot-home-insights.png",
+                "screenshot-activities.png",
             ],
         ),
     },
@@ -72,7 +69,6 @@ CAPTURE_SETS = {
             [
                 "screenshot-tv-widgets.png",
                 "screenshot-tv-insights.png",
-                "screenshot-tv-activities.png",
             ],
         ),
     },
@@ -175,13 +171,82 @@ def delete_screenshot(screenshot_id, what):
     expect(status, response, {204}, f"deleting {what}")
 
 
+def local_checksum(path):
+    return hashlib.md5(path.read_bytes()).hexdigest()
+
+
+def verify_capture_provenance(directory, filenames):
+    path = directory / ".capture-manifest.json"
+    if not path.is_file():
+        raise RuntimeError(
+            f"{directory} has no full-capture manifest; run the device's full "
+            "capture command before publishing"
+        )
+    manifest = json.loads(path.read_text())
+    if manifest.get("mode") != "all":
+        raise RuntimeError(f"{path} does not describe a full capture")
+    recorded = manifest.get("files") or {}
+    errors = []
+    for filename in filenames:
+        checksum = local_checksum(directory / filename)
+        if recorded.get(filename, "").lower() != checksum.lower():
+            errors.append(filename)
+    if errors:
+        raise RuntimeError(
+            f"{path} does not prove these files came from its capture run: "
+            + ", ".join(errors)
+        )
+
+
+def verify_set(item):
+    expected = [
+        (filename, local_checksum(item["directory"] / filename))
+        for filename in item["filenames"]
+    ]
+    actual = item["old"]
+    errors = []
+    if len(actual) != len(expected):
+        errors.append(f"expected {len(expected)} images, found {len(actual)}")
+    for index, (filename, checksum) in enumerate(expected):
+        if index >= len(actual):
+            errors.append(f"position {index + 1}: missing {filename}")
+            continue
+        attributes = actual[index].get("attributes", {})
+        remote_checksum = (attributes.get("sourceFileChecksum") or "").lower()
+        state = (attributes.get("assetDeliveryState") or {}).get("state")
+        if remote_checksum != checksum.lower():
+            errors.append(
+                f"position {index + 1}: expected {filename} ({checksum}), "
+                f"found {attributes.get('fileName')} ({remote_checksum or 'no checksum'})"
+            )
+        if state != "COMPLETE":
+            errors.append(
+                f"position {index + 1}: {attributes.get('fileName', filename)} "
+                f"delivery state is {state}"
+            )
+    if errors:
+        raise RuntimeError(
+            f"{item['platform']} {item['display_type']} does not match the canonical set:\n  "
+            + "\n  ".join(errors)
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bundle-id", default=asc.bundle_id_from_project())
     parser.add_argument("--version", default=project_version())
     parser.add_argument("--locale", default="en-US")
     parser.add_argument("--wait", type=int, default=300)
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument(
+        "--verify-only", action="store_true",
+        help="fail unless App Store Connect exactly matches local files and order",
+    )
+    parser.add_argument(
+        "--allow-unprovenanced", action="store_true",
+        help="publish existing files without a fresh full-capture manifest",
+    )
     args = parser.parse_args()
     if not args.bundle_id or not args.version:
         sys.exit("Bundle id and marketing version must be available or passed explicitly.")
@@ -195,6 +260,16 @@ def main():
     ]
     if missing:
         sys.exit("Missing captured screenshots:\n  " + "\n  ".join(missing))
+    if not args.verify_only and not args.allow_unprovenanced:
+        try:
+            for platform in CAPTURE_SETS.values():
+                for directory, filenames in platform.values():
+                    verify_capture_provenance(directory, filenames)
+        except RuntimeError as error:
+            sys.exit(
+                f"✗ {error}\n"
+                "  Use --allow-unprovenanced only for an intentional one-time migration."
+            )
 
     status, apps = asc.call("GET", f"/v1/apps?filter[bundleId]={args.bundle_id}&limit=10")
     app_data = expect(status, apps, {200}, "finding the app").get("data", [])
@@ -251,10 +326,10 @@ def main():
             status, current = asc.call(
                 "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?limit=50")
             current = expect(status, current, {200}, f"listing {display_type} screenshots")["data"]
-            if len(current) + len(filenames) > 10:
+            if len(filenames) > 10:
                 sys.exit(
-                    f"{display_type} has {len(current)} screenshots; staging {len(filenames)} "
-                    "would exceed App Store Connect's 10-screenshot limit.")
+                    f"{display_type} declares {len(filenames)} screenshots, exceeding "
+                    "App Store Connect's 10-screenshot limit.")
             resolved.append({
                 "platform": platform,
                 "display_type": display_type,
@@ -268,15 +343,33 @@ def main():
         print(
             f"{item['platform']} {item['display_type']}: "
             f"replace {len(item['old'])} with {len(item['filenames'])}")
+    if args.verify_only:
+        verification_errors = []
+        for item in resolved:
+            try:
+                verify_set(item)
+                print(
+                    f"✓ {item['platform']} {item['display_type']} "
+                    "matches checksums and order"
+                )
+            except RuntimeError as error:
+                verification_errors.append(str(error))
+        if verification_errors:
+            raise RuntimeError("\n".join(verification_errors))
+        return
     if args.dry_run:
         return
 
     tag = time.strftime("%Y%m%d%H%M%S", time.gmtime())
     created = []
+    old_deleted = False
     try:
         for item in resolved:
             item["new"] = []
-            for filename in item["filenames"]:
+            capacity = max(0, 10 - len(item["old"]))
+            item["staged"] = item["filenames"][:capacity]
+            item["pending"] = item["filenames"][capacity:]
+            for filename in item["staged"]:
                 print(f"→ uploading {item['display_type']} {filename}")
                 screenshot_id = reserve_and_upload(
                     item["set_id"], item["directory"] / filename, tag)
@@ -285,24 +378,46 @@ def main():
         for screenshot_id, filename in created:
             wait_until_complete(screenshot_id, filename, args.wait)
             print(f"  ✓ {filename} processed")
-    except Exception:
-        print("✗ staging failed; removing newly created screenshots", file=sys.stderr)
-        for screenshot_id, filename in reversed(created):
-            try:
-                delete_screenshot(screenshot_id, filename)
-            except Exception as cleanup_error:
-                print(f"  cleanup failed for {filename}: {cleanup_error}", file=sys.stderr)
-        raise
 
-    for item in resolved:
-        for old in item["old"]:
-            delete_screenshot(old["id"], old["attributes"].get("fileName", old["id"]))
-        relationship(
-            f"/v1/appScreenshotSets/{item['set_id']}/relationships/appScreenshots",
-            "appScreenshots",
-            item["new"],
-        )
-        print(f"✓ replaced {item['display_type']} in the requested order")
+        for item in resolved:
+            if item["pending"]:
+                print(
+                    f"  Apple permits 10 images; {len(item['staged'])} replacements are "
+                    f"verified, now removing the old {item['display_type']} set"
+                )
+            for old in item["old"]:
+                delete_screenshot(
+                    old["id"], old["attributes"].get("fileName", old["id"]))
+            old_deleted = True
+            for filename in item["pending"]:
+                print(f"→ uploading {item['display_type']} {filename}")
+                screenshot_id = reserve_and_upload(
+                    item["set_id"], item["directory"] / filename, tag)
+                item["new"].append(screenshot_id)
+                created.append((screenshot_id, filename))
+                wait_until_complete(screenshot_id, filename, args.wait)
+                print(f"  ✓ {filename} processed")
+            relationship(
+                f"/v1/appScreenshotSets/{item['set_id']}/relationships/appScreenshots",
+                "appScreenshots",
+                item["new"],
+            )
+            print(f"✓ replaced {item['display_type']} in the requested order")
+    except Exception:
+        if old_deleted:
+            print(
+                "✗ replacement stopped after an old set was removed; keeping every "
+                "processed replacement so the next run can recover",
+                file=sys.stderr,
+            )
+        else:
+            print("✗ staging failed; removing newly created screenshots", file=sys.stderr)
+            for screenshot_id, filename in reversed(created):
+                try:
+                    delete_screenshot(screenshot_id, filename)
+                except Exception as cleanup_error:
+                    print(f"  cleanup failed for {filename}: {cleanup_error}", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

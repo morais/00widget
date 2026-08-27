@@ -30,11 +30,13 @@ require_ignored() {
 require_literal server/wrangler.toml.sample 'database_id = "REPLACE_WITH_D1_DATABASE_ID"'
 require_literal ios/project.yml.sample 'com.example.zerozerowidget'
 require_literal ios/project.yml.sample 'group.com.example.zerozerowidget'
+require_literal ios/appstore.env.sample 'https://api.example.com/app/g'
 require_literal server/.dev.vars.example 'API_KEYS=""'
 require_literal examples/env.example.sh 'API_KEY="dev-key-1"'
 
 require_ignored server/wrangler.toml
 require_ignored ios/project.yml
+require_ignored ios/appstore.env
 require_ignored server/.dev.vars
 require_ignored examples/env.sh
 

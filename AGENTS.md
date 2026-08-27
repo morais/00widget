@@ -225,6 +225,18 @@ necessary because the Simulator does not rehydrate stored AppIntent card selecti
 normal configurable widgets cannot retain three distinct cards there. Ordinary
 simulator builds and every shipping build do not compile these widget kinds.
 
+App Store Connect listing writes are command-line driven. The canonical HTTPS
+URL lives in gitignored `ios/appstore.env`, with `ios/appstore.env.sample` as the
+committed template; `ZW_APPCLIP_INVOCATION_URL` is an override. Use
+`ios/scripts/sync-appstore-listing.sh --dry-run`, then the same command without
+the flag, and finish with `--verify-only`. The entry point manages every
+canonical screenshot set plus the default App Clip action, subtitle, App Review
+URL, and `docs/brand/app-clip-header.png`. The final verification compares
+remote screenshot counts, checksums, and order and therefore catches a missing
+required Home Screen image. Do not assemble or edit these resources manually in
+the App Store Connect website; use it only for visual inspection or when the API
+is unavailable and immediately verify the result from the command line.
+
 ### Schemes are declared explicitly
 
 `project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`,

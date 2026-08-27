@@ -25,6 +25,7 @@ examples/env.sh
 # Per-developer config (resource ids, real bundle ids, etc.)
 # Committed source-of-truth lives in *.sample siblings.
 server/wrangler.toml
+ios/appstore.env
 
 # Node / Cloudflare
 node_modules/

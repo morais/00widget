@@ -89,9 +89,9 @@ def die_on_permission(status, body, what):
         print(f"✗ {what}: App Store Connect refused this key.")
         print(f"  {detail}")
         print("  App Store Connect API key roles are fixed when the key is created, so this")
-        print("  needs a new key with a role permitting TestFlight metadata writes")
-        print("  (Users and Access -> Integrations). Until then, set the invocation by hand")
-        print("  on the build under TestFlight -> App Clip Invocations.")
+        print("  needs a new key with a role permitting the requested metadata write")
+        print("  (Users and Access -> Integrations). Until then, this resource cannot be")
+        print("  kept in sync by the command-line workflow.")
         sys.exit(2)
 
 
@@ -111,10 +111,30 @@ def bundle_id_from_project():
     return match.group(1) if match else None
 
 
+def appclip_invocation_url():
+    value = os.environ.get("ZW_APPCLIP_INVOCATION_URL")
+    if value:
+        return value
+    path = os.path.join(os.path.dirname(__file__), "..", "appstore.env")
+    try:
+        text = open(path).read()
+    except OSError:
+        return None
+    match = re.search(
+        r'^\s*(?:export\s+)?ZW_APPCLIP_INVOCATION_URL\s*=\s*'
+        r'(?:(?:"([^"]*)")|(?:\'([^\']*)\')|([^\s#]+))',
+        text,
+        re.M,
+    )
+    if not match:
+        return None
+    return next((item for item in match.groups() if item is not None), None)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle-id", default=os.environ.get("ZW_BUNDLE_ID") or bundle_id_from_project())
-    ap.add_argument("--url", default=os.environ.get("ZW_APPCLIP_INVOCATION_URL"))
+    ap.add_argument("--url", default=appclip_invocation_url())
     ap.add_argument("--title", default="00Widget")
     ap.add_argument("--build", help="build number; default is the newest")
     ap.add_argument("--wait", type=int, default=900,
@@ -124,7 +144,8 @@ def main():
         sys.exit("No bundle id: pass --bundle-id, set ZW_BUNDLE_ID, or create ios/project.yml.")
     if not args.url:
         sys.exit(
-            "No invocation URL: pass --url or set ZW_APPCLIP_INVOCATION_URL.\n"
+            "No invocation URL: pass --url, set ZW_APPCLIP_INVOCATION_URL, or copy\n"
+            "  ios/appstore.env.sample to ios/appstore.env and edit it.\n"
             "  It is the App Clip's registered URL, e.g. https://<your-host>/app/g\n"
             "  Append '#<guest token>' to point a build at a specific shared link.")
 

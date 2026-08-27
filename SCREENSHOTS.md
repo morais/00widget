@@ -24,7 +24,9 @@ The test captures these surfaces in order:
 | `screenshot-home-widgets.png` | The same Home Screen after a long press expands the Dynamic Island Live Activity. This is the Home Screen image in the canonical published set. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
 
-The compact Dynamic Island image is retained as an additional capture. The canonical copy command publishes the other six iPhone images:
+The compact Dynamic Island and in-app breakdown images are retained as
+additional captures. The canonical App Store set contains Widgets, Home Screen
+widgets, Insights, Home Screen insights, and Activities, in that order:
 
 ```sh
 ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
@@ -40,6 +42,14 @@ paywall-state test and the dashboard notice test; keep both filters when
 changing this mode.
 
 Both capture scripts keep incremental DerivedData under the gitignored `ios/build/` directory. Delete the corresponding `ScreenshotDerivedData-*` directory only when a clean rebuild is intentional; normal iterative runs should reuse it.
+
+A successful full iOS or tvOS capture also writes `.capture-manifest.json` inside that
+device folder with the checksums produced by that exact XCUITest run. The export
+fails if a required attachment is absent, including
+`screenshot-home-widgets.png`; an older file left in the directory cannot make a
+partial run look complete. App Store publishing requires this provenance by
+default. `--allow-unprovenanced` exists only for an intentional one-time
+migration of older assets.
 
 ## Apple TV
 
@@ -57,7 +67,7 @@ It writes the following files to `ios/build/screenshots/tvos/`:
 | `screenshot-tv-insights.png` | The insights dashboard with Energy, Deploys, Device fleet, and the running home battery activity. |
 | `screenshot-tv-activities.png` | The Live Activities dashboard with the green home-battery curve rising and dipping before ending at 95%. |
 
-Refresh only the Live Activities image with `ios/scripts/capture-tv-screenshots.sh --only activities`. Copy the full set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
+Refresh only the Live Activities image with `ios/scripts/capture-tv-screenshots.sh --only activities`. The canonical App Store set publishes Widgets and Insights; the Activities image remains available for other marketing use. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
 
 ## iPhone without Dynamic Island
 
@@ -73,16 +83,16 @@ ios/scripts/capture-screenshots.sh \
   --out build/screenshots/iphone-6.5
 ```
 
-The canonical published order is Widgets, Home Screen widgets, Activities,
-Insights, and Breakdown. The full run may produce additional Home Screen
-captures, but only `screenshot-home-widgets.png` belongs to this App Store set.
+The canonical published order is Widgets, Home Screen widgets, Insights, and
+Activities. The full run also captures Breakdown and may produce additional
+Home Screen images, but they do not belong to this App Store set.
 `--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
 Copy it with `ios/scripts/copy-screenshots.sh --set iphone-6.5 --to
 /path/to/site/public/assets`.
 
 ## iPad
 
-iPad captures the same four in-app surfaces plus the classic and insights Home Screen layouts. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart rather than an expanded Live Activity, and no `screenshot-home-dynamic-island.png` is created. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad captures the same four in-app surfaces plus the classic and insights Home Screen layouts. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart rather than an expanded Live Activity, and no `screenshot-home-dynamic-island.png` is created. The canonical App Store order is Widgets, Home Screen widgets, Insights, Home Screen insights, and Activities; Breakdown remains an additional capture. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## App Store Connect
 
@@ -105,10 +115,42 @@ ios/scripts/upload-appstore-screenshots.py --dry-run
 
 Run the same command without `--dry-run` to publish the canonical iPhone,
 6.5-inch iPhone, iPad, and Apple TV sets. The helper stages and waits for every
-new asset before deleting an old one, then applies the marketing order declared
+new asset that fits alongside the old set. For sets that would exceed Apple's
+ten-image limit, it verifies the maximum safe batch before removing the old
+assets and uploading the remainder. It then applies the marketing order declared
 in the script. It uses the App Store Connect credentials documented for
 `upload-testflight.sh`; the API key must have permission to manage app metadata.
 
+After publishing, verify remote image count, content, and order against the
+canonical local inventory:
+
+```sh
+ios/scripts/upload-appstore-screenshots.py --verify-only
+```
+
+This check is required before submission. In particular, it fails if the
+6.5-inch set lacks `screenshot-home-widgets.png`; do not use the App Store
+Connect website to assemble a screenshot set by hand.
+
+To sync or verify the screenshots and the default App Clip card together, use
+the single listing entry point. The App Clip invocation URL lives in the
+gitignored `ios/appstore.env`, whose committed template is
+`ios/appstore.env.sample`. Set `ZW_APPCLIP_INVOCATION_URL` only for a one-off
+override:
+
+```sh
+cp ios/appstore.env.sample ios/appstore.env
+# edit ios/appstore.env
+ios/scripts/sync-appstore-listing.sh --dry-run
+ios/scripts/sync-appstore-listing.sh
+ios/scripts/sync-appstore-listing.sh --verify-only
+```
+
+The command manages the App Clip action, `en-US` subtitle, App Review invocation
+URL, and `docs/brand/app-clip-header.png`, plus every screenshot set above. The
+App Store Connect website is a visual inspection and emergency fallback, not a
+listing-authoring step.
+
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/copy-screenshots.sh`, and `ios/scripts/upload-appstore-screenshots.py`.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/copy-screenshots.sh`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh`.

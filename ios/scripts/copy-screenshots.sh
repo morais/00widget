@@ -49,7 +49,7 @@ if [[ "$SET" == "tvos" ]]; then
   if [[ "$ONLY" == "activities" ]]; then
     FILES=(screenshot-tv-activities.png)
   else
-    FILES=(screenshot-tv-widgets.png screenshot-tv-insights.png screenshot-tv-activities.png)
+    FILES=(screenshot-tv-widgets.png screenshot-tv-insights.png)
   fi
 elif [[ "$ONLY" == "activities" ]]; then
   FILES=(screenshot-activities.png)
@@ -57,18 +57,16 @@ elif [[ "$SET" == "iphone-6.5" ]]; then
   FILES=(
     screenshot-widgets.png
     screenshot-home-widgets.png
-    screenshot-activities.png
     screenshot-insights.png
-    screenshot-breakdown.png
+    screenshot-activities.png
   )
 else
   FILES=(
     screenshot-widgets.png
     screenshot-home-widgets.png
-    screenshot-activities.png
     screenshot-insights.png
-    screenshot-breakdown.png
     screenshot-home-insights.png
+    screenshot-activities.png
   )
 fi
 

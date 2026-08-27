@@ -169,10 +169,10 @@ mkdir -p "$OUT"
 # canonical expanded `screenshot-home-widgets.png`. Clear it so old captures
 # cannot make the output look as though two distinct screenshots still exist.
 rm -f "$OUT/screenshot-home-expanded.png"
-python3 - "$WORK/attachments" "$OUT" <<'PY'
-import json, os, re, shutil, sys
+python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" <<'PY'
+import datetime, hashlib, json, os, re, shutil, sys
 
-src, dest = sys.argv[1], sys.argv[2]
+src, dest, mode, device = sys.argv[1:]
 manifest = json.load(open(os.path.join(src, "manifest.json")))
 
 def entries(node):
@@ -186,14 +186,60 @@ def entries(node):
             yield from entries(value)
 
 count = 0
+produced = set()
 for entry in entries(manifest):
     # XCTest appends _<index>_<UUID> to the attachment name.
     name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", entry["suggestedHumanReadableName"])
     shutil.copy2(os.path.join(src, entry["exportedFileName"]), os.path.join(dest, name))
     print(f"  {name}")
+    produced.add(name)
     count += 1
 if count == 0:
     raise SystemExit("no screenshot attachments found in result bundle")
+
+required = set()
+if mode == "activities":
+    required = {"screenshot-activities.png"}
+elif mode == "app":
+    required = {
+        "screenshot-widgets.png",
+        "screenshot-insights.png",
+        "screenshot-breakdown.png",
+        "screenshot-activities.png",
+    }
+elif mode == "all":
+    required = {
+        "screenshot-widgets.png",
+        "screenshot-home-widgets.png",
+        "screenshot-insights.png",
+        "screenshot-breakdown.png",
+        "screenshot-activities.png",
+    }
+    if device == "iPhone 17 Pro" or device.startswith("iPad"):
+        required.add("screenshot-home-insights.png")
+
+missing = sorted(required - produced)
+if missing:
+    raise SystemExit(
+        "capture did not produce required fresh attachments: " + ", ".join(missing)
+    )
+
+if mode == "all":
+    files = {}
+    for name in sorted(produced):
+        path = os.path.join(dest, name)
+        if os.path.isfile(path) and name.endswith(".png"):
+            with open(path, "rb") as handle:
+                files[name] = hashlib.md5(handle.read()).hexdigest()
+    provenance = {
+        "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "device": device,
+        "mode": mode,
+        "files": files,
+    }
+    with open(os.path.join(dest, ".capture-manifest.json"), "w") as handle:
+        json.dump(provenance, handle, indent=2, sort_keys=True)
+        handle.write("\n")
 PY
 
 echo "→ restoring status bar"
