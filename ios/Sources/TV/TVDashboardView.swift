@@ -2,7 +2,8 @@ import SwiftUI
 
 struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
-    @State private var showingSettings = false
+    /// Owned by `TVRootView`, which presents the cover: see the note there.
+    @Binding var showingSettings: Bool
     @State private var selectedLink: TVWebLink?
     @State private var pendingAction: TVPendingAction?
     @State private var runningActionID: String?
@@ -26,10 +27,6 @@ struct TVDashboardView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-        }
-        .fullScreenCover(isPresented: $showingSettings) {
-            TVSettingsView()
-                .environmentObject(env)
         }
         .fullScreenCover(item: $selectedLink) { link in
             TVWebLinkView(link: link)
