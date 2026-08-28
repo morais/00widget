@@ -28,9 +28,6 @@ settings:
     # the product list from — a build with the flag and a server that sells
     # nothing shows an empty paywall.
     SWIFT_ACTIVE_COMPILATION_CONDITIONS: ZW_SHARING_ENABLED
-    # Settings -> Developer. NO for anything shippable; the screenshot
-    # run overrides it with `xcodebuild test ZW_DEBUG_TOOLS=YES`.
-    ZW_DEBUG_TOOLS: NO
 
 # Referenced by the screenshots scheme's StoreKit configuration, and a member of
 # no target — a .storekit file compiled into the app would ship our price list
@@ -84,7 +81,6 @@ targets:
         ZWKeychainAccessGroup: $(AppIdentifierPrefix)com.example.zerozerowidget
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugToolsEnabled: $(ZW_DEBUG_TOOLS)
     entitlements:
       path: Resources/App/ZeroZeroWidget.entitlements
       properties:
@@ -310,7 +306,6 @@ targets:
         UIUserInterfaceStyle: Dark
         ZWDefaultServerBaseURL: ""                               # optional per-developer default; keep empty in sample
         ZWAppleLoginEnabled: false                                # set true when backend Apple app login is enabled
-        ZWDebugToolsEnabled: $(ZW_DEBUG_TOOLS)
         TVTopShelfImage:
           TVTopShelfPrimaryImage: Top Shelf Image
           TVTopShelfPrimaryImageWide: Top Shelf Image Wide

@@ -15,8 +15,10 @@ struct WidgetPushRegistrationView: View {
         Form {
             Section {
                 LabeledContent("Current build", value: ZeroZeroWidgetConstants.appVersion)
+                // Named in full because App state shows the app's own APNs
+                // token one row away in the same section, and they differ.
                 LabeledContent(
-                    "Token",
+                    "Widget push token",
                     value: snapshot?.pushToken.map { "\($0.prefix(8))…" } ?? "Unavailable"
                 )
                 LabeledContent("Snapshot updated", value: formatted(snapshot?.updatedAt))

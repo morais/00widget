@@ -92,7 +92,7 @@ Placeholder values that must stay in committed `.sample` files (and source code 
 
 Use `ios/scripts/build-sim.sh` rather than rolling your own `xcodebuild` invocation. The script bakes in three lessons that cost real time the first time around:
 
-- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: the Dashboard never populates, and Settings → Developer → Debug tools reports the App Group as unavailable and shows that exact error as the last sync error, on a build made with `ZW_DEBUG_TOOLS=YES`.
+- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: the Dashboard never populates, and Settings → Developer → App state reports the App Group as unavailable and shows that exact error as its last sync error.
 - **Ad-hoc signing alone (`CODE_SIGN_IDENTITY="-"`) doesn't get xcodebuild to embed entitlements either.** The `.app` bundle's entitlements come back as `[Dict]` with no keys.
 - **Re-signing with the production `.entitlements` is rejected at launch** — `SBMainWorkspace` denies the launch because `aps-environment` can't be satisfied without a real provisioning profile. Drop `aps-environment` for sim runs; push doesn't work on sim out of the box anyway.
 
@@ -191,22 +191,27 @@ cannot read the flag and widgets keep their badges.
 always starts empty and the test taps its own "Generate sample widgets" button;
 the Activities tab replaces its retained sample on appearance, because
 ActivityKit state outlives a reinstall too. That is what removed the last reason
-a capture run needed the debug console. The empty dashboard is itself one of the
+a capture run needed a build-gated affordance. The empty dashboard is itself one of the
 shots (`screenshot-subscription-notice-empty`), so nothing may populate it
 before that capture is taken.
 
-**Two developer screens, and the difference decides where a switch goes.**
-`DeveloperOptionsView` is titled "Developer", is reached by tapping the version
-number in Settings, and ships — it holds what an owner might legitimately want,
-so every switch on it defaults to off and explains itself. `DeveloperView` is
-titled "Debug" and is reached from a separate "Debug tools" row in a "Developer"
-section of Settings itself, gated on the `ZW_DEBUG_TOOLS` build setting, which
-is `NO` in every build, the screenshot run included — so nothing automated
-depends on the console, and no capture can catch a Developer section that a
-shipping Settings screen does not have. Pass `ZW_DEBUG_TOOLS=YES` to
-`xcodebuild` by hand when you want it. `Constants.debugToolsEnabled` accepts a
-Bool or a `YES`/`NO` string, because a value substituted from a build setting
-arrives as a string, and fails closed on anything else.
+**There is one developer screen, and it ships.** `DeveloperOptionsView` is
+titled "Developer" and is reached by tapping the version number in Settings —
+switches at the top, read-only drilldowns under Diagnostics, everything
+defaulting to off and explaining itself. There used to be a second tier: a
+`ZW_DEBUG_TOOLS`-gated console compiled out of every build. It is gone, and the
+build setting, its Info.plist key and `Constants.debugToolsEnabled` with it.
+Every control it held duplicated something the app already does on its own —
+registering the device and fetching cards both happen on launch and foreground,
+its health check was a one-line alias for the one Settings runs — and the
+read-only rows that remained became the "App state" drilldown. If something ever
+genuinely must not ship, that tier has to be reintroduced; nothing in the tree
+provides it now.
+
+Two push tokens exist and are one tap apart under Diagnostics, so both are
+named in full: **App push token** on App state is the app's own APNs token,
+**Widget push token** on Push registration is WidgetKit's, issued to the
+separately signed extension and the key `widget_push_cadence` is rationed by.
 
 "Hide sample indicators" and "Show dummy account data" sit together in a
 "Screenshots and recordings" section at the end of the shipping screen: both

@@ -237,17 +237,6 @@ struct OnboardingView: View {
                     Link("Privacy Policy", destination: ZeroZeroWidgetConstants.Legal.privacy)
                     Link("Terms of Use", destination: ZeroZeroWidgetConstants.Legal.terms)
                 }
-
-                // Reached from Settings rather than the tab bar: a fourth tab
-                // changes the tab bar in every screenshot and costs a slot on
-                // the surface users actually navigate.
-                if ZeroZeroWidgetConstants.debugToolsEnabled {
-                    Section("Developer") {
-                        NavigationLink("Debug tools") {
-                            DeveloperView()
-                        }
-                    }
-                }
             }
             .navigationTitle("Settings")
             .navigationDestination(isPresented: $showDeveloperOptions) {

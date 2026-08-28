@@ -2,15 +2,15 @@ import SwiftUI
 
 /// Reached by tapping the version number in Settings.
 ///
-/// Distinct from `DeveloperView`, which is the debug console gated behind the
-/// `ZW_DEBUG_TOOLS` build setting and compiled out of every shipping build.
-/// These are options a curious owner can turn on in a released app, so all
-/// three default to off and all three explain what they do.
+/// Every switch here is one a curious owner can turn on in a released app, so
+/// each defaults to off and each explains what it does. There is no build-gated
+/// tier behind this screen any more: what used to be one held a debug console
+/// whose every control duplicated something the app does on its own.
 ///
 /// Kept to the switches themselves: the colour legend, the notes on why a
-/// widget's time is not the current time, and the push registration rows are
-/// drilldowns, because they are reference and diagnostics rather than things to
-/// change.
+/// widget's time is not the current time, the push registration rows and the
+/// app's own state are drilldowns, because they are reference and diagnostics
+/// rather than things to change.
 struct DeveloperOptionsView: View {
     @EnvironmentObject var env: AppEnvironment
     // The same storage `RawPayloadDisclosure` gates on, so the toggle and the
@@ -57,10 +57,13 @@ struct DeveloperOptionsView: View {
                 NavigationLink("Widget push registration") {
                     WidgetPushRegistrationView().environmentObject(env)
                 }
+                NavigationLink("App state") {
+                    AppStateView().environmentObject(env)
+                }
             } header: {
                 Text("Diagnostics")
             } footer: {
-                Text("The first explains what each stamp colour means and why a widget's time is rarely the current time. The second shows the push token this device gave the server, and can send it again.")
+                Text("The first explains what each stamp colour means and why a widget's time is rarely the current time. The second shows the push token this device gave the server, and can send it again. The third is what this install currently is — worth reading before describing a symptom.")
             }
 
             // Last, and together, because these two are about how the app
