@@ -10,6 +10,7 @@ import UIKit
 struct ConnectAgentGuideView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var copiedEndpoint = false
     @State private var connections: [APIClient.MCPConnectionSummary] = []
     @State private var connectionsLoading = true
@@ -117,6 +118,15 @@ struct ConnectAgentGuideView: View {
         }
         .refreshable { await loadConnections() }
         .task { await loadConnections() }
+        // Connecting an agent happens in Safari, with this screen still
+        // mounted behind it, so `task` does not run again on the way back and
+        // the new connector stays invisible until the screen is popped and
+        // pushed. Coming back to the foreground is the signal that something
+        // may have changed elsewhere.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await loadConnections() }
+        }
     }
 
     private func connectionRow(_ connection: APIClient.MCPConnectionSummary) -> some View {
