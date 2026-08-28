@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import deque
 from pathlib import Path
 
@@ -16,6 +17,11 @@ MARK_MASTER = BRAND_DIR / "mark-transparent-master.png"
 APP_ICON_MASTER = BRAND_DIR / "app-icon-master.png"
 
 NAVY = "#06152A"
+# The two stops of `dark_background`, and the only place they are written down.
+# The tvOS catalog's colour sets are generated from them so SwiftUI paints the
+# same field the artwork is drawn on.
+BACKDROP_CENTER = NAVY
+BACKDROP_EDGE = "#153B73"
 MID_NAVY = "#4C607D"
 WHITE = "#F8FBFF"
 GRAY = "#A9B7CC"
@@ -152,7 +158,45 @@ def contain(image: Image.Image, size: tuple[int, int], padding: int = 0) -> Imag
 
 def dark_background(size: tuple[int, int]) -> Image.Image:
     gradient = Image.radial_gradient("L").resize(size, Image.Resampling.LANCZOS)
-    return ImageOps.colorize(gradient, black=NAVY, white="#153B73").convert("RGBA")
+    return ImageOps.colorize(gradient, black=BACKDROP_CENTER, white=BACKDROP_EDGE).convert("RGBA")
+
+
+def save_colorset(value: str, path: Path) -> None:
+    """Write an asset-catalog colour, in the hex-component form Xcode emits."""
+    path.mkdir(parents=True, exist_ok=True)
+    contents = {
+        "colors": [
+            {
+                "color": {
+                    "color-space": "srgb",
+                    "components": {
+                        "alpha": "1.000",
+                        "blue": f"0x{value[5:7].upper()}",
+                        "green": f"0x{value[3:5].upper()}",
+                        "red": f"0x{value[1:3].upper()}",
+                    },
+                },
+                "idiom": "universal",
+            }
+        ],
+        "info": {"author": "xcode", "version": 1},
+    }
+    (path / "Contents.json").write_text(json.dumps(contents, indent=2) + "\n")
+
+
+def save_imageset(image: Image.Image, path: Path, name: str) -> None:
+    """Write a two-scale tv imageset, `image` being the 2x artwork."""
+    path.mkdir(parents=True, exist_ok=True)
+    save(image, path / f"{name}@2x.png")
+    save(resize(image, (image.width // 2, image.height // 2)), path / f"{name}.png")
+    contents = {
+        "images": [
+            {"filename": f"{name}.png", "idiom": "tv", "scale": "1x"},
+            {"filename": f"{name}@2x.png", "idiom": "tv", "scale": "2x"},
+        ],
+        "info": {"author": "xcode", "version": 1},
+    }
+    (path / "Contents.json").write_text(json.dumps(contents, indent=2) + "\n")
 
 
 def save(image: Image.Image, path: Path, *, opaque: bool = False) -> None:
@@ -316,6 +360,18 @@ def generate() -> None:
     save(resize(top_shelf_wide, (4640, 1440), opaque=True), tv_assets / "Top Shelf Image Wide.imageset/TopShelfWide@2x.png", opaque=True)
     save(top_shelf_wide, tv_assets / "Top Shelf Image Wide.imageset/TopShelfWide.png", opaque=True)
     save(launch(mark), REPO_ROOT / "ios/Resources/TV/Assets.xcassets/LaunchImage.imageset/Launch.png", opaque=True)
+
+    # The tvOS sign-in screen draws the mark and the backdrop itself rather
+    # than approximating them, so both come from here.
+    tv_catalog = REPO_ROOT / "ios/Resources/TV/Assets.xcassets"
+    sign_in_mark = trim(mark)
+    save_imageset(
+        resize(sign_in_mark, (round(800 * sign_in_mark.width / sign_in_mark.height), 800)),
+        tv_catalog / "Mark.imageset",
+        "Mark",
+    )
+    save_colorset(BACKDROP_CENTER, tv_catalog / "BackdropCenter.colorset")
+    save_colorset(BACKDROP_EDGE, tv_catalog / "BackdropEdge.colorset")
 
 if __name__ == "__main__":
     generate()

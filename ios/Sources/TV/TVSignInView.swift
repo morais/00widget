@@ -7,23 +7,34 @@ struct TVSignInView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.black, Color(white: 0.08)],
-                startPoint: .top,
-                endPoint: .bottom
+            // The launch image is the mark and the wordmark on this exact
+            // radial navy, so continuing it here lets the launch resolve into
+            // the first screen instead of cutting to an unrelated black. Both
+            // stops are generated into the catalog from the same constants the
+            // artwork is drawn with — see scripts/generate-brand-assets.py.
+            RadialGradient(
+                colors: [Color("BackdropCenter"), Color("BackdropEdge")],
+                center: .center,
+                startRadius: 0,
+                // tvOS lays out in a fixed 1920x1080, so the distance from the
+                // centre to a corner is a constant.
+                endRadius: 1102
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                VStack(spacing: 12) {
-                    Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 96))
-                        .foregroundStyle(.tint)
-                    Text("00Widget")
-                        .font(.system(size: 64, weight: .bold))
-                    Text("Widgets for all your agents.")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
+            VStack(spacing: 40) {
+                VStack(spacing: 24) {
+                    Image("Mark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 260)
+                    VStack(spacing: 10) {
+                        Text("00Widget")
+                            .font(.system(size: 64, weight: .bold))
+                        Text("Widgets for all your agents.")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if env.appleLoginInProgress || appleSignIn.isAuthorizing {
