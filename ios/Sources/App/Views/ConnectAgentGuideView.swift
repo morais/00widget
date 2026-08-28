@@ -12,6 +12,7 @@ struct ConnectAgentGuideView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @State private var copiedEndpoint = false
+    @State private var copyResetTask: Task<Void, Never>?
     @State private var connections: [APIClient.MCPConnectionSummary] = []
     @State private var connectionsLoading = true
     @State private var connectionsError: String?
@@ -91,12 +92,25 @@ struct ConnectAgentGuideView: View {
                     Label("Developer mode and MCP apps in ChatGPT", systemImage: "arrow.up.forward.app")
                 }
                 if let endpoint = mcpEndpoint {
-                    Text(endpoint)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                    Button(copiedEndpoint ? "Copied" : "Copy address") {
-                        UIPasteboard.general.string = endpoint
-                        copiedEndpoint = true
+                    // Same shape as the agent config row in Settings: the
+                    // control sits on the text it copies, and acknowledges the
+                    // tap rather than latching.
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(endpoint)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            copyEndpoint(endpoint)
+                        } label: {
+                            Image(systemName: copiedEndpoint ? "checkmark" : "doc.on.doc")
+                                .imageScale(.large)
+                        }
+                        // Borderless, or the whole row becomes one tap target
+                        // and selecting the text triggers a copy instead.
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Copy MCP address")
                     }
                 }
             } header: {
@@ -183,6 +197,21 @@ struct ConnectAgentGuideView: View {
         )
     }
 
+    /// Copies the address and takes the checkmark back down a few seconds
+    /// later, so the row is offering a copy again by the time it is looked at
+    /// next. No pasteboard expiry here — unlike the agent token, the endpoint
+    /// is not a secret.
+    private func copyEndpoint(_ endpoint: String) {
+        UIPasteboard.general.string = endpoint
+        copiedEndpoint = true
+        copyResetTask?.cancel()
+        copyResetTask = Task {
+            try? await Task.sleep(for: .seconds(Self.copyConfirmationDuration))
+            guard !Task.isCancelled else { return }
+            copiedEndpoint = false
+        }
+    }
+
     private func loadConnections() async {
         guard !env.apiKey.isEmpty else {
             connections = []
@@ -240,6 +269,10 @@ struct ConnectAgentGuideView: View {
                 + "?modal=add-custom-connector&connectorName=00Widget&connectorUrl=\(escaped)"
         )
     }
+
+    /// How long the checkmark stays up. Matches the agent config row in
+    /// Settings: an acknowledgement of the tap, not a running status.
+    private static let copyConfirmationDuration: TimeInterval = 10
 
     /// RFC 3986 unreserved characters. Everything else in a query value is
     /// escaped, which is what produces the `%3A%2F%2F` form.
