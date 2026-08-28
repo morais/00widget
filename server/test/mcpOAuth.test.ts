@@ -256,12 +256,36 @@ describe("authorization", () => {
     expect(html).toContain('<button class="button button-secondary" type="submit" name="decision" value="deny">');
     expect(html).toContain('<button class="button" type="submit" name="decision" value="approve">');
     expect(html.indexOf('value="deny"')).toBeLessThan(html.indexOf('value="approve"'));
-    // The redirect target has to be listed, or the browser may refuse the
-    // 303 the approval answers with.
-    expect(res.headers.get("content-security-policy")).toContain("form-action 'self' https://chatgpt.com");
+    // Chrome applies form-action to the callback's own redirect chain too.
+    // HTTPS must therefore be allowed rather than only the first callback
+    // origin, or the developer portal handoff is blocked after approval.
+    expect(res.headers.get("content-security-policy")).toContain("form-action 'self' https:");
     // The Approve button is a form POST, and "no-referrer" would null its
     // Origin header and drop Referer, so the CSRF check would reject it.
     expect(res.headers.get("referrer-policy")).toBe("same-origin");
+  });
+
+  it("allows only the registered HTTP loopback origin for a local client's callback", async () => {
+    const env = oauthEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const redirectUri = "http://localhost:5173/callback";
+    const clientId = ((await (await registerClient(env, {
+      client_name: "Local MCP client",
+      redirect_uris: [redirectUri],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+        redirect_uri: redirectUri,
+      })}`, { headers: { cookie } }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-security-policy")).toContain(
+      "form-action 'self' https: http://localhost:5173",
+    );
   });
 
   it("refuses a redirect_uri the client never registered", async () => {

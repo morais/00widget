@@ -541,11 +541,19 @@ function b64urlFromBytes(bytes: Uint8Array): string {
 // ---------- Rendering ----------
 
 function consentResponse(html: string, redirectUri: string): Response {
-  // `form-action` names the redirect target as well as 'self'. Approving is a
-  // POST that answers with a 303 to the client's callback, and browsers have
-  // historically disagreed about whether form-action follows redirects —
-  // listing the origin makes the flow work under either reading.
-  const formAction = `'self' ${new URL(redirectUri).origin}`;
+  // Approving is a same-origin POST that answers with a 303 to the client's
+  // callback. Chrome applies `form-action` to every redirect in that
+  // navigation, including redirects made *by* the callback. Listing only the
+  // registered callback origin therefore breaks clients whose callback hands
+  // off to another HTTPS origin (the OpenAI developer portal does this).
+  //
+  // Keep the form itself on this origin and allow the HTTPS redirect chain.
+  // Local MCP clients are the one permitted HTTP exception, so preserve their
+  // exact registered loopback origin rather than allowing arbitrary HTTP.
+  const redirect = new URL(redirectUri);
+  const formAction = redirect.protocol === "http:"
+    ? `'self' https: ${redirect.origin}`
+    : "'self' https:";
   return new Response(html, {
     status: 200,
     headers: {
