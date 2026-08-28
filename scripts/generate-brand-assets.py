@@ -21,6 +21,10 @@ WHITE = "#F8FBFF"
 GRAY = "#A9B7CC"
 FONT_PATH = "/System/Library/Fonts/Avenir Next.ttc"
 
+# Height of the mark inside the tvOS app icon, as a share of the icon's own
+# height. Matched to the iOS icon, whose mark measures 62% of its 1024 square.
+TV_ICON_MARK_HEIGHT = 0.62
+
 # Pixel-exact regions from the approved 1536 × 1024 U2 identity sheet.
 MARK_BOX = (100, 50, 630, 570)
 APP_ICON_BOX = (105, 685, 375, 955)
@@ -116,6 +120,19 @@ def remove_light_background(image: Image.Image) -> Image.Image:
         result.append((red, green, blue, alpha))
     rgba.putdata(result)
     return rgba
+
+
+def trim(image: Image.Image) -> Image.Image:
+    """Crop a master down to its visible art.
+
+    The mark master carries roughly a third of its canvas as transparent
+    margin, which `contain` scales along with everything else — so fitting the
+    master whole sizes the *margin* to the box and leaves the art much smaller
+    than the box implies. Callers that want to place the art itself trim first
+    and reserve their own margin.
+    """
+    box = image.getbbox()
+    return image.crop(box) if box else image
 
 
 def contain(image: Image.Image, size: tuple[int, int], padding: int = 0) -> Image.Image:
@@ -244,7 +261,12 @@ def generate() -> None:
 
     tv_assets = REPO_ROOT / "ios/Resources/TV/Assets.xcassets/App Icon & Top Shelf Image.brandassets"
     back_store = dark_background((2560, 1536)).convert("RGB")
-    front_store = contain(mark, (2560, 1536), padding=250)
+    # Sized off the trimmed art and stated as a share of the icon's height, so
+    # the mark reads at the same weight as the iOS icon's does. Containing the
+    # untrimmed master against a padding instead had left it at 43% of the
+    # height where iOS sits at 62%.
+    tv_icon_padding = round(1536 * (1 - TV_ICON_MARK_HEIGHT) / 2)
+    front_store = contain(trim(mark), (2560, 1536), padding=tv_icon_padding)
     back_regular = resize(back_store, (800, 480), opaque=True)
     front_regular = resize(front_store, (800, 480))
 
