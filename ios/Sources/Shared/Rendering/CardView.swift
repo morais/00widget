@@ -125,12 +125,12 @@ public struct CardView: View {
                 Text(deadline, style: .relative)
             }
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .lineLimit(1)
         } else {
             Text(card.updatedAt, style: .relative)
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -314,7 +314,7 @@ public struct CardView: View {
                 } else {
                     Text("Updated \(card.updatedAt, style: .relative) ago")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -351,7 +351,7 @@ public struct CardView: View {
                 } else {
                     Text("Updated \(card.updatedAt, style: .relative) ago")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -488,7 +488,7 @@ public struct CardView: View {
                 } else {
                     Text("Updated \(card.updatedAt, style: .relative) ago")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -583,7 +583,7 @@ public struct CardView: View {
                     systemImage: "arrow.clockwise"
                 )
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(20)
@@ -726,7 +726,7 @@ public struct CardView: View {
                             if item.deepLink != nil {
                                 Image(systemName: "arrow.up.right")
                                     .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(.secondary)
                             }
                             if !dynamicTypeSize.isAccessibilitySize {
                                 Spacer(minLength: 8)
@@ -734,7 +734,7 @@ public struct CardView: View {
                             if let value = item.value {
                                 Text("\(value)\(item.unit ?? "")")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(item.status?.tint ?? .primary)
+                                    .foregroundStyle(.primary)
                             }
                         }
                         .padding(.vertical, 3)
@@ -995,7 +995,7 @@ public struct CardView: View {
                             if let v = item.value {
                                 Text("\(v)\(item.unit ?? "")")
                                     .font(.caption)
-                                    .foregroundStyle(item.status?.tint ?? .primary)
+                                    .foregroundStyle(.primary)
                             }
                         }
                         .padding(.horizontal, 3)

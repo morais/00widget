@@ -557,7 +557,7 @@ struct CardGridCell: View {
                 Text(card.value ?? "—")
                     .font(.body.weight(.semibold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(card.status.tint)
+                    .foregroundStyle(.primary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 if let unit = card.unit {
@@ -595,7 +595,7 @@ struct CardGridCell: View {
                 Text(card.value ?? "—")
                     .font(.title3.weight(.semibold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(card.status.tint)
+                    .foregroundStyle(.primary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 if let unit = card.unit {
@@ -632,7 +632,7 @@ struct CardGridCell: View {
                 Text(card.value ?? "—")
                     .font(.title2.weight(.semibold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(card.status.tint)
+                    .foregroundStyle(.primary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 if let unit = card.unit {

@@ -194,7 +194,7 @@ private struct ActivityCard: View {
 
                     Text("Updated \(session.updatedAt.formatted(.relative(presentation: .named)))")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
 
                 if !dynamicTypeSize.isAccessibilitySize {
@@ -266,7 +266,7 @@ private struct ActivityCard: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Capsule().fill(Color.blue.opacity(0.14)))
-            .foregroundStyle(.blue)
+            .foregroundStyle(.primary)
     }
 
     /// An explicit `value` outranks the countdown, matching the Lock Screen,
@@ -521,7 +521,7 @@ private struct ActivityItemRow: View {
                 } else if let status = item.status {
                     Text(status.label)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(status.tint)
+                        .foregroundStyle(.primary)
                 }
             }
 
