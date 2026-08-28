@@ -66,12 +66,6 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var notificationsDenied = false
     @Published public private(set) var connectionHealth: ConnectionHealthStatus = .unknown
     @Published public private(set) var widgetPushRegistrationStatus: String?
-    @Published public var showActivitiesTab: Bool {
-        didSet {
-            UserDefaults.standard.set(showActivitiesTab, forKey: "zw.showActivitiesTab")
-        }
-    }
-
     /// nil until WidgetKit has answered once, so the setup hint never flashes
     /// on a device that does have widgets installed.
     @Published public private(set) var installedWidgetCount: Int?
@@ -100,7 +94,6 @@ public final class AppEnvironment: ObservableObject {
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
-        self.showActivitiesTab = defaults.object(forKey: "zw.showActivitiesTab") as? Bool ?? true
         self.didDismissWidgetSetupHint = defaults.bool(forKey: "zw.didDismissWidgetSetupHint")
         self.cards = CardCache.load().cards
         self.guestLinks = GuestLinkStore.load()

@@ -30,7 +30,6 @@ struct DeveloperView: View {
                         value: env.apnsDeviceToken.map { String($0.prefix(16)) + "..." } ?? "not available"
                     )
                     KeyValue(key: "Cached cards", value: "\(env.cards.count)")
-                    KeyValue(key: "Activities tab", value: env.showActivitiesTab ? "visible" : "hidden")
                     KeyValue(key: "Active activities", value: "\(env.liveActivityController.activeIds.count)")
                     if let ts = env.lastSyncAt {
                         KeyValue(key: "Last sync", value: ts.formatted(.relative(presentation: .numeric)))
@@ -43,7 +42,6 @@ struct DeveloperView: View {
                 }
 
                 Section("Actions") {
-                    Toggle("Show Activities tab", isOn: $env.showActivitiesTab)
                     Button("Test backend connection") {
                         Task {
                             let ok = await env.testConnection()

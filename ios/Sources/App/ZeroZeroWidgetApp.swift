@@ -145,11 +145,9 @@ struct RootView: View {
                 .tabItem { Label("Widgets", systemImage: "square.grid.2x2") }
                 .tag("widgets")
 
-            if env.showActivitiesTab {
-                LiveActivitiesView()
-                    .tabItem { Label("Activities", systemImage: "waveform") }
-                    .tag("activities")
-            }
+            LiveActivitiesView()
+                .tabItem { Label("Activities", systemImage: "waveform") }
+                .tag("activities")
 
             // Debug tools live under Settings → Developer, not as a tab. The
             // tab bar is in every screenshot and on every screen, so it stays
@@ -180,9 +178,7 @@ struct RootView: View {
 
     private func applyRequestedLandingTab() {
         guard let tab = env.requestedLandingTab else { return }
-        // Activities can be switched off, and selecting a tab that is not in
-        // the TabView leaves it showing nothing at all.
-        selectedTab = (tab == "activities" && !env.showActivitiesTab) ? "widgets" : tab
+        selectedTab = tab
         env.requestedLandingTab = nil
     }
 }
