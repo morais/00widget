@@ -1164,6 +1164,23 @@ export class FakeD1 {
         && candidate.kind === "guest");
       return row ? [row] : [];
     }
+    if (normalized === "SELECT id, label, created_at, last_used_at, expires_at, scopes_json FROM api_keys WHERE tenant_id = ? AND purpose = 'connector' AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC") {
+      const [tenant_id, now] = values.map(String);
+      return [...this.apiKeys.values()]
+        .filter((row) => row.tenant_id === tenant_id
+          && row.purpose === "connector"
+          && !row.revoked_at
+          && String(row.expires_at) > now)
+        .sort(by("created_at"))
+        .reverse();
+    }
+    if (normalized === "SELECT id, label, created_at, last_used_at, expires_at, scopes_json FROM api_keys WHERE id = ? AND tenant_id = ? AND purpose = 'connector'") {
+      const [id, tenant_id] = values.map(String);
+      const row = [...this.apiKeys.values()].find((candidate) => candidate.id === id
+        && candidate.tenant_id === tenant_id
+        && candidate.purpose === "connector");
+      return row ? [row] : [];
+    }
     if (normalized === "SELECT token_hash FROM api_keys WHERE tenant_id = ? AND session_id = ?") {
       const [tenant_id, session_id] = values.map(String);
       return [...this.apiKeys.values()]

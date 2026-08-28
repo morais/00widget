@@ -498,6 +498,36 @@ public final class APIClient {
         try await request("POST", path: "/v1/auth/agent-token/rotate")
     }
 
+    public struct MCPConnectionSummary: Codable, Identifiable, Equatable {
+        public let id: String
+        public let clientName: String
+        public let connectedAt: Date
+        public let lastUsedAt: Date?
+        public let expiresAt: Date
+        public let scopes: [String]
+    }
+
+    private struct MCPConnectionsListResponse: Codable {
+        let connections: [MCPConnectionSummary]
+    }
+
+    /// Active MCP grants for this account. The server deliberately returns no
+    /// access token or hash — only lifecycle and display metadata.
+    public func listMCPConnections() async throws -> [MCPConnectionSummary] {
+        let response: MCPConnectionsListResponse = try await request(
+            "GET",
+            path: "/v1/account/mcp-connections"
+        )
+        return response.connections
+    }
+
+    public func disconnectMCPConnection(id: String) async throws {
+        let _: EmptyBody = try await request(
+            "DELETE",
+            path: "/v1/account/mcp-connections/\(Self.pathSegment(id))"
+        )
+    }
+
     /// Erases the account and everything it holds. App credential only, which
     /// is why callers reach for `confirmedActionClient()` rather than the
     /// device token they use for most requests.

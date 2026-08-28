@@ -592,9 +592,10 @@ function renderConsentPage(
        <h2>${esc(request.client.n)} wants to publish to 00Widget</h2>
        <p>${esc(request.client.n)} can <strong>read</strong> your cards and activities and
        <strong>publish</strong> to them.</p>
-       <table><tbody>
-         <tr><th>Redirects to</th><td><code>${esc(request.redirectUri)}</code></td></tr>
-       </tbody></table>
+       <div class="oauth-detail">
+         <span class="oauth-detail-label">Redirects to</span>
+         <code>${esc(request.redirectUri)}</code>
+       </div>
        <form method="post" action="${esc(AUTHORIZE_PATH)}">
          ${hidden}
          <p class="actions">

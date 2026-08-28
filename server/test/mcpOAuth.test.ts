@@ -249,7 +249,8 @@ describe("authorization", () => {
     expect(html).not.toContain("<th>Client</th>");
     expect(html).not.toContain("<th>Account</th>");
     expect(html).not.toContain("<th>Scopes</th>");
-    expect(html).toContain(`<th>Redirects to</th><td><code>${REDIRECT_URI}</code></td>`);
+    expect(html).toContain('<span class="oauth-detail-label">Redirects to</span>');
+    expect(html).toContain(`<code>${REDIRECT_URI}</code>`);
     expect(html).not.toContain("It cannot register devices");
     expect(html).toContain('<p class="actions">');
     expect(html).toContain('<button class="button button-secondary" type="submit" name="decision" value="deny">');

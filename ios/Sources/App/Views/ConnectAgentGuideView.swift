@@ -11,6 +11,11 @@ struct ConnectAgentGuideView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.openURL) private var openURL
     @State private var copiedEndpoint = false
+    @State private var connections: [APIClient.MCPConnectionSummary] = []
+    @State private var connectionsLoading = true
+    @State private var connectionsError: String?
+    @State private var disconnecting: Set<String> = []
+    @State private var confirmingDisconnect: APIClient.MCPConnectionSummary?
 
     var body: some View {
         List {
@@ -31,6 +36,29 @@ struct ConnectAgentGuideView: View {
                         systemImage: "person.crop.circle.badge.exclamationmark"
                     )
                     .font(.subheadline)
+                }
+            }
+
+            if !env.apiKey.isEmpty {
+                Section {
+                    if let connectionsError {
+                        Text(connectionsError)
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                    }
+
+                    if connections.isEmpty && !connectionsLoading {
+                        Text("No agents are currently connected.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(connections) { connection in
+                        connectionRow(connection)
+                    }
+                } header: {
+                    Text("Connected agents")
+                } footer: {
+                    Text("Disconnecting stops that agent's 00Widget access immediately. It may remain visible in Claude or ChatGPT until you remove it there.")
                 }
             }
 
@@ -82,6 +110,97 @@ struct ConnectAgentGuideView: View {
         }
         .navigationTitle("Connect an agent")
         .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if connectionsLoading && !env.apiKey.isEmpty && connections.isEmpty {
+                ProgressView()
+            }
+        }
+        .refreshable { await loadConnections() }
+        .task { await loadConnections() }
+    }
+
+    private func connectionRow(_ connection: APIClient.MCPConnectionSummary) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(connection.clientName)
+                    .lineLimit(1)
+                Text(connectionSubtitle(connection))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            if disconnecting.contains(connection.id) {
+                ProgressView()
+            } else {
+                Button("Disconnect", role: .destructive) {
+                    confirmingDisconnect = connection
+                }
+                .buttonStyle(.borderless)
+                .confirmationDialog(
+                    "Disconnect \(connection.clientName)?",
+                    isPresented: disconnectConfirmation(for: connection),
+                    titleVisibility: .visible
+                ) {
+                    Button("Disconnect", role: .destructive) {
+                        Task { await disconnect(connection) }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Its 00Widget access stops immediately. Connecting it again will require your approval.")
+                }
+            }
+        }
+    }
+
+    private func connectionSubtitle(_ connection: APIClient.MCPConnectionSummary) -> String {
+        let use = connection.lastUsedAt.map {
+            "Used \($0.formatted(.relative(presentation: .named)))"
+        } ?? "Never used"
+        let access = connection.scopes.contains("publish") ? "Read and publish" : "Read only"
+        return "\(use) · \(access)"
+    }
+
+    private func disconnectConfirmation(
+        for connection: APIClient.MCPConnectionSummary
+    ) -> Binding<Bool> {
+        Binding(
+            get: { confirmingDisconnect?.id == connection.id },
+            set: { presented in
+                if !presented && confirmingDisconnect?.id == connection.id {
+                    confirmingDisconnect = nil
+                }
+            }
+        )
+    }
+
+    private func loadConnections() async {
+        guard !env.apiKey.isEmpty else {
+            connections = []
+            connectionsLoading = false
+            connectionsError = nil
+            return
+        }
+        connectionsLoading = true
+        defer { connectionsLoading = false }
+        do {
+            connections = try await env.fetchMCPConnections()
+            connectionsError = nil
+        } catch {
+            connectionsError = error.localizedDescription
+        }
+    }
+
+    private func disconnect(_ connection: APIClient.MCPConnectionSummary) async {
+        confirmingDisconnect = nil
+        disconnecting.insert(connection.id)
+        defer { disconnecting.remove(connection.id) }
+        do {
+            try await env.disconnectMCPConnection(id: connection.id)
+            connections.removeAll { $0.id == connection.id }
+            connectionsError = nil
+        } catch {
+            connectionsError = error.localizedDescription
+        }
     }
 
     /// The account's own MCP endpoint, derived from the configured server

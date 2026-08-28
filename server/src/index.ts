@@ -23,6 +23,7 @@ import * as landing from "./landing";
 import * as webLogin from "./webLogin";
 import * as mcp from "./mcp";
 import * as mcpOAuth from "./mcpOAuth";
+import * as mcpConnections from "./mcpConnections";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
@@ -194,6 +195,14 @@ const routes: Route[] = [
   // App-only: the operator's email is not an agent's to read. See account.ts.
   authed("GET", /^\/v1\/account\/?$/, null, (req, env, auth) =>
     account.getAccount(req, env, auth), { credentialKind: "app" },
+  ),
+  // App-only: connector grants are account access, just like Agent-token
+  // rotation. A publisher or connector must never enumerate or revoke peers.
+  authed("GET", /^\/v1\/account\/mcp-connections\/?$/, null, (req, env, auth) =>
+    mcpConnections.listMcpConnections(req, env, auth), { credentialKind: "app" },
+  ),
+  authed("DELETE", /^\/v1\/account\/mcp-connections\/([^/]+)\/?$/, null, (req, env, auth, m) =>
+    mcpConnections.disconnectMcpConnection(req, env, auth, pathParam(m[1])), { credentialKind: "app" },
   ),
   // Same gate, for the same reason: deleting the account is the owner's act,
   // not an agent's. Apple requires this to be reachable from the app.

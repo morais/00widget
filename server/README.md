@@ -210,6 +210,12 @@ The iOS app can optionally use native Sign in with Apple instead of asking the u
 
 All newly created API tokens expire after 90 days. The migration also gives existing tokens a 90-day transition window. A standalone publisher token can revoke itself with `DELETE /v1/auth/token`; the endpoint also accepts an expired token solely so it can clean up its own registrations.
 
+The app-only credential also manages the account's MCP approvals. `GET
+/v1/account/mcp-connections` lists active connector grants without returning a
+token or token hash, and `DELETE /v1/account/mcp-connections/:id` revokes one
+grant belonging to that account. Revocation stops 00Widget access immediately;
+it cannot remove the connector entry from the remote host's own UI.
+
 Required Worker secrets:
 
 ```

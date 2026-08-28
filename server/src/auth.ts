@@ -125,6 +125,15 @@ export interface ApiKeyRecord {
   renewSeconds?: number;
 }
 
+export interface McpConnectionRecord {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt?: string;
+  expiresAt: string;
+  scopes: ApiScope[];
+}
+
 export interface CreateApiKeyInput {
   tenantId?: string;
   ownerEmail?: string;
@@ -485,6 +494,72 @@ export async function revokeApiKey(env: Env, id: string): Promise<boolean> {
     .bind(now, id)
     .run();
   return (result.meta as { changes?: number } | undefined)?.changes !== 0;
+}
+
+/// One tenant's active MCP grants. A connection is the connector-purpose API
+/// key minted by OAuth, not a separate session record; listing it here keeps
+/// credential lifecycle in one source of truth.
+export async function listLiveMcpConnections(
+  env: Env,
+  tenantId: string,
+): Promise<McpConnectionRecord[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT id, label, created_at, last_used_at, expires_at, scopes_json
+     FROM api_keys
+     WHERE tenant_id = ? AND purpose = 'connector'
+       AND revoked_at IS NULL AND expires_at > ?
+     ORDER BY created_at DESC`,
+  )
+    .bind(tenantId, new Date().toISOString())
+    .all<{
+      id: string;
+      label: string;
+      created_at: string;
+      last_used_at: string | null;
+      expires_at: string;
+      scopes_json: string;
+    }>();
+  return rows.results.map((row) => ({
+    id: row.id,
+    label: row.label,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at ?? undefined,
+    expiresAt: row.expires_at,
+    scopes: parseScopes(row.scopes_json),
+  }));
+}
+
+/// Finds only an MCP grant belonging to this tenant. Callers must resolve the
+/// tenant from the authenticated app credential, never from a request field.
+export async function getMcpConnection(
+  env: Env,
+  tenantId: string,
+  id: string,
+): Promise<McpConnectionRecord | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT id, label, created_at, last_used_at, expires_at, scopes_json
+     FROM api_keys
+     WHERE id = ? AND tenant_id = ? AND purpose = 'connector'`,
+  )
+    .bind(id, tenantId)
+    .first<{
+      id: string;
+      label: string;
+      created_at: string;
+      last_used_at: string | null;
+      expires_at: string;
+      scopes_json: string;
+    }>();
+  return row
+    ? {
+        id: row.id,
+        label: row.label,
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at ?? undefined,
+        expiresAt: row.expires_at,
+        scopes: parseScopes(row.scopes_json),
+      }
+    : null;
 }
 
 export async function listTenants(env: Env): Promise<TenantRecord[]> {

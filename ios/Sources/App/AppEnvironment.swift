@@ -464,6 +464,22 @@ public final class AppEnvironment: ObservableObject {
         try await client.revokeGuestLink(id: id)
     }
 
+    /// MCP approvals are account access, so they run on the app-only
+    /// credential rather than the device or Agent-config credential.
+    public func fetchMCPConnections() async throws -> [APIClient.MCPConnectionSummary] {
+        guard let client = confirmedActionClient() else {
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
+        }
+        return try await client.listMCPConnections()
+    }
+
+    public func disconnectMCPConnection(id: String) async throws {
+        guard let client = confirmedActionClient() else {
+            throw APIClientError(status: 0, message: Self.reauthorizationMessage)
+        }
+        try await client.disconnectMCPConnection(id: id)
+    }
+
     public func removeGuestLink(token: String) {
         let removed = guestLinks.first { $0.token == token }
         guestLinks = GuestLinkStore.remove(token: token)

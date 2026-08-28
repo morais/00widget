@@ -117,6 +117,9 @@ export function baseHTML(title: string, body: string): string {
   .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .muted { color: var(--muted); font-size: 12px; }
+  .oauth-detail { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px; align-items: start; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .oauth-detail-label { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .oauth-detail code { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.45; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
