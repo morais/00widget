@@ -189,6 +189,7 @@ struct DashboardView: View {
                     if !visibleSharedCards.isEmpty {
                         Text("Shared with you")
                             .font(.title3.weight(.semibold))
+                            .accessibilityAddTraits(.isHeader)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 
@@ -210,6 +211,7 @@ struct DashboardView: View {
                     if !visibleGuestCards.isEmpty {
                         Text("Shared links")
                             .font(.title3.weight(.semibold))
+                            .accessibilityAddTraits(.isHeader)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 

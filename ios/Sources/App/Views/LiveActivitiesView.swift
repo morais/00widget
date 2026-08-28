@@ -43,7 +43,7 @@ struct LiveActivitiesView: View {
                                         .font(.caption.weight(.medium))
                                         .foregroundStyle(.secondary)
                                 }
-                                ActivityCard(session: session)
+                                ActivityCard(session: session, combinesAccessibility: true)
                             }
                         }
                         .buttonStyle(.plain)
@@ -150,7 +150,13 @@ struct LiveActivitiesView: View {
 
 private struct ActivityCard: View {
     let session: LiveActivitySession
+    let combinesAccessibility: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(session: LiveActivitySession, combinesAccessibility: Bool = false) {
+        self.session = session
+        self.combinesAccessibility = combinesAccessibility
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -248,6 +254,12 @@ private struct ActivityCard: View {
                 // parent. Here it resolves to the same white as the page and
                 // makes the activity container disappear around the chart.
                 .fill(Color(.systemGray6))
+        )
+        .modifier(
+            LiveActivityAccessibilityModifier(
+                session: session,
+                combinesChildren: combinesAccessibility
+            )
         )
     }
 
@@ -536,5 +548,23 @@ private struct ActivityItemRow: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(LiveActivityAccessibilitySummary.summary(for: item)))
+    }
+}
+
+private struct LiveActivityAccessibilityModifier: ViewModifier {
+    let session: LiveActivitySession
+    let combinesChildren: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if combinesChildren {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(LiveActivityAccessibilitySummary.summary(for: session)))
+        } else {
+            content
+        }
     }
 }

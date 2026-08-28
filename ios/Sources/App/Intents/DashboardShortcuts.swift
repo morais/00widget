@@ -119,56 +119,7 @@ enum CardStatusReport {
     /// well when both exist, because a solar card reading "3.4 kW" while its
     /// status is `critical` has to say both or it misleads.
     static func summary(for card: DashboardCard, now: Date = Date()) -> String {
-        var sentences: [String] = []
-
-        let headline = [card.value, card.unit]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        if headline.isEmpty {
-            sentences.append("\(card.title) is \(card.status.label.lowercased()).")
-        } else {
-            sentences.append("\(card.title) is \(headline).")
-            if card.status != .unknown {
-                sentences.append("Status: \(card.status.label.lowercased()).")
-            }
-        }
-
-        if let progress = card.progress {
-            let percent = Int((min(max(progress, 0), 1) * 100).rounded())
-            sentences.append("\(percent)% complete.")
-        }
-
-        if let subtitle = card.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines), !subtitle.isEmpty {
-            sentences.append(sentence(subtitle))
-        }
-
-        if let deadline = card.deadline {
-            sentences.append("Due \(relative(deadline, from: now)).")
-        }
-
-        // Only when the card is actually stale. Reading the update time out on
-        // every answer buries the number the person asked for; withholding it
-        // on a stale card states an old value with a confidence it has not
-        // earned.
-        if card.isStale {
-            sentences.append("This may be out of date — last updated \(relative(card.updatedAt, from: now)).")
-        }
-
-        return sentences.joined(separator: " ")
-    }
-
-    /// Producer prose, punctuated only if the producer did not.
-    private static func sentence(_ text: String) -> String {
-        text.hasSuffix(".") || text.hasSuffix("!") || text.hasSuffix("?") ? text : text + "."
-    }
-
-    private static func relative(_ date: Date, from now: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        formatter.dateTimeStyle = .numeric
-        return formatter.localizedString(for: date, relativeTo: now)
+        CardAccessibilitySummary.summary(for: card, now: now)
     }
 }
 

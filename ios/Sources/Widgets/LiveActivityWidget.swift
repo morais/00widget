@@ -266,12 +266,31 @@ private struct LockScreenView: View {
     @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
 
     var body: some View {
-        switch activityFamily {
-        case .small:
-            smallBody
-        default:
-            lockScreenBody
+        Group {
+            switch activityFamily {
+            case .small:
+                smallBody
+            default:
+                lockScreenBody
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(accessibilitySummary))
+    }
+
+    private var accessibilitySummary: String {
+        let stale = state.staleAt.map { Date() >= $0 }
+            ?? (Date().timeIntervalSince(state.updatedAt) > 3600)
+        return LiveActivityAccessibilitySummary.summary(
+            title: attributes.title,
+            state: state.state,
+            value: state.value,
+            unit: state.unit,
+            progress: state.progress,
+            subtitle: state.subtitle,
+            activeItemCount: state.activeItems.count,
+            isStale: stale
+        )
     }
 
     private var lockScreenBody: some View {

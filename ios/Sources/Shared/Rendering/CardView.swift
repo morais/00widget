@@ -64,25 +64,39 @@ public struct CardView: View {
     }
 
     public var body: some View {
+        Group {
+            switch context {
+            case .accessoryInline:
+                inlineView
+            case .accessoryCircular:
+                circularView
+            case .accessoryRectangular:
+                rectangularView
+            case .widgetSmall:
+                smallView
+            case .widgetMedium:
+                mediumView
+            case .widgetLarge:
+                largeView
+            case .widgetExtraLarge:
+                extraLargeView
+            case .widgetExtraLargePortrait:
+                extraLargePortraitView
+            case .app:
+                appView
+            }
+        }
+        .modifier(CardAccessibilityModifier(card: card, combinesChildren: combinesAccessibilityChildren))
+    }
+
+    private var combinesAccessibilityChildren: Bool {
         switch context {
-        case .accessoryInline:
-            inlineView
-        case .accessoryCircular:
-            circularView
-        case .accessoryRectangular:
-            rectangularView
-        case .widgetSmall:
-            smallView
-        case .widgetMedium:
-            mediumView
-        case .widgetLarge:
-            largeView
-        case .widgetExtraLarge:
-            extraLargeView
-        case .widgetExtraLargePortrait:
-            extraLargePortraitView
         case .app:
-            appView
+            return density == .compact
+        case .widgetSmall, .widgetMedium, .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait:
+            return card.actions?.isEmpty ?? true
+        case .accessoryRectangular, .accessoryCircular, .accessoryInline:
+            return true
         }
     }
 
@@ -92,6 +106,7 @@ public struct CardView: View {
                 Image(systemName: icon)
                     .font(.caption)
                     .foregroundStyle(card.status.tint)
+                    .accessibilityHidden(true)
             }
             Text(card.title)
                 .font(.caption)
@@ -607,6 +622,7 @@ public struct CardView: View {
                 Image(systemName: card.icon ?? "square.grid.2x2")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(card.status.tint)
+                    .accessibilityHidden(true)
             }
             .frame(width: 36, height: 36)
 
@@ -634,6 +650,7 @@ public struct CardView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -727,6 +744,7 @@ public struct CardView: View {
                                 Image(systemName: "arrow.up.right")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
                             }
                             if !dynamicTypeSize.isAccessibilitySize {
                                 Spacer(minLength: 8)
@@ -1045,6 +1063,22 @@ public struct CardView: View {
         #endif
     }
 
+}
+
+private struct CardAccessibilityModifier: ViewModifier {
+    let card: DashboardCard
+    let combinesChildren: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if combinesChildren {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(CardAccessibilitySummary.summary(for: card)))
+        } else {
+            content
+        }
+    }
 }
 
 extension DashboardCard {

@@ -465,6 +465,8 @@ struct CardGridCell: View {
             content
                 .padding(style == .compact ? 6 : 8)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(CardAccessibilitySummary.summary(for: card)))
     }
 
     @ViewBuilder
