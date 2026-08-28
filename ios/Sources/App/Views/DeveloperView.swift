@@ -52,7 +52,6 @@ struct DeveloperView: View {
                     }
                     Button("Register device") { Task { await env.registerDevice(); append("registerDevice done") } }
                     Button("Fetch cards") { Task { await env.fetchCards(); append("fetchCards \(env.cards.count)") } }
-                    Button("Generate sample cards") { env.generateSampleCards(); append("generated \(env.cards.count)") }
                     Button("Clear cache", role: .destructive) { env.clearCache(); append("cache cleared") }
                 }
 

@@ -36,6 +36,16 @@ struct ZeroZeroWidgetApp: App {
             .onAppear {
                 delegate.env = env
                 IntentLanding.attach(env)
+                #if ZW_SCREENSHOTS
+                // Start every capture run from the empty dashboard. The App
+                // Group cache outlives a reinstall, so a retained sample set
+                // would both hide the empty-state branch one screenshot is
+                // specifically of and shoot the previous run's timestamps.
+                // Cleared here rather than regenerated, so the run goes on to
+                // tap the same "Generate sample widgets" button a user taps
+                // instead of needing a debug affordance of its own.
+                env.clearSampleCards()
+                #endif
                 Task { await env.startupSync() }
                 #if ZW_SUBSCRIPTIONS_ENABLED
                 subscriptions.start()

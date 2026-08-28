@@ -29,21 +29,7 @@ final class ScreenshotTests: XCTestCase {
         prepareIPadMarketingDock(in: app)
 
         hideSampleIndicators(in: app)
-
-        widgetsTab.tap()
-
-        // Populate the dashboard through the app's own empty-state button rather
-        // than pre-seeding the App Group cache, so the screenshot shows a state a
-        // real user can actually reach. Already-populated runs skip this.
-        let generate = app.buttons["Generate sample widgets"]
-        if generate.waitForExistence(timeout: 5) {
-            generate.tap()
-        }
-
-        XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 15),
-            "Sample cards did not render on the Widgets tab."
-        )
+        generateSampleWidgets(in: app)
         capture(named: "screenshot-widgets")
         captureInsights(in: app)
 
@@ -167,17 +153,7 @@ final class ScreenshotTests: XCTestCase {
             "Navigation never appeared — the app may have failed to launch."
         )
         hideSampleIndicators(in: app)
-        widgetsTab.tap()
-
-        let generate = app.buttons["Generate sample widgets"]
-        if generate.waitForExistence(timeout: 5) {
-            generate.tap()
-        }
-
-        XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 15),
-            "Sample cards did not render on the Widgets tab."
-        )
+        generateSampleWidgets(in: app)
         capture(named: "screenshot-widgets")
         captureInsights(in: app)
         XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
@@ -514,16 +490,36 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(springboard.buttons["Done"].waitForExistence(timeout: 5))
     }
 
-    /// Turns off the "SAMPLE" badges and the "these are samples" notices so the
-    /// shots show the product rather than the labelling, then regenerates the
-    /// samples themselves.
+    /// Fills the dashboard by tapping its own empty-state button — the one a
+    /// user taps — so the shots show a state a real user can reach.
     ///
-    /// Two screens, because the two controls live in different places on
-    /// purpose. The flag is on Settings → Developer, reached by tapping the
-    /// version number and present in shipping builds — it is as useful for a
-    /// screen recording as it is here. "Generate sample cards" is on the debug
-    /// console behind it, which exists only because `capture-screenshots.sh`
-    /// builds with `ZW_DEBUG_TOOLS=YES`.
+    /// Always available, because a `ZW_SCREENSHOTS` build drops retained
+    /// samples at launch and the dashboard therefore starts empty.
+    private func generateSampleWidgets(in app: XCUIApplication) {
+        let widgetsTab = navigationButton(named: "Widgets", in: app)
+        XCTAssertTrue(widgetsTab.waitForExistence(timeout: 30))
+        widgetsTab.tap()
+
+        let generate = app.buttons["Generate sample widgets"]
+        XCTAssertTrue(
+            scrollTo(generate, in: app),
+            "'Generate sample widgets' not found — was the dashboard already populated?"
+        )
+        generate.tap()
+        XCTAssertTrue(
+            app.staticTexts["Solar"].waitForExistence(timeout: 15),
+            "Sample cards did not render after generating them."
+        )
+    }
+
+    /// Turns off the "SAMPLE" badges and the "these are samples" notices so the
+    /// shots show the product rather than the labelling.
+    ///
+    /// The flag lives on Settings → Developer, reached by tapping the version
+    /// number and present in shipping builds — it is as useful for a screen
+    /// recording as it is here. Nothing in a capture run reaches the debug
+    /// console any more: both tabs replace their own samples on appearance
+    /// under `ZW_SCREENSHOTS`.
     private func hideSampleIndicators(in app: XCUIApplication) {
         let settingsTab = navigationButton(named: "Settings", in: app)
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 30))
@@ -540,22 +536,6 @@ final class ScreenshotTests: XCTestCase {
         let toggle = app.switches["Hide sample indicators"]
         XCTAssertTrue(scrollTo(toggle, in: app), "'Hide sample indicators' toggle not found.")
         XCTAssertTrue(switchOn(toggle), "'Hide sample indicators' did not switch on.")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-
-        let debugTools = app.buttons["Debug tools"]
-        XCTAssertTrue(
-            scrollTo(debugTools, in: app),
-            "Settings → Developer → Debug tools not found. Was the build made with ZW_DEBUG_TOOLS=YES?"
-        )
-        debugTools.tap()
-
-        // Refresh timestamps even when a previous run's samples are still in
-        // the App Group. Otherwise the retained Home Screen widgets correctly
-        // label that old cache as stale in the marketing screenshot.
-        let generate = app.buttons["Generate sample cards"]
-        XCTAssertTrue(scrollTo(generate, in: app), "'Generate sample cards' button not found.")
-        generate.tap()
-
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
@@ -681,11 +661,10 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(widgetsTab.waitForExistence(timeout: 30), "Navigation never appeared.")
         widgetsTab.tap()
 
-        // The empty dashboard first, and before `hideSampleIndicators` — that
-        // helper generates sample cards, so calling it first would mean this
-        // branch was never actually exercised. Someone who has never subscribed
-        // usually has nothing published, so the empty dashboard is the branch
-        // the notice most needs to appear in, and the one it was missing from.
+        // The empty dashboard first, before anything generates samples.
+        // Someone who has never subscribed usually has nothing published, so
+        // the empty dashboard is the branch the notice most needs to appear
+        // in, and the one it was missing from.
         XCTAssertTrue(
             app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15),
             "Subscription notice is missing from the empty dashboard."
@@ -698,7 +677,7 @@ final class ScreenshotTests: XCTestCase {
 
         // Then again with cards, where it has to sit above them.
         hideSampleIndicators(in: app)
-        widgetsTab.tap()
+        generateSampleWidgets(in: app)
         scrollToTop(in: app)
         XCTAssertTrue(
             app.staticTexts["Publishing is paused"].waitForExistence(timeout: 15)

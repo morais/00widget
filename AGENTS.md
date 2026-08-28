@@ -92,7 +92,7 @@ Placeholder values that must stay in committed `.sample` files (and source code 
 
 Use `ios/scripts/build-sim.sh` rather than rolling your own `xcodebuild` invocation. The script bakes in three lessons that cost real time the first time around:
 
-- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: Test Backend Connection works (no auth needed), but the Dashboard never populates and the Debug tab shows that exact error.
+- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: Test Backend Connection works (no auth needed), but the Dashboard never populates, and Settings → Developer → Debug tools shows that exact error on a build made with `ZW_DEBUG_TOOLS=YES`.
 - **Ad-hoc signing alone (`CODE_SIGN_IDENTITY="-"`) doesn't get xcodebuild to embed entitlements either.** The `.app` bundle's entitlements come back as `[Dict]` with no keys.
 - **Re-signing with the production `.entitlements` is rejected at launch** — `SBMainWorkspace` denies the launch because `aps-environment` can't be satisfied without a real provisioning profile. Drop `aps-environment` for sim runs; push doesn't work on sim out of the box anyway.
 
@@ -186,24 +186,32 @@ test toggles on. The flag is off by default and lives in the App Group, which is
 the other reason the re-signing matters — without the container the extension
 cannot read the flag and widgets keep their badges.
 
+**The samples themselves are made the way a user makes them.** A
+`ZW_SCREENSHOTS` build clears retained sample cards at launch, so the dashboard
+always starts empty and the test taps its own "Generate sample widgets" button;
+the Activities tab replaces its retained sample on appearance, because
+ActivityKit state outlives a reinstall too. That is what removed the last reason
+a capture run needed the debug console. The empty dashboard is itself one of the
+shots (`screenshot-subscription-notice-empty`), so nothing may populate it
+before that capture is taken.
+
 **Two developer screens, and the difference decides where a switch goes.**
 `DeveloperOptionsView` is titled "Developer", is reached by tapping the version
 number in Settings, and ships — it holds what an owner might legitimately want,
 so every switch on it defaults to off and explains itself. `DeveloperView` is
 titled "Debug" and is reached from a separate "Debug tools" row in a "Developer"
 section of Settings itself, gated on the `ZW_DEBUG_TOOLS` build setting, which
-is `NO` everywhere; `capture-screenshots.sh` passes `ZW_DEBUG_TOOLS=YES`, so no
-shipping build contains it. `Constants.debugToolsEnabled` accepts a Bool or a `YES`/`NO`
-string, because a value substituted from a build setting arrives as a string,
-and fails closed on anything else.
+is `NO` in every build, the screenshot run included — so nothing automated
+depends on the console, and no capture can catch a Developer section that a
+shipping Settings screen does not have. Pass `ZW_DEBUG_TOOLS=YES` to
+`xcodebuild` by hand when you want it. `Constants.debugToolsEnabled` accepts a
+Bool or a `YES`/`NO` string, because a value substituted from a build setting
+arrives as a string, and fails closed on anything else.
 
 "Hide sample indicators" and "Show dummy account data" sit together in a
 "Screenshots and recordings" section at the end of the shipping screen: both
 change how the app *looks* to someone else rather than what it does, and a
-screen recording wants them as much as the marketing run does. The screenshot
-test therefore visits both screens — the flag on Settings → Developer, then
-"Generate sample cards" on the debug console, which refreshes sample timestamps
-so retained Home Screen widgets do not label a previous run's cache as stale.
+screen recording wants them as much as the marketing run does.
 
 XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 "com.apple.springboard")`), which is how the expanded Dynamic Island is

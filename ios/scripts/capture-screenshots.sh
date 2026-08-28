@@ -97,7 +97,6 @@ xcodebuild build-for-testing \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS ZW_SUBSCRIPTIONS_ENABLED" \
-  ZW_DEBUG_TOOLS=YES \
   > "$WORK/build.log" 2>&1 || {
     echo "✗ build failed — tail of log:" >&2
     tail -40 "$WORK/build.log" >&2
