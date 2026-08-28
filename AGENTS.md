@@ -92,7 +92,7 @@ Placeholder values that must stay in committed `.sample` files (and source code 
 
 Use `ios/scripts/build-sim.sh` rather than rolling your own `xcodebuild` invocation. The script bakes in three lessons that cost real time the first time around:
 
-- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: Test Backend Connection works (no auth needed), but the Dashboard never populates, and Settings → Developer → Debug tools shows that exact error on a build made with `ZW_DEBUG_TOOLS=YES`.
+- **`CODE_SIGNING_ALLOWED=NO` skips entitlements embedding entirely.** The app launches, but the App Group container is unavailable at runtime — `CardCache.save` throws "App Group container unavailable" and nothing survives a relaunch. Symptoms: the Dashboard never populates, and Settings → Developer → Debug tools reports the App Group as unavailable and shows that exact error as the last sync error, on a build made with `ZW_DEBUG_TOOLS=YES`.
 - **Ad-hoc signing alone (`CODE_SIGN_IDENTITY="-"`) doesn't get xcodebuild to embed entitlements either.** The `.app` bundle's entitlements come back as `[Dict]` with no keys.
 - **Re-signing with the production `.entitlements` is rejected at launch** — `SBMainWorkspace` denies the launch because `aps-environment` can't be satisfied without a real provisioning profile. Drop `aps-environment` for sim runs; push doesn't work on sim out of the box anyway.
 

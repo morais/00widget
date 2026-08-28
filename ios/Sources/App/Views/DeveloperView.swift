@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// The debug console, gated behind the `ZW_DEBUG_TOOLS` build setting and
+/// Read-only diagnostics, gated behind the `ZW_DEBUG_TOOLS` build setting and
 /// compiled out of every shipping build.
 ///
-/// Distinct from `DeveloperOptionsView`, which a curious owner can reach in a
-/// released app by tapping the version number. Anything here is for someone
-/// working on the app; anything a user might legitimately want — including
-/// "Hide sample indicators", which is as useful for a screen recording as it
-/// is for the marketing shots — belongs on that screen instead.
+/// Deliberately without controls. Everything it once offered either duplicated
+/// something the app does on its own — registering the device, fetching cards,
+/// a health check the Settings screen already runs — or belonged on
+/// `DeveloperOptionsView`, which a curious owner reaches by tapping the version
+/// number and which is where anything a user might legitimately want goes.
+/// Keep it a window, not a control panel.
 struct DeveloperView: View {
     @EnvironmentObject var env: AppEnvironment
-    @State private var logLines: [String] = []
 
     var body: some View {
         NavigationStack {
@@ -40,36 +40,9 @@ struct DeveloperView: View {
                         KeyValue(key: "Last error", value: err)
                     }
                 }
-
-                Section("Actions") {
-                    Button("Test backend connection") {
-                        Task {
-                            let ok = await env.testConnection()
-                            append(ok ? "health: ok" : "health: failed")
-                        }
-                    }
-                    Button("Register device") { Task { await env.registerDevice(); append("registerDevice done") } }
-                    Button("Fetch cards") { Task { await env.fetchCards(); append("fetchCards \(env.cards.count)") } }
-                    Button("Clear cache", role: .destructive) { env.clearCache(); append("cache cleared") }
-                }
-
-                Section("Log") {
-                    if logLines.isEmpty {
-                        Text("No entries").foregroundStyle(.secondary).font(.caption)
-                    } else {
-                        ForEach(logLines.reversed(), id: \.self) { line in
-                            Text(line).font(.caption.monospaced())
-                        }
-                    }
-                }
             }
             .navigationTitle("Debug")
         }
-    }
-
-    private func append(_ line: String) {
-        let ts = Date().formatted(.dateTime.hour().minute().second())
-        logLines.append("[\(ts)] \(line)")
     }
 
     private var connectionHealthText: String {

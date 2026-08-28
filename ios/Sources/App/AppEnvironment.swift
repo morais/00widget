@@ -844,13 +844,6 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
-    public func clearCache() {
-        CardCache.clear()
-        cards = []
-        SpotlightIndex.removeAll()
-        reloadWidgetTimelines()
-    }
-
     private func clearTenantScopedState() {
         CardCache.clear()
         cards = []
@@ -1123,9 +1116,5 @@ public final class AppEnvironment: ObservableObject {
             connectionHealth = .failed
             return false
         }
-    }
-
-    public func testConnection() async -> Bool {
-        await refreshConnectionHealth()
     }
 }
