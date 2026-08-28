@@ -60,6 +60,8 @@ struct OnboardingView: View {
                             Image(systemName: copiedAgentConfig ? "checkmark" : "doc.on.doc")
                                 .imageScale(.large)
                         }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                         // Borderless, or the whole row becomes one tap target
                         // and selecting the text triggers a copy instead.
                         .buttonStyle(.borderless)
