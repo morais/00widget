@@ -550,6 +550,7 @@ struct CardGridCell: View {
                         .font(.caption2)
                         .foregroundStyle(card.status.tint)
                 }
+                StatusBadge(status: card.status, compact: true)
             }
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 1) {
@@ -586,6 +587,7 @@ struct CardGridCell: View {
                         .font(.caption2)
                         .foregroundStyle(card.status.tint)
                 }
+                StatusBadge(status: card.status, compact: true)
             }
             band
             HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -621,6 +623,7 @@ struct CardGridCell: View {
                         .font(.caption)
                         .foregroundStyle(card.status.tint)
                 }
+                StatusBadge(status: card.status, compact: true)
             }
             band
             HStack(alignment: .firstTextBaseline, spacing: 2) {

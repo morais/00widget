@@ -44,6 +44,13 @@ struct CardQueryTests {
         }
     }
 
+    @Test("Every status has a distinct non-colour symbol")
+    func everyStatusHasDistinctSymbol() {
+        let symbols = DashboardStatus.allCases.map(\.symbolName)
+        #expect(symbols.allSatisfy { !$0.isEmpty })
+        #expect(Set(symbols).count == DashboardStatus.allCases.count)
+    }
+
     /// `WidgetStatusFilter` itself cannot be reached from here — it lives in
     /// the widget extension, which is exactly the problem this change was
     /// about. It now delegates to these three predicates rather than restating

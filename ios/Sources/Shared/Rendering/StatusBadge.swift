@@ -11,14 +11,17 @@ public struct StatusBadge: View {
 
     public var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(status.tint)
-                .frame(width: 8, height: 8)
+            Image(systemName: status.symbolName)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(status.tint)
             if !compact {
                 Text(status.label)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Status")
+        .accessibilityValue(status.label)
     }
 }

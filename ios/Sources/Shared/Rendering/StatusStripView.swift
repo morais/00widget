@@ -10,6 +10,7 @@ public struct StatusStripView: View {
     public let items: [DashboardItem]
     public let limit: Int
     public let height: CGFloat
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     public init(items: [DashboardItem], limit: Int, height: CGFloat = 10) {
         self.items = items
@@ -27,10 +28,19 @@ public struct StatusStripView: View {
         HStack(spacing: 3) {
             ForEach(shown) { item in
                 let status = item.status ?? .unknown
-                RoundedRectangle(cornerRadius: height / 3, style: .continuous)
-                    .fill(status.tint.opacity(status == .unknown || status == .offline ? 0.3 : 1))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: height)
+                if differentiateWithoutColor {
+                    Image(systemName: status.symbolName)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(height, 8))
+                } else {
+                    RoundedRectangle(cornerRadius: height / 3, style: .continuous)
+                        .fill(status.tint.opacity(status == .unknown || status == .offline ? 0.3 : 1))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: height)
+                }
             }
         }
         .accessibilityElement()

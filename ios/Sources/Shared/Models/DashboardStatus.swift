@@ -60,6 +60,22 @@ public enum DashboardStatus: String, Codable, CaseIterable, Hashable, Sendable {
         case .offline: return "Offline"
         }
     }
+
+    /// A stable, non-colour representation used anywhere status space is
+    /// constrained. Producer-supplied `statusIcon` describes a transient
+    /// detail; this symbol always communicates the semantic status itself.
+    public var symbolName: String {
+        switch self {
+        case .unknown: return "questionmark.circle.fill"
+        case .good: return "checkmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .critical: return "xmark.octagon.fill"
+        case .running: return "play.circle.fill"
+        case .finished: return "checkmark.seal.fill"
+        case .paused: return "pause.circle.fill"
+        case .offline: return "wifi.slash"
+        }
+    }
 }
 
 public extension LiveActivityKind {
