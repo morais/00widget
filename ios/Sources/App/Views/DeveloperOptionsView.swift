@@ -26,6 +26,7 @@ struct DeveloperOptionsView: View {
     )
     private var showDummyAccountData = false
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
+    @State private var hideSampleIndicators = SharedSettings.hideSampleIndicators
 
     var body: some View {
         Form {
@@ -35,14 +36,6 @@ struct DeveloperOptionsView: View {
                 Text("Payloads")
             } footer: {
                 Text("Adds the stored wire format and an equivalent curl command to the detail screen of every card and Live Activity — the exact request an agent would send to publish it.")
-            }
-
-            Section {
-                Toggle("Show dummy account data", isOn: $showDummyAccountData)
-            } header: {
-                Text("Account")
-            } footer: {
-                Text("Shows \(DummyAccountData.email) and a visibly fake token on the Settings screen instead of your own, for a screenshot or a shared screen. Nothing else changes: the real token still authorizes every request. Copy agent config copies what is on screen, so turn this off before handing the token to an agent.")
             }
 
             Section {
@@ -68,6 +61,30 @@ struct DeveloperOptionsView: View {
                 Text("Diagnostics")
             } footer: {
                 Text("The first explains what each stamp colour means and why a widget's time is rarely the current time. The second shows the push token this device gave the server, and can send it again.")
+            }
+
+            // Last, and together, because these two are about how the app
+            // looks to someone else — a screenshot, a recording, a shared
+            // screen — rather than about what it does. Neither changes any
+            // behaviour, which is exactly why each one says so below.
+            Section {
+                Toggle("Show dummy account data", isOn: $showDummyAccountData)
+                Toggle("Hide sample indicators", isOn: $hideSampleIndicators)
+                    .onChange(of: hideSampleIndicators) { _, value in
+                        SharedSettings.setHideSampleIndicators(value)
+                        // The badges are drawn by the widget extension too,
+                        // which is a separate process reading the same App
+                        // Group flag and will not notice on its own.
+                        env.reloadWidgetTimelines()
+                    }
+            } header: {
+                Text("Screenshots and recordings")
+            } footer: {
+                Text("""
+                Dummy account data shows \(DummyAccountData.email) and a visibly fake token on the Settings screen instead of your own. The real token still authorizes every request, and Copy agent config copies what is on screen — so turn this off before handing the token to an agent.
+
+                Hiding sample indicators drops the SAMPLE badges and the "these are samples" notice from generated cards, in the app and on the Home Screen. They are still samples; only the labelling goes.
+                """)
             }
         }
         .navigationTitle("Developer")

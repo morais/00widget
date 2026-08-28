@@ -181,17 +181,29 @@ gives both processes the container. Verified: widgets show real cards, and
 `test-without-building` installs the re-signed bundle rather than rebuilding it.
 
 **Sample data is labelled** with a "these are samples" notice and `SAMPLE`
-badges. The run suppresses that through Settings → Developer → "Hide sample
-indicators", which the UI test toggles on. The flag is off by default and lives
-in the App Group, which is the other reason the re-signing matters — without the
-container the extension cannot read the flag and widgets keep their badges.
+badges. The run suppresses that through "Hide sample indicators", which the UI
+test toggles on. The flag is off by default and lives in the App Group, which is
+the other reason the re-signing matters — without the container the extension
+cannot read the flag and widgets keep their badges.
 
-The Developer section itself is gated on the `ZW_DEBUG_TOOLS` build setting,
-which is `NO` everywhere. `capture-screenshots.sh` passes
-`ZW_DEBUG_TOOLS=YES`, so no shipping build contains the screen or any way to
-reach the flag. `Constants.debugToolsEnabled` accepts a Bool or a `YES`/`NO`
+**Two developer screens, and the difference decides where a switch goes.**
+`DeveloperOptionsView` is titled "Developer", is reached by tapping the version
+number in Settings, and ships — it holds what an owner might legitimately want,
+so every switch on it defaults to off and explains itself. `DeveloperView` is
+titled "Debug" and is reached from a separate "Debug tools" row in a "Developer"
+section of Settings itself, gated on the `ZW_DEBUG_TOOLS` build setting, which
+is `NO` everywhere; `capture-screenshots.sh` passes `ZW_DEBUG_TOOLS=YES`, so no
+shipping build contains it. `Constants.debugToolsEnabled` accepts a Bool or a `YES`/`NO`
 string, because a value substituted from a build setting arrives as a string,
 and fails closed on anything else.
+
+"Hide sample indicators" and "Show dummy account data" sit together in a
+"Screenshots and recordings" section at the end of the shipping screen: both
+change how the app *looks* to someone else rather than what it does, and a
+screen recording wants them as much as the marketing run does. The screenshot
+test therefore visits both screens — the flag on Settings → Developer, then
+"Generate sample cards" on the debug console, which refreshes sample timestamps
+so retained Home Screen widgets do not label a previous run's cache as stale.
 
 XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 "com.apple.springboard")`), which is how the expanded Dynamic Island is

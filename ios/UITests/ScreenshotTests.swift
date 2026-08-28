@@ -514,15 +514,33 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(springboard.buttons["Done"].waitForExistence(timeout: 5))
     }
 
-    /// Turns off the "SAMPLE" badges and the "these are samples" notices via
-    /// Settings → Developer, so the shots show the product rather than the
-    /// labelling. The Developer section only exists because
-    /// `capture-screenshots.sh` builds with `ZW_DEBUG_TOOLS=YES`; a shipping
-    /// build has no such screen and no way to reach this flag.
+    /// Turns off the "SAMPLE" badges and the "these are samples" notices so the
+    /// shots show the product rather than the labelling, then regenerates the
+    /// samples themselves.
+    ///
+    /// Two screens, because the two controls live in different places on
+    /// purpose. The flag is on Settings → Developer, reached by tapping the
+    /// version number and present in shipping builds — it is as useful for a
+    /// screen recording as it is here. "Generate sample cards" is on the debug
+    /// console behind it, which exists only because `capture-screenshots.sh`
+    /// builds with `ZW_DEBUG_TOOLS=YES`.
     private func hideSampleIndicators(in app: XCUIApplication) {
         let settingsTab = navigationButton(named: "Settings", in: app)
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 30))
         settingsTab.tap()
+
+        // The row reads "Version" plus the version string, so match the prefix
+        // rather than a label that changes with every build.
+        let versionRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Version'")
+        ).firstMatch
+        XCTAssertTrue(scrollTo(versionRow, in: app), "Settings → Version row not found.")
+        versionRow.tap()
+
+        let toggle = app.switches["Hide sample indicators"]
+        XCTAssertTrue(scrollTo(toggle, in: app), "'Hide sample indicators' toggle not found.")
+        XCTAssertTrue(switchOn(toggle), "'Hide sample indicators' did not switch on.")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
         let debugTools = app.buttons["Debug tools"]
         XCTAssertTrue(
@@ -530,10 +548,6 @@ final class ScreenshotTests: XCTestCase {
             "Settings → Developer → Debug tools not found. Was the build made with ZW_DEBUG_TOOLS=YES?"
         )
         debugTools.tap()
-
-        let toggle = app.switches["Hide sample indicators"]
-        XCTAssertTrue(scrollTo(toggle, in: app), "'Hide sample indicators' toggle not found.")
-        XCTAssertTrue(switchOn(toggle), "'Hide sample indicators' did not switch on.")
 
         // Refresh timestamps even when a previous run's samples are still in
         // the App Group. Otherwise the retained Home Screen widgets correctly
