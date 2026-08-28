@@ -360,10 +360,15 @@ describe("tools/list", () => {
     const body = (await res.json()) as JsonRpcResult;
     const tools = body.result?.tools as { name: string; inputSchema: Record<string, unknown> }[];
     const upsert = tools.find((tool) => tool.name === "upsert_card")!;
-    const properties = upsert.inputSchema.properties as Record<string, unknown>;
+    const properties = upsert.inputSchema.properties as Record<
+      string,
+      { description?: string }
+    >;
     expect(Object.keys(properties)).toEqual(
       expect.arrayContaining(["id", "template", "title", "status", "items", "chart", "deepLink"]),
     );
+    expect(properties.subtitle.description).toContain("truncates rather than wraps");
+    expect(properties.unit.description).toContain("Suffix shown after `value`");
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
   });
 });

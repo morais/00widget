@@ -226,9 +226,9 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "id": "string (stable per logical thing)",
   "template": "summary | progress | list | action | chart | history | breakdown",
   "title": "string",
-  "subtitle": "string?",
-  "value": "string?",
-  "unit": "string?",
+  "subtitle": "short string? (one line; truncates rather than wraps; essential context first)",
+  "value": "string? (headline already formatted for a person, including any prefix such as $)",
+  "unit": "string? (suffix rendered after value, such as kW, %, jobs)",
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
@@ -243,6 +243,19 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "actions": "ActionDefinition[]? (buttons on any template, not just action; safe-only from widgets)"
 }
 ```
+
+The card's `subtitle` is a label, not a sentence. It renders on one line and
+truncates rather than wrapping on widgets, including large chart widgets with
+plenty of room below the headline. Aim for about 40 characters, put the
+information a truncated label must preserve first, and omit words already said
+by the title. Prefer `"$300 baseline · Mar–Aug 2026"` to `"Consensus target ·
+Mar–Aug 2026 · AAPL baseline $300"`: the latter loses the number that explains
+the chart when its end is cut off.
+
+`unit` is always a suffix. Use it for `kW`, `%`, `jobs`, and similar labels. A
+prefix such as a currency symbol belongs in the already-formatted `value`: send
+`"value": "$338.99"` with no `unit`. Do not send a bare `"338.99"` value with
+`"unit": "$"`, which renders as `338.99 $`.
 
 **DashboardItem** (rows inside a `list` card):
 
@@ -341,7 +354,10 @@ is drawn.
 and a trend you can act on, because "above or below the line" needs no axis
 labels. An unpinned edge stretches to keep the rule visible; if you pin both
 `min` and `max` and the reference falls outside them, it is not drawn at all
-rather than being clamped to an edge it does not belong on.
+rather than being clamped to an edge it does not belong on. The rule itself has
+no numeric label. When its exact value matters, lead the card's short `subtitle`
+with its formatted meaning and value — for example, `"SLO 5m · last 10 runs"`
+for `reference: 300`, or `"$300 baseline · Mar–Aug 2026"` for a price chart.
 
 Keep publishing the card's `value` too: it is the headline number every widget
 size shows above the plot, and the only thing the inline Lock Screen accessory
@@ -695,7 +711,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
     "id": "deploy-duration",
     "template": "chart",
     "title": "Deploys",
-    "subtitle": "Last 10 runs",
+    "subtitle": "SLO 5m · last 10 runs",
     "value": "4m 12s",
     "status": "good",
     "icon": "chart.xyaxis.line",

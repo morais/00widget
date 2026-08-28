@@ -242,7 +242,9 @@ export const DashboardChartSchema = z
     reference: z.number().optional().describe(
       "A target, budget, SLO or threshold, drawn as a dashed rule across the "
       + "plot. Usually the difference between a trend you can read and one you "
-      + "can act on, because above-or-below needs no axis labels.",
+      + "can act on, because above-or-below needs no axis labels. The rule has "
+      + "no numeric label; when its exact value matters, lead the card's short "
+      + "`subtitle` with its formatted meaning and value.",
     ),
     style: ChartStyleSchema.default("line").describe(
       "`line` is a sparkline with a soft area fill; `bar` grows every bar from "
@@ -332,13 +334,22 @@ const DashboardCardFields = {
     + "short and stable — a value that moves belongs in `value`.",
   ),
   subtitle: OptionalSubtitleString.describe(
-    "One line of context under the title or value.",
+    "A short, single-line label under the title or value. It truncates rather "
+    + "than wraps on widgets, so aim for about 40 characters, put essential "
+    + "numbers and qualifiers first, and do not repeat the title. For a chart "
+    + "whose `reference` matters, lead with its formatted meaning and value: "
+    + "\"$300 baseline · Mar–Aug 2026\".",
   ),
   value: OptionalValueString.describe(
     "The headline, as a display string already formatted for a person: "
-    + "\"3.2\", \"4m 12s\", \"Healthy\". It is never parsed back into a number.",
+    + "\"3.2\", \"$338.99\", \"4m 12s\", \"Healthy\". It is never parsed "
+    + "back into a number.",
   ),
-  unit: OptionalUnitString.describe("Unit shown after `value`: kW, %, jobs."),
+  unit: OptionalUnitString.describe(
+    "Suffix shown after `value`: kW, %, jobs. Prefixes such as currency symbols "
+    + "belong in the formatted `value` instead; use `value: \"$338.99\"` and "
+    + "omit `unit`, not `value: \"338.99\"` with `unit: \"$\"`.",
+  ),
   status: DashboardStatusSchema.default("unknown").describe(
     "Drives the card's tint and badge on every surface. `good`/`warning`/"
     + "`critical` for health, `running`/`finished`/`paused`/`offline` for "
