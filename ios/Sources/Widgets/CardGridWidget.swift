@@ -555,7 +555,8 @@ struct CardGridCell: View {
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 1) {
                 Text(card.value ?? "—")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.body.weight(.semibold))
+                    .fontDesign(.rounded)
                     .foregroundStyle(card.status.tint)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
@@ -592,7 +593,8 @@ struct CardGridCell: View {
             band
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(card.value ?? "—")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.title3.weight(.semibold))
+                    .fontDesign(.rounded)
                     .foregroundStyle(card.status.tint)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
@@ -628,7 +630,8 @@ struct CardGridCell: View {
             band
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(card.value ?? "—")
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.title2.weight(.semibold))
+                    .fontDesign(.rounded)
                     .foregroundStyle(card.status.tint)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)

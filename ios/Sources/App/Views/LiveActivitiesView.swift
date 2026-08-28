@@ -150,10 +150,14 @@ struct LiveActivitiesView: View {
 
 private struct ActivityCard: View {
     let session: LiveActivitySession
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+            let headerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            headerLayout {
                 VStack(spacing: 2) {
                     Image(systemName: iconName)
                         .font(.title2)
@@ -168,9 +172,13 @@ private struct ActivityCard: View {
                 .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
+                    let titleLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 8))
+                    titleLayout {
                         Text(session.title)
                             .font(.headline)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                         if activeItems.isEmpty {
                             stateBadge
                         } else {
@@ -189,7 +197,9 @@ private struct ActivityCard: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer()
+                }
 
                 // A composite activity normally summarises itself with the
                 // per-item rows below, but a producer-sent `value` outranks
@@ -462,10 +472,14 @@ private struct ActivityDetailView: View {
 
 private struct ActivityItemRow: View {
     let item: LiveActivityItem
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 6) {
-            HStack(alignment: .center, spacing: 10) {
+            let rowLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
+            rowLayout {
                 Image(systemName: item.icon ?? "circle.fill")
                     .font(.body)
                     .foregroundStyle(item.status?.tint ?? .secondary)
@@ -479,7 +493,7 @@ private struct ActivityItemRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                         .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     if let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.caption)
@@ -488,13 +502,15 @@ private struct ActivityItemRow: View {
                     }
                 }
 
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer(minLength: 8)
+                }
 
                 if let value = item.value {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text(value)
                             .font(.title3.weight(.semibold))
-                            .lineLimit(1)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                         if let unit = item.unit {
                             Text(unit)
                                 .font(.caption)

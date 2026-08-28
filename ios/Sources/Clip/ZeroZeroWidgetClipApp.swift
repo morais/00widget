@@ -63,7 +63,9 @@ struct ClipRootView: View {
             symbol("square.grid.2x2.fill")
             Text(title).font(.title2.weight(.semibold))
             if let value {
-                Text(value).font(.system(size: 44, weight: .semibold, design: .rounded))
+                Text(value)
+                    .font(.largeTitle.weight(.semibold))
+                    .fontDesign(.rounded)
             }
             Text("Get 00Widget to keep this on your Home Screen.")
                 .foregroundStyle(.secondary)
@@ -87,7 +89,7 @@ struct ClipRootView: View {
 
     private func symbol(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 48))
+            .font(.largeTitle)
             .foregroundStyle(.tint)
     }
 }

@@ -46,6 +46,7 @@ public struct CardView: View {
     public let context: CardRenderContext
     public let density: CardRenderDensity
     private let appActionHandler: ((ActionDefinition) -> Void)?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #if canImport(WidgetKit)
     @Environment(\.widgetRenderingMode) private var widgetRenderingMode
     #endif
@@ -164,7 +165,8 @@ public struct CardView: View {
     private var bigValue: some View {
         HStack(alignment: .firstTextBaseline, spacing: 2) {
             Text(card.value ?? "—")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(.title.weight(.semibold))
+                .fontDesign(.rounded)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             if let unit = card.unit {
@@ -595,7 +597,10 @@ public struct CardView: View {
     }
 
     private var appHeader: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
             ZStack {
                 Circle()
                     .fill(card.status.tint.opacity(0.16))
@@ -608,12 +613,14 @@ public struct CardView: View {
             Text(card.title)
                 .font(.headline)
                 .foregroundStyle(.primary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
 
             if card.isFromGuestLink { guestBadge }
             if card.showsSampleBadge { sampleBadge }
 
-            Spacer(minLength: 8)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
 
             if let statusIcon = card.statusIcon {
                 Image(systemName: statusIcon)
@@ -678,11 +685,15 @@ public struct CardView: View {
     }
 
     private var appValue: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 5))
+        return layout {
             Text(card.value ?? "—")
-                .font(.system(size: 48, weight: .semibold, design: .rounded))
+                .font(.largeTitle.weight(.semibold))
+                .fontDesign(.rounded)
                 .minimumScaleFactor(0.6)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             if let unit = card.unit {
                 Text(unit)
                     .font(.title3.weight(.medium))
@@ -695,7 +706,7 @@ public struct CardView: View {
         Text(subtitle)
             .font(.body)
             .foregroundStyle(.secondary)
-            .lineLimit(density == .compact ? 1 : 3)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : (density == .compact ? 1 : 3))
     }
 
     @ViewBuilder
@@ -705,16 +716,21 @@ public struct CardView: View {
             VStack(spacing: 10) {
                 ForEach(items.prefix(density == .compact ? 3 : 10)) { item in
                     rowLink(item) {
-                        HStack(spacing: 12) {
+                        let layout = dynamicTypeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                            : AnyLayout(HStackLayout(spacing: 12))
+                        layout {
                             Text(item.title)
                                 .font(.subheadline)
-                                .lineLimit(1)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                             if item.deepLink != nil {
                                 Image(systemName: "arrow.up.right")
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                             }
-                            Spacer(minLength: 8)
+                            if !dynamicTypeSize.isAccessibilitySize {
+                                Spacer(minLength: 8)
+                            }
                             if let value = item.value {
                                 Text("\(value)\(item.unit ?? "")")
                                     .font(.subheadline.weight(.semibold))
@@ -847,14 +863,19 @@ public struct CardView: View {
         } else {
             VStack(spacing: 10) {
                 ForEach(Array(shares.enumerated()), id: \.element.item.id) { index, entry in
-                    HStack(spacing: 10) {
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 10))
+                    layout {
                         Circle()
                             .fill(CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint))
                             .frame(width: 8, height: 8)
                         Text(entry.item.title)
                             .font(.subheadline)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Spacer(minLength: 8)
+                        }
                         Text(legendValue(entry.item, share: entry.share))
                             .font(.subheadline.weight(.semibold))
                     }
