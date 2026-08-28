@@ -65,7 +65,7 @@ struct OnboardingView: View {
                         // Borderless, or the whole row becomes one tap target
                         // and selecting the text triggers a copy instead.
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Copy agent config")
+                        .accessibilityLabel(copiedAgentConfig ? "Agent config copied" : "Copy agent config")
                     }
                     if copiedAgentConfig {
                         Text("Copied — clipboard clears in \(Self.pasteboardLifetimeLabel)")
@@ -256,6 +256,25 @@ struct OnboardingView: View {
                 if env.appleLoginEmail == nil { await env.refreshAccount() }
             }
             .onChange(of: env.serverBaseURL) { _, _ in scheduleHealthCheck() }
+            .onChange(of: env.connectionHealth) { oldValue, newValue in
+                guard oldValue == .checking else { return }
+                switch newValue {
+                case .ok:
+                    AccessibilityAnnouncement.post("Connection check succeeded.")
+                case .failed:
+                    AccessibilityAnnouncement.post("Connection check failed. \(healthStatusText)")
+                default:
+                    break
+                }
+            }
+            .onChange(of: env.appleLoginError) { _, error in
+                if let error { AccessibilityAnnouncement.post(error) }
+            }
+            .onChange(of: env.apiKey) { oldValue, newValue in
+                if ZeroZeroWidgetConstants.appleLoginEnabled, oldValue.isEmpty, !newValue.isEmpty {
+                    AccessibilityAnnouncement.post("Signed in.")
+                }
+            }
         }
     }
 
@@ -383,6 +402,7 @@ struct OnboardingView: View {
     private func copyAgentConfig() {
         copySensitiveText(agentConfig)
         copiedAgentConfig = true
+        AccessibilityAnnouncement.post("Agent config copied. Clipboard clears in \(Self.pasteboardLifetimeLabel).")
         copyResetTask?.cancel()
         copyResetTask = Task {
             try? await Task.sleep(for: .seconds(Self.copyConfirmationDuration))

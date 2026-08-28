@@ -99,7 +99,10 @@ struct GuestLinkScannerSheet: View {
                         .ignoresSafeArea()
 
                         VStack(spacing: 8) {
-                            if isBusy { ProgressView() }
+                            if isBusy {
+                                ProgressView()
+                                    .accessibilityLabel("Adding shared link")
+                            }
                             Text(status ?? "Point the camera at a 00Widget QR code.")
                                 .font(.callout)
                                 .multilineTextAlignment(.center)
@@ -149,19 +152,20 @@ struct GuestLinkScannerSheet: View {
         defer { isBusy = false }
         switch await env.acceptGuestLink(token: token) {
         case .added(let title):
-            status = "Added “\(title)”."
-            try? await Task.sleep(for: .milliseconds(700))
-            dismiss()
+            report("Added “\(title)”.")
         case .alreadyHeld(let title):
-            status = "You already have “\(title)”."
-            try? await Task.sleep(for: .milliseconds(700))
-            dismiss()
+            report("You already have “\(title)”.")
         case .invalid:
-            status = "That is not a 00Widget link."
+            report("That is not a 00Widget link.")
         case .expired:
-            status = "That link has expired or been revoked."
+            report("That link has expired or been revoked.")
         case .failed(let message):
-            status = message
+            report(message)
         }
+    }
+
+    private func report(_ message: String) {
+        status = message
+        AccessibilityAnnouncement.post(message)
     }
 }

@@ -22,10 +22,14 @@ struct SubscriptionView: View {
             }
 
             Section {
-                Button("Restore purchases") {
-                    Task { await subscriptions.restore() }
+                Button(subscriptions.isLoading ? "Restoring…" : "Restore purchases") {
+                    Task {
+                        let outcome = await subscriptions.restore()
+                        AccessibilityAnnouncement.post(outcome)
+                    }
                 }
-                .disabled(subscriptions.isLoading)
+                .disabled(subscriptions.isLoading || subscriptions.purchaseInProgress)
+                .accessibilityValue(subscriptions.isLoading ? "In progress" : "")
 
                 if subscriptions.state.active {
                     // Cancelling and switching plans both live in the App
@@ -92,15 +96,23 @@ struct SubscriptionView: View {
             }
             ForEach(subscriptions.products, id: \.id) { product in
                 Button {
-                    Task { await subscriptions.purchase(product) }
+                    Task {
+                        let outcome = await subscriptions.purchase(product)
+                        AccessibilityAnnouncement.post(outcome)
+                    }
                 } label: {
-                    planLabel(
-                        name: product.displayName,
-                        offer: introOfferLabel(for: product),
-                        price: priceLabel(for: product)
-                    )
+                    if subscriptions.purchaseInProgress {
+                        Text("Purchasing…")
+                    } else {
+                        planLabel(
+                            name: product.displayName,
+                            offer: introOfferLabel(for: product),
+                            price: priceLabel(for: product)
+                        )
+                    }
                 }
-                .disabled(subscriptions.purchaseInProgress)
+                .disabled(subscriptions.purchaseInProgress || subscriptions.isLoading)
+                .accessibilityValue(subscriptions.purchaseInProgress ? "In progress" : "")
             }
         }
     }

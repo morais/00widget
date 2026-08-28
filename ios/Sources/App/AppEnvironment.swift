@@ -727,24 +727,42 @@ public final class AppEnvironment: ObservableObject {
         await refreshShares()
     }
 
-    public func acceptShare(id: String) async {
-        guard let client = confirmedActionClient() else { return }
-        try? await client.acceptShare(id: id)
-        await refreshShares()
-        await fetchCards()
+    public func acceptShare(id: String) async -> String {
+        guard let client = confirmedActionClient() else { return Self.reauthorizationMessage }
+        do {
+            try await client.acceptShare(id: id)
+            await refreshShares()
+            await fetchCards()
+            return "Share accepted."
+        } catch {
+            lastSyncError = "shares: \(error.localizedDescription)"
+            return "Could not accept share. \(error.localizedDescription)"
+        }
     }
 
-    public func declineShare(id: String) async {
-        guard let client = confirmedActionClient() else { return }
-        try? await client.declineShare(id: id)
-        await refreshShares()
+    public func declineShare(id: String) async -> String {
+        guard let client = confirmedActionClient() else { return Self.reauthorizationMessage }
+        do {
+            try await client.declineShare(id: id)
+            await refreshShares()
+            return "Share declined."
+        } catch {
+            lastSyncError = "shares: \(error.localizedDescription)"
+            return "Could not decline share. \(error.localizedDescription)"
+        }
     }
 
-    public func revokeShare(id: String) async {
-        guard let client = confirmedActionClient() else { return }
-        try? await client.revokeShare(id: id)
-        await refreshShares()
-        await fetchCards()
+    public func revokeShare(id: String) async -> String {
+        guard let client = confirmedActionClient() else { return Self.reauthorizationMessage }
+        do {
+            try await client.revokeShare(id: id)
+            await refreshShares()
+            await fetchCards()
+            return "Sharing stopped."
+        } catch {
+            lastSyncError = "shares: \(error.localizedDescription)"
+            return "Could not stop sharing. \(error.localizedDescription)"
+        }
     }
     #endif
 

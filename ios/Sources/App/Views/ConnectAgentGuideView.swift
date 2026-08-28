@@ -112,7 +112,7 @@ struct ConnectAgentGuideView: View {
                         // Borderless, or the whole row becomes one tap target
                         // and selecting the text triggers a copy instead.
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Copy MCP address")
+                        .accessibilityLabel(copiedEndpoint ? "MCP address copied" : "Copy MCP address")
                     }
                 }
             } header: {
@@ -206,6 +206,7 @@ struct ConnectAgentGuideView: View {
     private func copyEndpoint(_ endpoint: String) {
         UIPasteboard.general.string = endpoint
         copiedEndpoint = true
+        AccessibilityAnnouncement.post("MCP address copied.")
         copyResetTask?.cancel()
         copyResetTask = Task {
             try? await Task.sleep(for: .seconds(Self.copyConfirmationDuration))
@@ -228,6 +229,7 @@ struct ConnectAgentGuideView: View {
             connectionsError = nil
         } catch {
             connectionsError = error.localizedDescription
+            AccessibilityAnnouncement.post("Could not load connected agents. \(error.localizedDescription)")
         }
     }
 
@@ -239,8 +241,10 @@ struct ConnectAgentGuideView: View {
             try await env.disconnectMCPConnection(id: connection.id)
             connections.removeAll { $0.id == connection.id }
             connectionsError = nil
+            AccessibilityAnnouncement.post("\(connection.clientName) disconnected.")
         } catch {
             connectionsError = error.localizedDescription
+            AccessibilityAnnouncement.post("Could not disconnect \(connection.clientName). \(error.localizedDescription)")
         }
     }
 

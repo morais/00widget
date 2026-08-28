@@ -9,6 +9,7 @@ struct CardDetailView: View {
     @State private var confirmingDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
+    @State private var runningActionIds: Set<String> = []
     @Environment(\.dismiss) private var dismiss
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
@@ -30,7 +31,11 @@ struct CardDetailView: View {
         let currentCard = resolvedCard
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                CardView(card: currentCard, context: .app) { action in
+                CardView(
+                    card: currentCard,
+                    context: .app,
+                    appActionIsBusy: { runningActionIds.contains($0.id) }
+                ) { action in
                     if action.confirm || action.role == .destructive {
                         pendingAction = action
                     } else {
@@ -76,6 +81,7 @@ struct CardDetailView: View {
                             confirmingDelete = true
                         }
                         .disabled(deleting)
+                        .accessibilityValue(deleting ? "In progress" : "")
                     }
                 }
             }
@@ -157,15 +163,18 @@ struct CardDetailView: View {
     }
 
     private func delete(_ card: DashboardCard) {
+        guard !deleting else { return }
         Task {
             deleting = true
             deleteError = nil
             defer { deleting = false }
             do {
                 try await env.deleteCard(card)
+                AccessibilityAnnouncement.post("\(card.title) deleted.")
                 dismiss()
             } catch {
                 deleteError = error.localizedDescription
+                AccessibilityAnnouncement.post("Could not delete \(card.title). \(error.localizedDescription)")
             }
         }
     }
@@ -181,28 +190,37 @@ struct CardDetailView: View {
     }
 
     private func run(_ action: ActionDefinition) {
+        guard !runningActionIds.contains(action.id) else { return }
         Task {
+            runningActionIds.insert(action.id)
             actionError = nil
+            defer { runningActionIds.remove(action.id) }
             do {
                 if action.confirm || action.role == .destructive {
                     guard let client = env.confirmedActionClient() else {
                         // Returning quietly here made a tapped destructive
                         // action look like it ran.
-                        actionError = AppEnvironment.reauthorizationMessage
+                        reportActionError(AppEnvironment.reauthorizationMessage)
                         return
                     }
                     try await client.runConfirmedAction(id: action.id, cardId: resolvedCard.id)
                 } else {
                     guard let client = env.apiClient() else {
-                        actionError = "Server URL or API key not configured."
+                        reportActionError("Server URL or API key not configured.")
                         return
                     }
                     try await client.runAction(id: action.id, cardId: resolvedCard.id)
                 }
+                AccessibilityAnnouncement.post("\(action.label) completed.")
             } catch {
-                actionError = error.localizedDescription
+                reportActionError(error.localizedDescription)
             }
         }
+    }
+
+    private func reportActionError(_ message: String) {
+        actionError = message
+        AccessibilityAnnouncement.post("Action failed. \(message)")
     }
 
     private func deepLinkDestination(_ url: URL) -> some View {

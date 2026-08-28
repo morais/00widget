@@ -45,6 +45,7 @@ public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
     public let density: CardRenderDensity
+    private let appActionIsBusy: ((ActionDefinition) -> Bool)?
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #if canImport(WidgetKit)
@@ -55,11 +56,13 @@ public struct CardView: View {
         card: DashboardCard,
         context: CardRenderContext = .app,
         density: CardRenderDensity = .automatic,
+        appActionIsBusy: ((ActionDefinition) -> Bool)? = nil,
         appActionHandler: ((ActionDefinition) -> Void)? = nil
     ) {
         self.card = card
         self.context = context
         self.density = density
+        self.appActionIsBusy = appActionIsBusy
         self.appActionHandler = appActionHandler
     }
 
@@ -781,13 +784,16 @@ public struct CardView: View {
             VStack(spacing: 10) {
                 if let appActionHandler {
                     ForEach(actions) { action in
+                        let isBusy = appActionIsBusy?(action) ?? false
                         Button {
                             appActionHandler(action)
                         } label: {
-                            Label(action.label, systemImage: actionIcon(action))
+                            Label(isBusy ? "Running…" : action.label, systemImage: actionIcon(action))
                                 .font(.body.weight(.semibold))
                                 .frame(maxWidth: .infinity)
                         }
+                        .disabled(isBusy)
+                        .accessibilityValue(isBusy ? "In progress" : "")
                         .buttonStyle(.borderedProminent)
                         .tint(action.role == .destructive ? .red : card.status.tint)
                         .controlSize(.large)

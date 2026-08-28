@@ -4,6 +4,7 @@ import SwiftUI
 struct SharingView: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var didLoad = false
+    @State private var pendingShareOperations: Set<String> = []
 
     var body: some View {
         Form {
@@ -35,14 +36,16 @@ struct SharingView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             HStack {
-                                Button("Accept") {
-                                    Task { await env.acceptShare(id: share.id) }
+                                Button(pendingShareOperations.contains(share.id) ? "Accepting…" : "Accept") {
+                                    Task { await performShareOperation(id: share.id) { await env.acceptShare(id: share.id) } }
                                 }
                                 .buttonStyle(.borderedProminent)
-                                Button("Decline", role: .destructive) {
-                                    Task { await env.declineShare(id: share.id) }
+                                .disabled(pendingShareOperations.contains(share.id))
+                                Button(pendingShareOperations.contains(share.id) ? "Declining…" : "Decline", role: .destructive) {
+                                    Task { await performShareOperation(id: share.id) { await env.declineShare(id: share.id) } }
                                 }
                                 .buttonStyle(.bordered)
+                                .disabled(pendingShareOperations.contains(share.id))
                             }
                         }
                         .padding(.vertical, 4)
@@ -62,9 +65,10 @@ struct SharingView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("Stop", role: .destructive) {
-                                Task { await env.revokeShare(id: share.id) }
+                            Button(pendingShareOperations.contains(share.id) ? "Stopping…" : "Stop", role: .destructive) {
+                                Task { await performShareOperation(id: share.id) { await env.revokeShare(id: share.id) } }
                             }
+                            .disabled(pendingShareOperations.contains(share.id))
                         }
                     }
                     ReportProblemLink()
@@ -83,9 +87,10 @@ struct SharingView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("Revoke", role: .destructive) {
-                                Task { await env.revokeShare(id: share.id) }
+                            Button(pendingShareOperations.contains(share.id) ? "Revoking…" : "Revoke", role: .destructive) {
+                                Task { await performShareOperation(id: share.id) { await env.revokeShare(id: share.id) } }
                             }
+                            .disabled(pendingShareOperations.contains(share.id))
                         }
                     }
                 }
@@ -121,6 +126,13 @@ struct SharingView: View {
             return "Live Activity: \(share.resourceId)"
         }
     }
+
+    private func performShareOperation(id: String, operation: () async -> String) async {
+        guard !pendingShareOperations.contains(id) else { return }
+        pendingShareOperations.insert(id)
+        defer { pendingShareOperations.remove(id) }
+        AccessibilityAnnouncement.post(await operation())
+    }
 }
 
 struct ShareCardSheet: View {
@@ -131,6 +143,7 @@ struct ShareCardSheet: View {
     @State private var email: String = ""
     @State private var submitting = false
     @State private var errorText: String?
+    @State private var revoking: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -159,16 +172,20 @@ struct ShareCardSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button("Revoke", role: .destructive) {
-                                    Task { await env.revokeShare(id: share.id) }
+                                Button(revoking.contains(share.id) ? "Revoking…" : "Revoke", role: .destructive) {
+                                    Task { await revoke(share) }
                                 }
+                                .disabled(revoking.contains(share.id))
                             }
                         }
                     }
                 }
 
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section {
+                        Text(errorText)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .navigationTitle("Share \(card.title)")
@@ -178,8 +195,9 @@ struct ShareCardSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") { Task { await submit() } }
+                    Button(submitting ? "Sending…" : "Send") { Task { await submit() } }
                         .disabled(email.isEmpty || submitting)
+                        .accessibilityValue(submitting ? "In progress" : "")
                 }
             }
             .task { await env.refreshShares() }
@@ -187,6 +205,7 @@ struct ShareCardSheet: View {
     }
 
     private func submit() async {
+        guard !submitting else { return }
         submitting = true
         defer { submitting = false }
         errorText = nil
@@ -196,14 +215,27 @@ struct ShareCardSheet: View {
                 resourceKind: .card,
                 resourceId: card.id
             )
+            AccessibilityAnnouncement.post("Shared \(card.title) with \(email).")
             dismiss()
         } catch let error as APIClientError where error.status == 503 {
-            errorText = "Sharing is disabled on the server."
+            reportError("Sharing is disabled on the server.")
         } catch let error as APIClientError where error.status == 409 {
-            errorText = "Already shared with that recipient."
+            reportError("Already shared with that recipient.")
         } catch {
-            errorText = error.localizedDescription
+            reportError(error.localizedDescription)
         }
+    }
+
+    private func reportError(_ message: String) {
+        errorText = message
+        AccessibilityAnnouncement.post("Sharing failed. \(message)")
+    }
+
+    private func revoke(_ share: ShareRecord) async {
+        guard !revoking.contains(share.id) else { return }
+        revoking.insert(share.id)
+        defer { revoking.remove(share.id) }
+        AccessibilityAnnouncement.post(await env.revokeShare(id: share.id))
     }
 }
 
@@ -220,6 +252,7 @@ struct ShareActivityKindSheet: View {
 
     @State private var submitting = false
     @State private var errorText: String?
+    @State private var revoking: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -266,16 +299,20 @@ struct ShareActivityKindSheet: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button("Revoke", role: .destructive) {
-                                    Task { await env.revokeShare(id: share.id) }
+                                Button(revoking.contains(share.id) ? "Revoking…" : "Revoke", role: .destructive) {
+                                    Task { await revoke(share) }
                                 }
+                                .disabled(revoking.contains(share.id))
                             }
                         }
                     }
                 }
 
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section {
+                        Text(errorText)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .navigationTitle("Share all \(kind.rawValue) activities")
@@ -285,8 +322,9 @@ struct ShareActivityKindSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") { Task { await submit() } }
+                    Button(submitting ? "Sending…" : "Send") { Task { await submit() } }
                         .disabled(email.isEmpty || submitting)
+                        .accessibilityValue(submitting ? "In progress" : "")
                 }
             }
             .task { await env.refreshShares() }
@@ -294,6 +332,7 @@ struct ShareActivityKindSheet: View {
     }
 
     private func submit() async {
+        guard !submitting else { return }
         submitting = true
         defer { submitting = false }
         errorText = nil
@@ -303,14 +342,27 @@ struct ShareActivityKindSheet: View {
                 resourceKind: .activityKind,
                 resourceId: kind.rawValue
             )
+            AccessibilityAnnouncement.post("Shared all \(kind.rawValue) activities with \(email).")
             dismiss()
         } catch let error as APIClientError where error.status == 503 {
-            errorText = "Sharing is disabled on the server."
+            reportError("Sharing is disabled on the server.")
         } catch let error as APIClientError where error.status == 409 {
-            errorText = "Already shared with that recipient."
+            reportError("Already shared with that recipient.")
         } catch {
-            errorText = error.localizedDescription
+            reportError(error.localizedDescription)
         }
+    }
+
+    private func reportError(_ message: String) {
+        errorText = message
+        AccessibilityAnnouncement.post("Sharing failed. \(message)")
+    }
+
+    private func revoke(_ share: ShareRecord) async {
+        guard !revoking.contains(share.id) else { return }
+        revoking.insert(share.id)
+        defer { revoking.remove(share.id) }
+        AccessibilityAnnouncement.post(await env.revokeShare(id: share.id))
     }
 }
 #endif

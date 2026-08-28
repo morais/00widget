@@ -294,7 +294,7 @@ public final class SubscriptionController: ObservableObject {
         }
     }
 
-    public func purchase(_ product: Product) async {
+    public func purchase(_ product: Product) async -> String {
         purchaseInProgress = true
         defer { purchaseInProgress = false }
         lastError = nil
@@ -302,23 +302,27 @@ public final class SubscriptionController: ObservableObject {
             switch try await product.purchase() {
             case .success(let verification):
                 await handle(verification)
+                return lastError.map { "Purchase failed. \($0)" }
+                    ?? (state.active ? "Purchase complete. Subscription active." : "Purchase processed.")
             case .userCancelled:
-                break
+                return "Purchase cancelled."
             case .pending:
                 // Ask to Buy, or a payment needing SCA. The entitlement arrives
                 // through Transaction.updates whenever it is approved, which
                 // may be days later.
                 lastError = "Purchase is pending approval."
+                return lastError!
             @unknown default:
-                break
+                return "Purchase status is unavailable."
             }
         } catch {
             lastError = error.localizedDescription
+            return "Purchase failed. \(error.localizedDescription)"
         }
     }
 
     /// App Review requires this, and so does anyone who reinstalls.
-    public func restore() async {
+    public func restore() async -> String {
         isLoading = true
         defer { isLoading = false }
         lastError = nil
@@ -329,8 +333,10 @@ public final class SubscriptionController: ObservableObject {
             if !state.active {
                 lastError = "No active subscription was found for this Apple Account."
             }
+            return lastError ?? "Purchases restored. Subscription active."
         } catch {
             lastError = error.localizedDescription
+            return "Restore failed. \(error.localizedDescription)"
         }
     }
 
