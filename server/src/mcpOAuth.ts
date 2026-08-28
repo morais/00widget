@@ -2,7 +2,7 @@ import { b64url, b64urlDecodeToText, constantTimeEqual, hmacSha256Hex, randomTok
 import { isSecureAdminSecret } from "./adminSecurity";
 import { ApiScopePresets, canonicalScope, createApiKey, type ApiScope } from "./auth";
 import { baseHTML, esc, htmlResponse } from "./html";
-import { resolveIdentity, type ResolvedIdentity } from "./identity";
+import { resolveIdentity } from "./identity";
 import {
   redirectToSignIn,
   requireWebMutationSession,
@@ -239,7 +239,7 @@ export async function handleAuthorize(req: Request, env: Env): Promise<Response>
   const identity = await resolveIdentity(env, { appleSub: session.appleSub, email: session.email });
   if (!identity) return htmlResponse(renderNoTenantError(session), 409);
 
-  return consentResponse(renderConsentPage(request, session, identity), request.redirectUri);
+  return consentResponse(renderConsentPage(request, session), request.redirectUri);
 }
 
 export async function handleAuthorizeDecision(req: Request, env: Env): Promise<Response> {
@@ -571,7 +571,6 @@ function consentResponse(html: string, redirectUri: string): Response {
 function renderConsentPage(
   request: AuthorizeRequest,
   session: WebPrincipal,
-  identity: ResolvedIdentity,
 ): string {
   const hidden = [
     ["response_type", "code"],
@@ -591,21 +590,16 @@ function renderConsentPage(
     `<header><h1>00Widget · Connect</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section>
        <h2>${esc(request.client.n)} wants to publish to 00Widget</h2>
-       <p class="muted">Approving mints a new API token for your account. It can read your cards and
-       Live Activities and publish to them. It cannot register devices, run confirmed actions,
-       manage shares, or change the webhook that receives your card buttons. Revoke it any time by
-       signing in to the app.</p>
+       <p>${esc(request.client.n)} can <strong>read</strong> your cards and activities and
+       <strong>publish</strong> to them.</p>
        <table><tbody>
-         <tr><th>Client</th><td>${esc(request.client.n)}</td></tr>
-         <tr><th>Account</th><td>${esc(identity.ownerEmail || session.email)}</td></tr>
          <tr><th>Redirects to</th><td><code>${esc(request.redirectUri)}</code></td></tr>
-         <tr><th>Scopes</th><td><code>${esc(request.scopes.join(", "))}</code></td></tr>
        </tbody></table>
        <form method="post" action="${esc(AUTHORIZE_PATH)}">
          ${hidden}
-         <p>
+         <p class="actions">
+           <button class="button button-secondary" type="submit" name="decision" value="deny">Deny</button>
            <button class="button" type="submit" name="decision" value="approve">Approve</button>
-           <button class="button" type="submit" name="decision" value="deny">Deny</button>
          </p>
        </form>
      </section>`,

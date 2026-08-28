@@ -104,6 +104,7 @@ export function baseHTML(title: string, body: string): string {
   .login label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
   .login input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .button { display: inline-block; padding: 10px 18px; margin-top: 12px; border-radius: 6px; background: var(--accent); color: white; border: 0; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .button-secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
   .button-small { padding: 5px 9px; margin: 0; font-size: 12px; }
   .button-danger { background: var(--crit); }
   .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
@@ -116,6 +117,7 @@ export function baseHTML(title: string, body: string): string {
   .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--muted); font-size: 12px; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .muted { color: var(--muted); font-size: 12px; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
 <body>

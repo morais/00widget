@@ -244,8 +244,17 @@ describe("authorization", () => {
     );
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("ChatGPT");
-    expect(html).toContain("test-tenant");
+    expect(html).toContain("ChatGPT can <strong>read</strong> your cards and activities and");
+    expect(html).toContain("<strong>publish</strong> to them.");
+    expect(html).not.toContain("<th>Client</th>");
+    expect(html).not.toContain("<th>Account</th>");
+    expect(html).not.toContain("<th>Scopes</th>");
+    expect(html).toContain(`<th>Redirects to</th><td><code>${REDIRECT_URI}</code></td>`);
+    expect(html).not.toContain("It cannot register devices");
+    expect(html).toContain('<p class="actions">');
+    expect(html).toContain('<button class="button button-secondary" type="submit" name="decision" value="deny">');
+    expect(html).toContain('<button class="button" type="submit" name="decision" value="approve">');
+    expect(html.indexOf('value="deny"')).toBeLessThan(html.indexOf('value="approve"'));
     // The redirect target has to be listed, or the browser may refuse the
     // 303 the approval answers with.
     expect(res.headers.get("content-security-policy")).toContain("form-action 'self' https://chatgpt.com");
