@@ -21,6 +21,13 @@ WHITE = "#F8FBFF"
 GRAY = "#A9B7CC"
 FONT_PATH = "/System/Library/Fonts/Avenir Next.ttc"
 
+# Top shelf composition, all relative to the region tvOS shows rather than to
+# the asset's own width — see `tv_hero`.
+TOP_SHELF_SAFE_WIDTH = 1920
+TOP_SHELF_SAFE_INSET = 0.08
+TOP_SHELF_MARK_HEIGHT = 0.52
+TOP_SHELF_WORDMARK_WIDTH = 0.50
+
 # Height of the mark inside the tvOS app icon, as a share of the icon's own
 # height. Matched to the iOS icon, whose mark measures 62% of its 1024 square.
 TV_ICON_MARK_HEIGHT = 0.62
@@ -188,15 +195,38 @@ def clean_wordmark(size: tuple[int, int], *, dark_surface: bool) -> Image.Image:
 
 
 def tv_hero(mark: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Lay the top shelf lockup out inside the region tvOS actually shows.
+
+    The wide asset is 2320 x 720 against a 1920-wide screen: tvOS displays the
+    centre 1920 and treats the 200px on each side as bleed it crops as the
+    shelf parallaxes. Positioning by a fraction of the *full* width put the
+    mark inside that bleed, and a television clipped it. Everything here is
+    therefore placed against a centred safe area, inset again so that nothing
+    essential rides its edge either.
+
+    Both the mark and the lockup are trimmed to their own ink first, so the
+    insets below describe the artwork rather than whatever margin its canvas
+    happens to carry.
+    """
     width, height = size
     image = dark_background(size)
-    mark_size = round(height * 0.82)
-    image.alpha_composite(contain(mark, (mark_size, mark_size)), (round(width * 0.055), (height - mark_size) // 2))
-    wordmark = clean_wordmark((1200, 420), dark_surface=True)
-    target_width = round(width * 0.55)
-    target_height = round(target_width * wordmark.height / wordmark.width)
-    wordmark = wordmark.resize((target_width, target_height), Image.Resampling.LANCZOS)
-    image.alpha_composite(wordmark, (round(width * 0.40), (height - target_height) // 2))
+    safe = min(width, TOP_SHELF_SAFE_WIDTH)
+    inset = round(safe * TOP_SHELF_SAFE_INSET)
+    left = (width - safe) // 2 + inset
+    right = (width + safe) // 2 - inset
+
+    art = trim(mark)
+    art_height = round(height * TOP_SHELF_MARK_HEIGHT)
+    art = art.resize((round(art_height * art.width / art.height), art_height), Image.Resampling.LANCZOS)
+    image.alpha_composite(art, (left, (height - art.height) // 2))
+
+    wordmark = trim(clean_wordmark((1200, 420), dark_surface=True))
+    lockup_width = round(safe * TOP_SHELF_WORDMARK_WIDTH)
+    wordmark = wordmark.resize(
+        (lockup_width, round(lockup_width * wordmark.height / wordmark.width)),
+        Image.Resampling.LANCZOS,
+    )
+    image.alpha_composite(wordmark, (right - wordmark.width, (height - wordmark.height) // 2))
     return image
 
 
