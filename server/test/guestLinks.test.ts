@@ -379,6 +379,28 @@ describe("guest link browser page", () => {
     expect(body).toContain("/v1/guest/resource");
   });
 
+  it("points the CTA at this deployment's own root when unconfigured", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    expect(await res.text()).toContain('<a class="cta" href="https://x/">Get 00Widget</a>');
+  });
+
+  it("points the CTA at APP_DOWNLOAD_URL when one is configured", async () => {
+    const env = makeEnv({ APP_DOWNLOAD_URL: "https://00widget.com" });
+    const res = await fetch(new Request("https://x/app/g"), env);
+    const body = await res.text();
+    expect(body).toContain('<a class="cta" href="https://00widget.com">Get 00Widget</a>');
+    expect(body).not.toContain('href="https://x/"');
+  });
+
+  it("ignores a CTA URL that is not http(s), which would land in an href", async () => {
+    for (const bad of ["javascript:alert(1)", "not a url", "  "]) {
+      const res = await fetch(new Request("https://x/app/g"), makeEnv({ APP_DOWNLOAD_URL: bad }));
+      const body = await res.text();
+      expect(body).toContain('<a class="cta" href="https://x/">Get 00Widget</a>');
+      expect(body).not.toContain("javascript:");
+    }
+  });
+
   it("is locked down by CSP with hashes matching the inline blocks", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     const csp = res.headers.get("content-security-policy") ?? "";

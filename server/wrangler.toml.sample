@@ -95,6 +95,13 @@ SUBSCRIPTION_REQUIRED = "false"
 # is honoured separately, with whichever window reaches further winning.
 # SUBSCRIPTION_GRACE_DAYS = "3"
 
+# Where the guest link browser page's "Get 00Widget" button sends someone who
+# does not have the app. Unset means this deployment's own root, which is right
+# when the Worker is all there is; set it when a marketing site sits in front of
+# the API. Must be an http(s) URL, since it is rendered into an href on the page
+# that holds a guest token.
+# APP_DOWNLOAD_URL = "https://example.com"
+
 # Optional: email the operator when self-service signup creates a new tenant.
 # Commented out because it requires Cloudflare Email Routing on a domain in
 # your account, and an uncommented binding would fail `wrangler deploy` for

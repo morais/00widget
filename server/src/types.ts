@@ -1134,6 +1134,13 @@ export interface Env {
   APPLE_APP_ID?: string;
   APPLE_APP_CLIP_ID?: string;           // `<TeamID>.<bundle id>.Clip`, once a clip target exists
 
+  // Where the guest page's "Get 00Widget" button points. Unset means this
+  // deployment's own root, which is right when the Worker is all there is;
+  // a deployment fronted by a marketing site points it there instead. Must be
+  // an http(s) URL — anything else is ignored, since the value is rendered
+  // into an href on the page that holds a guest token.
+  APP_DOWNLOAD_URL?: string;
+
   // Optional operator alert when self-service signup creates a new tenant.
   // Both must be present or nothing is sent, so the default deployment needs no
   // Email Routing setup. Worth enabling wherever APPLE_APP_LOGIN_ENABLED is

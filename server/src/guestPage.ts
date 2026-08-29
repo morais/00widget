@@ -1,4 +1,6 @@
 import { GUEST_LINK_PATH } from "./guestLinks";
+import { esc } from "./html";
+import type { Env } from "./types";
 
 // The browser fallback for a guest link. Only people *without* the app ever see
 // it: /app/* is claimed in the apple-app-site-association, so on a device with
@@ -237,7 +239,28 @@ const GUEST_SCRIPT = `
 })();
 `.trim();
 
-function renderGuestHTML(origin: string): string {
+// Where the "Get 00Widget" button sends a visitor who does not have the app.
+// Defaults to this deployment's own root, which is what a fork or a staging
+// host should advertise; a deployment with a marketing site in front of the
+// API points APP_DOWNLOAD_URL at it instead.
+//
+// Only http(s) is accepted: the value lands in an href, so a misconfigured
+// `javascript:` URL would be a script-injection foothold on the one page that
+// holds a guest token. Anything else falls back to the origin.
+function appDownloadURL(env: Env, origin: string): string {
+  const configured = env.APP_DOWNLOAD_URL?.trim();
+  if (configured) {
+    try {
+      const url = new URL(configured);
+      if (url.protocol === "https:" || url.protocol === "http:") return configured;
+    } catch {
+      // Fall through to the origin.
+    }
+  }
+  return `${origin}/`;
+}
+
+function renderGuestHTML(ctaURL: string): string {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -248,7 +271,7 @@ function renderGuestHTML(origin: string): string {
 </head><body><main>
 <h1>00Widget</h1>
 <div id="out"><p class="msg">Loading…</p></div>
-<a class="cta" href="${origin}/">Get 00Widget</a>
+<a class="cta" href="${esc(ctaURL)}">Get 00Widget</a>
 </main><script>${GUEST_SCRIPT}</script></body></html>`;
 }
 
@@ -280,9 +303,9 @@ async function sha256Base64(input: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(digest)));
 }
 
-export async function handleGuestPage(req: Request): Promise<Response> {
+export async function handleGuestPage(req: Request, env: Env): Promise<Response> {
   const origin = new URL(req.url).origin;
-  return new Response(renderGuestHTML(origin), {
+  return new Response(renderGuestHTML(appDownloadURL(env, origin)), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",

@@ -56,7 +56,7 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/llms\.md\/?$/, handler: (req) => landing.handleLlmsMd(req) },
   // Browser fallback for a guest link. Only reachable by people without the
   // app installed; everyone else has /app/* routed into the app by iOS.
-  { method: "GET", pattern: /^\/app\/g\/?$/, handler: (req) => guestPage.handleGuestPage(req) },
+  { method: "GET", pattern: /^\/app\/g\/?$/, handler: (req, env) => guestPage.handleGuestPage(req, env) },
   // Associated domains. No trailing-slash variant: Apple fetches this exact
   // path and does not follow redirects.
   { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
