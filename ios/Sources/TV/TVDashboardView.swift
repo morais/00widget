@@ -38,7 +38,6 @@ struct TVDashboardView: View {
     @State private var pendingAction: TVPendingAction?
     @State private var runningAction: TVRunningAction?
     @State private var actionError: String?
-    @FocusState private var settingsFocused: Bool
 
     private let widgetColumnCount = 3
 
@@ -123,8 +122,20 @@ struct TVDashboardView: View {
                     .font(.headline)
                     .padding(.horizontal, 8)
             }
-            .focused($settingsFocused)
         }
+        // The whole reason focus can leave the grid. tvOS moves focus by
+        // geometry, and nothing in the scrolling content lined up with a
+        // header button sitting above it: pressing Up from the top row of
+        // widgets did nothing, ten times over, so Settings — and with it sign
+        // out, the diagnostics, and the account deletion Apple requires an app
+        // to offer — could not be reached at all. A focus section is
+        // considered by direction rather than by alignment.
+        //
+        // The Live Activity card used to paper over this with an
+        // `onMoveCommand` that shoved focus into the header on Up. That worked
+        // only for the one card type that had it, which is why a dashboard of
+        // widgets and no activities — the ordinary case — was the broken one.
+        .focusSection()
     }
 
     @ViewBuilder
@@ -161,8 +172,7 @@ struct TVDashboardView: View {
                         ) { activity in
                             TVLiveActivityCardView(
                                 activity: activity,
-                                openLink: { openLink(for: activity) },
-                                focusSettings: { settingsFocused = true }
+                                openLink: { openLink(for: activity) }
                             )
                         }
                     }
@@ -314,7 +324,6 @@ struct TVDashboardView: View {
 private struct TVLiveActivityCardView: View {
     let activity: LiveActivitySession
     let openLink: () -> Void
-    let focusSettings: () -> Void
 
     /// Two columns rather than one row per item. Six rows is the published
     /// maximum, so the grid is at most three rows tall, and each row keeps
@@ -391,11 +400,6 @@ private struct TVLiveActivityCardView: View {
                 .accessibilityLabel(Text(accessibilitySummary))
             }
             .buttonStyle(.card)
-            .onMoveCommand { direction in
-                if direction == .up {
-                    focusSettings()
-                }
-            }
             // A card with no link is still the thing focus lands on and the
             // thing VoiceOver reads, so it stays a focusable button — but it
             // must not claim it can be activated, because `openLink` returns
