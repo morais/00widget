@@ -337,6 +337,10 @@ private struct TVLiveActivityCardView: View {
                 // rather than clipping them.
                 .frame(minHeight: 260)
                 .contentShape(RoundedRectangle(cornerRadius: 24))
+                // See the note in `TVDashboardCardView`: this has to sit inside
+                // the button's label to replace what the button synthesizes.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(accessibilitySummary))
             }
             .buttonStyle(.card)
             .onMoveCommand { direction in
@@ -359,6 +363,17 @@ private struct TVLiveActivityCardView: View {
                 Color.clear.frame(height: 72)
             }
         }
+    }
+
+    /// The shared summary, then a line per item. A phone can leave the rows as
+    /// their own elements because it scrolls through them; the television draws
+    /// the whole card as one focusable unit, so anything left out of this label
+    /// is not read anywhere — and on a composite activity the rows *are* the
+    /// content.
+    private var accessibilitySummary: String {
+        ([LiveActivityAccessibilitySummary.summary(for: activity)]
+            + activeItems.map(LiveActivityAccessibilitySummary.summary(for:)))
+            .joined(separator: ". ")
     }
 
     private var header: some View {
@@ -572,12 +587,35 @@ private struct TVDashboardCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: 220)
                 .contentShape(RoundedRectangle(cornerRadius: 24))
+                // Inside the label, not on the button. A button builds its own
+                // label out of its children, keeping each child's
+                // `accessibilityLabel` and dropping its `accessibilityValue` —
+                // which is how `StatusBadge` contributed the bare word "Status"
+                // and the status itself was never spoken. Collapsing the
+                // children to one labelled element is what the button then has
+                // to synthesize from; the same modifiers applied outside the
+                // button are ignored.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(accessibilitySummary))
             }
             .buttonStyle(.card)
             .accessibilityHint(card.deepLink == nil ? "Widget summary" : "Shows a QR code for the web link")
 
             controls
         }
+    }
+
+    /// The card is one focus stop and there is no detail screen behind it, so
+    /// the plot has to be read here or nowhere. `listContent` draws three rows
+    /// and `StatusStripView` fourteen pips; the label says what is on screen.
+    private var accessibilitySummary: String {
+        let detail = CardAccessibilitySummary.detail(
+            for: card,
+            rowLimit: card.template == .history ? 14 : 3
+        )
+        return detail.isEmpty
+            ? CardAccessibilitySummary.summary(for: card)
+            : CardAccessibilitySummary.summary(for: card) + " " + detail
     }
 
     private var header: some View {

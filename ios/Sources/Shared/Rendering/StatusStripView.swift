@@ -44,13 +44,17 @@ public struct StatusStripView: View {
             }
         }
         .accessibilityElement()
-        .accessibilityLabel(Text(accessibilityDescription))
+        .accessibilityLabel(Text(Self.accessibilityDescription(for: shown)))
     }
 
-    private var accessibilityDescription: String {
-        let counts = Dictionary(grouping: shown, by: { $0.status ?? .unknown })
+    /// Shared with surfaces that draw the strip inside a single combined
+    /// element and therefore cannot inherit its label — the Apple TV card
+    /// reads the whole strip as part of the card. Kept here so the two cannot
+    /// describe the same pips differently.
+    public static func accessibilityDescription(for items: [DashboardItem]) -> String {
+        let counts = Dictionary(grouping: items, by: { $0.status ?? .unknown })
             .sorted { $0.value.count > $1.value.count }
             .map { "\($0.value.count) \($0.key.label.lowercased())" }
-        return "Last \(shown.count): " + counts.joined(separator: ", ")
+        return "Last \(items.count): " + counts.joined(separator: ", ")
     }
 }

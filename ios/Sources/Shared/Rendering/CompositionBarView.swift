@@ -53,7 +53,7 @@ public struct CompositionBarView: View {
         }
         .frame(height: height)
         .accessibilityElement()
-        .accessibilityLabel(Text(accessibilityDescription(shares)))
+        .accessibilityLabel(Text(Self.accessibilityDescription(for: items)))
     }
 
     private func offset(
@@ -67,9 +67,11 @@ public struct CompositionBarView: View {
         return preceding + gap * CGFloat(index)
     }
 
-    private func accessibilityDescription(
-        _ shares: [(item: DashboardItem, share: Double)]
-    ) -> String {
+    /// Shared with surfaces that draw the bar inside a single combined element
+    /// and therefore cannot inherit its label — see the note on
+    /// `StatusStripView.accessibilityDescription(for:)`.
+    public static func accessibilityDescription(for items: [DashboardItem]) -> String {
+        let shares = Self.shares(of: items)
         guard !shares.isEmpty else { return "No breakdown data" }
         return shares
             .map { "\($0.item.title) \(Int(($0.share * 100).rounded()))%" }

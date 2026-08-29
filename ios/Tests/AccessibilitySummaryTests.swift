@@ -56,3 +56,75 @@ struct AccessibilitySummaryTests {
         #expect(LiveActivityAccessibilitySummary.summary(for: item) == "Rinse, 4 min, 25% complete, Cold water")
     }
 }
+
+@Suite("Card accessibility detail")
+struct CardAccessibilityDetailTests {
+    private func card(
+        template: DashboardTemplate,
+        items: [DashboardItem]? = nil,
+        chart: DashboardChart? = nil
+    ) -> DashboardCard {
+        DashboardCard(
+            id: "card",
+            template: template,
+            title: "Card",
+            status: .good,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            items: items,
+            chart: chart
+        )
+    }
+
+    @Test("A list card speaks the rows the surface draws, and no more")
+    func listRowsAreLimited() {
+        let items = (1...5).map {
+            DashboardItem(id: "\($0)", title: "Child \($0)", value: "\($0)", unit: "€")
+        }
+        let detail = CardAccessibilitySummary.detail(for: card(template: .list, items: items), rowLimit: 3)
+
+        #expect(detail == "Child 1 1 €. Child 2 2 €. Child 3 3 €.")
+    }
+
+    @Test("A list row with no value falls back to its status")
+    func listRowFallsBackToStatus() {
+        let items = [DashboardItem(id: "1", title: "Backups", status: .critical)]
+        let detail = CardAccessibilitySummary.detail(for: card(template: .list, items: items), rowLimit: 3)
+
+        #expect(detail == "Backups Critical.")
+    }
+
+    @Test("History and breakdown reuse their plot's own wording")
+    func plotsReuseTheirDescriptions() {
+        let items = (1...3).map { DashboardItem(id: "\($0)", title: "Run \($0)", status: .good, amount: 1) }
+
+        #expect(
+            CardAccessibilitySummary.detail(for: card(template: .history, items: items), rowLimit: 14)
+                == StatusStripView.accessibilityDescription(for: items) + "."
+        )
+        #expect(
+            CardAccessibilitySummary.detail(for: card(template: .breakdown, items: items), rowLimit: 3)
+                == CompositionBarView.accessibilityDescription(for: items) + "."
+        )
+    }
+
+    @Test("A history card keeps only the pips it draws")
+    func historyKeepsTheDrawnPips() {
+        let items = (1...20).map { DashboardItem(id: "\($0)", title: "Run \($0)", status: .good) }
+        let detail = CardAccessibilitySummary.detail(for: card(template: .history, items: items), rowLimit: 14)
+
+        #expect(detail == "Last 14: 14 good.")
+    }
+
+    @Test("A card with no plot has no detail to add")
+    func summaryOnlyCardsAreEmpty() {
+        #expect(CardAccessibilitySummary.detail(for: card(template: .summary), rowLimit: 3).isEmpty)
+    }
+
+    @Test("A chart is described wherever one is renderable")
+    func chartIsAlwaysDescribed() {
+        let chart = DashboardChart(points: [1, 2, 3])
+        let detail = CardAccessibilitySummary.detail(for: card(template: .chart, chart: chart), rowLimit: 3)
+
+        #expect(detail == chart.accessibilityDescription + ".")
+    }
+}
