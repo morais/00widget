@@ -110,6 +110,81 @@ final class TVFocusNavigationTests: XCTestCase {
         )
     }
 
+    /// The dashboard grid is a summary now: the action buttons and the link's
+    /// QR code moved off the card and into a panel, so pressing Select is the
+    /// only way to reach either. That makes the panel a focus dead end waiting
+    /// to happen — if nothing inside it can take focus, the viewer is left on a
+    /// screen with no visible way out, which is the same class of bug the two
+    /// tests above record.
+    func testSelectingACardOpensAPanelThatCanBeLeft() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--screenshot-section", "widgets"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Solar"].waitForExistence(timeout: 30),
+            "Sample widgets did not render on Apple TV."
+        )
+
+        XCUIRemote.shared.press(.select)
+
+        let close = app.buttons["Close"]
+        XCTAssertTrue(
+            close.waitForExistence(timeout: 10),
+            "Pressing Select on a card did not open its detail panel."
+        )
+        XCTAssertTrue(
+            waitForFocus(close, in: app),
+            "The detail panel opened with nothing focused, so there is no way "
+                + "out of it. Focus was on: \(focusedLabel(in: app))"
+        )
+
+        XCUIRemote.shared.press(.menu)
+        // Let the cover finish going away before asking what has focus.
+        // Enumerating the hierarchy mid-dismissal fails the snapshot outright
+        // rather than returning a stale answer.
+        XCTAssertTrue(
+            close.waitForNonExistence(timeout: 10),
+            "Menu did not dismiss the detail panel."
+        )
+        XCTAssertTrue(
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Solar"),
+            "Leaving the panel did not return focus to the card it was opened "
+                + "from, found: \(focusedLabel(in: app))"
+        )
+    }
+
+    /// The buttons the dashboard used to draw beside each card. They have to be
+    /// reachable from the panel's own focus, not merely present in it.
+    func testTheDetailPanelReachesTheCardsActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--screenshot-section", "widgets"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Boiler"].waitForExistence(timeout: 30))
+        // Boiler is the third sample and the one carrying an action.
+        XCUIRemote.shared.press(.right)
+        XCUIRemote.shared.press(.right)
+        XCTAssertTrue(
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Boiler"),
+            "Expected the Boiler card to take focus, found: \(focusedLabel(in: app))"
+        )
+
+        XCUIRemote.shared.press(.select)
+        let boost = app.buttons["Boost 1h"]
+        XCTAssertTrue(
+            boost.waitForExistence(timeout: 10),
+            "The detail panel did not draw the card's action."
+        )
+
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(boost, in: app),
+            "Down from the panel header never reached the action button, so an "
+                + "action can be seen and not run. Focus was on: \(focusedLabel(in: app))"
+        )
+    }
+
     private func waitForFocus(
         _ element: XCUIElement,
         in app: XCUIApplication,
@@ -124,6 +199,10 @@ final class TVFocusNavigationTests: XCTestCase {
             } else if element.hasFocus == expected {
                 return true
             }
+            // Polling as fast as the loop can go means a full hierarchy
+            // snapshot every few milliseconds, which is both wasteful and a
+            // way to catch the app mid-transition.
+            Thread.sleep(forTimeInterval: 0.1)
         }
         return text == nil ? element.hasFocus == expected : focusedLabel(in: app).contains(text!)
     }

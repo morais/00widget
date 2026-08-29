@@ -33,6 +33,8 @@ software integration.
 
 Cards can open a destination when tapped via `deepLink`. Set it to an `https://...` URL, for example `"deepLink": "https://example.com/dashboard"`; other URL schemes are rejected.
 
+On Apple TV, opening a card's detail panel renders the link as a QR code to scan with a phone; nothing on a television can follow it directly.
+
 On Home Screen widgets, iOS first launches the containing 00Widget app with the widget URL. 00Widget then forwards the HTTPS deep link to the system, so a universal link can open its matching app and a normal web URL opens in Safari. You may briefly see 00Widget during that handoff; it is not an in-app web view. Inside the 00Widget app, the card is rendered as a normal link to the same URL. If `deepLink` is omitted, a widget tap just opens 00Widget with no external destination.
 
 ## Operator checklist for agents
@@ -506,12 +508,17 @@ How many are drawn depends on the surface, so order them most useful first:
 | Small widget                     | 1             |
 | Medium widget                    | 2             |
 | Large and extra-large widget     | 4             |
-| iOS app card, Apple TV           | all of them   |
+| iOS app card                     | all of them   |
+| Apple TV card detail             | all of them   |
+| Apple TV dashboard grid          | none          |
 | Grid widget cell                 | none          |
 | Lock Screen accessories          | none          |
 
 A widget the operator has set to **Compact** density draws one fewer than the
-table says, and none at all on a small one. Cards reaching a device through a
+table says, and none at all on a small one. On Apple TV the dashboard grid is a
+summary: pressing Select on a card opens a detail panel, and that is where its
+buttons are — along with a QR code for its `deepLink`, since a television can do
+nothing else useful with a link. Cards reaching a device through a
 share or a guest link have their `actions` stripped by the server, so a card you
 expect other people to view through a link should not depend on them.
 

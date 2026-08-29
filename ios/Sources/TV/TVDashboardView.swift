@@ -34,10 +34,11 @@ struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
     /// Owned by `TVRootView`, which presents the cover: see the note there.
     @Binding var showingSettings: Bool
-    @State private var selectedLink: TVWebLink?
-    @State private var pendingAction: TVPendingAction?
-    @State private var runningAction: TVRunningAction?
-    @State private var actionError: String?
+    /// What the viewer has opened. Every card and every activity opens one:
+    /// the grid cell is a summary, and everything that does not fit in it —
+    /// the whole list, the whole history, the action buttons, the QR code for
+    /// the link — lives behind this.
+    @State private var selectedDetail: TVDetailSubject?
 
     private let widgetColumnCount = 3
 
@@ -57,39 +58,14 @@ struct TVDashboardView: View {
             )
             .ignoresSafeArea()
         }
-        .fullScreenCover(item: $selectedLink) { link in
-            TVWebLinkView(link: link)
-        }
-        .confirmationDialog(
-            "Run action?",
-            isPresented: Binding(
-                get: { pendingAction != nil },
-                set: { if !$0 { pendingAction = nil } }
-            ),
-            presenting: pendingAction
-        ) { pending in
-            Button(
-                pending.action.label,
-                role: pending.action.role == .destructive ? .destructive : nil
-            ) {
-                run(pending.action, for: pending.card)
-                pendingAction = nil
-            }
-        } message: { pending in
-            Text("Run \(pending.action.label) for \(pending.card.title)?")
-        }
-        .alert(
-            "Action failed",
-            isPresented: Binding(
-                get: { actionError != nil },
-                set: { if !$0 { actionError = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                actionError = nil
-            }
-        } message: {
-            Text(actionError ?? "Please try again.")
+        // The cover does not make its presenter inert: with a detail panel up,
+        // the dashboard behind it — every card, and the Settings button — was
+        // still enumerable by assistive technology. Same reasoning as the
+        // Settings cover in `TVRootView`.
+        .accessibilityHidden(selectedDetail != nil)
+        .fullScreenCover(item: $selectedDetail) { subject in
+            TVDetailView(subject: subject)
+                .environmentObject(env)
         }
         // The header's sync error is not focusable and nothing draws attention
         // to it appearing — on a television left running on a wall, a
@@ -172,7 +148,7 @@ struct TVDashboardView: View {
                         ) { activity in
                             TVLiveActivityCardView(
                                 activity: activity,
-                                openLink: { openLink(for: activity) }
+                                open: { selectedDetail = .activity(activity) }
                             )
                         }
                     }
@@ -186,9 +162,7 @@ struct TVDashboardView: View {
                         ) { card in
                             TVDashboardCardView(
                                 card: card,
-                                runningAction: runningAction,
-                                openLink: { openLink(for: card) },
-                                runAction: { request($0, for: card) }
+                                open: { selectedDetail = .card(card) }
                             )
                         }
                     }
@@ -268,62 +242,11 @@ struct TVDashboardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func openLink(for card: DashboardCard) {
-        guard let url = card.deepLink else { return }
-        selectedLink = TVWebLink(cardTitle: card.title, url: url)
-    }
-
-    private func openLink(for activity: LiveActivitySession) {
-        guard let url = activity.deepLink else { return }
-        selectedLink = TVWebLink(cardTitle: activity.title, url: url)
-    }
-
-    private func request(_ action: ActionDefinition, for card: DashboardCard) {
-        if action.confirm || action.role == .destructive {
-            pendingAction = TVPendingAction(card: card, action: action)
-        } else {
-            run(action, for: card)
-        }
-    }
-
-    private func run(_ action: ActionDefinition, for card: DashboardCard) {
-        runningAction = TVRunningAction(cardID: card.id, actionID: action.id)
-        actionError = nil
-
-        Task {
-            defer { runningAction = nil }
-            let requiresConfirmation = action.confirm || action.role == .destructive
-            guard let client = requiresConfirmation ? env.confirmedActionClient() : env.apiClient() else {
-                let message = "The server connection is unavailable."
-                actionError = message
-                AccessibilityAnnouncement.post(message)
-                return
-            }
-            do {
-                if requiresConfirmation {
-                    try await client.runConfirmedAction(id: action.id, cardId: card.id)
-                } else {
-                    try await client.runAction(id: action.id, cardId: card.id)
-                }
-                await env.fetchCards()
-                // Success used to be entirely silent: the only evidence was a
-                // refetch that may change nothing visible on a screen nobody
-                // is standing in front of.
-                AccessibilityAnnouncement.post("\(action.label) finished for \(card.title).")
-            } catch {
-                actionError = error.localizedDescription
-                // The alert takes focus and reads itself, so this says only
-                // what the alert's title cannot: which action failed.
-                AccessibilityAnnouncement.post("\(action.label) failed for \(card.title).")
-            }
-        }
-    }
 }
 
 private struct TVLiveActivityCardView: View {
     let activity: LiveActivitySession
-    let openLink: () -> Void
+    let open: () -> Void
 
     /// Two columns rather than one row per item. Six rows is the published
     /// maximum, so the grid is at most three rows tall, and each row keeps
@@ -336,88 +259,70 @@ private struct TVLiveActivityCardView: View {
     )
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Button(action: openLink) {
-                VStack(alignment: .leading, spacing: 14) {
-                    header
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let subtitle = activity.subtitle {
-                                Text(subtitle)
-                                    .font(.headline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            freshness
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let subtitle = activity.subtitle {
+                            Text(subtitle)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
-                        Spacer(minLength: 12)
-                        trailingValue
+                        freshness
                     }
+                    Spacer(minLength: 12)
+                    trailingValue
+                }
 
-                    // A composite activity says what it is doing through its
-                    // rows; dropping them left this card showing a title and a
-                    // number where the phone showed four.
-                    if !activeItems.isEmpty {
-                        LazyVGrid(columns: itemColumns, alignment: .leading, spacing: 16) {
-                            ForEach(activeItems) { item in
-                                TVLiveActivityItemRow(item: item)
-                            }
+                // A composite activity says what it is doing through its
+                // rows; dropping them left this card showing a title and a
+                // number where the phone showed four.
+                if !activeItems.isEmpty {
+                    LazyVGrid(columns: itemColumns, alignment: .leading, spacing: 16) {
+                        ForEach(activeItems) { item in
+                            TVLiveActivityItemRow(item: item)
                         }
                     }
-
-                    if let chart = activity.chart, chart.isRenderable {
-                        // Taller than the widget card's plot: this one has the
-                        // full width of the screen, and a 46-point trace read
-                        // as a flat line from a sofa.
-                        SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 4)
-                            .frame(height: 72)
-                    } else if let progress = activity.progress,
-                              activity.endsAt == nil,
-                              // Rows replace the progress bar, as they do on
-                              // every other surface.
-                              activeItems.isEmpty {
-                        ProgressView(value: max(0, min(progress, 1)))
-                            .tint(activity.kind.tint)
-                    }
-
-                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // A floor, not a fixed height. The header, value row, chart,
-                // and inter-row spacing need enough height for the requested
-                // inset to survive layout: at 220 points SwiftUI compressed the
-                // vertical padding to almost zero, leaving the focused card
-                // against its content. Item rows then need more room than any
-                // one number can reserve, so the card grows past the floor
-                // rather than clipping them.
-                .frame(minHeight: 260)
-                .contentShape(RoundedRectangle(cornerRadius: 24))
-                // See the note in `TVDashboardCardView`: this has to sit inside
-                // the button's label to replace what the button synthesizes.
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(accessibilitySummary))
-            }
-            .buttonStyle(.card)
-            // A card with no link is still the thing focus lands on and the
-            // thing VoiceOver reads, so it stays a focusable button — but it
-            // must not claim it can be activated, because `openLink` returns
-            // immediately when there is no URL. See `TVDashboardCardView`.
-            .modifier(TVInertWhenUnlinked(isLinked: activity.deepLink != nil))
-            .accessibilityHint(
-                activity.deepLink == nil ? "" : "Shows a QR code for the activity link"
-            )
 
-            if activity.deepLink != nil {
-                Button(action: openLink) {
-                    Label("Open link", systemImage: "qrcode")
+                if let chart = activity.chart, chart.isRenderable {
+                    // Taller than the widget card's plot: this one has the
+                    // full width of the screen, and a 46-point trace read
+                    // as a flat line from a sofa.
+                    SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 4)
+                        .frame(height: 72)
+                } else if let progress = activity.progress,
+                          activity.endsAt == nil,
+                          // Rows replace the progress bar, as they do on
+                          // every other surface.
+                          activeItems.isEmpty {
+                    ProgressView(value: max(0, min(progress, 1)))
+                        .tint(activity.kind.tint)
                 }
-                .frame(height: 72)
-            } else {
-                Color.clear.frame(height: 72)
+
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // A floor, not a fixed height. The header, value row, chart,
+            // and inter-row spacing need enough height for the requested
+            // inset to survive layout: at 220 points SwiftUI compressed the
+            // vertical padding to almost zero, leaving the focused card
+            // against its content. Item rows then need more room than any
+            // one number can reserve, so the card grows past the floor
+            // rather than clipping them.
+            .frame(minHeight: 260)
+            .contentShape(RoundedRectangle(cornerRadius: 24))
+            // See the note in `TVDashboardCardView`: this has to sit inside
+            // the button's label to replace what the button synthesizes.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(accessibilitySummary))
         }
+        .buttonStyle(.card)
+        .accessibilityHint("Opens the full activity")
     }
 
     /// The shared summary, then a line per item. A phone can leave the rows as
@@ -433,7 +338,7 @@ private struct TVLiveActivityCardView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: iconName)
+            Image(systemName: activity.detailIconName)
                 .font(.title2)
                 .foregroundStyle(activity.kind.tint)
             // What the activity is doing right now, beside what it is.
@@ -519,23 +424,12 @@ private struct TVLiveActivityCardView: View {
         (activity.items ?? []).filter(\.isActive)
     }
 
-    private var iconName: String {
-        if let icon = activity.icon { return icon }
-        switch activity.kind {
-        case .generic: return "square.dashed"
-        case .progress: return "chart.bar"
-        case .charging: return "bolt.car"
-        case .appliance: return "washer"
-        case .job: return "hammer"
-        case .timer: return "timer"
-        }
-    }
 }
 
 /// The phone's activity row at television scale. Kept beside the card rather
 /// than shared with `LiveActivitiesView`: that one is compiled into the app
 /// target only, and the two surfaces size their type independently.
-private struct TVLiveActivityItemRow: View {
+struct TVLiveActivityItemRow: View {
     let item: LiveActivityItem
 
     var body: some View {
@@ -602,70 +496,78 @@ private struct TVLiveActivityItemRow: View {
 
 private struct TVDashboardCardView: View {
     let card: DashboardCard
-    let runningAction: TVRunningAction?
-    let openLink: () -> Void
-    let runAction: (ActionDefinition) -> Void
+    let open: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
-            Button(action: openLink) {
-                VStack(alignment: .leading, spacing: 14) {
-                    header
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: 14) {
+                header
 
-                    switch card.template {
-                    case .list:
-                        listContent
-                    case .progress:
-                        valueContent
-                        if let progress = card.progressValue {
-                            ProgressView(value: progress)
-                                .tint(card.status.tint)
-                        }
-                    case .chart:
-                        chartContent
-                    case .history, .breakdown:
-                        chartContent
-                    case .summary, .action:
-                        valueContent
+                switch card.template {
+                case .list:
+                    listContent
+                case .progress:
+                    valueContent
+                    if let progress = card.progressValue {
+                        ProgressView(value: progress)
+                            .tint(card.status.tint)
                     }
-
-                    if let deadline = card.deadline {
-                        Label {
-                            Text(deadline, style: .relative)
-                        } icon: {
-                            Image(systemName: "clock")
-                        }
-                        // `.caption` is 25pt here. A countdown someone is meant
-                        // to read across a room is not caption material.
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 0)
+                case .chart:
+                    chartContent
+                case .history, .breakdown:
+                    chartContent
+                case .summary, .action:
+                    valueContent
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 220)
-                .contentShape(RoundedRectangle(cornerRadius: 24))
-                // Inside the label, not on the button. A button builds its own
-                // label out of its children, keeping each child's
-                // `accessibilityLabel` and dropping its `accessibilityValue` —
-                // which is how `StatusBadge` contributed the bare word "Status"
-                // and the status itself was never spoken. Collapsing the
-                // children to one labelled element is what the button then has
-                // to synthesize from; the same modifiers applied outside the
-                // button are ignored.
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(accessibilitySummary))
-            }
-            .buttonStyle(.card)
-            .modifier(TVInertWhenUnlinked(isLinked: card.deepLink != nil))
-            .accessibilityHint(card.deepLink == nil ? "" : "Shows a QR code for the web link")
 
-            controls
+                if let deadline = card.deadline {
+                    Label {
+                        Text(deadline, style: .relative)
+                    } icon: {
+                        Image(systemName: "clock")
+                    }
+                    // `.caption` is 25pt here. A countdown someone is meant
+                    // to read across a room is not caption material.
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 220)
+            .contentShape(RoundedRectangle(cornerRadius: 24))
+            // Inside the label, not on the button. A button builds its own
+            // label out of its children, keeping each child's
+            // `accessibilityLabel` and dropping its `accessibilityValue` —
+            // which is how `StatusBadge` contributed the bare word "Status"
+            // and the status itself was never spoken. Collapsing the
+            // children to one labelled element is what the button then has
+            // to synthesize from; the same modifiers applied outside the
+            // button are ignored.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(accessibilitySummary))
         }
+        .buttonStyle(.card)
+        .accessibilityHint(hint)
+    }
+
+    /// What pressing Select gets you, which now differs per card. Every card
+    /// opens a panel, so every card is honestly a button — the previous rule,
+    /// where a card with no `deepLink` had its button trait removed because
+    /// pressing it did nothing at all, no longer applies and the modifier that
+    /// did it is gone.
+    private var hint: String {
+        let extras = [
+            (card.actions ?? []).isEmpty ? nil : "actions",
+            card.deepLink == nil ? nil : "a QR code for its link",
+        ].compactMap { $0 }
+        return extras.isEmpty
+            ? "Opens the full card"
+            : "Opens the full card with " + extras.joined(separator: " and ")
     }
 
     /// The card is one focus stop and there is no detail screen behind it, so
@@ -780,101 +682,4 @@ private struct TVDashboardCardView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
-    @ViewBuilder
-    private var controls: some View {
-        let actions = card.actions ?? []
-        if !actions.isEmpty || card.deepLink != nil {
-            ScrollView(.horizontal) {
-                HStack(spacing: 12) {
-                    ForEach(actions) { action in
-                        let isRunning = runningAction == TVRunningAction(
-                            cardID: card.id,
-                            actionID: action.id
-                        )
-                        Button {
-                            runAction(action)
-                        } label: {
-                            HStack(spacing: 10) {
-                                // Beside the label, never instead of it. A
-                                // `ProgressView` alone has nothing to read, so
-                                // the running button announced nothing at all
-                                // and there was no way to hear which action
-                                // was busy.
-                                if isRunning {
-                                    ProgressView()
-                                }
-                                Label(action.label, systemImage: actionIcon(action))
-                            }
-                        }
-                        // This card only. Disabling every action on the
-                        // dashboard moved focus off whatever the viewer had
-                        // selected and never gave it back.
-                        .disabled(runningAction?.cardID == card.id)
-                        .accessibilityValue(isRunning ? "In progress" : "")
-                    }
-
-                    if card.deepLink != nil {
-                        Button(action: openLink) {
-                            Label("Open link", systemImage: "qrcode")
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: 72)
-        } else {
-            Color.clear
-                .frame(height: 72)
-        }
-    }
-
-    private func actionIcon(_ action: ActionDefinition) -> String {
-        action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
-    }
-}
-
-/// Drops the button trait from a card that has nowhere to go.
-///
-/// Every card and every Live Activity on the dashboard is wrapped in a
-/// `Button` so it can take focus and wear the system's card treatment, but a
-/// producer is not required to send a `deepLink` and most do not. Such a card
-/// announced itself as a button, and pressing Select did nothing at all — no
-/// screen, no sound, no message, and nothing to distinguish it from a button
-/// that had failed.
-///
-/// Removing the trait rather than the `Button` is deliberate: focus and the
-/// card style are the reasons the button is there, and `.card` is a button
-/// style with no non-button equivalent. What is wrong is the claim, not the
-/// container.
-private struct TVInertWhenUnlinked: ViewModifier {
-    let isLinked: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isLinked {
-            content
-        } else {
-            content.accessibilityRemoveTraits(.isButton)
-        }
-    }
-}
-
-/// Which action is in flight, and on which card.
-///
-/// Was a `"\(card.id)|\(action.id)"` string, which the dashboard could only
-/// compare whole — so "is anything running" was the finest question it could
-/// ask, and the answer disabled every action button on screen.
-private struct TVRunningAction: Equatable {
-    let cardID: String
-    let actionID: String
-}
-
-private struct TVPendingAction: Identifiable {
-    let card: DashboardCard
-    let action: ActionDefinition
-
-    var id: String { "\(card.id)|\(action.id)" }
 }
