@@ -28,6 +28,7 @@ struct TVSignInView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(height: 260)
+                        .accessibilityHidden(true)
                     VStack(spacing: 10) {
                         Text("00Widget")
                             .font(.system(size: 64, weight: .bold))

@@ -201,6 +201,7 @@ struct TVDashboardView: View {
             Label(title, systemImage: icon)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
 
             grid(items, columns: columns, content: content)
         }
@@ -247,8 +248,10 @@ struct TVDashboardView: View {
             Image(systemName: "square.dashed")
                 .font(.system(size: 96))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             Text("Nothing to show yet")
                 .font(.title)
+                .accessibilityAddTraits(.isHeader)
             Text("Publish a widget or start a Live Activity from your agent.")
                 .font(.title3)
                 .foregroundStyle(.secondary)

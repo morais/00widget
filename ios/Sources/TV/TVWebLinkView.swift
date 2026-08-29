@@ -44,6 +44,7 @@ struct TVWebLinkView: View {
                         Image(systemName: "iphone.gen3.radiowaves.left.and.right")
                             .font(.system(size: 88))
                             .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
 
                         Text("Scan the QR code with your phone’s camera.")
                             .font(.title2.weight(.semibold))
