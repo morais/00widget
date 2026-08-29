@@ -1,5 +1,35 @@
 import SwiftUI
 
+/// Type sizes for a screen read from a sofa.
+///
+/// tvOS has no Dynamic Type — `simctl ui content_size` answers `unsupported`,
+/// and there is no text-size control in Settings — so nothing scales these up
+/// for someone who needs them larger. What the app draws is what is read,
+/// which makes the platform's own floor the whole of the contract: Caption 2,
+/// the smallest system style, is 23pt, and `.body` is 29pt.
+///
+/// The trap is `minimumScaleFactor`, which shrinks past that floor silently. A
+/// 34pt headline at 0.65 renders at 22.1pt — under the floor, for the largest
+/// number on the card.
+enum TVTypography {
+    static let valueSize: CGFloat = 44
+    /// The card is a fixed 220pt tall and the plot needs a real share of it, so
+    /// a charted headline is smaller than a plain one.
+    static let chartValueSize: CGFloat = 34
+    /// Caption 2, the smallest style tvOS defines.
+    static let floor: CGFloat = 23
+
+    /// `preferred`, unless shrinking that far would go under the floor.
+    ///
+    /// Raising the floor is the whole job here, so a size that was already
+    /// safe keeps the scale it had: 44pt at 0.65 bottoms out at 28.6pt and is
+    /// left alone, while 34pt at 0.65 would reach 22.1pt and is clamped to
+    /// 0.68 instead.
+    static func scale(_ preferred: CGFloat, for size: CGFloat) -> CGFloat {
+        max(preferred, min(1, floor / size))
+    }
+}
+
 struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
     /// Owned by `TVRootView`, which presents the cover: see the note there.
@@ -594,8 +624,11 @@ private struct TVDashboardCardView: View {
                         } icon: {
                             Image(systemName: "clock")
                         }
-                        .font(.caption)
+                        // `.caption` is 25pt here. A countdown someone is meant
+                        // to read across a room is not caption material.
+                        .font(.body)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                     }
 
                     Spacer(minLength: 0)
@@ -661,9 +694,9 @@ private struct TVDashboardCardView: View {
     private var valueContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("\(card.value ?? "—")\(card.unit ?? "")")
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .font(.system(size: TVTypography.valueSize, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(TVTypography.scale(0.65, for: TVTypography.valueSize))
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.headline)
@@ -682,9 +715,9 @@ private struct TVDashboardCardView: View {
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(card.value ?? "—")\(card.unit ?? "")")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(.system(size: TVTypography.chartValueSize, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(TVTypography.scale(0.65, for: TVTypography.chartValueSize))
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.subheadline)
