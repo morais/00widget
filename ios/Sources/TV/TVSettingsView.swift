@@ -4,6 +4,7 @@ struct TVSettingsView: View {
     @EnvironmentObject var env: TVEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingDelete = false
+    @FocusState private var summaryFocused: Bool
     #if ZW_SUBSCRIPTIONS_ENABLED
     @State private var subscription: SubscriptionState?
     #endif
@@ -44,6 +45,25 @@ struct TVSettingsView: View {
                 .frame(maxWidth: 900, alignment: .leading)
                 .padding(36)
                 .background(RoundedRectangle(cornerRadius: 24).fill(Color.white.opacity(0.08)))
+                // tvOS navigates by focus, and this block held no focusable
+                // view, so the only three stops on the screen were Sign out,
+                // Delete account and Done. Everything the screen exists to
+                // report — the account address, the server, the version, the
+                // last sync, and the only place a failed sync, sign-out or
+                // deletion says so — could not be reached at all.
+                //
+                // One stop for the whole block rather than one per row: these
+                // are six short facts, and `children: .combine` reads them in
+                // the order they are drawn.
+                .focusable()
+                .focused($summaryFocused)
+                .accessibilityElement(children: .combine)
+                .overlay {
+                    // A focusable view gets no focus treatment of its own, and
+                    // a stop nobody can see is its own kind of unreachable.
+                    RoundedRectangle(cornerRadius: 24)
+                        .strokeBorder(.white.opacity(summaryFocused ? 0.85 : 0), lineWidth: 4)
+                }
 
                 HStack(spacing: 24) {
                     Button {

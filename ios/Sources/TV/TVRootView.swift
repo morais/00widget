@@ -12,6 +12,11 @@ struct TVRootView: View {
                 TVSignInView()
             }
         }
+        // The cover does not make its presenter inert: with Settings up, the
+        // dashboard behind it — its own Settings button, every card, and every
+        // card action — was still enumerable by assistive technology, so
+        // VoiceOver could wander into a screen the viewer cannot see or reach.
+        .accessibilityHidden(showingSettings)
         // Settings is presented from the root rather than from the dashboard,
         // because signing out and deleting the account both replace the
         // dashboard with the sign-in view from inside the presented screen. A
