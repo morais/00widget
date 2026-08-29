@@ -215,31 +215,8 @@ struct TVDetailView: View {
         }
     }
 
-    /// When the *producer* last published, which is a different fact from the
-    /// dashboard header's "Updated" and the one that goes wrong quietly.
-    @ViewBuilder
     private func freshness(for subject: TVDetailSubject) -> some View {
-        TVTickingClock(since: subject.updatedAt) {
-            freshnessLine(for: subject)
-        }
-    }
-
-    @ViewBuilder
-    private func freshnessLine(for subject: TVDetailSubject) -> some View {
-        if subject.isStale {
-            Label(
-                "Not updating · last update \(subject.updatedAt.formatted(.relative(presentation: .named)))",
-                systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.title3.weight(.medium))
-            .foregroundStyle(.orange)
-        } else {
-            Text("Updated \(subject.updatedAt.formatted(.relative(presentation: .named)))")
-                .font(.title3)
-                // Never `.tertiary`: this app is always dark, where tertiary
-                // computes to about 2.5:1.
-                .foregroundStyle(.secondary)
-        }
+        TVFreshness(updatedAt: subject.updatedAt, isStale: { subject.isStale }, font: .title3)
     }
 
     @ViewBuilder
