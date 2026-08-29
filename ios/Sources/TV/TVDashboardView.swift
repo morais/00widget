@@ -30,6 +30,26 @@ enum TVTypography {
     }
 }
 
+/// The widget card's box, which is a fixed size so a row of them lines up.
+///
+/// Fixed is the trap as well as the point. A `VStack` given less height than it
+/// needs does not compress — it overflows, centred, straight through the
+/// padding around it, and nothing about that is visible in a build or a test.
+/// At 220 points a `chart` card's four stacked elements came to more than the
+/// box held, so the plot sat flush against the card's bottom edge with no inset
+/// at all; the Live Activity card had already hit this and answered it with a
+/// `minHeight`, which a grid row cannot use without going ragged.
+///
+/// So the height is derived rather than chosen: it is what the tallest template
+/// actually measures at these type sizes — header, headline, subtitle and a
+/// 46-point plot, about 188 points — plus the inset on both sides, plus a
+/// little slack. Re-measure it if any of those change, and check a screenshot
+/// rather than the build, which cannot see an overflow.
+enum TVCardMetrics {
+    static let verticalPadding: CGFloat = 28
+    static let height: CGFloat = 252
+}
+
 struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
     /// Owned by `TVRootView`, which presents the cover: see the note there.
@@ -536,9 +556,9 @@ private struct TVDashboardCardView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 28)
-            .padding(.vertical, 24)
+            .padding(.vertical, TVCardMetrics.verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 220)
+            .frame(height: TVCardMetrics.height)
             .contentShape(RoundedRectangle(cornerRadius: 24))
             // Inside the label, not on the button. A button builds its own
             // label out of its children, keeping each child's
@@ -638,16 +658,26 @@ private struct TVDashboardCardView: View {
                     .lineLimit(1)
             }
         }
-        if let chart = card.chart, chart.isRenderable {
-            SparklineView(chart: chart, tint: card.status.tint, lineWidth: 3)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-        }
-        if card.template == .history, let items = card.items, !items.isEmpty {
-            StatusStripView(items: items, limit: 14, height: 20)
-        }
-        if card.template == .breakdown, let items = card.items, !items.isEmpty {
-            CompositionBarView(items: items, tint: card.status.tint, height: 22)
+        // One plot per card, and the template picks it. `history` and
+        // `breakdown` have their own — pips and a segmented bar — and every
+        // other renderer in the app draws a sparkline for `chart` alone, so a
+        // series sent on a `history` card was drawn here and nowhere else.
+        // Stacking both is also what pushed this card past its own height.
+        switch card.template {
+        case .history:
+            if let items = card.items, !items.isEmpty {
+                StatusStripView(items: items, limit: 14, height: 20)
+            }
+        case .breakdown:
+            if let items = card.items, !items.isEmpty {
+                CompositionBarView(items: items, tint: card.status.tint, height: 22)
+            }
+        default:
+            if let chart = card.chart, chart.isRenderable {
+                SparklineView(chart: chart, tint: card.status.tint, lineWidth: 3)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+            }
         }
     }
 
