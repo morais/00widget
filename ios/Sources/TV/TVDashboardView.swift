@@ -6,7 +6,7 @@ struct TVDashboardView: View {
     @Binding var showingSettings: Bool
     @State private var selectedLink: TVWebLink?
     @State private var pendingAction: TVPendingAction?
-    @State private var runningActionID: String?
+    @State private var runningAction: TVRunningAction?
     @State private var actionError: String?
     @FocusState private var settingsFocused: Bool
 
@@ -61,6 +61,13 @@ struct TVDashboardView: View {
             }
         } message: {
             Text(actionError ?? "Please try again.")
+        }
+        // The header's sync error is not focusable and nothing draws attention
+        // to it appearing — on a television left running on a wall, a
+        // dashboard that quietly stopped updating looks exactly like one that
+        // has nothing new to say.
+        .onChange(of: env.lastSyncError) { _, error in
+            if let error { AccessibilityAnnouncement.post(error) }
         }
     }
 
@@ -139,7 +146,7 @@ struct TVDashboardView: View {
                         ) { card in
                             TVDashboardCardView(
                                 card: card,
-                                runningActionID: runningActionID,
+                                runningAction: runningAction,
                                 openLink: { openLink(for: card) },
                                 runAction: { request($0, for: card) }
                             )
@@ -238,15 +245,16 @@ struct TVDashboardView: View {
     }
 
     private func run(_ action: ActionDefinition, for card: DashboardCard) {
-        let actionID = "\(card.id)|\(action.id)"
-        runningActionID = actionID
+        runningAction = TVRunningAction(cardID: card.id, actionID: action.id)
         actionError = nil
 
         Task {
-            defer { runningActionID = nil }
+            defer { runningAction = nil }
             let requiresConfirmation = action.confirm || action.role == .destructive
             guard let client = requiresConfirmation ? env.confirmedActionClient() : env.apiClient() else {
-                actionError = "The server connection is unavailable."
+                let message = "The server connection is unavailable."
+                actionError = message
+                AccessibilityAnnouncement.post(message)
                 return
             }
             do {
@@ -256,8 +264,15 @@ struct TVDashboardView: View {
                     try await client.runAction(id: action.id, cardId: card.id)
                 }
                 await env.fetchCards()
+                // Success used to be entirely silent: the only evidence was a
+                // refetch that may change nothing visible on a screen nobody
+                // is standing in front of.
+                AccessibilityAnnouncement.post("\(action.label) finished for \(card.title).")
             } catch {
                 actionError = error.localizedDescription
+                // The alert takes focus and reads itself, so this says only
+                // what the alert's title cannot: which action failed.
+                AccessibilityAnnouncement.post("\(action.label) failed for \(card.title).")
             }
         }
     }
@@ -546,7 +561,7 @@ private struct TVLiveActivityItemRow: View {
 
 private struct TVDashboardCardView: View {
     let card: DashboardCard
-    let runningActionID: String?
+    let runningAction: TVRunningAction?
     let openLink: () -> Void
     let runAction: (ActionDefinition) -> Void
 
@@ -729,18 +744,30 @@ private struct TVDashboardCardView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 12) {
                     ForEach(actions) { action in
-                        let actionID = "\(card.id)|\(action.id)"
+                        let isRunning = runningAction == TVRunningAction(
+                            cardID: card.id,
+                            actionID: action.id
+                        )
                         Button {
                             runAction(action)
                         } label: {
-                            if runningActionID == actionID {
-                                ProgressView()
-                                    .frame(minWidth: 120)
-                            } else {
+                            HStack(spacing: 10) {
+                                // Beside the label, never instead of it. A
+                                // `ProgressView` alone has nothing to read, so
+                                // the running button announced nothing at all
+                                // and there was no way to hear which action
+                                // was busy.
+                                if isRunning {
+                                    ProgressView()
+                                }
                                 Label(action.label, systemImage: actionIcon(action))
                             }
                         }
-                        .disabled(runningActionID != nil)
+                        // This card only. Disabling every action on the
+                        // dashboard moved focus off whatever the viewer had
+                        // selected and never gave it back.
+                        .disabled(runningAction?.cardID == card.id)
+                        .accessibilityValue(isRunning ? "In progress" : "")
                     }
 
                     if card.deepLink != nil {
@@ -789,6 +816,16 @@ private struct TVInertWhenUnlinked: ViewModifier {
             content.accessibilityRemoveTraits(.isButton)
         }
     }
+}
+
+/// Which action is in flight, and on which card.
+///
+/// Was a `"\(card.id)|\(action.id)"` string, which the dashboard could only
+/// compare whole — so "is anything running" was the finest question it could
+/// ask, and the answer disabled every action button on screen.
+private struct TVRunningAction: Equatable {
+    let cardID: String
+    let actionID: String
 }
 
 private struct TVPendingAction: Identifiable {
