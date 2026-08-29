@@ -63,8 +63,17 @@ It writes the following files to `ios/build/screenshots/tvos/`:
 | --- | --- |
 | `screenshot-tv-insights.png` | The insights dashboard with Energy, Deploys, Device fleet, and the running home battery activity. |
 | `screenshot-tv-widgets.png` | The general dashboard with the Solar and other classic cards. |
+| `screenshot-tv-card-detail.png` | The Energy card's detail panel, which is what pressing Select on a card opens. |
 
-The canonical App Store order is Insights, then Widgets. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
+The canonical App Store order is Insights, Widgets, then Card detail.
+
+Each Apple TV capture is composed to fill the screen exactly once, so check a
+new one against the bottom edge rather than trusting the full-size render. The
+`widgets` section deliberately holds six of the eight samples: two rows is what
+1080 lines hold at the card's height, and an image that slices a third row
+through the middle of a number reads as a bug. The two it leaves out are the two
+the insights capture features, so the set covers every sample without repeating
+one. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
 
 ## iPhone without Dynamic Island
 

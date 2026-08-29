@@ -162,7 +162,8 @@ Apple TV uses `ios/scripts/capture-tv-screenshots.sh`, which builds a private
 `ios/build/screenshots/tvos/`. The screenshot-only state and UI-test target are
 not compiled into the shipping tvOS scheme. A full run captures the general
 dashboard and the Energy/Deploys/Device fleet insights dashboard with a running
-Live Activity. The App Store order is Insights, then Widgets.
+Live Activity, and the Energy card's detail panel. The App Store order is
+Insights, Widgets, then Card detail.
 
 **Each capture is composed to fill the screen exactly once.** The `widgets`
 section deliberately holds six of the eight samples, not all of them: two rows

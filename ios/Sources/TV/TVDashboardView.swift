@@ -269,6 +269,7 @@ struct TVDashboardView: View {
 private struct TVLiveActivityCardView: View {
     let activity: LiveActivitySession
     let open: () -> Void
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     /// Two columns rather than one row per item. Six rows is the published
     /// maximum, so the grid is at most three rows tall, and each row keeps
@@ -387,8 +388,16 @@ private struct TVLiveActivityCardView: View {
     /// The page header's "Updated" is when this device last synced; this is
     /// when the *producer* last published, which is a different fact and the
     /// one that goes wrong quietly. A television is left running on a wall, so
-    /// an activity whose producer stopped an hour ago has to say so rather than
-    /// keep presenting its last numbers as current.
+    /// an activity whose producer stopped has to say so rather than keep
+    /// presenting its last numbers as current.
+    ///
+    /// It says so by changing colour rather than by changing wording. The line
+    /// used to become "Not updating · last update 2 hours ago" behind a warning
+    /// triangle, which is the right sentence on a screen showing one activity
+    /// and too loud on a grid cell showing nine — a wall of alarm for something
+    /// whose remedy is to look at the producer later. The detail panel still
+    /// spells it out; that is the screen with room to explain, and the one
+    /// somebody opens because they want to know.
     @ViewBuilder
     private var freshness: some View {
         TVTickingClock(since: activity.updatedAt) {
@@ -396,26 +405,25 @@ private struct TVLiveActivityCardView: View {
         }
     }
 
-    @ViewBuilder
     private var freshnessLine: some View {
-        if activity.isStale {
-            Label(
-                "Not updating · last update \(activity.updatedAt.formatted(.relative(presentation: .named)))",
-                systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.callout.weight(.medium))
-            .foregroundStyle(.orange)
-            .lineLimit(1)
-        } else {
+        let isStale = activity.isStale
+        return HStack(spacing: 8) {
+            // Colour alone would make staleness invisible to a viewer who has
+            // told the system not to rely on it, and the row is otherwise
+            // identical either way. `StatusStripView` answers the same question
+            // the same way.
+            if isStale && differentiateWithoutColor {
+                Image(systemName: "exclamationmark.triangle.fill")
+            }
             Text("Updated \(activity.updatedAt.formatted(.relative(presentation: .named)))")
-                .font(.callout)
-                // Not `.tertiary`. This app is always dark, where tertiary is
-                // white at 30% and computes to about 2.5:1 — under the 3:1
-                // large-text threshold, let alone 4.5:1. Secondary is 60% and
-                // about 7.4:1. Nothing here is decorative enough for tertiary.
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
+        .font(.callout)
+        // Neither of these is `.tertiary`. This app is always dark, where
+        // tertiary is white at 30% and computes to about 2.5:1 — under the 3:1
+        // large-text threshold, let alone 4.5:1. Secondary is 60% and about
+        // 7.4:1. Nothing here is decorative enough for tertiary.
+        .foregroundStyle(isStale ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+        .lineLimit(1)
     }
 
     @ViewBuilder

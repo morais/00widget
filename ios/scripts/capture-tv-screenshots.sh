@@ -40,6 +40,7 @@ echo "→ running TVScreenshotTests"
 TEST_FILTERS=(
   -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureInsightsScreenshot
   -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureWidgetsScreenshot
+  -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureCardDetailScreenshot
 )
 
 xcodebuild test \
@@ -91,6 +92,7 @@ if count == 0:
 required = {
     "screenshot-tv-insights.png",
     "screenshot-tv-widgets.png",
+    "screenshot-tv-card-detail.png",
 }
 missing = sorted(required - produced)
 if missing:

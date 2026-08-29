@@ -73,6 +73,7 @@ CAPTURE_SETS = {
             [
                 "screenshot-tv-insights.png",
                 "screenshot-tv-widgets.png",
+                "screenshot-tv-card-detail.png",
             ],
         ),
     },
