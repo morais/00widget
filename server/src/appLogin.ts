@@ -162,6 +162,7 @@ export async function createTokenFromApple(
   });
   if (isNewTenant) {
     const alert = sendNewTenantAlert(env, {
+      source: "app",
       tenantId: created.tenant.id,
       ownerEmail: created.tenant.ownerEmail,
       createdAt: created.tenant.createdAt,
@@ -182,7 +183,6 @@ function appleLoginIpKey(req: Request): string {
   const ip = req.headers.get("cf-connecting-ip")?.trim();
   return `apple-login:${ip || "unknown"}`;
 }
-
 
 
 

@@ -37,6 +37,7 @@ function webEnv(overrides: Partial<Env> = {}): Env {
 async function signIn(
   env: Env,
   input: { email: string; sub?: string; next?: string },
+  executionCtx: ExecutionContext = ctx,
 ): Promise<Response> {
   const nonce = "expected-nonce-value";
   // Each call mints a fresh key pair, so the JWKS cached from a previous
@@ -66,7 +67,7 @@ async function signIn(
       body: new URLSearchParams({ state: "expected", id_token: token }).toString(),
     }),
     env,
-    ctx,
+    executionCtx,
   );
 }
 
@@ -121,6 +122,41 @@ describe("signing in does not sign you up", () => {
     expect(res.status).toBe(302);
     expect(sessionCookieFrom(res)).toBeDefined();
     expect(await tenantCount(env)).toBe(before + 1);
+  });
+
+  it("schedules an operator alert when web signup creates a tenant", async () => {
+    const env = webEnv({
+      WEB_SIGNUP_ENABLED: "true",
+      SIGNUP_ALERTS: { send: async () => {} } as any,
+      SIGNUP_ALERT_TO: "ops@example.com",
+    });
+    const pending: Promise<unknown>[] = [];
+    const executionCtx = {
+      waitUntil: vi.fn((promise: Promise<unknown>) => pending.push(promise)),
+    } as unknown as ExecutionContext;
+
+    const res = await signIn(env, { email: "reviewer@example.com" }, executionCtx);
+
+    expect(res.status).toBe(302);
+    expect(executionCtx.waitUntil).toHaveBeenCalledOnce();
+    await Promise.all(pending);
+  });
+
+  it("does not schedule another alert when the web account already exists", async () => {
+    const env = webEnv({
+      WEB_SIGNUP_ENABLED: "true",
+      SIGNUP_ALERTS: { send: async () => {} } as any,
+      SIGNUP_ALERT_TO: "ops@example.com",
+    });
+    await seedApiKey(env, TEST_API_KEY, "known");
+    const executionCtx = {
+      waitUntil: vi.fn(),
+    } as unknown as ExecutionContext;
+
+    const res = await signIn(env, { email: "known@example.com" }, executionCtx);
+
+    expect(res.status).toBe(302);
+    expect(executionCtx.waitUntil).not.toHaveBeenCalled();
   });
 
   it("lets an administrator in even with no tenant of their own", async () => {

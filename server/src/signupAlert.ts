@@ -13,6 +13,7 @@ export function signupAlertsConfigured(env: Env): boolean {
 }
 
 export interface NewTenantAlert {
+  source: "app" | "web";
   tenantId: string;
   ownerEmail: string;
   createdAt: string;
@@ -41,14 +42,17 @@ export async function sendNewTenantAlert(env: Env, alert: NewTenantAlert): Promi
     // carry a newline is an injected Bcc. Rejecting at the boundary is the real
     // control; this is what makes the sink safe regardless of what reaches it.
     const subject = headerSafe(`00Widget: new tenant ${alert.ownerEmail}`);
+    const signupFlag = alert.source === "web" ? "WEB_SIGNUP_ENABLED" : "APPLE_APP_LOGIN_ENABLED";
+    const signupSurface = alert.source === "web" ? "web OAuth" : "native app";
     const body = [
       "A new tenant was created through Sign in with Apple.",
       "",
+      `Signup surface: ${signupSurface}`,
       `Owner email: ${alert.ownerEmail}`,
       `Tenant id:   ${alert.tenantId}`,
       `Created at:  ${alert.createdAt}`,
       "",
-      "Self-service signup is controlled by APPLE_APP_LOGIN_ENABLED.",
+      `Self-service signup is controlled by ${signupFlag}.`,
       "Set it to anything other than \"true\" to close it.",
     ].join("\n");
 

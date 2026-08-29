@@ -10,6 +10,7 @@ import { createTenantForOwner, isValidApiKey, TenantEmailTakenError } from "./au
 import { baseHTML, esc, enc, htmlResponse, renderError } from "./html";
 import { putAppleAccount, resolveIdentity } from "./identity";
 import { incrementRateLimitBuckets, rateLimitResponse } from "./rateLimit";
+import { sendNewTenantAlert } from "./signupAlert";
 import {
   adminEmails,
   apiTokenLoginConfigured,
@@ -113,7 +114,11 @@ export async function handleLoginApiToken(req: Request, env: Env): Promise<Respo
   return new Response(null, { status: 302, headers });
 }
 
-export async function handleAppleCallback(req: Request, env: Env): Promise<Response> {
+export async function handleAppleCallback(
+  req: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
   if (!webSignInConfigured(env)) return htmlResponse(renderConfigError(env), 500);
   const limited = await enforceAppleCallbackRateLimit(req, env);
   if (limited) return limited;
@@ -180,6 +185,16 @@ export async function handleAppleCallback(req: Request, env: Env): Promise<Respo
     try {
       const tenant = await createTenantForOwner(env, email);
       await putAppleAccount(env, { appleSub: claims.sub, tenantId: tenant.id, email });
+      const alert = sendNewTenantAlert(env, {
+        source: "web",
+        tenantId: tenant.id,
+        ownerEmail: tenant.ownerEmail,
+        createdAt: tenant.createdAt,
+      });
+      // Production passes an ExecutionContext, so mail is sent after the
+      // redirect is already on its way. Direct callers without one still get
+      // the same best-effort behavior without dropping the alert entirely.
+      if (typeof ctx?.waitUntil === "function") ctx.waitUntil(alert); else await alert;
     } catch (err) {
       // `resolveIdentity` found nothing a moment ago, so reaching this means
       // another sign-in for the same address won the race between the two.

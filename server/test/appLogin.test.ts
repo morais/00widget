@@ -570,6 +570,7 @@ describe("new tenant signup alerts", () => {
     });
     await expect(
       sendNewTenantAlert(env, {
+        source: "app",
         tenantId: "t-1",
         ownerEmail: "new@example.com",
         createdAt: new Date().toISOString(),

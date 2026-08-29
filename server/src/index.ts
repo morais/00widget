@@ -216,7 +216,9 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/login\/?$/, handler: (req, env) => webLogin.handleLogin(req, env) },
   { method: "GET", pattern: /^\/login\/apple\/?$/, handler: (req, env) => webLogin.handleLoginApple(req, env) },
   { method: "POST", pattern: /^\/login\/api-token\/?$/, handler: (req, env) => webLogin.handleLoginApiToken(req, env) },
-  { method: "POST", pattern: /^\/auth\/apple\/callback\/?$/, handler: (req, env) => webLogin.handleAppleCallback(req, env) },
+  { method: "POST", pattern: /^\/auth\/apple\/callback\/?$/, handler: (req, env, _match, ctx) =>
+    webLogin.handleAppleCallback(req, env, ctx),
+  },
   { method: "GET", pattern: /^\/logout\/?$/, handler: (req, env) => webLogin.handleLogout(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/?$/, handler: (req, env) => admin.handleAdminCreateApiKey(req, env) },
   { method: "POST", pattern: /^\/admin\/api-keys\/([^/]+)\/revoke\/?$/, handler: (req, env, match) =>
