@@ -219,6 +219,13 @@ struct TVDetailView: View {
     /// dashboard header's "Updated" and the one that goes wrong quietly.
     @ViewBuilder
     private func freshness(for subject: TVDetailSubject) -> some View {
+        TVTickingClock(since: subject.updatedAt) {
+            freshnessLine(for: subject)
+        }
+    }
+
+    @ViewBuilder
+    private func freshnessLine(for subject: TVDetailSubject) -> some View {
         if subject.isStale {
             Label(
                 "Not updating · last update \(subject.updatedAt.formatted(.relative(presentation: .named)))",

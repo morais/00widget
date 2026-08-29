@@ -142,9 +142,11 @@ struct TVDashboardView: View {
                 .foregroundStyle(.red)
                 .lineLimit(1)
         } else if let lastSyncAt = env.lastSyncAt {
-            Text("Updated \(lastSyncAt.formatted(.relative(presentation: .named)))")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            TVTickingClock(since: lastSyncAt) {
+                Text("Updated \(lastSyncAt.formatted(.relative(presentation: .named)))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         } else {
             Text("Your agent widgets")
                 .font(.callout)
@@ -389,6 +391,13 @@ private struct TVLiveActivityCardView: View {
     /// keep presenting its last numbers as current.
     @ViewBuilder
     private var freshness: some View {
+        TVTickingClock(since: activity.updatedAt) {
+            freshnessLine
+        }
+    }
+
+    @ViewBuilder
+    private var freshnessLine: some View {
         if activity.isStale {
             Label(
                 "Not updating · last update \(activity.updatedAt.formatted(.relative(presentation: .named)))",
