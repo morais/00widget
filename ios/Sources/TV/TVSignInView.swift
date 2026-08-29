@@ -58,7 +58,11 @@ struct TVSignInView: View {
 
                 Text("Version \(appVersionString)")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    // See the note in `TVDashboardView.freshness`: tertiary is
+                    // about 2.5:1 on this backdrop. At 23pt — the platform
+                    // floor — this was the smallest text in the app at its
+                    // lowest contrast.
+                    .foregroundStyle(.secondary)
             }
             .padding(64)
         }

@@ -468,7 +468,11 @@ private struct TVLiveActivityCardView: View {
         } else {
             Text("Updated \(activity.updatedAt.formatted(.relative(presentation: .named)))")
                 .font(.callout)
-                .foregroundStyle(.tertiary)
+                // Not `.tertiary`. This app is always dark, where tertiary is
+                // white at 30% and computes to about 2.5:1 — under the 3:1
+                // large-text threshold, let alone 4.5:1. Secondary is 60% and
+                // about 7.4:1. Nothing here is decorative enough for tertiary.
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
     }
