@@ -1117,6 +1117,10 @@ export interface Env {
   // it, and identifies the operator through the admin session cookie.
   MCP_ENABLED?: string;
 
+  // OpenAI plugin submission domain verification. Deployment-specific and
+  // served verbatim from /.well-known/openai-apps-challenge when configured.
+  OPENAI_APPS_CHALLENGE_TOKEN?: string;
+
   // Master kill switch for the cross-tenant sharing feature. Any value other
   // than "true" disables every /v1/shares/* route, the ?include=shared
   // expansion on cards/activities, and recipient fanout in widget/Live

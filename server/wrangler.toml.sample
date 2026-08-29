@@ -51,6 +51,11 @@ WEB_SIGNUP_ENABLED = "false"
 # an ordinary tenant API token, revocable from /admin like any other.
 MCP_ENABLED = "false"
 
+# OpenAI plugin submission domain verification. Put the exact token supplied
+# by the submission portal in the gitignored wrangler.toml. When unset, the
+# well-known challenge endpoint returns 404.
+# OPENAI_APPS_CHALLENGE_TOKEN = "REPLACE_WITH_OPENAI_APPS_CHALLENGE_TOKEN"
+
 # Master kill switch for the cross-tenant sharing feature. Anything other
 # than "true" disables every /v1/shares/* route and recipient push fanout.
 # Off by default: sharing by activity_kind is coarse-grained — accepting a

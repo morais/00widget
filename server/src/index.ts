@@ -24,6 +24,7 @@ import * as webLogin from "./webLogin";
 import * as mcp from "./mcp";
 import * as mcpOAuth from "./mcpOAuth";
 import * as mcpConnections from "./mcpConnections";
+import * as openAIAppsChallenge from "./openAIAppsChallenge";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
 import * as sessions from "./sessions";
@@ -60,6 +61,11 @@ const routes: Route[] = [
   // path and does not follow redirects.
   { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
     appleAppSite.handleAppleAppSiteAssociation(req, env),
+  },
+  // OpenAI plugin submission domain verification. No trailing-slash alias:
+  // the portal checks this exact well-known path and expects only the token.
+  { method: "GET", pattern: /^\/\.well-known\/openai-apps-challenge$/, handler: (req, env) =>
+    openAIAppsChallenge.handleOpenAIAppsChallenge(req, env),
   },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req, env) => landing.handleLlmsTxt(req, env) },
   // MCP. The endpoint authenticates itself (it must answer an anonymous
