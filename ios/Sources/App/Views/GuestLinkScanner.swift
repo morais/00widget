@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 import VisionKit
 
 /// Scans a shared link's QR code.
@@ -82,10 +83,7 @@ struct GuestLinkScannerSheet: View {
         NavigationStack {
             Group {
                 if cameraDenied {
-                    message(
-                        icon: "video.slash",
-                        text: "00Widget needs camera access to scan a code. Turn it on in Settings → 00Widget."
-                    )
+                    cameraDeniedMessage
                 } else if !GuestLinkScannerView.isSupported {
                     message(
                         icon: "qrcode.viewfinder",
@@ -122,6 +120,24 @@ struct GuestLinkScannerSheet: View {
             }
         }
         .task { await checkCameraPermission() }
+    }
+
+    private var cameraDeniedMessage: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "video.slash")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("00Widget needs camera access to scan a code. Turn it on in Settings → 00Widget.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            Button("Open Settings") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func message(icon: String, text: String) -> some View {
