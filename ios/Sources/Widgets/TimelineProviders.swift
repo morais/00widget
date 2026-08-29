@@ -134,17 +134,14 @@ public struct CardTimelineProvider: AppIntentTimelineProvider {
         let density = configuration.density.renderDensity
         let cached = CardCache.cardsForWidgets()
 
-        // A widget nobody has configured yet renders the highest-priority card
-        // there is, so a placement made from the gallery shows something
-        // instead of "Pick a card". This lives here rather than in
-        // CardEntityQuery.defaultResult() because that query also backs the
-        // grid widget's card set, where one default result would be a single
-        // card repeated.
+        // `CardEntityQuery.defaultResult()` normally gives a new widget a
+        // concrete card id. If no card existed when the widget was added, keep
+        // it unconfigured rather than recalculating the first card on every
+        // render. Once cards arrive it can ask the person to make a deliberate
+        // selection.
         guard let selection = configuration.card?.id else {
-            guard let card = cached.first else {
-                return CardTimelineEntry(date: Date(), card: nil, density: density, reason: .noCachedData)
-            }
-            return CardTimelineEntry(date: Date(), card: card, density: density, reason: card.isStale ? .stale(card.updatedAt) : nil)
+            let reason: CardFallbackView.Reason = cached.isEmpty ? .noCachedData : .noCardSelected
+            return CardTimelineEntry(date: Date(), card: nil, density: density, reason: reason)
         }
 
         // "None" is a real pick in the card list, and the only way to ask for an

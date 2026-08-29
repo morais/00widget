@@ -90,10 +90,13 @@ public struct CardEntityQuery: EntityQuery {
         return [CardEntity(id: Self.noneId, title: "None")] + cards
     }
 
-    /// Deliberately no `defaultResult()`.
-    ///
-    /// The single-card timeline owns its automatic first-card fallback so nil
-    /// remains distinct from the explicit "None" entity.
+    /// Pins a freshly added single-card widget to the highest-priority card
+    /// available at configuration time. The grid uses `GridCardEntityQuery`,
+    /// so this default cannot fill each of its slots with the same card.
+    public func defaultResult() async -> CardEntity? {
+        guard let card = WidgetCardPickerSource.cards.first else { return nil }
+        return CardEntity(id: card.id, title: WidgetCardPickerSource.title(for: card))
+    }
 }
 
 public struct GridCardEntityQuery: EntityQuery {

@@ -67,8 +67,9 @@ struct ZeroZeroWidgetPushHandler: WidgetPushHandler {
                         subscription.cardIds.append(cardId)
                     }
                 } else {
-                    // An unconfigured card chooses the first matching card at
-                    // render time. Empty here would silently unregister it.
+                    // A widget added while there were no cards stays
+                    // unconfigured. Keep it subscribed so the arrival of its
+                    // first card wakes it to show the configuration prompt.
                     subscription.allCards = true
                 }
             case ZeroZeroWidgetConstants.WidgetKinds.cardGrid:
