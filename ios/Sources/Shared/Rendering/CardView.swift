@@ -123,7 +123,13 @@ public struct CardView: View {
                     .font(.caption)
                     .foregroundStyle(card.status.tint)
             }
-            StatusBadge(status: card.status, compact: true)
+            // Healthy and normally active cards need no extra chrome in the
+            // constrained widget canvas. Keep only states that ask for
+            // attention; the combined accessibility summary still says the
+            // status aloud.
+            if card.status.needsAttention {
+                StatusBadge(status: card.status, compact: true)
+            }
         }
     }
 
