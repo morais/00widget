@@ -164,6 +164,16 @@ not compiled into the shipping tvOS scheme. A full run captures the general
 dashboard and the Energy/Deploys/Device fleet insights dashboard with a running
 Live Activity. The App Store order is Insights, then Widgets.
 
+**Each capture is composed to fill the screen exactly once.** The `widgets`
+section deliberately holds six of the eight samples, not all of them: two rows
+is what 1080 lines hold at the card's height, a third is reachable by scrolling
+and correct on a device, and a marketing image that slices a row through the
+middle of a number reads as a bug rather than as an affordance. The two it drops
+are the two the insights capture features, so the pair of images still covers
+every sample and shows none of them twice. Re-check both captures against the
+bottom edge after anything that changes a card's height — `TVCardMetrics`, the
+type sizes, a section's spacing.
+
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
 seeded externally; `onOpenURL` forwards external links rather than routing tabs;

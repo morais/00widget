@@ -34,6 +34,16 @@ final class TVEnvironment: ObservableObject {
             self.cards = []
         } else if screenshotSection == "insights" {
             self.cards = Array(samples.suffix(3))
+        } else if screenshotSection == "widgets" {
+            // Two full rows, which is what the screen holds. A third row is
+            // reachable by scrolling and is the right behaviour on a device,
+            // but a marketing capture that slices one through the middle of a
+            // number reads as a bug rather than as an affordance. The two
+            // dropped are Deploys and Device fleet, because the insights
+            // capture already features both — so the pair of App Store images
+            // now covers all eight samples instead of showing two of them
+            // twice.
+            self.cards = Array(samples.dropLast(2))
         } else {
             self.cards = samples
         }
