@@ -174,8 +174,8 @@ public struct CardView: View {
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(Capsule().fill(Color.secondary.opacity(0.18)))
-            .foregroundStyle(.secondary)
+            .background(Capsule().fill(Color.primary.opacity(0.12)))
+            .foregroundStyle(.primary)
             .lineLimit(1)
             .fixedSize()
     }
@@ -593,15 +593,15 @@ public struct CardView: View {
                     } icon: {
                         Image(systemName: "clock")
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
                 }
                 Label(
                     card.updatedAt.formatted(.relative(presentation: .named)),
                     systemImage: "arrow.clockwise"
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
             }
         }
         .padding(20)
@@ -656,6 +656,9 @@ public struct CardView: View {
                     .accessibilityHidden(true)
             }
         }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(card.title), Status: \(card.status.label)")
     }
 
     @ViewBuilder
@@ -725,7 +728,7 @@ public struct CardView: View {
     private func appSubtitle(_ subtitle: String) -> some View {
         Text(subtitle)
             .font(.body)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.primary)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : (density == .compact ? 1 : 3))
     }
 
@@ -817,8 +820,8 @@ public struct CardView: View {
     private var appBackground: some ShapeStyle {
         LinearGradient(
             colors: [
-                card.status.tint.opacity(0.12),
-                Color.primary.opacity(0.055)
+                card.status.tint.opacity(0.06),
+                Color.primary.opacity(0.03)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

@@ -258,6 +258,21 @@ targets:
         # screenshot run does; without signing Xcode never asks for it.
         GENERATE_INFOPLIST_FILE: YES
 
+  # Automated app accessibility audits. Kept separate from marketing capture
+  # so ordinary scheme testing never drives SpringBoard or writes screenshots.
+  ZeroZeroWidgetAccessibilityUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: AccessibilityUITests
+    dependencies:
+      - target: ZeroZeroWidgetApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.accessibilitytests
+        TEST_TARGET_NAME: ZeroZeroWidgetApp
+        GENERATE_INFOPLIST_FILE: YES
+
   ZeroZeroWidgetTVUITests:
     type: bundle.ui-testing
     platform: tvOS
@@ -382,6 +397,18 @@ schemes:
       config: Debug
       targets:
         - ZeroZeroWidgetTests
+
+  # XCTest accessibility audits only. The runner executes this scheme at
+  # standard and AX5 text sizes on a disposable simulator.
+  ZeroZeroWidgetAccessibility:
+    build:
+      targets:
+        ZeroZeroWidgetApp: all
+        ZeroZeroWidgetAccessibilityUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetAccessibilityUITests
 
   # Marketing screenshots only. Separate scheme so the UI test target never
   # enters an archive.

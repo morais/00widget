@@ -278,11 +278,11 @@ struct DashboardView: View {
             Button("Generate sample widgets") {
                 env.generateSampleCards()
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             Text("Samples are generated on this device and can be removed at any time.")
                 .font(.caption2)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 32)
         }
         .padding()
@@ -303,6 +303,7 @@ struct DashboardView: View {
                     .buttonStyle(.borderedProminent)
                 Button("Not now") { env.didDismissWidgetSetupHint = true }
                     .buttonStyle(.bordered)
+                    .tint(.primary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -326,7 +327,7 @@ struct DashboardView: View {
             Button("Remove sample widgets", role: .destructive) {
                 env.clearSampleCards()
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

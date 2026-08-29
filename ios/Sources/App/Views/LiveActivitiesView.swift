@@ -118,7 +118,7 @@ struct LiveActivitiesView: View {
             Button("Remove sample activity", role: .destructive) {
                 Task { await liveActivityController.endSamples() }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -176,6 +176,7 @@ private struct ActivityCard: View {
                     }
                 }
                 .frame(width: 32)
+                .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     let titleLayout = dynamicTypeSize.isAccessibilitySize
@@ -268,8 +269,8 @@ private struct ActivityCard: View {
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(Color.secondary.opacity(0.16)))
-            .foregroundStyle(.secondary)
+            .background(Capsule().fill(Color.primary.opacity(0.12)))
+            .foregroundStyle(.primary)
     }
 
     private var activeItemBadge: some View {

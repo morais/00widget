@@ -82,7 +82,7 @@ struct GuestLinkScannerSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if cameraDenied {
+                if presentsCameraDeniedMessage {
                     cameraDeniedMessage
                 } else if !GuestLinkScannerView.isSupported {
                     message(
@@ -122,22 +122,36 @@ struct GuestLinkScannerSheet: View {
         .task { await checkCameraPermission() }
     }
 
+    private var presentsCameraDeniedMessage: Bool {
+        #if ZW_ACCESSIBILITY_AUDITS
+        // Select the branch synchronously, before VisionKit can construct a
+        // scanner and ask the disposable simulator for real camera access.
+        return true
+        #else
+        return cameraDenied
+        #endif
+    }
+
     private var cameraDeniedMessage: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "video.slash")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("00Widget needs camera access to scan a code. Turn it on in Settings → 00Widget.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            Button("Open Settings") {
-                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                UIApplication.shared.open(url)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 12) {
+                    Image(systemName: "video.slash")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("00Widget needs camera access to scan a code. Turn it on in Settings → 00Widget.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Button("Open Settings") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        UIApplication.shared.open(url)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .buttonStyle(.borderedProminent)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func message(icon: String, text: String) -> some View {
@@ -152,6 +166,10 @@ struct GuestLinkScannerSheet: View {
     }
 
     private func checkCameraPermission() async {
+        #if ZW_ACCESSIBILITY_AUDITS
+        cameraDenied = true
+        return
+        #else
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             cameraDenied = false
@@ -160,6 +178,7 @@ struct GuestLinkScannerSheet: View {
         default:
             cameraDenied = true
         }
+        #endif
     }
 
     private func accept(_ token: String) async {

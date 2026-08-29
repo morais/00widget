@@ -204,31 +204,40 @@ struct SubscriptionView: View {
 /// the person is most likely trying to check.
 struct SubscriptionNotice: View {
     @EnvironmentObject var subscriptions: SubscriptionController
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         if subscriptions.isRequired && !subscriptions.state.active {
             NavigationLink {
                 SubscriptionView()
             } label: {
-                HStack(alignment: .top, spacing: 10) {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+                layout {
                     Image(systemName: "exclamationmark.circle.fill")
                         .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Publishing is paused")
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
                         Text("Your agents can't send new state until your subscription is active.")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer(minLength: 0)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Spacer(minLength: 0)
+                    }
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
             }
             // Without .plain, SwiftUI renders the whole label as tinted,
             // centred link text — which reads as a stray hyperlink rather than

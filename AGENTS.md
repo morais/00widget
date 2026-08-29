@@ -49,6 +49,7 @@ open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
 ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
 ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
+ios/scripts/run-accessibility-audits.sh    # XCTest audits at Large + AX5
 ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
 ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
 
@@ -266,13 +267,13 @@ is unavailable and immediately verify the result from the command line.
 ### Schemes are declared explicitly
 
 `project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`,
-`ZeroZeroWidgetTests`, `ZeroZeroWidgetScreenshots`, and
+`ZeroZeroWidgetTests`, `ZeroZeroWidgetAccessibility`, `ZeroZeroWidgetScreenshots`, and
 `ZeroZeroWidgetTVScreenshots`. This is
 load-bearing: adding *any* `schemes:` entry
 turns off Xcode's scheme autocreation for every target, which silently removed
 the `ZeroZeroWidgetApp` scheme that `build-sim.sh` and `upload-testflight.sh`
 archive with. If you add a target, add its scheme too. Every test target — the
-two UI test bundles and the unit test bundle — is reachable only from its own
+three UI test bundles and the unit test bundle — is reachable only from its own
 scheme, never from `ZeroZeroWidgetApp`, so none of them can enter an archive.
 
 ## TestFlight submissions

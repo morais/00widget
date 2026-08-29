@@ -44,7 +44,15 @@ struct ZeroZeroWidgetApp: App {
                 // Cleared here rather than regenerated, so the run goes on to
                 // tap the same "Generate sample widgets" button a user taps
                 // instead of needing a debug affordance of its own.
+                #if ZW_ACCESSIBILITY_AUDITS
+                if ProcessInfo.processInfo.arguments.contains("-ZWAccessibilitySeedSamples") {
+                    env.generateSampleCards()
+                } else {
+                    env.clearSampleCards()
+                }
+                #else
                 env.clearSampleCards()
+                #endif
                 #endif
                 Task { await env.startupSync() }
                 #if ZW_SUBSCRIPTIONS_ENABLED
