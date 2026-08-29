@@ -348,10 +348,13 @@ private struct TVLiveActivityCardView: View {
                     focusSettings()
                 }
             }
+            // A card with no link is still the thing focus lands on and the
+            // thing VoiceOver reads, so it stays a focusable button — but it
+            // must not claim it can be activated, because `openLink` returns
+            // immediately when there is no URL. See `TVDashboardCardView`.
+            .modifier(TVInertWhenUnlinked(isLinked: activity.deepLink != nil))
             .accessibilityHint(
-                activity.deepLink == nil
-                    ? "Live Activity summary"
-                    : "Shows a QR code for the activity link"
+                activity.deepLink == nil ? "" : "Shows a QR code for the activity link"
             )
 
             if activity.deepLink != nil {
@@ -599,7 +602,8 @@ private struct TVDashboardCardView: View {
                 .accessibilityLabel(Text(accessibilitySummary))
             }
             .buttonStyle(.card)
-            .accessibilityHint(card.deepLink == nil ? "Widget summary" : "Shows a QR code for the web link")
+            .modifier(TVInertWhenUnlinked(isLinked: card.deepLink != nil))
+            .accessibilityHint(card.deepLink == nil ? "" : "Shows a QR code for the web link")
 
             controls
         }
@@ -758,6 +762,32 @@ private struct TVDashboardCardView: View {
 
     private func actionIcon(_ action: ActionDefinition) -> String {
         action.role == .destructive ? "exclamationmark.triangle.fill" : "bolt.fill"
+    }
+}
+
+/// Drops the button trait from a card that has nowhere to go.
+///
+/// Every card and every Live Activity on the dashboard is wrapped in a
+/// `Button` so it can take focus and wear the system's card treatment, but a
+/// producer is not required to send a `deepLink` and most do not. Such a card
+/// announced itself as a button, and pressing Select did nothing at all — no
+/// screen, no sound, no message, and nothing to distinguish it from a button
+/// that had failed.
+///
+/// Removing the trait rather than the `Button` is deliberate: focus and the
+/// card style are the reasons the button is there, and `.card` is a button
+/// style with no non-button equivalent. What is wrong is the claim, not the
+/// container.
+private struct TVInertWhenUnlinked: ViewModifier {
+    let isLinked: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isLinked {
+            content
+        } else {
+            content.accessibilityRemoveTraits(.isButton)
+        }
     }
 }
 
