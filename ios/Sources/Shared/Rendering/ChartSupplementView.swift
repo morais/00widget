@@ -20,12 +20,7 @@ public enum ChartSeriesPalette {
     }
 
     public static func signalTint(_ signal: MetricSignal, base: Color) -> Color {
-        switch signal {
-        case .favorable: return .green
-        case .neutral: return .secondary
-        case .caution: return .orange
-        case .unfavorable: return .red
-        }
+        signal.tint
     }
 
     public static func opacity(for role: MetricRole?) -> Double {
@@ -208,11 +203,6 @@ public struct ChartSupplementView: View {
     }
 
     private func signalSymbol(_ signal: MetricSignal) -> String {
-        switch signal {
-        case .favorable: return "checkmark.circle.fill"
-        case .neutral: return "circle.fill"
-        case .caution: return "exclamationmark.triangle.fill"
-        case .unfavorable: return "xmark.octagon.fill"
-        }
+        signal.symbolName
     }
 }

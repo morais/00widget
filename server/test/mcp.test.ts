@@ -378,6 +378,14 @@ describe("tools/list", () => {
     expect(chart.properties.semantic.properties.role.enum).toContain("forecast");
     expect(chart.properties.referenceMetadata.properties.label.type).toBe("string");
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
+
+    const start = tools.find((tool) => tool.name === "start_live_activity")!;
+    const update = tools.find((tool) => tool.name === "update_live_activity")!;
+    const end = tools.find((tool) => tool.name === "end_live_activity")!;
+    expect(JSON.stringify(start.inputSchema)).toContain('"signal"');
+    expect(JSON.stringify(start.inputSchema)).toContain('"favorable"');
+    expect(JSON.stringify(update.inputSchema)).toContain('"signal"');
+    expect(JSON.stringify(end.inputSchema)).toContain('"finalSignal"');
   });
 });
 

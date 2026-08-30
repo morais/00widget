@@ -111,6 +111,7 @@ enum LiveActivityAccessibilitySummary {
         summary(
             title: session.title,
             state: session.state,
+            signal: session.signal,
             value: session.value,
             unit: session.unit,
             progress: session.progress,
@@ -123,6 +124,7 @@ enum LiveActivityAccessibilitySummary {
     static func summary(
         title: String,
         state: String,
+        signal: MetricSignal? = nil,
         value: String?,
         unit: String?,
         progress: Double?,
@@ -136,6 +138,7 @@ enum LiveActivityAccessibilitySummary {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
         parts.append(headline.isEmpty ? state : headline)
+        if let signal { parts.append(signal.rawValue) }
 
         if activeItemCount > 0 {
             parts.append("\(activeItemCount) active")

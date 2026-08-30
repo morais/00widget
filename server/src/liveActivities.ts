@@ -2,6 +2,7 @@ import type {
   CountdownGranularity,
   Env,
   LiveActivitySession,
+  MetricSignal,
 } from "./types";
 import {
   RegisterLiveActivitySchema,
@@ -41,6 +42,7 @@ function activityKitDate(value: string): number {
 function initialContentState(
   activity: {
     state: string;
+    signal?: MetricSignal;
     subtitle?: string;
     icon?: string;
     statusIcon?: string;
@@ -56,6 +58,7 @@ function initialContentState(
   updatedAt: string,
 ): ContentStateRecord {
   const state: ContentStateRecord = { state: activity.state, updatedAt };
+  if (activity.signal !== undefined) state.signal = activity.signal;
   if (activity.subtitle !== undefined) state.subtitle = activity.subtitle;
   if (activity.icon !== undefined) state.icon = activity.icon;
   if (activity.statusIcon !== undefined) state.statusIcon = activity.statusIcon;
@@ -346,6 +349,7 @@ export async function startLiveActivity(
     title: d.title,
     subtitle: d.subtitle,
     state: d.state,
+    signal: d.signal,
     icon: d.icon,
     statusIcon: d.statusIcon,
     value: d.value,
@@ -557,6 +561,7 @@ export async function updateLiveActivity(
     title: d.title ?? instance.title,
     subtitle: merge(d.subtitle, instance.subtitle),
     state: d.state ?? instance.state,
+    signal: merge(d.signal, instance.signal),
     icon: merge(d.icon, instance.icon),
     statusIcon: merge(d.statusIcon, instance.statusIcon),
     value: merge(d.value, instance.value),
@@ -652,6 +657,8 @@ export async function endLiveActivity(
     ? initialContentState(instance, instance.updatedAt)
     : {};
   Object.assign(completeFinalState, finalContentState);
+  if (d.finalSignal === null) delete completeFinalState.signal;
+  else if (d.finalSignal !== undefined) completeFinalState.signal = d.finalSignal;
   if (typeof completeFinalState.state !== "string") completeFinalState.state = "finished";
   completeFinalState.updatedAt = new Date().toISOString();
   const result = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {

@@ -497,6 +497,18 @@ describe("guest link browser page", () => {
     expect(body).toContain(".spark rect.role-forecast{");
   });
 
+  it("renders a Live Activity signal with fixed classes and a non-color label", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+
+    expect(script).toContain("SIGNAL_MARK[a.signal]");
+    expect(script).toContain("SEM_SIGNAL[signal]");
+    expect(script).toContain("esc(a.signal)");
+    expect(script).not.toContain("class=\"'+a.signal");
+    expect(body).toContain(".prog rect.fill.sig-caution{");
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');

@@ -375,6 +375,7 @@ describe("live activities", () => {
       kind: "job",
       title: "CI build",
       state: "running",
+      signal: "caution",
       subtitle: "linting",
       progress: 0.4,
       endsAt: "2026-04-26T18:45:00Z",
@@ -388,6 +389,7 @@ describe("live activities", () => {
     await post("update", { externalActivityId: "build-1", state: "testing" });
     expect(await read()).toMatchObject({
       state: "testing",
+      signal: "caution",
       subtitle: "linting",
       progress: 0.4,
       endsAt: "2026-04-26T18:45:00Z",
@@ -398,6 +400,7 @@ describe("live activities", () => {
     const cleared = await post("update", {
       externalActivityId: "build-1",
       state: "passed",
+      signal: null,
       progress: null,
       endsAt: null,
       chart: null,
@@ -411,6 +414,7 @@ describe("live activities", () => {
     expect(after).not.toHaveProperty("endsAt");
     expect(after).not.toHaveProperty("chart");
     expect(after).not.toHaveProperty("subtitle");
+    expect(after).not.toHaveProperty("signal");
     // Granularity means nothing without a date to count down to.
     expect(after).not.toHaveProperty("countdownGranularity");
   });
@@ -1205,6 +1209,7 @@ describe("live activities", () => {
             kind: "appliance",
             title: "Washer",
             state: "running",
+            signal: "neutral",
             subtitle: "Washing",
             items: [{
               id: "drum",
@@ -1244,6 +1249,7 @@ describe("live activities", () => {
           body: JSON.stringify({
             externalActivityId: "washer-wire",
             subtitle: "Rinsing",
+            signal: "caution",
           }),
         }),
         env,
@@ -1256,6 +1262,7 @@ describe("live activities", () => {
           body: JSON.stringify({
             externalActivityId: "washer-wire",
             finalState: "finished",
+            finalSignal: "favorable",
           }),
         }),
         env,
@@ -1273,7 +1280,7 @@ describe("live activities", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(startAps.alert).toEqual({ title: "Washer started", body: "Washing" });
-    expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing" });
+    expect(startAps["content-state"]).toMatchObject({ state: "running", subtitle: "Washing", signal: "neutral" });
     expect(startAps["content-state"].items).toEqual([{
       id: "drum",
       title: "Drum",
@@ -1289,7 +1296,7 @@ describe("live activities", () => {
 
     const updateState = captured[1].aps["content-state"];
     expect(captured[1].aps.event).toBe("update");
-    expect(updateState).toMatchObject({ state: "running", subtitle: "Rinsing" });
+    expect(updateState).toMatchObject({ state: "running", subtitle: "Rinsing", signal: "caution" });
     expect(updateState.items).toEqual(startAps["content-state"].items);
     expect(updateState.countdownGranularity).toBe("second");
     expect(typeof updateState.updatedAt).toBe("number");
@@ -1298,7 +1305,7 @@ describe("live activities", () => {
     const endState = captured[2].aps["content-state"];
     expect(captured[2].aps.event).toBe("end");
     expect(captured[2].aps["dismissal-date"]).toBe(captured[2].aps.timestamp - 1);
-    expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing" });
+    expect(endState).toMatchObject({ state: "finished", subtitle: "Rinsing", signal: "favorable" });
     expect(endState.items).toEqual(startAps["content-state"].items);
     expect(endState.countdownGranularity).toBe("second");
     expect(typeof endState.updatedAt).toBe("number");

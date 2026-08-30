@@ -1033,6 +1033,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
     "title": "CI build #1234",
     "subtitle": "running tests",
     "state": "running",
+    "signal": "neutral",
     "icon": "hammer",
     "progress": 0.2,
     "endsAt": "2026-04-26T18:45:00Z",
@@ -1099,6 +1100,7 @@ Live Activity rendering fields:
 - `kind`: one of `generic`, `progress`, `charging`, `appliance`, `job`, `timer`. If no icon is set, these render as `square.dashed`, `chart.bar`, `bolt.car`, `washer`, `hammer`, and `timer`.
 - `icon`: optional SF Symbol name, such as `flame.fill`; overrides the kind icon. Same semantics as card icons.
 - `statusIcon`: optional second SF Symbol for what the activity is *doing* right now, drawn beside the main one — `bolt.fill` while boosting, `exclamationmark.triangle.fill` when something needs attention, `pause.fill` while held. Where `icon` says what the activity is, this says what it is doing, so it is content state and may change on every update; send `null` to remove it. The same field exists on each item. Omitted from the compact and minimal Dynamic Island, which have no room for a second glyph.
+- `signal`: optional `favorable`, `neutral`, `caution`, or `unfavorable` meaning for the current state. The clients choose the color and fallback symbol; producers never send presentation colors. It is content state, so an update may change it as conditions change, and `null` returns to the ordinary `kind` accent. Use it for meaning such as charging cheaply, approaching a limit, or a failed run; keep the free-form detail in `state` and `subtitle`.
 - `progress`: optional `0.0`–`1.0` progress bar. It is also what fills the Dynamic Island's minimal ring — see ["When a second Live Activity is running"](#when-a-second-live-activity-is-running).
 - `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `statusIcon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen, the expanded Dynamic Island, the app's Activities tab, and the Apple TV dashboard, in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
 - `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. When both `chart` and `progress` are sent, the chart wins the space. When `items` are also sent, the chart loses it — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space) before sending both.
@@ -1155,7 +1157,7 @@ after `start`**:
 - `deepLink`
 
 Everything else is content state and updates normally: `subtitle`, `state`,
-`icon`, `statusIcon`, `value`, `unit`, `progress`, `items`, `chart`, `endsAt`,
+`signal`, `icon`, `statusIcon`, `value`, `unit`, `progress`, `items`, `chart`, `endsAt`,
 `countdownGranularity`, `staleAt`, `relevanceScore`.
 
 So `title` must be the stable *name of the thing*, never a value that moves.
@@ -1285,6 +1287,7 @@ already has. To *remove* one, send it as `null`.
 {
   "externalActivityId": "ci-build-2026-04-26-1234",
   "state": "passed",
+  "signal": "favorable",
   "progress": null,
   "endsAt": null,
   "chart": null
@@ -1296,7 +1299,7 @@ countdown keeps running against a time that has passed, the progress bar stays
 frozen at 0.6, and the chart keeps taking the Lock Screen space that `progress`
 would otherwise have.
 
-Clearable this way: `subtitle`, `icon`, `statusIcon`, `value`, `unit`,
+Clearable this way: `subtitle`, `signal`, `icon`, `statusIcon`, `value`, `unit`,
 `progress`, `items`, `chart`, `endsAt`, `countdownGranularity`, `staleAt`,
 `relevanceScore`.
 Clearing `endsAt` drops `countdownGranularity` with it, since it means nothing
@@ -1415,14 +1418,16 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/end" \
   --data '{
     "externalActivityId": "ci-build-2026-04-26-1234",
     "finalSubtitle": "passed in 4m 12s",
-    "finalState": "finished"
+    "finalState": "finished",
+    "finalSignal": "favorable"
   }'
 ```
 
 Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
 
-The final frame is content state too, so `finalSubtitle` and `finalState` are
-the fields that land. There is no `finalTitle` — the title is an attribute and
+The final frame is content state too, so `finalSubtitle`, `finalState`, and
+`finalSignal` are the fields that land. Omit `finalSignal` to keep the current
+signal, or send `null` to clear it. There is no `finalTitle` — the title is an attribute and
 cannot be rewritten, not even on the last frame. Say what happened in
 `finalSubtitle`.
 

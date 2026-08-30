@@ -40,7 +40,9 @@ struct SampleDataFactoryTests {
 
     @Test("The demo Live Activity shows more than ten forecast ranges")
     func liveActivityUsesLongWindow() throws {
-        let chart = try #require(SampleDataFactory.makeLiveActivitySession().chart)
+        let activity = SampleDataFactory.makeLiveActivitySession()
+        let chart = try #require(activity.chart)
+        #expect(activity.signal == .favorable)
         let points = chart.points
         #expect(points.count == 12)
         #expect(points.count <= DashboardChart.publishedPointLimit)

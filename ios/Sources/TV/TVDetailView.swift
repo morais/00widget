@@ -34,11 +34,11 @@ enum TVDetailSubject: Identifiable {
 
     /// Everything the panel draws in colour: the icon, the plot, the progress
     /// bar, the badge. A card takes it from its status, an activity from its
-    /// kind, which is what both surfaces already do.
+    /// kind or its current semantic signal, which is what both surfaces do.
     var tint: Color {
         switch self {
         case .card(let card): card.status.tint
-        case .activity(let activity): activity.kind.tint
+        case .activity(let activity): activity.tint
         }
     }
 
@@ -203,15 +203,15 @@ struct TVDetailView: View {
             .accessibilityValue(card.status.label)
         case .activity(let activity):
             HStack(spacing: 10) {
-                if let statusIcon = activity.statusIcon {
+                if let statusIcon = activity.semanticStatusIcon {
                     Image(systemName: statusIcon)
                         .font(.title3)
-                        .foregroundStyle(activity.kind.tint)
+                        .foregroundStyle(activity.tint)
                         .accessibilityHidden(true)
                 }
                 Text(activity.state.capitalized)
             }
-            .modifier(TVChip(tint: activity.kind.tint))
+            .modifier(TVChip(tint: activity.tint))
         }
     }
 
@@ -600,13 +600,13 @@ private struct TVActivityDetailContent: View {
             }
 
             if let chart = activity.chart, chart.isRenderable {
-                SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 6)
+                SparklineView(chart: chart, tint: activity.tint, lineWidth: 6)
                     .frame(height: activeItems.isEmpty ? 300 : 160)
                     .accessibilityElement()
                     .accessibilityLabel(chart.accessibilityDescription)
             } else if let progress = activity.progress, activity.endsAt == nil {
                 ProgressView(value: max(0, min(progress, 1)))
-                    .tint(activity.kind.tint)
+                    .tint(activity.tint)
                     .scaleEffect(x: 1, y: 2.5, anchor: .leading)
                     .padding(.vertical, 8)
             }

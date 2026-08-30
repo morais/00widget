@@ -31,6 +31,7 @@ struct AccessibilitySummaryTests {
             title: "Washer",
             subtitle: "Rinse cycle",
             state: "running",
+            signal: .caution,
             value: "18",
             unit: "min",
             progress: 0.42,
@@ -38,7 +39,7 @@ struct AccessibilitySummaryTests {
             staleAt: now.addingTimeInterval(600)
         )
 
-        #expect(LiveActivityAccessibilitySummary.summary(for: session) == "Washer, 18 min, 42% complete, Rinse cycle")
+        #expect(LiveActivityAccessibilitySummary.summary(for: session) == "Washer, 18 min, caution, 42% complete, Rinse cycle")
     }
 
     @Test("Activity item summary combines value, progress, and context")

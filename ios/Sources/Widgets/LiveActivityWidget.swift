@@ -6,7 +6,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ZeroZeroWidgetActivityAttributes.self) { context in
             LockScreenView(attributes: context.attributes, state: context.state)
-                .activityBackgroundTint(LiveActivityBackground.tint(for: context.attributes.kind))
+                .activityBackgroundTint(LiveActivityBackground.tint(for: context.attributes.kind, signal: context.state.signal))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(tapURL(for: context.attributes))
         } dynamicIsland: { context in
@@ -14,7 +14,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     Label(context.attributes.title, systemImage: iconName(attributes: context.attributes, state: context.state))
                         .font(.caption)
-                        .foregroundStyle(context.attributes.kind.tint)
+                        .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .layoutPriority(1)
@@ -66,7 +66,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         // Ranked above progress: a producer sending both has a
                         // number that moves, and the plot says which way while
                         // a bar only says how far.
-                        SparklineView(chart: chart, tint: context.attributes.kind.tint, lineWidth: 1.5)
+                        SparklineView(chart: chart, tint: context.attributes.kind.tint(for: context.state.signal), lineWidth: 1.5)
                             .frame(height: 26)
                             .padding(.horizontal, 8)
                             .padding(.bottom, 4)
@@ -77,7 +77,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 }
             } compactLeading: {
                 IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
-                    .foregroundStyle(context.attributes.kind.tint)
+                    .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
             } compactTrailing: {
                 // The compact trailing region is a few points wide. Without a
                 // scale factor the text is clipped rather than shrunk, and it
@@ -109,7 +109,7 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             } minimal: {
                 MinimalIslandView(
                     state: context.state,
-                    tint: context.attributes.kind.tint,
+                    tint: context.attributes.kind.tint(for: context.state.signal),
                     glyph: islandIconName(attributes: context.attributes, state: context.state)
                 )
             }
@@ -265,6 +265,8 @@ private struct LockScreenView: View {
     // charging iPhone in landscape. See `LiveActivityBackground`.
     @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
 
+    private var tint: Color { attributes.kind.tint(for: state.signal) }
+
     var body: some View {
         Group {
             switch activityFamily {
@@ -284,6 +286,7 @@ private struct LockScreenView: View {
         return LiveActivityAccessibilitySummary.summary(
             title: attributes.title,
             state: state.state,
+            signal: state.signal,
             value: state.value,
             unit: state.unit,
             progress: state.progress,
@@ -307,7 +310,7 @@ private struct LockScreenView: View {
             // StandBy an inset wash of our own reads as stranded, so there the
             // flat activityBackgroundTint carries the surface by itself.
             if showsContainerBackground {
-                LiveActivityBackground.gradient(for: attributes.kind)
+                LiveActivityBackground.gradient(for: attributes.kind, signal: state.signal)
             }
         }
     }
@@ -400,7 +403,7 @@ private struct LockScreenView: View {
             // Keep the identity column clear while allowing the plot to use
             // the space beneath the trailing value/status presentation.
             if let chart = state.chart, chart.isRenderable {
-                SparklineView(chart: chart, tint: attributes.kind.tint, lineWidth: 1.5)
+                SparklineView(chart: chart, tint: tint, lineWidth: 1.5)
                     .frame(height: 24)
                     .padding(.leading, 44)
             }
@@ -502,10 +505,10 @@ private struct LockScreenView: View {
     /// and a second glyph there would crowd out the value.
     @ViewBuilder
     private func statusGlyph(_ font: Font) -> some View {
-        if let statusIcon = state.statusIcon {
+        if let statusIcon = state.statusIcon ?? state.signal?.symbolName {
             Image(systemName: statusIcon)
                 .font(font)
-                .foregroundStyle(attributes.kind.tint)
+                .foregroundStyle(tint)
         }
     }
 
@@ -533,19 +536,19 @@ private struct LockScreenView: View {
 /// The tint now mixes the activity's own accent into a dark ground the white
 /// `activitySystemActionForegroundColor` stays legible against.
 enum LiveActivityBackground {
-    static func tint(for kind: LiveActivityKind) -> Color {
+    static func tint(for kind: LiveActivityKind, signal: MetricSignal? = nil) -> Color {
         // Mostly ground, a little accent: enough to tell a charging session
         // from a running job at a glance across a room, not enough to fight
         // the foreground.
-        Color.black.mix(with: kind.tint, by: 0.16).opacity(0.72)
+        Color.black.mix(with: kind.tint(for: signal), by: 0.16).opacity(0.72)
     }
 
     /// Drawn only where the system provides a container. Apple's guidance is
     /// that an inset background of our own looks stranded once StandBy
     /// enlarges it, so there this is omitted and `tint(for:)` stands alone.
-    static func gradient(for kind: LiveActivityKind) -> LinearGradient {
+    static func gradient(for kind: LiveActivityKind, signal: MetricSignal? = nil) -> LinearGradient {
         LinearGradient(
-            colors: [kind.tint.opacity(0.16), .clear],
+            colors: [kind.tint(for: signal).opacity(0.16), .clear],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

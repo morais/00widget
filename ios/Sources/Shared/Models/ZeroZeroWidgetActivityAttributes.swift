@@ -6,6 +6,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     public struct ContentState: Codable, Hashable, Sendable {
         public var subtitle: String?
         public var state: String
+        public var signal: MetricSignal?
         public var icon: String?
         /// What the activity is doing right now, beside the main icon. Content
         /// state, unlike the attributes, so it changes on every update — which
@@ -24,6 +25,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         public init(
             subtitle: String? = nil,
             state: String,
+            signal: MetricSignal? = nil,
             icon: String? = nil,
             statusIcon: String? = nil,
             value: String? = nil,
@@ -38,6 +40,7 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
         ) {
             self.subtitle = subtitle
             self.state = state
+            self.signal = signal
             self.icon = icon
             self.statusIcon = statusIcon
             self.value = value
@@ -105,6 +108,7 @@ public extension ZeroZeroWidgetActivityAttributes {
         let state = ContentState(
             subtitle: session.subtitle,
             state: session.state,
+            signal: session.signal,
             icon: session.icon,
             statusIcon: session.statusIcon,
             value: session.value,

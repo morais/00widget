@@ -78,6 +78,26 @@ public enum DashboardStatus: String, Codable, CaseIterable, Hashable, Sendable {
     }
 }
 
+public extension MetricSignal {
+    var tint: Color {
+        switch self {
+        case .favorable: return .green
+        case .neutral: return .secondary
+        case .caution: return .orange
+        case .unfavorable: return .red
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .favorable: return "checkmark.circle.fill"
+        case .neutral: return "circle.fill"
+        case .caution: return "exclamationmark.triangle.fill"
+        case .unfavorable: return "xmark.octagon.fill"
+        }
+    }
+}
+
 public extension LiveActivityKind {
     /// A stable semantic accent for Live Activity surfaces. Charging uses
     /// green rather than inheriting each platform's default blue/white tint.
@@ -89,4 +109,13 @@ public extension LiveActivityKind {
         case .generic: return .accentColor
         }
     }
+
+    func tint(for signal: MetricSignal?) -> Color {
+        signal?.tint ?? tint
+    }
+}
+
+public extension LiveActivitySession {
+    var tint: Color { kind.tint(for: signal) }
+    var semanticStatusIcon: String? { statusIcon ?? signal?.symbolName }
 }

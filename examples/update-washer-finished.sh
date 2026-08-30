@@ -12,6 +12,7 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/update" \
   --data '{
     "externalActivityId": "washer-2026-04-24",
     "state": "finished",
+    "signal": "favorable",
     "title": "Washing machine",
     "subtitle": "Cycle finished",
     "progress": 1.0,

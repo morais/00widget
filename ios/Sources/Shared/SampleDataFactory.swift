@@ -211,6 +211,7 @@ public enum SampleDataFactory {
             title: "Home battery",
             subtitle: "Charging from solar",
             state: "charging",
+            signal: .favorable,
             icon: "battery.100percent.bolt",
             statusIcon: "bolt.fill",
             value: "95",

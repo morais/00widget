@@ -313,7 +313,7 @@ private struct TVLiveActivityCardView: View {
                     // Taller than the widget card's plot: this one has the
                     // full width of the screen, and a 46-point trace read
                     // as a flat line from a sofa.
-                    SparklineView(chart: chart, tint: activity.kind.tint, lineWidth: 4)
+                    SparklineView(chart: chart, tint: activity.tint, lineWidth: 4)
                         .frame(height: 72)
                 } else if let progress = activity.progress,
                           activity.endsAt == nil,
@@ -321,7 +321,7 @@ private struct TVLiveActivityCardView: View {
                           // every other surface.
                           activeItems.isEmpty {
                     ProgressView(value: max(0, min(progress, 1)))
-                        .tint(activity.kind.tint)
+                        .tint(activity.tint)
                 }
 
                 Spacer(minLength: 0)
@@ -362,12 +362,12 @@ private struct TVLiveActivityCardView: View {
         HStack(spacing: 12) {
             Image(systemName: activity.detailIconName)
                 .font(.title2)
-                .foregroundStyle(activity.kind.tint)
+                .foregroundStyle(activity.tint)
             // What the activity is doing right now, beside what it is.
-            if let statusIcon = activity.statusIcon {
+            if let statusIcon = activity.semanticStatusIcon {
                 Image(systemName: statusIcon)
                     .font(.headline)
-                    .foregroundStyle(activity.kind.tint)
+                    .foregroundStyle(activity.tint)
             }
             Text(activity.title)
                 .font(.title3.weight(.semibold))
@@ -379,8 +379,8 @@ private struct TVLiveActivityCardView: View {
                 .lineLimit(1)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Capsule().fill(activity.kind.tint.opacity(0.18)))
-                .foregroundStyle(activity.kind.tint)
+                .background(Capsule().fill(activity.tint.opacity(0.18)))
+                .foregroundStyle(activity.tint)
         }
     }
 

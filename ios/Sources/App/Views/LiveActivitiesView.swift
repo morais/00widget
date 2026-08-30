@@ -167,12 +167,12 @@ private struct ActivityCard: View {
                 VStack(spacing: 2) {
                     Image(systemName: iconName)
                         .font(.title2)
-                        .foregroundStyle(session.kind.tint)
+                        .foregroundStyle(session.tint)
                     // What the activity is doing right now, under what it is.
-                    if let statusIcon = session.statusIcon {
+                    if let statusIcon = session.semanticStatusIcon {
                         Image(systemName: statusIcon)
                             .font(.caption)
-                            .foregroundStyle(session.kind.tint)
+                            .foregroundStyle(session.tint)
                     }
                 }
                 .frame(width: 32)
@@ -225,7 +225,7 @@ private struct ActivityCard: View {
             } else if let progress = session.progress, session.endsAt == nil, session.chart == nil {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
-                    .tint(session.kind.tint)
+                    .tint(session.tint)
             }
 
             // Unlike the Lock Screen banner, the app card can afford the plot
@@ -237,7 +237,7 @@ private struct ActivityCard: View {
             // white in light mode — that edge reads as the plot bleeding out
             // of a clipped container rather than as the bottom of a chart.
             if let chart = session.chart, chart.isRenderable {
-                SparklineView(chart: chart, tint: session.kind.tint, lineWidth: 2)
+                SparklineView(chart: chart, tint: session.tint, lineWidth: 2)
                     .frame(height: 56)
                     .padding(10)
                     .background(
@@ -265,11 +265,17 @@ private struct ActivityCard: View {
     }
 
     private var stateBadge: some View {
-        Text("Active")
+        Label {
+            Text("Active")
+        } icon: {
+            if let signal = session.signal {
+                Image(systemName: signal.symbolName)
+            }
+        }
             .font(.caption.weight(.medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Capsule().fill(Color.primary.opacity(0.12)))
+            .background(Capsule().fill(session.tint.opacity(0.16)))
             .foregroundStyle(.primary)
     }
 
@@ -323,7 +329,7 @@ private struct ActivityCard: View {
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(Color.secondary.opacity(0.16)))
+                .background(Capsule().fill(session.tint.opacity(0.16)))
         }
     }
 

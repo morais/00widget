@@ -31,6 +31,9 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     public var title: String
     public var subtitle: String?
     public var state: String
+    /// Contextual meaning of the current state. Content state, so it can move
+    /// between favorable, neutral, caution, and unfavorable without restarting.
+    public var signal: MetricSignal?
     public var icon: String?
     /// What the activity is doing right now, beside the main icon. Content
     /// state, so it changes on every update.
@@ -80,6 +83,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         title: String,
         subtitle: String? = nil,
         state: String,
+        signal: MetricSignal? = nil,
         icon: String? = nil,
         statusIcon: String? = nil,
         value: String? = nil,
@@ -102,6 +106,7 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         self.title = title
         self.subtitle = subtitle
         self.state = state
+        self.signal = signal
         self.icon = icon
         self.statusIcon = statusIcon
         self.value = value
@@ -127,6 +132,8 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
         state = try container.decode(String.self, forKey: .state)
+        signal = try container.decodeIfPresent(String.self, forKey: .signal)
+            .flatMap(MetricSignal.init(rawValue:))
         icon = try container.decodeIfPresent(String.self, forKey: .icon)
         statusIcon = try container.decodeIfPresent(String.self, forKey: .statusIcon)
         value = try container.decodeIfPresent(String.self, forKey: .value)
@@ -150,7 +157,8 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case activityInstanceId, externalActivityId, kind, title, subtitle, state, icon, statusIcon, value, unit
+        case activityInstanceId, externalActivityId, kind, title, subtitle, state, signal
+        case icon, statusIcon, value, unit
         case progress, items, chart, endsAt, countdownGranularity, startedAt, updatedAt, staleAt
         case relevanceScore, deepLink, actions
     }

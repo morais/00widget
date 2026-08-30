@@ -37,6 +37,11 @@ public enum MetricSignal: String, Codable, CaseIterable, Sendable {
     case caution
     case unfavorable
 
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MetricSignal(rawValue: raw) ?? .neutral
+    }
+
     static func strongest<S: Sequence>(_ signals: S) -> MetricSignal? where S.Element == MetricSignal {
         signals.max { lhs, rhs in lhs.precedence < rhs.precedence }
     }

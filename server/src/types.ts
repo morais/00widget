@@ -945,6 +945,10 @@ export const StartLiveActivitySchema = z.object({
     + "\"waiting for approval\". Rendered as text; no value has special meaning, "
     + "and setting it to \"finished\" does not end the activity.",
   ),
+  signal: MetricSignalSchema.optional().describe(
+    "Contextual meaning of the activity's current state. It changes the renderer-owned accent, "
+    + "symbol, and accessibility wording without changing the free-form state text.",
+  ),
   icon: OptionalIconString.describe("SF Symbol name, overriding the one `kind` implies."),
   statusIcon: OptionalIconString.describe(
     "A second SF Symbol for what the activity is doing right now, drawn beside "
@@ -1035,6 +1039,9 @@ export const UpdateLiveActivitySchema = z.object({
   state: z.string().min(1).max(FieldLimits.activityState).describe(
     "Where the run is up to now.",
   ).optional(),
+  signal: MetricSignalSchema.nullish().describe(
+    "New contextual signal for the activity shell. `null` returns to the kind's normal accent.",
+  ),
   title: z.string().min(1).max(FieldLimits.title).optional().describe(
     "Accepted and stored, but it does NOT change the running activity: the "
     + "title is frozen when it starts. Leave it out of updates.",
@@ -1104,6 +1111,7 @@ export const LiveActivitySessionSchema = z.object({
   title: TitleString,
   subtitle: OptionalSubtitleString,
   state: z.string().min(1).max(FieldLimits.activityState),
+  signal: MetricSignalSchema.optional(),
   icon: OptionalIconString,
   statusIcon: OptionalIconString,
   value: OptionalValueString,
@@ -1133,6 +1141,9 @@ export const EndLiveActivitySchema = z.object({
   ),
   finalState: z.string().max(FieldLimits.activityState).optional().describe(
     "The last state text. Defaults to \"finished\".",
+  ),
+  finalSignal: MetricSignalSchema.nullish().describe(
+    "Contextual signal for the final frame. Omitted keeps the current signal; `null` clears it.",
   ),
   dismissalDate: IsoDate.optional().describe(
     "Keeps the final frame on the Lock Screen until this time, within Apple's "
@@ -1328,6 +1339,7 @@ export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type DashboardChart = z.infer<typeof DashboardChartSchema>;
 export type ChartStyle = z.infer<typeof ChartStyleSchema>;
+export type MetricSignal = z.infer<typeof MetricSignalSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;
 export type ActionDefinitionInput = z.infer<typeof ActionDefinitionInputSchema>;
 export type ActionPayload = z.infer<typeof ActionPayloadSchema>;
