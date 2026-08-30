@@ -21,6 +21,7 @@ chmod +x *.sh
 - `upsert-school-balances.sh` — a `list` card with sub-items, ranked by their `amount`.
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
 - `upsert-energy-chart.sh` — a vertical `bar` chart with a pinned `min`/`max` axis and dashed `reference` target.
+- `upsert-energy-stacked.sh` — labeled multi-series bars, stacked by default or grouped side by side.
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.

@@ -33,6 +33,9 @@ export const FieldLimits = {
   deepLink: 2048,
   itemCount: 20,
   chartPointCount: 60,
+  chartSeriesCount: 4,
+  chartSeriesLabel: 60,
+  chartAxisLabel: 40,
   briefingSectionCount: 8,
   briefingLabel: 60,
   briefingText: 500,
@@ -239,6 +242,17 @@ export const DashboardBriefingSchema = z.object({
 // signed values grow up or down from a zero rule. Net import/export, commits
 // added/removed, spend vs refund.
 export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
+export const ChartStackingSchema = z.enum(["stacked", "grouped"]);
+
+export const DashboardChartSeriesSchema = z.object({
+  id: IdString.describe("Stable series id, used to keep its color consistent."),
+  label: z.string().min(1).max(FieldLimits.chartSeriesLabel).describe(
+    "Short legend label.",
+  ),
+  points: z.array(z.number().min(0)).min(2).max(FieldLimits.chartPointCount).describe(
+    "Non-negative values aligned one-for-one with every other series and labels.",
+  ),
+});
 
 // The numeric series behind a `chart` card. Points are plotted evenly spaced in
 // the order given, oldest first; there are no timestamps, because a widget this
@@ -248,7 +262,7 @@ export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
 // which makes every card use its full height but also makes a flat-but-noisy
 // series look dramatic. Publish an explicit range whenever the absolute scale
 // is the point (a percentage, a 0-100 score).
-export const DashboardChartSchema = z
+const DashboardChartObjectSchema = z
   .object({
     points: z.array(z.number()).min(2).max(FieldLimits.chartPointCount).describe(
       "2-60 values, oldest first, plotted evenly spaced. There are no "
@@ -279,10 +293,81 @@ export const DashboardChartSchema = z
       + "the bottom of the range; `delta` anchors at zero instead, so signed "
       + "values grow up or down from a zero rule.",
     ),
+    labels: z.array(z.string().max(FieldLimits.chartAxisLabel))
+      .min(2)
+      .max(FieldLimits.chartPointCount)
+      .optional()
+      .describe(
+        "Optional category labels aligned with points. Small surfaces omit them; "
+        + "large widgets and detail views show a readable subset.",
+      ),
+    series: z.array(DashboardChartSeriesSchema)
+      .min(2)
+      .max(FieldLimits.chartSeriesCount)
+      .optional()
+      .describe(
+        "Two to four series for stacked or grouped vertical bars. The server "
+        + "derives legacy points as their totals for older clients.",
+      ),
+    stacking: ChartStackingSchema.default("stacked").describe(
+      "How multiple bar series share each category: stacked into one column or grouped side by side.",
+    ),
   })
-  .refine((chart) => chart.min === undefined || chart.max === undefined || chart.min < chart.max, {
-    message: "min must be less than max",
+  .superRefine((chart, ctx) => {
+    if (chart.min !== undefined && chart.max !== undefined && chart.min >= chart.max) {
+      ctx.addIssue({ code: "custom", message: "min must be less than max" });
+    }
+    if (chart.labels && chart.labels.length !== chart.points.length) {
+      ctx.addIssue({ code: "custom", path: ["labels"], message: "must match points length" });
+    }
+    if (chart.series) {
+      if (chart.style !== "bar") {
+        ctx.addIssue({ code: "custom", path: ["style"], message: "multiple series require bar style" });
+      }
+      const ids = new Set(chart.series.map((entry) => entry.id));
+      if (ids.size !== chart.series.length) {
+        ctx.addIssue({ code: "custom", path: ["series"], message: "series ids must be unique" });
+      }
+      chart.series.forEach((entry, index) => {
+        if (entry.points.length !== chart.points.length) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["series", index, "points"],
+            message: "must match every other series length",
+          });
+        }
+      });
+    }
   });
+
+// `points` is the compatibility bridge. A producer sends only the richer
+// series; before validation and storage the server derives one total per
+// category. Builds that predate `series` ignore it and still draw those totals.
+export const DashboardChartSchema = z.preprocess((input) => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const chart = input as Record<string, unknown>;
+  const rawSeries = chart.series;
+  if (!Array.isArray(rawSeries) || rawSeries.length === 0) return input;
+  const pointArrays = rawSeries.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    return (entry as Record<string, unknown>).points;
+  });
+  if (!pointArrays.every(Array.isArray)) return input;
+  const count = (pointArrays[0] as unknown[]).length;
+  if (!pointArrays.every((points) => (points as unknown[]).length === count)) return input;
+  if (!pointArrays.every((points) => (points as unknown[]).every((value) => typeof value === "number"))) {
+    return input;
+  }
+  const points = Array.from({ length: count }, (_, index) =>
+    pointArrays.reduce((total, values) => total + Number((values as number[])[index]), 0));
+  return {
+    ...chart,
+    points,
+    style: chart.style ?? "bar",
+    stacking: chart.stacking ?? "stacked",
+    min: chart.min ?? 0,
+  };
+}, DashboardChartObjectSchema);
 
 // Exactly what every consumer of these values can parse, which is narrower
 // than what `Date.parse` accepts. iOS reads dates with `ISO8601DateFormatter`

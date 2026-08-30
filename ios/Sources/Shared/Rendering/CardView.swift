@@ -263,6 +263,9 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(height: density == .compact ? 32 : 46)
+                if density != .compact {
+                    chartSupplement(legendLimit: 2, labelLimit: 0)
+                }
             case .history:
                 chartHeadline
                 statusStrip(limit: density == .compact ? 12 : 14, height: 14)
@@ -309,6 +312,10 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(minHeight: density == .compact ? 60 : 90, lineWidth: 2.5)
+                chartSupplement(
+                    legendLimit: density == .compact ? 2 : 4,
+                    labelLimit: density == .compact ? 0 : 5
+                )
             case .history:
                 chartHeadline
                 statusStrip(limit: 20, height: 16)
@@ -425,8 +432,14 @@ public struct CardView: View {
                     actionButtons(max: density == .compact ? 2 : 4)
                 }
                 .frame(maxWidth: 200, alignment: .leading)
-                sparkline(minHeight: density == .compact ? 70 : 110, lineWidth: 2.5)
-                    .frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: 4) {
+                    sparkline(minHeight: density == .compact ? 70 : 110, lineWidth: 2.5)
+                    chartSupplement(
+                        legendLimit: density == .compact ? 2 : 4,
+                        labelLimit: density == .compact ? 0 : 6
+                    )
+                }
+                .frame(maxWidth: .infinity)
             }
         case .history:
             HStack(alignment: .top, spacing: 14) {
@@ -497,6 +510,10 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(minHeight: density == .compact ? 100 : 150, lineWidth: 2.5)
+                chartSupplement(
+                    legendLimit: density == .compact ? 2 : 4,
+                    labelLimit: density == .compact ? 0 : 6
+                )
             case .history:
                 chartHeadline
                 statusStrip(limit: 30, height: 18)
@@ -706,6 +723,11 @@ public struct CardView: View {
                 appSubtitle(subtitle)
             }
             sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
+            chartSupplement(
+                legendLimit: density == .compact ? 2 : 4,
+                labelLimit: density == .compact ? 0 : 6,
+                font: .caption
+            )
         case .history:
             appValue
             if let subtitle = card.subtitle {
@@ -1028,6 +1050,24 @@ public struct CardView: View {
             )
             .frame(maxWidth: .infinity)
             .frame(height: height)
+        }
+    }
+
+    @ViewBuilder
+    private func chartSupplement(
+        legendLimit: Int,
+        labelLimit: Int,
+        font: Font = .caption2
+    ) -> some View {
+        if let chart = card.chart,
+           (chart.series?.isEmpty == false || chart.labels?.isEmpty == false) {
+            ChartSupplementView(
+                chart: chart,
+                tint: card.status.tint,
+                legendLimit: legendLimit,
+                labelLimit: labelLimit,
+                font: font
+            )
         }
     }
 

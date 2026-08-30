@@ -28,9 +28,16 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark{display:block;width:100%;height:64px;margin:.75rem 0}
 .spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .spark rect{fill:var(--accent)}
+.spark rect.s1{fill:#af52de}
+.spark rect.s2{fill:#30b0c7}
+.spark rect.s3{fill:#ff9f0a}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
+.chart-legend,.chart-labels{display:flex;gap:.75rem;color:var(--muted);font-size:.75rem;margin:.25rem 0}
+.chart-labels{justify-content:space-between}
+.dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);margin-right:.25rem}
+.dot.s1{background:#af52de}.dot.s2{background:#30b0c7}.dot.s3{background:#ff9f0a}
 .pips{display:flex;gap:3px;margin:.75rem 0}
 .pip{flex:1;height:12px;border-radius:4px;background:var(--muted);opacity:.35}
 .pip.g{background:#34c759;opacity:1}
@@ -90,7 +97,26 @@ const GUEST_SCRIPT = `
     };
     var body='';
     var zero=(ch.style==='delta'&&lo<=0&&hi>=0)?y(0):null;
-    if(ch.style==='bar'||ch.style==='delta'){
+    if(ch.style==='bar'&&ch.series&&ch.series.length>1){
+      var slot=w/n,group=slot*0.76;
+      if(ch.stacking==='grouped'){
+        var one=group/ch.series.length;
+        for(var si=0;si<ch.series.length;si++){
+          for(var gi=0;gi<n;gi++){
+            var gy=y(ch.series[si].points[gi]);
+            body+='<rect class="s'+si+'" x="'+(gi*slot+(slot-group)/2+si*one).toFixed(2)+'" y="'+gy.toFixed(2)+'" width="'+one.toFixed(2)+'" height="'+Math.max(0.6,ht-gy).toFixed(2)+'"/>';
+          }
+        }
+      }else{
+        var sums=[];for(var z=0;z<n;z++){sums.push(0)}
+        for(var ss=0;ss<ch.series.length;ss++){
+          for(var sj=0;sj<n;sj++){
+            var lower=y(sums[sj]);sums[sj]+=ch.series[ss].points[sj];var upper=y(sums[sj]);
+            body+='<rect class="s'+ss+'" x="'+(sj*slot+(slot-group)/2).toFixed(2)+'" y="'+Math.min(lower,upper).toFixed(2)+'" width="'+group.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lower-upper)).toFixed(2)+'"/>';
+          }
+        }
+      }
+    }else if(ch.style==='bar'||ch.style==='delta'){
       var base=zero!=null?zero:ht;
       var bw=w/n*0.7;
       for(var i=0;i<n;i++){
@@ -110,7 +136,17 @@ const GUEST_SCRIPT = `
       var ry=y(ch.reference).toFixed(2);
       ref+='<line x1="0" x2="'+w+'" y1="'+ry+'" y2="'+ry+'" vector-effect="non-scaling-stroke"/>';
     }
-    return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+ref+body+'</svg>';
+    var extra='';
+    if(ch.series&&ch.series.length){
+      extra+='<div class="chart-legend">';
+      for(var s=0;s<ch.series.length;s++){extra+='<span><i class="dot s'+s+'"></i>'+esc(ch.series[s].label)+'</span>'}
+      extra+='</div>';
+    }
+    if(ch.labels&&ch.labels.length){
+      var picks=ch.labels.length<=4?ch.labels:[ch.labels[0],ch.labels[Math.floor((ch.labels.length-1)/2)],ch.labels[ch.labels.length-1]];
+      extra+='<div class="chart-labels">'+picks.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>';
+    }
+    return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+ref+body+'</svg>'+extra;
   };
   // Status names are mapped to fixed class names rather than interpolated:
   // esc() escapes text, not attribute values, and this lands in a class.

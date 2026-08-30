@@ -8,6 +8,23 @@ public enum ChartStyle: String, Codable, CaseIterable, Sendable {
     case delta
 }
 
+public enum ChartStacking: String, Codable, CaseIterable, Sendable {
+    case stacked
+    case grouped
+}
+
+public struct DashboardChartSeries: Codable, Hashable, Identifiable, Sendable {
+    public var id: String
+    public var label: String
+    public var points: [Double]
+
+    public init(id: String, label: String, points: [Double]) {
+        self.id = id
+        self.label = label
+        self.points = points
+    }
+}
+
 /// The numeric series behind a `chart` card. Mirrors `DashboardChartSchema` in
 /// `server/src/types.ts`.
 ///
@@ -28,33 +45,51 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// A target, budget, or threshold drawn as a dashed rule across the plot.
     public var reference: Double?
     public var style: ChartStyle
+    /// Optional category labels aligned one-for-one with `points`.
+    public var labels: [String]?
+    /// Multiple non-negative series. The server always also supplies `points`
+    /// as their per-position totals so builds that predate this field draw one
+    /// truthful fallback series rather than losing the chart.
+    public var series: [DashboardChartSeries]?
+    public var stacking: ChartStacking
 
     public init(
         points: [Double],
         min: Double? = nil,
         max: Double? = nil,
         reference: Double? = nil,
-        style: ChartStyle = .line
+        style: ChartStyle = .line,
+        labels: [String]? = nil,
+        series: [DashboardChartSeries]? = nil,
+        stacking: ChartStacking = .stacked
     ) {
-        self.points = points
+        self.points = points.isEmpty ? DashboardChart.totals(for: series) : points
         self.min = min
         self.max = max
         self.reference = reference
         self.style = style
+        self.labels = labels
+        self.series = series
+        self.stacking = stacking
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        points = try c.decode([Double].self, forKey: .points)
+        series = try c.decodeIfPresent([DashboardChartSeries].self, forKey: .series)
+        points = try c.decodeIfPresent([Double].self, forKey: .points)
+            ?? DashboardChart.totals(for: series)
         min = try c.decodeIfPresent(Double.self, forKey: .min)
         max = try c.decodeIfPresent(Double.self, forKey: .max)
         reference = try c.decodeIfPresent(Double.self, forKey: .reference)
         let rawStyle = try c.decodeIfPresent(String.self, forKey: .style)
         style = rawStyle.flatMap(ChartStyle.init(rawValue:)) ?? .line
+        labels = try c.decodeIfPresent([String].self, forKey: .labels)
+        let rawStacking = try c.decodeIfPresent(String.self, forKey: .stacking)
+        stacking = rawStacking.flatMap(ChartStacking.init(rawValue:)) ?? .stacked
     }
 
     enum CodingKeys: String, CodingKey {
-        case points, min, max, reference, style
+        case points, min, max, reference, style, labels, series, stacking
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the
@@ -87,14 +122,30 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     public func downsampled(toAtMost maxPoints: Int) -> DashboardChart {
         guard maxPoints >= 2, points.count > maxPoints else { return self }
         var reduced = self
-        reduced.points = (0..<maxPoints).map { bucket in
+        let ranges = (0..<maxPoints).map { bucket in
             // Proportional boundaries, so a count that does not divide evenly
             // spreads the remainder across the series instead of piling it
             // into the last bucket.
             let start = points.count * bucket / maxPoints
             let end = Swift.max(start + 1, points.count * (bucket + 1) / maxPoints)
-            let slice = points[start..<end]
+            return start..<end
+        }
+        reduced.points = ranges.map { range in
+            let slice = points[range]
             return slice.reduce(0, +) / Double(slice.count)
+        }
+        if let series {
+            reduced.series = series.map { entry in
+                var entry = entry
+                entry.points = ranges.map { range in
+                    let slice = entry.points[range]
+                    return slice.reduce(0, +) / Double(slice.count)
+                }
+                return entry
+            }
+        }
+        if let labels, labels.count == points.count {
+            reduced.labels = ranges.map { labels[$0.index(before: $0.endIndex)] }
         }
         return reduced
     }
@@ -116,7 +167,8 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         return (lower, upper)
     }
 
-    private func normalize(_ value: Double, in bounds: (lower: Double, upper: Double)) -> Double {
+    func normalizedValue(_ value: Double) -> Double {
+        let bounds = self.bounds
         guard bounds.upper > bounds.lower else { return 0.5 }
         return Swift.min(1, Swift.max(0, (value - bounds.lower) / (bounds.upper - bounds.lower)))
     }
@@ -127,7 +179,8 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// by zero. The guest link's browser page scales identically.
     public var normalizedPoints: [Double] {
         let bounds = self.bounds
-        return points.map { normalize($0, in: bounds) }
+        guard bounds.upper > bounds.lower else { return points.map { _ in 0.5 } }
+        return points.map { normalizedValue($0) }
     }
 
     /// Where to draw the reference rule, or nil when there is none — or when a
@@ -137,7 +190,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         guard let reference else { return nil }
         let bounds = self.bounds
         guard reference >= bounds.lower, reference <= bounds.upper else { return nil }
-        return normalize(reference, in: bounds)
+        return normalizedValue(reference)
     }
 
     /// Where the zero rule sits for `delta` bars, or nil when the style is not
@@ -147,7 +200,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         guard style == .delta else { return nil }
         let bounds = self.bounds
         guard bounds.lower <= 0, bounds.upper >= 0 else { return nil }
-        return normalize(0, in: bounds)
+        return normalizedValue(0)
     }
 
     /// Spoken in place of the plot, which is decorative on its own.
@@ -158,10 +211,20 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         if let reference {
             description += ", against a reference of \(format(reference))"
         }
+        if let series, !series.isEmpty {
+            description += ", \(series.count) series: " + series.map(\.label).joined(separator: ", ")
+        }
         return description
     }
 
     private func format(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private static func totals(for series: [DashboardChartSeries]?) -> [Double] {
+        guard let series, let count = series.first?.points.count else { return [] }
+        return (0..<count).map { index in
+            series.reduce(0) { $0 + ($1.points.indices.contains(index) ? $1.points[index] : 0) }
+        }
     }
 }

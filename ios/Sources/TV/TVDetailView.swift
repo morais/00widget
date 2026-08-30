@@ -429,10 +429,19 @@ private struct TVCardDetailContent: View {
         if let chart = card.chart, chart.isRenderable {
             // No `maxPoints`. The cap exists for surfaces too narrow to space
             // 60 points apart; this one is over 1200 points wide.
-            SparklineView(chart: chart, tint: card.status.tint, lineWidth: 6)
-                .frame(height: 300)
-                .accessibilityElement()
-                .accessibilityLabel(chart.accessibilityDescription)
+            VStack(alignment: .leading, spacing: 10) {
+                SparklineView(chart: chart, tint: card.status.tint, lineWidth: 6)
+                    .frame(height: 250)
+                    .accessibilityElement()
+                    .accessibilityLabel(chart.accessibilityDescription)
+                ChartSupplementView(
+                    chart: chart,
+                    tint: card.status.tint,
+                    legendLimit: 4,
+                    labelLimit: 6,
+                    font: .body
+                )
+            }
         }
     }
 

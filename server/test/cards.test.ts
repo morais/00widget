@@ -185,6 +185,60 @@ describe("DashboardCardSchema", () => {
     if (parsed.success) expect(parsed.data.briefing?.sections).toHaveLength(2);
   });
 
+  it("derives legacy totals for labeled multi-series bars", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "energy",
+      template: "chart",
+      title: "Energy",
+      chart: {
+        labels: ["Mon", "Tue", "Wed"],
+        stacking: "stacked",
+        series: [
+          { id: "solar", label: "Solar", points: [8, 10, 7] },
+          { id: "grid", label: "Grid", points: [6, 5, 9] },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.chart?.style).toBe("bar");
+    expect(parsed.data.chart?.points).toEqual([14, 15, 16]);
+    expect(parsed.data.chart?.labels).toEqual(["Mon", "Tue", "Wed"]);
+  });
+
+  it("rejects inconsistent or signed multi-series bars", () => {
+    const base = { id: "energy", template: "chart", title: "Energy" };
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        labels: ["Mon", "Tue"],
+        series: [
+          { id: "solar", label: "Solar", points: [8, 10, 7] },
+          { id: "grid", label: "Grid", points: [6, 5, 9] },
+        ],
+      },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        series: [
+          { id: "solar", label: "Solar", points: [8, -1] },
+          { id: "grid", label: "Grid", points: [6, 5] },
+        ],
+      },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        style: "line",
+        series: [
+          { id: "solar", label: "Solar", points: [8, 10] },
+          { id: "grid", label: "Grid", points: [6, 5] },
+        ],
+      },
+    }).success).toBe(false);
+  });
+
   it("bounds briefing sections and text", () => {
     const base = { id: "release", template: "briefing", title: "Release" };
     expect(DashboardCardInputSchema.safeParse({

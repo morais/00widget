@@ -9,6 +9,36 @@ import Testing
 /// pinning down.
 @Suite("Dashboard chart downsampling")
 struct DashboardChartTests {
+    @Test("Series-only JSON derives the totals older clients receive")
+    func seriesOnlyJSONDerivesTotals() throws {
+        let json = #"{"series":[{"id":"solar","label":"Solar","points":[8,10,7]},{"id":"grid","label":"Grid","points":[6,5,9]}],"labels":["Mon","Tue","Wed"],"style":"bar","stacking":"grouped"}"#
+        let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
+
+        #expect(chart.points == [14, 15, 16])
+        #expect(chart.labels == ["Mon", "Tue", "Wed"])
+        #expect(chart.series?.map(\.label) == ["Solar", "Grid"])
+        #expect(chart.stacking == .grouped)
+    }
+
+    @Test("Downsampling keeps labels and every series aligned")
+    func downsamplingKeepsSeriesAligned() throws {
+        let chart = DashboardChart(
+            points: [11, 22, 33, 44],
+            style: .bar,
+            labels: ["A", "B", "C", "D"],
+            series: [
+                DashboardChartSeries(id: "one", label: "One", points: [1, 2, 3, 4]),
+                DashboardChartSeries(id: "two", label: "Two", points: [10, 20, 30, 40]),
+            ]
+        )
+        let reduced = chart.downsampled(toAtMost: 2)
+
+        #expect(reduced.points == [16.5, 38.5])
+        #expect(reduced.series?[0].points == [1.5, 3.5])
+        #expect(reduced.series?[1].points == [15, 35])
+        #expect(reduced.labels == ["B", "D"])
+    }
+
 
     @Test("A series that already fits comes back untouched")
     func shortSeriesUnchanged() {

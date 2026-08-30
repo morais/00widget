@@ -321,13 +321,18 @@ legend does not fit a small widget.
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
-  "style": "line | bar | delta (default: line)"
+  "style": "line | bar | delta (default: line)",
+  "labels": "string[]? (category labels aligned with points)",
+  "series": "DashboardChartSeries[]? (2-4 non-negative bar series)",
+  "stacking": "stacked | grouped (default: stacked)"
 }
 ```
 
-Points are plotted evenly spaced in the order given — there are no timestamps,
-because a widget-sized plot has no room for an x axis. Send a fixed-length
-rolling window (the last 24 hours, 30 days, 60 builds), oldest first.
+Points are plotted evenly spaced in the order given. There are no timestamps;
+optional `labels` are short display strings such as `Mon` or `Aug`. Small
+surfaces omit them, while large widgets and detail views show a readable
+subset. Send a fixed-length rolling window (the last 24 hours, 30 days, 60
+builds), oldest first.
 
 Send the resolution the data actually has, up to 60. The wide surfaces — medium
 and large widgets, the iPad and full-page families, the app, Apple TV, the Lock
@@ -343,6 +348,14 @@ Without `min`/`max` the plot scales to the series, so it always fills the card
 and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` —
 whenever the absolute scale is the point, such as a percentage or a 0-100
 score. Values outside an explicit range are clamped, not dropped.
+
+For stacked or grouped vertical bars, send `series` instead of `points`. Every
+series has a stable `id`, short legend `label`, and the same number of
+non-negative points. `stacking: "stacked"` adds the values into one column per
+category; `grouped` places them side by side. The server defaults `min` to zero
+for these magnitude bars, then derives and stores
+`points` as the per-category totals. An older client ignores the new fields and
+still draws one truthful total bar per category.
 
 `style` picks how the series is drawn. `line` is a sparkline with a soft area
 fill; `bar` grows every bar from the bottom of the range; `delta` anchors the
@@ -748,6 +761,24 @@ Republish the whole window on every update — there is no append endpoint, and 
 Use `style: "bar"` for vertical columns rather than a line. `min` and `max`
 pin the y-axis, while `reference` adds a dashed target without changing the
 data. Use `style: "delta"` when signed values must grow above and below zero.
+
+Multi-series bars default to `style: "bar"` and `stacking: "stacked"`, so both
+may be omitted. Use the explicit form when it makes the producer's intent
+easier to audit:
+
+```json
+{
+  "style": "bar",
+  "stacking": "stacked",
+  "labels": ["Mon", "Tue", "Wed"],
+  "min": 0,
+  "max": 30,
+  "series": [
+    {"id":"solar","label":"Solar","points":[12,14,9]},
+    {"id":"grid","label":"Grid","points":[8,6,11]}
+  ]
+}
+```
 
 ```sh
 curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \

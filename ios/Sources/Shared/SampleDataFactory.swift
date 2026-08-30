@@ -10,6 +10,17 @@ public enum SampleDataFactory {
 
     public static func makeCards() -> [DashboardCard] {
         let now = Date()
+        let energySolar = [
+            11.8, 12.1, 13.4, 10.7, 9.9, 14.1, 15.0, 12.6, 11.2, 10.4,
+            8.9, 9.6, 13.7, 16.1, 14.8, 12.2, 10.5, 9.1, 7.8, 8.5,
+            11.3, 13.0, 12.1, 10.3, 9.0, 7.4, 6.9, 9.7, 10.1, 9.4,
+        ]
+        let energyGrid = [
+            10.0, 8.8, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+        ]
+        let energyTotals = zip(energySolar, energyGrid).map { $0.0 + $0.1 }
         return [
             DashboardCard(
                 id: sampleId("solar"),
@@ -98,15 +109,17 @@ public enum SampleDataFactory {
                 icon: "chart.bar.xaxis",
                 updatedAt: now,
                 chart: DashboardChart(
-                    points: [
-                        21.8, 20.9, 22.4, 19.7, 18.9, 23.1, 24.0, 21.6, 20.2, 19.4,
-                        17.9, 18.6, 22.7, 25.1, 23.8, 21.2, 19.5, 18.1, 16.8, 17.5,
-                        20.3, 22.0, 21.1, 19.3, 18.0, 16.4, 15.9, 18.7, 19.1, 18.4,
-                    ],
+                    points: energyTotals,
                     min: 0,
                     max: 30,
                     reference: 20,
-                    style: .bar
+                    style: .bar,
+                    labels: (1...30).map(String.init),
+                    series: [
+                        DashboardChartSeries(id: "solar", label: "Solar", points: energySolar),
+                        DashboardChartSeries(id: "grid", label: "Grid", points: energyGrid),
+                    ],
+                    stacking: .stacked
                 )
             ),
             DashboardCard(

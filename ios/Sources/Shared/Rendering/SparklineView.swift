@@ -71,8 +71,21 @@ public struct SparklineView: View {
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
             case .bar:
-                SparklineBarsShape(values: values)
-                    .fill(tint.opacity(0.85))
+                if let series = plotted.series, series.count >= 2 {
+                    let bands = plotted.normalizedSeriesBands
+                    ForEach(Array(series.indices), id: \.self) { index in
+                        MultiSeriesBarsShape(
+                            bands: bands[index],
+                            seriesIndex: index,
+                            seriesCount: series.count,
+                            stacking: plotted.stacking
+                        )
+                        .fill(ChartSeriesPalette.tint(index: index, base: tint).opacity(0.88))
+                    }
+                } else {
+                    SparklineBarsShape(values: values)
+                        .fill(tint.opacity(0.85))
+                }
             case .delta:
                 // Falling back to the bottom when a pinned axis excludes zero
                 // keeps the bars honest: they are then plain magnitudes, drawn
@@ -97,6 +110,29 @@ public struct SparklineView: View {
         // same room everywhere. Someone listening should hear what was
         // published.
         .accessibilityLabel(Text(chart.accessibilityDescription))
+    }
+}
+
+private struct NormalizedBarBand {
+    let lower: Double
+    let upper: Double
+}
+
+private extension DashboardChart {
+    var normalizedSeriesBands: [[NormalizedBarBand]] {
+        guard let series, let count = series.first?.points.count else { return [] }
+        var cumulative = Array(repeating: 0.0, count: count)
+        return series.map { entry in
+            entry.points.enumerated().map { index, value in
+                let lower = stacking == .stacked ? cumulative[index] : 0
+                let upper = stacking == .stacked ? lower + value : value
+                if stacking == .stacked { cumulative[index] = upper }
+                return NormalizedBarBand(
+                    lower: normalizedValue(lower),
+                    upper: normalizedValue(upper)
+                )
+            }
+        }
     }
 }
 
@@ -192,6 +228,40 @@ struct SparklineBarsShape: Shape {
                 y: Swift.min(baselineY, valueY),
                 width: barWidth,
                 height: height
+            )
+            path.addRoundedRect(in: bar, cornerSize: CGSize(width: radius, height: radius))
+        }
+        return path
+    }
+}
+
+private struct MultiSeriesBarsShape: Shape {
+    let bands: [NormalizedBarBand]
+    let seriesIndex: Int
+    let seriesCount: Int
+    let stacking: ChartStacking
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard !bands.isEmpty, seriesCount > 0 else { return path }
+        let slot = rect.width / CGFloat(bands.count)
+        let groupWidth = slot * 0.76
+        let columnWidth = stacking == .stacked
+            ? groupWidth
+            : max(1, groupWidth / CGFloat(seriesCount))
+        let groupStartInset = (slot - groupWidth) / 2
+        let radius = min(2, columnWidth / 2)
+
+        for (index, band) in bands.enumerated() {
+            let lowerY = rect.maxY - rect.height * CGFloat(band.lower)
+            let upperY = rect.maxY - rect.height * CGFloat(band.upper)
+            let x = rect.minX + slot * CGFloat(index) + groupStartInset
+                + (stacking == .grouped ? columnWidth * CGFloat(seriesIndex) : 0)
+            let bar = CGRect(
+                x: x,
+                y: min(lowerY, upperY),
+                width: columnWidth,
+                height: max(1, abs(upperY - lowerY))
             )
             path.addRoundedRect(in: bar, cornerSize: CGSize(width: radius, height: radius))
         }
