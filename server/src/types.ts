@@ -241,7 +241,7 @@ export const DashboardBriefingSchema = z.object({
 // "delta" is "bar" anchored at zero rather than at the bottom of the range:
 // signed values grow up or down from a zero rule. Net import/export, commits
 // added/removed, spend vs refund.
-export const ChartStyleSchema = z.enum(["line", "bar", "delta"]);
+export const ChartStyleSchema = z.enum(["line", "bar", "delta", "range"]);
 export const ChartStackingSchema = z.enum(["stacked", "grouped"]);
 
 export const DashboardChartSeriesSchema = z.object({
@@ -251,6 +251,14 @@ export const DashboardChartSeriesSchema = z.object({
   ),
   points: z.array(z.number().min(0)).min(2).max(FieldLimits.chartPointCount).describe(
     "Non-negative values aligned one-for-one with every other series and labels.",
+  ),
+});
+
+export const DashboardChartRangeSchema = z.object({
+  low: z.number().describe("Bottom of the observed or expected interval."),
+  high: z.number().describe("Top of the observed or expected interval."),
+  value: z.number().optional().describe(
+    "Optional current or typical value marked inside the interval.",
   ),
 });
 
@@ -291,7 +299,8 @@ const DashboardChartObjectSchema = z
     style: ChartStyleSchema.default("line").describe(
       "`line` is a sparkline with a soft area fill; `bar` grows every bar from "
       + "the bottom of the range; `delta` anchors at zero instead, so signed "
-      + "values grow up or down from a zero rule.",
+      + "values grow up or down from a zero rule; `range` draws floating "
+      + "low/high intervals with optional current-value markers.",
     ),
     labels: z.array(z.string().max(FieldLimits.chartAxisLabel))
       .min(2)
@@ -308,6 +317,14 @@ const DashboardChartObjectSchema = z
       .describe(
         "Two to four series for stacked or grouped vertical bars. The server "
         + "derives legacy points as their totals for older clients.",
+      ),
+    ranges: z.array(DashboardChartRangeSchema)
+      .min(2)
+      .max(FieldLimits.chartPointCount)
+      .optional()
+      .describe(
+        "Two to sixty low/high intervals. The server derives legacy points from "
+        + "each value, or from its midpoint when value is absent.",
       ),
     stacking: ChartStackingSchema.default("stacked").describe(
       "How multiple bar series share each category: stacked into one column or grouped side by side.",
@@ -338,6 +355,35 @@ const DashboardChartObjectSchema = z
         }
       });
     }
+    if (chart.ranges) {
+      if (chart.style !== "range") {
+        ctx.addIssue({ code: "custom", path: ["style"], message: "ranges require range style" });
+      }
+      if (chart.series) {
+        ctx.addIssue({ code: "custom", path: ["ranges"], message: "cannot combine ranges and series" });
+      }
+      if (chart.ranges.length !== chart.points.length) {
+        ctx.addIssue({ code: "custom", path: ["ranges"], message: "must match points length" });
+      }
+      chart.ranges.forEach((range, index) => {
+        if (range.low > range.high) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["ranges", index, "low"],
+            message: "must be less than or equal to high",
+          });
+        }
+        if (range.value !== undefined && (range.value < range.low || range.value > range.high)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["ranges", index, "value"],
+            message: "must fall between low and high",
+          });
+        }
+      });
+    } else if (chart.style === "range") {
+      ctx.addIssue({ code: "custom", path: ["ranges"], message: "range style requires ranges" });
+    }
   });
 
 // `points` is the compatibility bridge. A producer sends only the richer
@@ -346,6 +392,27 @@ const DashboardChartObjectSchema = z
 export const DashboardChartSchema = z.preprocess((input) => {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
   const chart = input as Record<string, unknown>;
+  const rawRanges = chart.ranges;
+  if (Array.isArray(rawRanges) && rawRanges.length > 0) {
+    const compatible = rawRanges.every((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+      const range = entry as Record<string, unknown>;
+      return typeof range.low === "number"
+        && typeof range.high === "number"
+        && (range.value === undefined || typeof range.value === "number");
+    });
+    if (compatible) {
+      const points = rawRanges.map((entry) => {
+        const range = entry as Record<string, number>;
+        return range.value ?? (range.low + range.high) / 2;
+      });
+      return {
+        ...chart,
+        points,
+        style: chart.style ?? "range",
+      };
+    }
+  }
   const rawSeries = chart.series;
   if (!Array.isArray(rawSeries) || rawSeries.length === 0) return input;
   const pointArrays = rawSeries.map((entry) => {

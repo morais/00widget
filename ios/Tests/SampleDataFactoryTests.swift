@@ -32,12 +32,14 @@ struct SampleDataFactoryTests {
         #expect(washer.briefing?.sections.count == 3)
     }
 
-    @Test("The demo Live Activity shows more than ten readings")
+    @Test("The demo Live Activity shows more than ten forecast ranges")
     func liveActivityUsesLongWindow() throws {
-        let points = try #require(
-            SampleDataFactory.makeLiveActivitySession().chart?.points
-        )
-        #expect(points.count == 24)
+        let chart = try #require(SampleDataFactory.makeLiveActivitySession().chart)
+        let points = chart.points
+        #expect(points.count == 12)
         #expect(points.count <= DashboardChart.publishedPointLimit)
+        #expect(chart.style == .range)
+        #expect(chart.ranges?.count == points.count)
+        #expect(points.last == 95)
     }
 }

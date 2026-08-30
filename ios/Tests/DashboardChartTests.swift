@@ -9,6 +9,40 @@ import Testing
 /// pinning down.
 @Suite("Dashboard chart downsampling")
 struct DashboardChartTests {
+    @Test("Range-only JSON derives representative fallback points")
+    func rangeOnlyJSONDerivesFallbackPoints() throws {
+        let json = #"{"ranges":[{"low":10,"high":20,"value":14},{"low":12,"high":24}],"labels":["Mon","Tue"],"style":"range"}"#
+        let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
+
+        #expect(chart.points == [14, 18])
+        #expect(chart.ranges?.count == 2)
+        #expect(chart.style == .range)
+        #expect(chart.normalizedPoints == [0.2857142857142857, 0.5714285714285714])
+    }
+
+    @Test("Downsampling range bands preserves their full envelope")
+    func downsamplingRangeBandsPreservesEnvelope() throws {
+        let chart = DashboardChart(
+            points: [],
+            style: .range,
+            labels: ["A", "B", "C", "D"],
+            ranges: [
+                DashboardChartRange(low: 10, high: 20, value: 15),
+                DashboardChartRange(low: 12, high: 22),
+                DashboardChartRange(low: 20, high: 30),
+                DashboardChartRange(low: 22, high: 35),
+            ]
+        )
+        let reduced = chart.downsampled(toAtMost: 2)
+
+        #expect(reduced.ranges == [
+            DashboardChartRange(low: 10, high: 22, value: 15),
+            DashboardChartRange(low: 20, high: 35),
+        ])
+        #expect(reduced.points == [15, 27.5])
+        #expect(reduced.labels == ["B", "D"])
+    }
+
     @Test("Series-only JSON derives the totals older clients receive")
     func seriesOnlyJSONDerivesTotals() throws {
         let json = #"{"series":[{"id":"solar","label":"Solar","points":[8,10,7]},{"id":"grid","label":"Grid","points":[6,5,9]}],"labels":["Mon","Tue","Wed"],"style":"bar","stacking":"grouped"}"#

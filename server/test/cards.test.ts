@@ -239,6 +239,43 @@ describe("DashboardCardSchema", () => {
     }).success).toBe(false);
   });
 
+  it("derives old-client points for min-max ranges", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "forecast",
+      template: "chart",
+      title: "Forecast",
+      chart: {
+        labels: ["Mon", "Tue", "Wed"],
+        ranges: [
+          { low: 12, high: 21, value: 18 },
+          { low: 10, high: 20 },
+          { low: 13, high: 24, value: 20 },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.chart?.style).toBe("range");
+    expect(parsed.data.chart?.points).toEqual([18, 15, 20]);
+    expect(parsed.data.chart?.ranges).toHaveLength(3);
+  });
+
+  it("rejects inverted, out-of-band, or wrongly styled ranges", () => {
+    const base = { id: "forecast", template: "chart", title: "Forecast" };
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { ranges: [{ low: 20, high: 10 }, { low: 12, high: 18 }] },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { ranges: [{ low: 10, high: 20, value: 30 }, { low: 12, high: 18 }] },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { style: "bar", ranges: [{ low: 10, high: 20 }, { low: 12, high: 18 }] },
+    }).success).toBe(false);
+  });
+
   it("bounds briefing sections and text", () => {
     const base = { id: "release", template: "briefing", title: "Release" };
     expect(DashboardCardInputSchema.safeParse({

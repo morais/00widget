@@ -99,6 +99,22 @@ public struct SparklineView: View {
                     HorizontalRuleShape(position: baseline)
                         .stroke(.secondary, lineWidth: 0.75)
                 }
+            case .range:
+                if let ranges = plotted.normalizedRanges {
+                    RangeBarsShape(ranges: ranges)
+                        .fill(tint.opacity(0.32))
+                    RangeValueMarkersShape(ranges: ranges)
+                        .stroke(
+                            tint,
+                            style: StrokeStyle(lineWidth: max(1, lineWidth), lineCap: .round)
+                        )
+                } else {
+                    SparklineLineShape(values: values)
+                        .stroke(
+                            tint,
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                        )
+                }
             }
         }
         // A stroke is centred on the path, so the end points would be clipped
@@ -118,6 +134,12 @@ private struct NormalizedBarBand {
     let upper: Double
 }
 
+private struct NormalizedRangeBand {
+    let low: Double
+    let high: Double
+    let value: Double?
+}
+
 private extension DashboardChart {
     var normalizedSeriesBands: [[NormalizedBarBand]] {
         guard let series, let count = series.first?.points.count else { return [] }
@@ -132,6 +154,18 @@ private extension DashboardChart {
                     upper: normalizedValue(upper)
                 )
             }
+        }
+    }
+
+
+    var normalizedRanges: [NormalizedRangeBand]? {
+        guard let ranges, ranges.count == points.count else { return nil }
+        return ranges.map { range in
+            NormalizedRangeBand(
+                low: normalizedValue(range.low),
+                high: normalizedValue(range.high),
+                value: range.value.map(normalizedValue)
+            )
         }
     }
 }
@@ -264,6 +298,49 @@ private struct MultiSeriesBarsShape: Shape {
                 height: max(1, abs(upperY - lowerY))
             )
             path.addRoundedRect(in: bar, cornerSize: CGSize(width: radius, height: radius))
+        }
+        return path
+    }
+}
+
+private struct RangeBarsShape: Shape {
+    let ranges: [NormalizedRangeBand]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard !ranges.isEmpty else { return path }
+        let slot = rect.width / CGFloat(ranges.count)
+        let width = max(1, slot * 0.56)
+        let radius = min(3, width / 2)
+        for (index, range) in ranges.enumerated() {
+            let lowY = rect.maxY - rect.height * CGFloat(range.low)
+            let highY = rect.maxY - rect.height * CGFloat(range.high)
+            let bar = CGRect(
+                x: rect.minX + slot * CGFloat(index) + (slot - width) / 2,
+                y: min(lowY, highY),
+                width: width,
+                height: max(1, abs(lowY - highY))
+            )
+            path.addRoundedRect(in: bar, cornerSize: CGSize(width: radius, height: radius))
+        }
+        return path
+    }
+}
+
+private struct RangeValueMarkersShape: Shape {
+    let ranges: [NormalizedRangeBand]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard !ranges.isEmpty else { return path }
+        let slot = rect.width / CGFloat(ranges.count)
+        let width = max(2, slot * 0.68)
+        for (index, range) in ranges.enumerated() {
+            guard let value = range.value else { continue }
+            let y = rect.maxY - rect.height * CGFloat(value)
+            let centerX = rect.minX + slot * (CGFloat(index) + 0.5)
+            path.move(to: CGPoint(x: centerX - width / 2, y: y))
+            path.addLine(to: CGPoint(x: centerX + width / 2, y: y))
         }
         return path
     }

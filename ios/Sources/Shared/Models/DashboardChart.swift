@@ -6,6 +6,9 @@ public enum ChartStyle: String, Codable, CaseIterable, Sendable {
     /// `bar` anchored at zero rather than at the bottom of the range, so signed
     /// values grow up or down from a zero rule.
     case delta
+    /// A floating vertical band from a low to a high value, with an optional
+    /// current/typical value marked inside it.
+    case range
 }
 
 public enum ChartStacking: String, Codable, CaseIterable, Sendable {
@@ -23,6 +26,20 @@ public struct DashboardChartSeries: Codable, Hashable, Identifiable, Sendable {
         self.label = label
         self.points = points
     }
+}
+
+public struct DashboardChartRange: Codable, Hashable, Sendable {
+    public var low: Double
+    public var high: Double
+    public var value: Double?
+
+    public init(low: Double, high: Double, value: Double? = nil) {
+        self.low = low
+        self.high = high
+        self.value = value
+    }
+
+    var fallbackValue: Double { value ?? (low + high) / 2 }
 }
 
 /// The numeric series behind a `chart` card. Mirrors `DashboardChartSchema` in
@@ -52,6 +69,10 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// truthful fallback series rather than losing the chart.
     public var series: [DashboardChartSeries]?
     public var stacking: ChartStacking
+    /// Min/max bands aligned with `points`. The server stores `value` (or the
+    /// midpoint when absent) in `points`, so older clients render a useful
+    /// fallback line while newer builds draw the full interval.
+    public var ranges: [DashboardChartRange]?
 
     public init(
         points: [Double],
@@ -61,9 +82,12 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         style: ChartStyle = .line,
         labels: [String]? = nil,
         series: [DashboardChartSeries]? = nil,
-        stacking: ChartStacking = .stacked
+        stacking: ChartStacking = .stacked,
+        ranges: [DashboardChartRange]? = nil
     ) {
-        self.points = points.isEmpty ? DashboardChart.totals(for: series) : points
+        self.points = points.isEmpty
+            ? DashboardChart.fallbackPoints(series: series, ranges: ranges)
+            : points
         self.min = min
         self.max = max
         self.reference = reference
@@ -71,13 +95,15 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         self.labels = labels
         self.series = series
         self.stacking = stacking
+        self.ranges = ranges
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         series = try c.decodeIfPresent([DashboardChartSeries].self, forKey: .series)
+        ranges = try c.decodeIfPresent([DashboardChartRange].self, forKey: .ranges)
         points = try c.decodeIfPresent([Double].self, forKey: .points)
-            ?? DashboardChart.totals(for: series)
+            ?? DashboardChart.fallbackPoints(series: series, ranges: ranges)
         min = try c.decodeIfPresent(Double.self, forKey: .min)
         max = try c.decodeIfPresent(Double.self, forKey: .max)
         reference = try c.decodeIfPresent(Double.self, forKey: .reference)
@@ -89,7 +115,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case points, min, max, reference, style, labels, series, stacking
+        case points, min, max, reference, style, labels, series, stacking, ranges
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the
@@ -118,11 +144,14 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     ///
     /// `min`, `max`, `reference` and `style` carry over untouched — a bucket
     /// mean lies between its inputs, so nothing that fitted a pinned axis
-    /// before can fall outside it now.
+    /// before can fall outside it now. Range charts preserve the full envelope
+    /// of each bucket instead: the lowest low, highest high, and the mean of
+    /// any supplied value markers. That intentionally avoids understating an
+    /// interval when several categories have to share one narrow column.
     public func downsampled(toAtMost maxPoints: Int) -> DashboardChart {
         guard maxPoints >= 2, points.count > maxPoints else { return self }
         var reduced = self
-        let ranges = (0..<maxPoints).map { bucket in
+        let buckets = (0..<maxPoints).map { bucket in
             // Proportional boundaries, so a count that does not divide evenly
             // spreads the remainder across the series instead of piling it
             // into the last bucket.
@@ -130,22 +159,34 @@ public struct DashboardChart: Codable, Hashable, Sendable {
             let end = Swift.max(start + 1, points.count * (bucket + 1) / maxPoints)
             return start..<end
         }
-        reduced.points = ranges.map { range in
+        reduced.points = buckets.map { range in
             let slice = points[range]
             return slice.reduce(0, +) / Double(slice.count)
         }
         if let series {
             reduced.series = series.map { entry in
                 var entry = entry
-                entry.points = ranges.map { range in
+                entry.points = buckets.map { range in
                     let slice = entry.points[range]
                     return slice.reduce(0, +) / Double(slice.count)
                 }
                 return entry
             }
         }
+        if let chartRanges = self.ranges, chartRanges.count == points.count {
+            reduced.ranges = buckets.map { bucket in
+                let values = chartRanges[bucket]
+                let current = values.compactMap(\.value)
+                return DashboardChartRange(
+                    low: values.map(\.low).min() ?? 0,
+                    high: values.map(\.high).max() ?? 0,
+                    value: current.isEmpty ? nil : current.reduce(0, +) / Double(current.count)
+                )
+            }
+            reduced.points = reduced.ranges?.map(\.fallbackValue) ?? reduced.points
+        }
         if let labels, labels.count == points.count {
-            reduced.labels = ranges.map { labels[$0.index(before: $0.endIndex)] }
+            reduced.labels = buckets.map { labels[$0.index(before: $0.endIndex)] }
         }
         return reduced
     }
@@ -155,8 +196,10 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// and to include zero for `delta`, whose bars have nothing to grow from
     /// otherwise.
     private var bounds: (lower: Double, upper: Double) {
-        var lower = min ?? points.min() ?? 0
-        var upper = max ?? points.max() ?? 0
+        let lows = ranges?.map(\.low) ?? []
+        let highs = ranges?.map(\.high) ?? []
+        var lower = min ?? Swift.min(points.min() ?? 0, lows.min() ?? points.min() ?? 0)
+        var upper = max ?? Swift.max(points.max() ?? 0, highs.max() ?? points.max() ?? 0)
         var anchors: [Double] = []
         if let reference { anchors.append(reference) }
         if style == .delta { anchors.append(0) }
@@ -214,6 +257,9 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         if let series, !series.isEmpty {
             description += ", \(series.count) series: " + series.map(\.label).joined(separator: ", ")
         }
+        if let ranges, let overallLow = ranges.map(\.low).min(), let overallHigh = ranges.map(\.high).max() {
+            description += ", spanning \(format(overallLow)) to \(format(overallHigh))"
+        }
         return description
     }
 
@@ -221,7 +267,11 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
-    private static func totals(for series: [DashboardChartSeries]?) -> [Double] {
+    private static func fallbackPoints(
+        series: [DashboardChartSeries]?,
+        ranges: [DashboardChartRange]?
+    ) -> [Double] {
+        if let ranges { return ranges.map(\.fallbackValue) }
         guard let series, let count = series.first?.points.count else { return [] }
         return (0..<count).map { index in
             series.reduce(0) { $0 + ($1.points.indices.contains(index) ? $1.points[index] : 0) }

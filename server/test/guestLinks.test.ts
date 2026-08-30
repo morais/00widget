@@ -469,6 +469,17 @@ describe("guest link browser page", () => {
     expect(body).toContain(".rowsub{");
   });
 
+  it("includes the interval and marker renderer for range charts", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+
+    expect(script).toContain("ch.style==='range'");
+    expect(script).toContain("ch.ranges[rr].low");
+    expect(script).toContain('class="marker"');
+    expect(body).toContain(".spark rect.range{");
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');

@@ -317,14 +317,15 @@ legend does not fit a small widget.
 
 ```json
 {
-  "points": "number[] (2-60 values, oldest first)",
+  "points": "number[] (2-60 values, oldest first; derived when series or ranges is sent)",
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
-  "style": "line | bar | delta (default: line)",
+  "style": "line | bar | delta | range (default: line)",
   "labels": "string[]? (category labels aligned with points)",
   "series": "DashboardChartSeries[]? (2-4 non-negative bar series)",
-  "stacking": "stacked | grouped (default: stacked)"
+  "stacking": "stacked | grouped (default: stacked)",
+  "ranges": "DashboardChartRange[]? ({low, high, value?}, 2-60 entries)"
 }
 ```
 
@@ -357,10 +358,20 @@ for these magnitude bars, then derives and stores
 `points` as the per-category totals. An older client ignores the new fields and
 still draws one truthful total bar per category.
 
+For a min/max envelope, forecast band, confidence interval, or observed daily
+range, send `ranges` instead of `points`. Every entry has `low` and `high`, plus
+an optional `value` marker inside the interval. `style` defaults to `range`.
+The server derives and stores one compatibility point per entry: `value` when
+present, otherwise the midpoint. Older clients ignore `ranges` and the unknown
+style, fall back to their line renderer, and still show that representative
+series. New clients draw translucent floating columns with a marker for each
+supplied value.
+
 `style` picks how the series is drawn. `line` is a sparkline with a soft area
 fill; `bar` grows every bar from the bottom of the range; `delta` anchors the
 bars at zero instead, so signed values grow up or down from a zero rule — net
-grid import/export per hour, commits added and removed, spend against refunds.
+grid import/export per hour, commits added and removed, spend against refunds;
+`range` draws floating low/high bands and optional current-value markers.
 A `delta` chart always includes zero in its range unless you pin both edges away
 from it, in which case the bars fall back to plain magnitudes and no zero rule
 is drawn.
@@ -427,6 +438,8 @@ Card field limits:
 | `items` | 20 rows |
 | `progress` | number, 0.0–1.0 |
 | `chart.points` | 2–60 finite numbers |
+| `chart.series` | 2–4 series; 2–60 non-negative points each |
+| `chart.ranges` | 2–60 entries; `low <= high`, optional `value` inside the interval |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
 
@@ -503,6 +516,7 @@ Pick one based on the *shape* of the data, not the domain:
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
 | Discrete readings as vertical bars    | `chart`    | as above, plus `chart.style: "bar"`       |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
+| A low/high interval per category      | `chart`    | `chart.ranges[]`; optional `labels[]`       |
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
 | A conclusion with explanatory prose    | `briefing` | `value`, `subtitle`, `briefing.sections[]` |
@@ -760,7 +774,8 @@ Republish the whole window on every update — there is no append endpoint, and 
 
 Use `style: "bar"` for vertical columns rather than a line. `min` and `max`
 pin the y-axis, while `reference` adds a dashed target without changing the
-data. Use `style: "delta"` when signed values must grow above and below zero.
+data. Use `style: "delta"` when signed values must grow above and below zero,
+and `style: "range"` for floating low/high intervals.
 
 Multi-series bars default to `style: "bar"` and `stacking: "stacked"`, so both
 may be omitted. Use the explicit form when it makes the producer's intent
@@ -776,6 +791,22 @@ easier to audit:
   "series": [
     {"id":"solar","label":"Solar","points":[12,14,9]},
     {"id":"grid","label":"Grid","points":[8,6,11]}
+  ]
+}
+```
+
+Range charts likewise derive their compatibility points and default their
+style, so this is sufficient:
+
+```json
+{
+  "labels": ["Mon", "Tue", "Wed"],
+  "min": 0,
+  "max": 30,
+  "ranges": [
+    {"low": 12, "high": 21, "value": 18},
+    {"low": 10, "high": 19, "value": 16},
+    {"low": 13, "high": 24, "value": 20}
   ]
 }
 ```

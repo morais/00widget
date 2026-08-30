@@ -28,12 +28,14 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark{display:block;width:100%;height:64px;margin:.75rem 0}
 .spark polyline{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 .spark rect{fill:var(--accent)}
+.spark rect.range{fill-opacity:.32}
 .spark rect.s1{fill:#af52de}
 .spark rect.s2{fill:#30b0c7}
 .spark rect.s3{fill:#ff9f0a}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
+.spark line.marker{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:none;stroke-linecap:round}
 .chart-legend,.chart-labels{display:flex;gap:.75rem;color:var(--muted);font-size:.75rem;margin:.25rem 0}
 .chart-labels{justify-content:space-between}
 .dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);margin-right:.25rem}
@@ -83,6 +85,12 @@ const GUEST_SCRIPT = `
     var p=ch.points,n=p.length,w=100,ht=32;
     var lo=ch.min!=null?ch.min:Math.min.apply(null,p);
     var hi=ch.max!=null?ch.max:Math.max.apply(null,p);
+    if(ch.ranges&&ch.ranges.length){
+      for(var ri=0;ri<ch.ranges.length;ri++){
+        if(ch.min==null){lo=Math.min(lo,ch.ranges[ri].low)}
+        if(ch.max==null){hi=Math.max(hi,ch.ranges[ri].high)}
+      }
+    }
     var anchors=[];
     if(ch.reference!=null){anchors.push(ch.reference)}
     if(ch.style==='delta'){anchors.push(0)}
@@ -97,7 +105,18 @@ const GUEST_SCRIPT = `
     };
     var body='';
     var zero=(ch.style==='delta'&&lo<=0&&hi>=0)?y(0):null;
-    if(ch.style==='bar'&&ch.series&&ch.series.length>1){
+    if(ch.style==='range'&&ch.ranges&&ch.ranges.length===n){
+      var rangeSlot=w/n,rangeWidth=rangeSlot*0.56;
+      for(var rr=0;rr<n;rr++){
+        var lowY=y(ch.ranges[rr].low),highY=y(ch.ranges[rr].high);
+        var rx=rr*rangeSlot+(rangeSlot-rangeWidth)/2;
+        body+='<rect class="range" x="'+rx.toFixed(2)+'" y="'+Math.min(lowY,highY).toFixed(2)+'" width="'+rangeWidth.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lowY-highY)).toFixed(2)+'"/>';
+        if(ch.ranges[rr].value!=null){
+          var markerY=y(ch.ranges[rr].value).toFixed(2),markerInset=rangeSlot*0.16;
+          body+='<line class="marker" x1="'+(rr*rangeSlot+markerInset).toFixed(2)+'" x2="'+((rr+1)*rangeSlot-markerInset).toFixed(2)+'" y1="'+markerY+'" y2="'+markerY+'" vector-effect="non-scaling-stroke"/>';
+        }
+      }
+    }else if(ch.style==='bar'&&ch.series&&ch.series.length>1){
       var slot=w/n,group=slot*0.76;
       if(ch.stacking==='grouped'){
         var one=group/ch.series.length;
