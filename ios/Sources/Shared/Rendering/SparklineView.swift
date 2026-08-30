@@ -59,10 +59,21 @@ public struct SparklineView: View {
                 }
             }
             if let reference = plotted.normalizedReference {
+                let referenceSemantic = plotted.referenceMetadata?.semantic
                 HorizontalRuleShape(position: reference)
                     .stroke(
-                        .secondary,
-                        style: StrokeStyle(lineWidth: 1, dash: [3, 3])
+                        plotted.referenceMetadata == nil
+                            ? Color.secondary
+                            : ChartSeriesPalette.tint(
+                                index: 0,
+                                base: tint,
+                                semantic: referenceSemantic
+                            )
+                            .opacity(ChartSeriesPalette.opacity(for: referenceSemantic?.role)),
+                        style: StrokeStyle(
+                            lineWidth: 1,
+                            dash: ChartSeriesPalette.referenceDash(for: referenceSemantic?.role)
+                        )
                     )
             }
             switch plotted.style {

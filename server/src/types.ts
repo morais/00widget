@@ -307,6 +307,17 @@ export const DashboardChartRangeSchema = z.object({
   ),
 });
 
+export const DashboardChartReferenceMetadataSchema = z.object({
+  label: z.string().min(1).max(FieldLimits.chartSeriesLabel).optional().describe(
+    "Short name for the rule, such as Target, Baseline, Budget, or Capacity.",
+  ),
+  semantic: MetricSemanticSchema.optional().describe(
+    "Meaning of the rule. Renderers choose its color, dash, emphasis, and accessibility wording.",
+  ),
+}).refine((metadata) => metadata.label !== undefined || metadata.semantic !== undefined, {
+  message: "referenceMetadata must contain a label or semantic hint",
+});
+
 // The numeric series behind a `chart` card. Points are plotted evenly spaced in
 // the order given, oldest first; there are no timestamps, because a widget this
 // small has no room for an x axis and the renderer would ignore them.
@@ -340,6 +351,10 @@ const DashboardChartObjectSchema = z
       + "can act on, because above-or-below needs no axis labels. The rule has "
       + "no numeric label; when its exact value matters, lead the card's short "
       + "`subtitle` with its formatted meaning and value.",
+    ),
+    referenceMetadata: DashboardChartReferenceMetadataSchema.optional().describe(
+      "Optional label and semantic meaning for the numeric reference. Kept separate so older clients "
+      + "still receive and draw the legacy reference number.",
     ),
     semantic: MetricSemanticSchema.optional().describe(
       "Meaning shared by a single points or range series and inherited by any "
@@ -390,6 +405,13 @@ const DashboardChartObjectSchema = z
   .superRefine((chart, ctx) => {
     if (chart.min !== undefined && chart.max !== undefined && chart.min >= chart.max) {
       ctx.addIssue({ code: "custom", message: "min must be less than max" });
+    }
+    if (chart.referenceMetadata && chart.reference === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["referenceMetadata"],
+        message: "requires reference",
+      });
     }
     if (chart.labels && chart.labels.length !== chart.points.length) {
       ctx.addIssue({ code: "custom", path: ["labels"], message: "must match points length" });

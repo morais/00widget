@@ -22,6 +22,7 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
       "min": 0,
       "max": 30,
       "reference": 20,
+      "referenceMetadata": {"label":"Daily target","semantic":{"role":"target"}},
       "style": "bar"
     }
   }'

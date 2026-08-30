@@ -120,6 +120,10 @@ public enum SampleDataFactory {
                     min: 0,
                     max: 30,
                     reference: 20,
+                    referenceMetadata: DashboardChartReferenceMetadata(
+                        label: "Daily target",
+                        semantic: MetricSemantic(role: .target)
+                    ),
                     semantic: MetricSemantic(role: .actual),
                     style: .bar,
                     categories: energyCategories,
@@ -220,6 +224,10 @@ public enum SampleDataFactory {
                 min: 30,
                 max: 100,
                 reference: 100,
+                referenceMetadata: DashboardChartReferenceMetadata(
+                    label: "Full charge",
+                    semantic: MetricSemantic(role: .capacity)
+                ),
                 semantic: MetricSemantic(role: .forecast),
                 style: .range,
                 labels: ["Now", "+10", "+20", "+30", "+40", "+50", "+60", "+70", "+80", "+90", "+100", "+110"],

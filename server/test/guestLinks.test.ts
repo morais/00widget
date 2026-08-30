@@ -488,6 +488,8 @@ describe("guest link browser page", () => {
     expect(script).toContain("var seriesClass=function");
     expect(script).toContain("var resolveSemantic=function");
     expect(script).toContain("semanticClass(ch.semantic)");
+    expect(script).toContain("ch.referenceMetadata.semantic");
+    expect(script).toContain("metric-reference");
     expect(script).toContain("var categoryBands=function");
     expect(script).toContain("SIGNAL_MARK");
     expect(script).toContain("words.push(semantic.flow)");

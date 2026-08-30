@@ -35,20 +35,22 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark rect.flow-inbound{fill:#30b0c7}.spark rect.flow-outbound{fill:#af52de}
 .spark rect.sig-favorable{fill:#34c759}.spark rect.sig-neutral{fill:var(--muted)}
 .spark rect.sig-caution{fill:#ff9f0a}.spark rect.sig-unfavorable{fill:#ff3b30}
-.spark polyline.flow-inbound,.spark line.marker.flow-inbound{stroke:#30b0c7}
-.spark polyline.flow-outbound,.spark line.marker.flow-outbound{stroke:#af52de}
-.spark polyline.sig-favorable,.spark line.marker.sig-favorable{stroke:#34c759}
-.spark polyline.sig-neutral,.spark line.marker.sig-neutral{stroke:var(--muted)}
-.spark polyline.sig-caution,.spark line.marker.sig-caution{stroke:#ff9f0a}
-.spark polyline.sig-unfavorable,.spark line.marker.sig-unfavorable{stroke:#ff3b30}
+.spark polyline.flow-inbound,.spark line.marker.flow-inbound,.spark line.metric-reference.flow-inbound{stroke:#30b0c7}
+.spark polyline.flow-outbound,.spark line.marker.flow-outbound,.spark line.metric-reference.flow-outbound{stroke:#af52de}
+.spark polyline.sig-favorable,.spark line.marker.sig-favorable,.spark line.metric-reference.sig-favorable{stroke:#34c759}
+.spark polyline.sig-neutral,.spark line.marker.sig-neutral,.spark line.metric-reference.sig-neutral{stroke:var(--muted)}
+.spark polyline.sig-caution,.spark line.marker.sig-caution,.spark line.metric-reference.sig-caution{stroke:#ff9f0a}
+.spark polyline.sig-unfavorable,.spark line.marker.sig-unfavorable,.spark line.metric-reference.sig-unfavorable{stroke:#ff3b30}
 .spark rect.role-forecast{fill-opacity:.48}.spark rect.role-baseline{fill-opacity:.55}
 .spark rect.role-target{fill-opacity:.72}.spark rect.role-capacity{fill-opacity:.35}
 .spark rect.role-remainder{fill-opacity:.45}.spark rect.period{fill-opacity:.1}
-.spark polyline.role-forecast,.spark line.marker.role-forecast{stroke-opacity:.48}
-.spark polyline.role-baseline,.spark line.marker.role-baseline{stroke-opacity:.55}
-.spark polyline.role-target,.spark line.marker.role-target{stroke-opacity:.72}
-.spark polyline.role-capacity,.spark line.marker.role-capacity{stroke-opacity:.35}
-.spark polyline.role-remainder,.spark line.marker.role-remainder{stroke-opacity:.45}
+.spark polyline.role-forecast,.spark line.marker.role-forecast,.spark line.metric-reference.role-forecast{stroke-opacity:.48}
+.spark polyline.role-baseline,.spark line.marker.role-baseline,.spark line.metric-reference.role-baseline{stroke-opacity:.55}
+.spark polyline.role-target,.spark line.marker.role-target,.spark line.metric-reference.role-target{stroke-opacity:.72}
+.spark polyline.role-capacity,.spark line.marker.role-capacity,.spark line.metric-reference.role-capacity{stroke-opacity:.35}
+.spark polyline.role-remainder,.spark line.marker.role-remainder,.spark line.metric-reference.role-remainder{stroke-opacity:.45}
+.spark line.metric-reference.role-baseline{stroke-dasharray:1 3}
+.spark line.metric-reference.role-capacity{stroke-dasharray:6 2}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
@@ -202,9 +204,20 @@ const GUEST_SCRIPT = `
     }
     if(ch.reference!=null&&ch.reference>=lo&&ch.reference<=hi){
       var ry=y(ch.reference).toFixed(2);
-      ref+='<line x1="0" x2="'+w+'" y1="'+ry+'" y2="'+ry+'" vector-effect="non-scaling-stroke"/>';
+      var referenceSemantic=ch.referenceMetadata&&ch.referenceMetadata.semantic;
+      ref+='<line class="metric-reference '+semanticClass(referenceSemantic)+'" x1="0" x2="'+w+'" y1="'+ry+'" y2="'+ry+'" vector-effect="non-scaling-stroke"/>';
     }
     var extra='';
+    if(ch.referenceMetadata){
+      var referenceSemantic=ch.referenceMetadata.semantic||{},referenceWords=[];
+      if(referenceSemantic.role){referenceWords.push(referenceSemantic.role)}
+      if(referenceSemantic.flow){referenceWords.push(referenceSemantic.flow)}
+      if(referenceSemantic.signal){referenceWords.push(referenceSemantic.signal)}
+      var referenceLabel=ch.referenceMetadata.label||referenceSemantic.role||referenceWords[0];
+      if(referenceLabel){
+        extra+='<div class="chart-legend"><span><i class="dot '+semanticClass(referenceSemantic)+'"></i>'+esc(referenceLabel)+(referenceWords.length?'<small> · '+esc(referenceWords.join(', '))+'</small>':'')+'</span></div>';
+      }
+    }
     if(ch.series&&ch.series.length){
       extra+='<div class="chart-legend">';
       for(var s=0;s<ch.series.length;s++){

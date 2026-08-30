@@ -283,6 +283,41 @@ describe("DashboardCardSchema", () => {
     }
   });
 
+  it("keeps numeric references compatible while accepting semantic metadata", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "budget",
+      template: "chart",
+      title: "Budget",
+      chart: {
+        points: [4, 7],
+        reference: 6,
+        referenceMetadata: {
+          label: "Budget",
+          semantic: { role: "target", signal: "caution" },
+        },
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.chart?.reference).toBe(6);
+    expect(parsed.data.chart?.referenceMetadata).toEqual({
+      label: "Budget",
+      semantic: { role: "target", signal: "caution" },
+    });
+  });
+
+  it("rejects empty or orphaned reference metadata", () => {
+    const card = (referenceMetadata: unknown, reference?: number) => ({
+      id: "reference",
+      template: "chart",
+      title: "Reference",
+      chart: { points: [1, 2], reference, referenceMetadata },
+    });
+    expect(DashboardCardInputSchema.safeParse(card({})).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse(card({ label: "Target" })).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse(card({ label: "Target" }, 2)).success).toBe(true);
+  });
+
   it("rejects empty semantics and misaligned or duplicate categories", () => {
     const base = { id: "semantic", template: "chart", title: "Semantic" };
     expect(DashboardCardInputSchema.safeParse({

@@ -1060,7 +1060,9 @@ public struct CardView: View {
         font: Font = .caption2
     ) -> some View {
         if let chart = card.chart,
-           (chart.series?.isEmpty == false || chart.labels?.isEmpty == false) {
+           (chart.series?.isEmpty == false
+            || chart.labels?.isEmpty == false
+            || chart.referenceMetadata != nil) {
             ChartSupplementView(
                 chart: chart,
                 tint: card.status.tint,

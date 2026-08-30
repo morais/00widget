@@ -155,6 +155,20 @@ public struct DashboardChartRange: Codable, Hashable, Sendable {
     var fallbackValue: Double { value ?? (low + high) / 2 }
 }
 
+public struct DashboardChartReferenceMetadata: Codable, Hashable, Sendable {
+    public var label: String?
+    public var semantic: MetricSemantic?
+
+    public init(label: String? = nil, semantic: MetricSemantic? = nil) {
+        self.label = label
+        self.semantic = semantic
+    }
+
+    var displayLabel: String? {
+        label ?? semantic?.accessibilityWords.first?.capitalized
+    }
+}
+
 /// The numeric series behind a `chart` card. Mirrors `DashboardChartSchema` in
 /// `server/src/types.ts`.
 ///
@@ -174,6 +188,9 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     public var max: Double?
     /// A target, budget, or threshold drawn as a dashed rule across the plot.
     public var reference: Double?
+    /// Optional meaning for the numeric reference. Kept separate so older
+    /// clients continue decoding and drawing the legacy number unchanged.
+    public var referenceMetadata: DashboardChartReferenceMetadata?
     /// Meaning shared by a single points/range series and inherited by any
     /// multi-series entry that omits one of its own semantic dimensions.
     public var semantic: MetricSemantic?
@@ -198,6 +215,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         min: Double? = nil,
         max: Double? = nil,
         reference: Double? = nil,
+        referenceMetadata: DashboardChartReferenceMetadata? = nil,
         semantic: MetricSemantic? = nil,
         style: ChartStyle = .line,
         labels: [String]? = nil,
@@ -212,6 +230,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         self.min = min
         self.max = max
         self.reference = reference
+        self.referenceMetadata = referenceMetadata
         self.semantic = semantic
         self.style = style
         self.labels = labels ?? categories?.map(\.label)
@@ -231,6 +250,10 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         min = try c.decodeIfPresent(Double.self, forKey: .min)
         max = try c.decodeIfPresent(Double.self, forKey: .max)
         reference = try c.decodeIfPresent(Double.self, forKey: .reference)
+        referenceMetadata = try c.decodeIfPresent(
+            DashboardChartReferenceMetadata.self,
+            forKey: .referenceMetadata
+        )
         semantic = try c.decodeIfPresent(MetricSemantic.self, forKey: .semantic)
         let rawStyle = try c.decodeIfPresent(String.self, forKey: .style)
         style = rawStyle.flatMap(ChartStyle.init(rawValue:)) ?? .line
@@ -240,7 +263,8 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case points, min, max, reference, semantic, style, labels, categories, series, stacking, ranges
+        case points, min, max, reference, referenceMetadata, semantic
+        case style, labels, categories, series, stacking, ranges
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the
@@ -391,7 +415,11 @@ public struct DashboardChart: Codable, Hashable, Sendable {
             description += ", " + semantics.joined(separator: ", ")
         }
         if let reference {
-            description += ", against a reference of \(format(reference))"
+            let meaning = referenceMetadata?.displayLabel.map { " \($0.lowercased())" } ?? " reference"
+            description += ", against a\(meaning) of \(format(reference))"
+            if let semantics = referenceMetadata?.semantic?.accessibilityWords, !semantics.isEmpty {
+                description += " (\(semantics.joined(separator: ", ")))"
+            }
         }
         if let series, !series.isEmpty {
             description += ", \(series.count) series: " + series.map { entry in

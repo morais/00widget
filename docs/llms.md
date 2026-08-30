@@ -321,6 +321,7 @@ legend does not fit a small widget.
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
+  "referenceMetadata": "{label?, semantic?}? (meaning for reference)",
   "semantic": "MetricSemantic? ({role?, flow?, signal?})",
   "style": "line | bar | delta | range (default: line)",
   "labels": "string[]? (category labels aligned with points)",
@@ -423,10 +424,25 @@ is drawn.
 and a trend you can act on, because "above or below the line" needs no axis
 labels. An unpinned edge stretches to keep the rule visible; if you pin both
 `min` and `max` and the reference falls outside them, it is not drawn at all
-rather than being clamped to an edge it does not belong on. The rule itself has
-no numeric label. When its exact value matters, lead the card's short `subtitle`
-with its formatted meaning and value — for example, `"SLO 5m · last 10 runs"`
-for `reference: 300`, or `"$300 baseline · Mar–Aug 2026"` for a price chart.
+rather than being clamped to an edge it does not belong on. Add
+`referenceMetadata` to name and semantically describe the rule on larger
+surfaces and to accessibility clients:
+
+```json
+{
+  "reference": 20,
+  "referenceMetadata": {
+    "label": "Daily target",
+    "semantic": {"role": "target"}
+  }
+}
+```
+
+The rule itself has no numeric label on the smallest surfaces. When its exact
+value matters, lead the card's short `subtitle` with its formatted meaning and
+value — for example, `"SLO 5m · last 10 runs"` for `reference: 300`, or
+`"$300 baseline · Mar–Aug 2026"` for a price chart. Older clients ignore the
+metadata and keep drawing the same numeric reference.
 
 Keep publishing the card's `value` too: it is the headline number every widget
 size shows above the plot, and the only thing the inline Lock Screen accessory

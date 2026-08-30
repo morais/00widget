@@ -38,6 +38,14 @@ public enum ChartSeriesPalette {
         case .actual, .balance, .none: return 0.88
         }
     }
+
+    public static func referenceDash(for role: MetricRole?) -> [CGFloat] {
+        switch role {
+        case .baseline: return [1, 3]
+        case .capacity: return [6, 2]
+        default: return [3, 3]
+        }
+    }
 }
 
 /// Labels that stay outside the plot so its geometry remains identical in
@@ -66,11 +74,36 @@ public struct ChartSupplementView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 3) {
+            if let metadata = chart.referenceMetadata,
+               let label = metadata.displayLabel {
+                HStack(spacing: 4) {
+                    Capsule()
+                        .fill(
+                            ChartSeriesPalette.tint(
+                                index: 0,
+                                base: tint,
+                                semantic: metadata.semantic
+                            )
+                            .opacity(ChartSeriesPalette.opacity(for: metadata.semantic?.role))
+                        )
+                        .frame(width: 14, height: 2)
+                    Text(label).lineLimit(1)
+                }
+                .font(font)
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    Text(
+                        ([label] + (metadata.semantic?.accessibilityWords ?? []))
+                            .joined(separator: ", ")
+                    )
+                )
+            }
             if legendLimit > 0, let series = chart.series, !series.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(Array(series.prefix(legendLimit).enumerated()), id: \.element.id) { index, entry in
                         HStack(spacing: 3) {
-                            if let flow = entry.semantic?.flow {
+                            if let flow = chart.resolvedSemantic(for: entry)?.flow {
                                 Image(systemName: flow == .inbound ? "arrow.down" : "arrow.up")
                                     .font(.system(size: 7, weight: .bold))
                                     .accessibilityHidden(true)

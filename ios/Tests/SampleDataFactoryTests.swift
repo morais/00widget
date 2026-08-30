@@ -23,6 +23,7 @@ struct SampleDataFactoryTests {
         #expect(energy.chart?.min == 0)
         #expect(energy.chart?.max == 30)
         #expect(energy.chart?.reference == 20)
+        #expect(energy.chart?.referenceMetadata?.semantic?.role == .target)
         #expect(energy.chart?.semantic?.role == .actual)
         #expect(energy.chart?.series?.map(\.label) == ["Solar", "Grid"])
         #expect(energy.chart?.series?.first?.semantic?.signal == .favorable)
@@ -46,6 +47,7 @@ struct SampleDataFactoryTests {
         #expect(chart.style == .range)
         #expect(chart.ranges?.count == points.count)
         #expect(chart.semantic?.role == .forecast)
+        #expect(chart.referenceMetadata?.semantic?.role == .capacity)
         #expect(points.last == 95)
     }
 }

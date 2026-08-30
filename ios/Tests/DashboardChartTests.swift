@@ -43,6 +43,20 @@ struct DashboardChartTests {
         #expect(chart.accessibilityDescription.contains("forecast"))
     }
 
+    @Test("Reference metadata names and describes the legacy numeric rule")
+    func referenceMetadataDescribesLegacyRule() throws {
+        let json = #"{"points":[4,7],"reference":6,"referenceMetadata":{"label":"Budget","semantic":{"role":"target","signal":"caution"}}}"#
+        let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
+
+        #expect(chart.reference == 6)
+        #expect(chart.referenceMetadata == DashboardChartReferenceMetadata(
+            label: "Budget",
+            semantic: MetricSemantic(role: .target, signal: .caution)
+        ))
+        #expect(chart.accessibilityDescription.contains("against a budget of 6"))
+        #expect(chart.accessibilityDescription.contains("target, caution"))
+    }
+
     @Test("Downsampling keeps category labels and preserves the strongest signal")
     func downsamplingKeepsCategoryMeaning() throws {
         let chart = DashboardChart(
