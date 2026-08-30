@@ -151,11 +151,17 @@ struct LiveActivitiesView: View {
 private struct ActivityCard: View {
     let session: LiveActivitySession
     let combinesAccessibility: Bool
+    let showsChart: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(session: LiveActivitySession, combinesAccessibility: Bool = false) {
+    init(
+        session: LiveActivitySession,
+        combinesAccessibility: Bool = false,
+        showsChart: Bool = true
+    ) {
         self.session = session
         self.combinesAccessibility = combinesAccessibility
+        self.showsChart = showsChart
     }
 
     var body: some View {
@@ -236,7 +242,7 @@ private struct ActivityCard: View {
             // construction, and against the card's own background — white on
             // white in light mode — that edge reads as the plot bleeding out
             // of a clipped container rather than as the bottom of a chart.
-            if let chart = session.chart, chart.isRenderable {
+            if showsChart, let chart = session.chart, chart.isRenderable {
                 SparklineView(chart: chart, tint: session.tint, lineWidth: 2)
                     .frame(height: 56)
                     .padding(10)
@@ -370,7 +376,17 @@ private struct ActivityDetailView: View {
         let currentSession = resolvedSession
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                ActivityCard(session: currentSession)
+                ActivityCard(session: currentSession, showsChart: false)
+
+                if let chart = currentSession.chart, chart.isRenderable {
+                    InspectableChartView(
+                        chart: chart,
+                        tint: currentSession.tint,
+                        unit: currentSession.unit,
+                        plotHeight: 180,
+                        lineWidth: 3
+                    )
+                }
 
                 if let deepLink = currentSession.deepLink {
                     Link(destination: deepLink) {

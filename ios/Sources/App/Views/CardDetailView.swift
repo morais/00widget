@@ -34,6 +34,7 @@ struct CardDetailView: View {
                 CardView(
                     card: currentCard,
                     context: .app,
+                    showsAppChart: currentCard.chart == nil,
                     appActionIsBusy: { runningActionIds.contains($0.id) }
                 ) { action in
                     if action.confirm || action.role == .destructive {
@@ -41,6 +42,16 @@ struct CardDetailView: View {
                     } else {
                         run(action)
                     }
+                }
+
+                if let chart = currentCard.chart, chart.isRenderable {
+                    InspectableChartView(
+                        chart: chart,
+                        tint: currentCard.status.tint,
+                        unit: currentCard.unit,
+                        plotHeight: 180,
+                        lineWidth: 3
+                    )
                 }
 
                 if let actionError {

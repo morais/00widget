@@ -45,6 +45,7 @@ public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
     public let density: CardRenderDensity
+    private let showsAppChart: Bool
     private let appActionIsBusy: ((ActionDefinition) -> Bool)?
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -56,12 +57,14 @@ public struct CardView: View {
         card: DashboardCard,
         context: CardRenderContext = .app,
         density: CardRenderDensity = .automatic,
+        showsAppChart: Bool = true,
         appActionIsBusy: ((ActionDefinition) -> Bool)? = nil,
         appActionHandler: ((ActionDefinition) -> Void)? = nil
     ) {
         self.card = card
         self.context = context
         self.density = density
+        self.showsAppChart = showsAppChart
         self.appActionIsBusy = appActionIsBusy
         self.appActionHandler = appActionHandler
     }
@@ -722,12 +725,14 @@ public struct CardView: View {
             if let subtitle = card.subtitle {
                 appSubtitle(subtitle)
             }
-            sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
-            chartSupplement(
-                legendLimit: density == .compact ? 2 : 4,
-                labelLimit: density == .compact ? 0 : 6,
-                font: .caption
-            )
+            if showsAppChart {
+                sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
+                chartSupplement(
+                    legendLimit: density == .compact ? 2 : 4,
+                    labelLimit: density == .compact ? 0 : 6,
+                    font: .caption
+                )
+            }
         case .history:
             appValue
             if let subtitle = card.subtitle {

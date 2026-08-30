@@ -9,6 +9,75 @@ import Testing
 /// pinning down.
 @Suite("Dashboard chart downsampling")
 struct DashboardChartTests {
+    @Test("Inspection exposes every series, total, category signal, and reference comparison")
+    func inspectionDescribesMultiSeriesPoint() throws {
+        let chart = DashboardChart(
+            points: [],
+            reference: 12,
+            referenceMetadata: DashboardChartReferenceMetadata(
+                label: "Budget",
+                semantic: MetricSemantic(role: .target)
+            ),
+            semantic: MetricSemantic(role: .actual),
+            style: .bar,
+            categories: [
+                DashboardChartCategory(id: "mon", label: "Mon", signal: .favorable),
+                DashboardChartCategory(id: "tue", label: "Tue", signal: .caution),
+            ],
+            series: [
+                DashboardChartSeries(
+                    id: "solar",
+                    label: "Solar",
+                    points: [8, 10],
+                    semantic: MetricSemantic(flow: .inbound)
+                ),
+                DashboardChartSeries(
+                    id: "grid",
+                    label: "Grid",
+                    points: [6, 5],
+                    semantic: MetricSemantic(flow: .outbound)
+                ),
+            ]
+        )
+
+        let snapshot = try #require(chart.inspection(at: 1, unit: "kWh"))
+        #expect(snapshot.label == "Tue")
+        #expect(snapshot.signal == .caution)
+        #expect(snapshot.values.map(\.label) == ["Solar", "Grid", "Total", "Budget"])
+        #expect(snapshot.values.map(\.value) == [10, 5, 15, 12])
+        #expect(snapshot.values[0].semantic == MetricSemantic(role: .actual, flow: .inbound))
+        #expect(snapshot.comparison == "3 kWh above budget")
+        #expect(snapshot.accessibilityDescription(unit: "kWh").contains("point 2 of 2"))
+    }
+
+    @Test("Range inspection distinguishes a measured value from a derived midpoint")
+    func inspectionDescribesRangesHonestly() throws {
+        let chart = DashboardChart(
+            points: [],
+            style: .range,
+            labels: ["Now", "+10"],
+            ranges: [
+                DashboardChartRange(low: 10, high: 20, value: 14),
+                DashboardChartRange(low: 12, high: 24),
+            ]
+        )
+
+        let measured = try #require(chart.inspection(at: 0))
+        #expect(measured.values.map(\.label) == ["Low", "Current", "High"])
+        #expect(measured.values.map(\.value) == [10, 14, 20])
+
+        let derived = try #require(chart.inspection(at: 1))
+        #expect(derived.values.map(\.label) == ["Low", "Midpoint", "High"])
+        #expect(derived.values.map(\.value) == [12, 18, 24])
+    }
+
+    @Test("Inspection clamps external selections to the published window")
+    func inspectionClampsIndex() throws {
+        let chart = DashboardChart(points: [4, 7], labels: ["First", "Last"])
+        #expect(try #require(chart.inspection(at: -20)).label == "First")
+        #expect(try #require(chart.inspection(at: 20)).label == "Last")
+    }
+
     @Test("Rich categories derive labels and unknown future semantics are ignored")
     func categoriesDeriveLabelsAndUnknownSemanticsAreIgnored() throws {
         let json = #"{"points":[1,2],"categories":[{"id":"off","label":"00","signal":"favorable"},{"id":"peak","label":"18","signal":"future-signal"}],"series":[{"id":"charge","label":"Charging","points":[1,2],"semantic":{"role":"actual","flow":"inbound","signal":"favorable"}},{"id":"reserve","label":"Reserve","points":[0,0],"semantic":{"role":"future-role","flow":"future-flow"}}],"style":"bar"}"#

@@ -427,21 +427,16 @@ private struct TVCardDetailContent: View {
     @ViewBuilder
     private var chart: some View {
         if let chart = card.chart, chart.isRenderable {
-            // No `maxPoints`. The cap exists for surfaces too narrow to space
-            // 60 points apart; this one is over 1200 points wide.
-            VStack(alignment: .leading, spacing: 10) {
-                SparklineView(chart: chart, tint: card.status.tint, lineWidth: 6)
-                    .frame(height: 250)
-                    .accessibilityElement()
-                    .accessibilityLabel(chart.accessibilityDescription)
-                ChartSupplementView(
-                    chart: chart,
-                    tint: card.status.tint,
-                    legendLimit: 4,
-                    labelLimit: 6,
-                    font: .body
-                )
-            }
+            // One focus target for the whole plot. Sixty focusable columns
+            // would trap remote navigation; left/right changes the shared
+            // selection while up/down remains available to the focus engine.
+            InspectableChartView(
+                chart: chart,
+                tint: card.status.tint,
+                unit: card.unit,
+                plotHeight: 230,
+                lineWidth: 6
+            )
         }
     }
 
@@ -460,10 +455,14 @@ private struct TVCardDetailContent: View {
             }
         }
         if let plotted {
-            SparklineView(chart: plotted, tint: card.status.tint, lineWidth: 6)
-                .frame(height: 180)
-                .accessibilityElement()
-                .accessibilityLabel(plotted.accessibilityDescription)
+            InspectableChartView(
+                chart: plotted,
+                tint: card.status.tint,
+                unit: card.unit,
+                plotHeight: 130,
+                lineWidth: 6,
+                compact: true
+            )
         }
     }
 
@@ -603,10 +602,14 @@ private struct TVActivityDetailContent: View {
             }
 
             if let chart = activity.chart, chart.isRenderable {
-                SparklineView(chart: chart, tint: activity.tint, lineWidth: 6)
-                    .frame(height: activeItems.isEmpty ? 300 : 160)
-                    .accessibilityElement()
-                    .accessibilityLabel(chart.accessibilityDescription)
+                InspectableChartView(
+                    chart: chart,
+                    tint: activity.tint,
+                    unit: activity.unit,
+                    plotHeight: activeItems.isEmpty ? 230 : 120,
+                    lineWidth: 6,
+                    compact: !activeItems.isEmpty
+                )
             } else if let progress = activity.progress, activity.endsAt == nil {
                 ProgressView(value: max(0, min(progress, 1)))
                     .tint(activity.tint)
