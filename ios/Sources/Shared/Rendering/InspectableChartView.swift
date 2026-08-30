@@ -133,6 +133,11 @@ public struct InspectableChartView: View {
                     .frame(width: 2, height: plotHeight)
                     .offset(x: min(max(0, x - 1), max(0, width - 2)))
             }
+            // Offsets do not contribute to layout. Without an explicit plot
+            // frame this ZStack is only as wide as the 2pt selection rule, so
+            // its origin is centred by the parent and every x position is
+            // displaced by roughly half the chart width.
+            .frame(width: width, height: plotHeight, alignment: .topLeading)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
