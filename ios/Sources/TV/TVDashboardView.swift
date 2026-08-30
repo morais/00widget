@@ -515,6 +515,14 @@ private struct TVDashboardCardView: View {
                     chartContent
                 case .history, .breakdown:
                     chartContent
+                case .briefing:
+                    valueContent
+                    if let section = card.briefing?.sections.first {
+                        Text(section.text)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 case .summary, .action:
                     valueContent
                 }

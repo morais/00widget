@@ -33,6 +33,9 @@ export const FieldLimits = {
   deepLink: 2048,
   itemCount: 20,
   chartPointCount: 60,
+  briefingSectionCount: 8,
+  briefingLabel: 60,
+  briefingText: 500,
   actionCount: 8,
   actionLabel: 80,
   actionPayloadKeys: 16,
@@ -128,6 +131,7 @@ export const DashboardTemplateSchema = z.enum([
   "chart",
   "history",
   "breakdown",
+  "briefing",
 ]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
@@ -205,6 +209,30 @@ export const DashboardItemSchema = z.object({
     + "(measured against the total, so never send percentages). Send it "
     + "alongside `value`, not instead of it — `value` is the label.",
   ),
+});
+
+export const DashboardBriefingSectionSchema = z.object({
+  id: IdString.describe(
+    "Stable id for this detail. Order sections from most important to least: "
+    + "smaller surfaces show only a prefix.",
+  ),
+  label: z.string().max(FieldLimits.briefingLabel).optional().describe(
+    "Optional short heading such as Cause, Impact, or Next.",
+  ),
+  text: z.string().min(1).max(FieldLimits.briefingText).describe(
+    "One self-contained plain-text detail. Do not send Markdown. Make it useful "
+    + "without relying on a later section, because smaller widgets may stop here.",
+  ),
+});
+
+export const DashboardBriefingSchema = z.object({
+  sections: z.array(DashboardBriefingSectionSchema)
+    .min(1)
+    .max(FieldLimits.briefingSectionCount)
+    .describe(
+      "Progressive details, most important first. The card's value and subtitle "
+      + "are the compact conclusion and old-client fallback.",
+    ),
 });
 
 // "delta" is "bar" anchored at zero rather than at the bottom of the range:
@@ -327,7 +355,8 @@ const DashboardCardFields = {
     + "something filling up; `list` for 2-6 things with their own values; "
     + "`action` for buttons; `chart` for one number moving over time; "
     + "`history` for a run of pass/fail outcomes; `breakdown` for a whole split "
-    + "into parts. When unsure, `summary` degrades best at every widget size.",
+    + "into parts; `briefing` for a conclusion followed by ordered prose. When "
+    + "unsure, `summary` degrades best at every widget size.",
   ),
   title: TitleString.describe(
     "The name of the thing. It renders on one line at caption size, so keep it "
@@ -416,6 +445,11 @@ const DashboardCardFields = {
   chart: DashboardChartSchema.optional().describe(
     "The series behind a `chart` card. Republish the whole window every time — "
     + "nothing is appended and no history is kept.",
+  ),
+  briefing: DashboardBriefingSchema.optional().describe(
+    "Ordered prose behind a `briefing` card. Keep `value` as the compact "
+    + "conclusion and `subtitle` as its first explanation: old clients render "
+    + "the unknown template as a summary and still show both.",
   ),
 };
 

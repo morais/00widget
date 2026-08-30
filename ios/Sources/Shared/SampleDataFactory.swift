@@ -62,13 +62,30 @@ public enum SampleDataFactory {
             ),
             DashboardCard(
                 id: sampleId("washer"),
-                template: .summary,
+                template: .briefing,
                 title: "Washer",
-                subtitle: "Cycle running",
+                subtitle: "12 min left · all systems normal",
                 value: "Rinse",
                 status: .running,
                 icon: "washer",
-                updatedAt: now
+                updatedAt: now,
+                briefing: DashboardBriefing(sections: [
+                    DashboardBriefingSection(
+                        id: "stage",
+                        label: "Now",
+                        text: "The rinse cycle is running normally. Water heating and drainage are on schedule."
+                    ),
+                    DashboardBriefingSection(
+                        id: "next",
+                        label: "Next",
+                        text: "A short spin follows, then the load will be ready to unload."
+                    ),
+                    DashboardBriefingSection(
+                        id: "attention",
+                        label: "Attention",
+                        text: "No action is needed. The machine will notify you when the door unlocks."
+                    ),
+                ])
             ),
             DashboardCard(
                 id: sampleId("energy-trend"),

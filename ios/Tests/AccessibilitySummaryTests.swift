@@ -120,6 +120,26 @@ struct CardAccessibilityDetailTests {
         #expect(CardAccessibilitySummary.detail(for: card(template: .summary), rowLimit: 3).isEmpty)
     }
 
+    @Test("A briefing speaks only the ordered details the surface draws")
+    func briefingSectionsAreLimited() {
+        let briefing = DashboardBriefing(sections: [
+            DashboardBriefingSection(id: "cause", label: "Cause", text: "Approval is pending"),
+            DashboardBriefingSection(id: "impact", label: "Impact", text: "Refunds are delayed"),
+            DashboardBriefingSection(id: "next", label: "Next", text: "Approve the migration"),
+        ])
+        let briefingCard = DashboardCard(
+            id: "release",
+            template: .briefing,
+            title: "Release",
+            briefing: briefing
+        )
+
+        #expect(
+            CardAccessibilitySummary.detail(for: briefingCard, rowLimit: 2)
+                == "Cause: Approval is pending. Impact: Refunds are delayed."
+        )
+    }
+
     @Test("A chart is described wherever one is renderable")
     func chartIsAlwaysDescribed() {
         let chart = DashboardChart(points: [1, 2, 3])

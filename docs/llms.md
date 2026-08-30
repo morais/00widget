@@ -25,7 +25,7 @@ software integration.
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`, `breakdown`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`, `breakdown`, `briefing`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -226,7 +226,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "summary | progress | list | action | chart | history | breakdown",
+  "template": "summary | progress | list | action | chart | history | breakdown | briefing",
   "title": "string",
   "subtitle": "short string? (one line; truncates rather than wraps; essential context first)",
   "value": "string? (headline already formatted for a person, including any prefix such as $)",
@@ -242,6 +242,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
   "chart": "DashboardChart? (drawn by template=chart; ignored by other templates except in a grid cell)",
+  "briefing": "DashboardBriefing? (ordered plain-text details revealed as room permits)",
   "actions": "ActionDefinition[]? (buttons on any template, not just action; safe-only from widgets)"
 }
 ```
@@ -491,8 +492,41 @@ Pick one based on the *shape* of the data, not the domain:
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
+| A conclusion with explanatory prose    | `briefing` | `value`, `subtitle`, `briefing.sections[]` |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
+
+### Text briefings reveal progressively
+
+A `briefing` is for conclusions, causes, impact, and next steps rather than a
+numeric visualization. Put the conclusion in `value` and its first explanation
+in `subtitle`: those are what a small widget shows, and they are also what an
+older app renders when it treats the future template as `summary`.
+
+Put the remaining detail in `briefing.sections`, ordered most important first.
+Each section is self-contained plain text with a stable `id` and an optional
+short `label`. Do not send Markdown. Medium widgets show the first section,
+large widgets show more, and the app and Apple TV detail panel can show all of
+them. This progressive structure avoids maintaining compact, standard, and
+detailed rewrites that can contradict one another.
+
+```json
+{
+  "id": "release-briefing",
+  "template": "briefing",
+  "title": "Release",
+  "value": "2 blockers",
+  "subtitle": "Payments deploy needs attention",
+  "status": "warning",
+  "briefing": {
+    "sections": [
+      {"id":"cause","label":"Cause","text":"The database migration is waiting for production approval."},
+      {"id":"impact","label":"Impact","text":"Checkout is unaffected, but the refund fix has not shipped."},
+      {"id":"next","label":"Next","text":"Approve migration 1842, then retry the payments deployment."}
+    ]
+  }
+}
+```
 
 ### Buttons combine with any template
 

@@ -52,6 +52,10 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .prog rect.fill.r{fill:#0a84ff}
 .state{color:var(--fg);font-weight:600;margin:0 0 .35rem}
 .rowsub{color:var(--muted);font-size:.85rem;margin:-.35rem 0 .35rem}
+.brief{padding:.65rem 0;border-top:1px solid var(--line)}
+.brief:first-of-type{margin-top:.75rem}
+.brief-label{font-size:.8rem;font-weight:700;color:var(--accent);margin:0 0 .15rem}
+.brief-text{margin:0}
 a.k{color:var(--accent);text-decoration:none}
 a.k:hover{text-decoration:underline}
 .rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
@@ -195,6 +199,13 @@ const GUEST_SCRIPT = `
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
       if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
       if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
+      if(c.template==='briefing'&&c.briefing){
+        (c.briefing.sections||[]).forEach(function(s){
+          h+='<div class="brief">'
+            +(s.label?'<p class="brief-label">'+esc(s.label)+'</p>':'')
+            +'<p class="brief-text">'+esc(s.text)+'</p></div>';
+        });
+      }
       var widest=0;
       (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
       (c.items||[]).forEach(function(i){

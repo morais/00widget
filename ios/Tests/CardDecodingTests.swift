@@ -34,6 +34,16 @@ struct CardDecodingTests {
         #expect(cards[1].template == .progress)
     }
 
+    @Test("A briefing keeps its ordered plain-text sections")
+    func briefingDecodes() throws {
+        let card = try decode(
+            #"{"id":"c1","template":"briefing","title":"Release","value":"2 blockers","briefing":{"sections":[{"id":"impact","label":"Impact","text":"Refunds are delayed."}]}}"#
+        )
+        #expect(card.template == .briefing)
+        #expect(card.briefing?.sections.first?.label == "Impact")
+        #expect(card.briefing?.sections.first?.text == "Refunds are delayed.")
+    }
+
     /// Deep links arrive from producers, and a card is rendered by the widget
     /// extension, so the sanitising has to happen where the value enters the
     /// process rather than where it is tapped.

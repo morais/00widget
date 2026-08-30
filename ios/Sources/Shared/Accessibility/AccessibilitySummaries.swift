@@ -64,6 +64,10 @@ enum CardAccessibilitySummary {
             if !items.isEmpty {
                 parts.append(CompositionBarView.accessibilityDescription(for: items))
             }
+        case .briefing:
+            parts.append(contentsOf: (card.briefing?.sections ?? []).prefix(rowLimit).map { section in
+                [section.label, section.text].compactMap { $0 }.joined(separator: ": ")
+            })
         case .chart, .progress, .summary, .action:
             break
         }

@@ -12,6 +12,9 @@ struct SampleDataFactoryTests {
         let deploys = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("deploys") }
         )
+        let washer = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("washer") }
+        )
 
         let energyPoints = try #require(energy.chart?.points)
         #expect(energyPoints.count == 30)
@@ -21,6 +24,8 @@ struct SampleDataFactoryTests {
         #expect(energy.chart?.max == 30)
         #expect(energy.chart?.reference == 20)
         #expect(deploys.items?.count == 20)
+        #expect(washer.template == .briefing)
+        #expect(washer.briefing?.sections.count == 3)
     }
 
     @Test("The demo Live Activity shows more than ten readings")

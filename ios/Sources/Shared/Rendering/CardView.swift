@@ -227,6 +227,8 @@ public struct CardView: View {
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 12)
+            case .briefing:
+                briefingLead(subtitleLines: 2)
             case .summary:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -268,6 +270,9 @@ public struct CardView: View {
                 chartHeadline
                 compositionBar(height: 14)
                 breakdownLegend(max: density == .compact ? 0 : 2)
+            case .briefing:
+                briefingLead(subtitleLines: density == .compact ? 1 : 2)
+                briefingSections(max: density == .compact ? 0 : 1, lineLimit: 2)
             case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -312,6 +317,9 @@ public struct CardView: View {
                 chartHeadline
                 compositionBar(height: 16)
                 breakdownLegend(max: density == .compact ? 3 : 5)
+            case .briefing:
+                briefingLead(subtitleLines: 2)
+                briefingSections(max: density == .compact ? 1 : 3, lineLimit: 2)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -442,6 +450,14 @@ public struct CardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             actionButtons(max: density == .compact ? 2 : 4)
+        case .briefing:
+            HStack(alignment: .top, spacing: 14) {
+                briefingLead(subtitleLines: 3)
+                    .frame(maxWidth: 220, alignment: .leading)
+                briefingSections(max: density == .compact ? 3 : 6, lineLimit: 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            actionButtons(max: density == .compact ? 2 : 4)
         case .summary, .progress:
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -489,6 +505,9 @@ public struct CardView: View {
                 chartHeadline
                 compositionBar(height: 18)
                 breakdownLegend(max: density == .compact ? 5 : 8)
+            case .briefing:
+                briefingLead(subtitleLines: 3)
+                briefingSections(max: density == .compact ? 3 : 6, lineLimit: 3)
             case .summary, .progress:
                 bigValue
                 if let subtitle = card.subtitle {
@@ -705,6 +724,12 @@ public struct CardView: View {
             if density != .compact {
                 appBreakdownRows
             }
+        case .briefing:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+            appBriefingSections(max: density == .compact ? 1 : 8)
         case .summary, .action:
             appValue
             if let subtitle = card.subtitle {
@@ -736,6 +761,61 @@ public struct CardView: View {
             .font(.body)
             .foregroundStyle(.primary)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : (density == .compact ? 1 : 3))
+    }
+
+    private func briefingLead(subtitleLines: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            bigValue
+            if let subtitle = card.subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(subtitleLines)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func briefingSections(max: Int, lineLimit: Int) -> some View {
+        if max > 0, let sections = card.briefing?.sections, !sections.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(sections.prefix(max)) { section in
+                    VStack(alignment: .leading, spacing: 1) {
+                        if let label = section.label, !label.isEmpty {
+                            Text(label)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(card.status.tint)
+                                .lineLimit(1)
+                        }
+                        Text(section.text)
+                            .font(.caption2)
+                            .foregroundStyle(.primary)
+                            .lineLimit(lineLimit)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func appBriefingSections(max: Int) -> some View {
+        if let sections = card.briefing?.sections, !sections.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(sections.prefix(max)) { section in
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let label = section.label, !label.isEmpty {
+                            Text(label)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(card.status.tint)
+                        }
+                        Text(section.text)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

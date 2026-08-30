@@ -350,6 +350,8 @@ private struct TVCardDetailContent: View {
                 history
             case .breakdown:
                 breakdown
+            case .briefing:
+                briefing
             }
 
             if let deadline = card.deadline {
@@ -384,6 +386,24 @@ private struct TVCardDetailContent: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var briefing: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach((card.briefing?.sections ?? []).prefix(6)) { section in
+                VStack(alignment: .leading, spacing: 4) {
+                    if let label = section.label, !label.isEmpty {
+                        Text(label)
+                            .font(.headline)
+                            .foregroundStyle(card.status.tint)
+                    }
+                    Text(section.text)
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                }
             }
         }
     }

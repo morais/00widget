@@ -167,6 +167,44 @@ describe("DashboardCardSchema", () => {
     if (statusParsed.success) expect(statusParsed.data.status).toBe("unknown");
   });
 
+  it("accepts an ordered plain-text briefing", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "release",
+      template: "briefing",
+      title: "Release",
+      value: "2 blockers",
+      subtitle: "Payments needs attention",
+      briefing: {
+        sections: [
+          { id: "cause", label: "Cause", text: "A migration needs approval." },
+          { id: "impact", label: "Impact", text: "Refunds are delayed." },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.briefing?.sections).toHaveLength(2);
+  });
+
+  it("bounds briefing sections and text", () => {
+    const base = { id: "release", template: "briefing", title: "Release" };
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      briefing: { sections: [] },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      briefing: {
+        sections: Array.from({ length: FieldLimits.briefingSectionCount + 1 }, (_, index) => ({
+          id: String(index), text: "detail",
+        })),
+      },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      briefing: { sections: [{ id: "detail", text: "x".repeat(FieldLimits.briefingText + 1) }] },
+    }).success).toBe(false);
+  });
+
   it("rejects fields and arrays beyond published limits", () => {
     expect(
       DashboardCardInputSchema.safeParse({
