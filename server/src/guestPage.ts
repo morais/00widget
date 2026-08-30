@@ -35,9 +35,20 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark rect.flow-inbound{fill:#30b0c7}.spark rect.flow-outbound{fill:#af52de}
 .spark rect.sig-favorable{fill:#34c759}.spark rect.sig-neutral{fill:var(--muted)}
 .spark rect.sig-caution{fill:#ff9f0a}.spark rect.sig-unfavorable{fill:#ff3b30}
+.spark polyline.flow-inbound,.spark line.marker.flow-inbound{stroke:#30b0c7}
+.spark polyline.flow-outbound,.spark line.marker.flow-outbound{stroke:#af52de}
+.spark polyline.sig-favorable,.spark line.marker.sig-favorable{stroke:#34c759}
+.spark polyline.sig-neutral,.spark line.marker.sig-neutral{stroke:var(--muted)}
+.spark polyline.sig-caution,.spark line.marker.sig-caution{stroke:#ff9f0a}
+.spark polyline.sig-unfavorable,.spark line.marker.sig-unfavorable{stroke:#ff3b30}
 .spark rect.role-forecast{fill-opacity:.48}.spark rect.role-baseline{fill-opacity:.55}
 .spark rect.role-target{fill-opacity:.72}.spark rect.role-capacity{fill-opacity:.35}
 .spark rect.role-remainder{fill-opacity:.45}.spark rect.period{fill-opacity:.1}
+.spark polyline.role-forecast,.spark line.marker.role-forecast{stroke-opacity:.48}
+.spark polyline.role-baseline,.spark line.marker.role-baseline{stroke-opacity:.55}
+.spark polyline.role-target,.spark line.marker.role-target{stroke-opacity:.72}
+.spark polyline.role-capacity,.spark line.marker.role-capacity{stroke-opacity:.35}
+.spark polyline.role-remainder,.spark line.marker.role-remainder{stroke-opacity:.45}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
@@ -95,13 +106,19 @@ const GUEST_SCRIPT = `
   var SEM_FLOW={inbound:'flow-inbound',outbound:'flow-outbound'};
   var SEM_ROLE={forecast:'role-forecast',baseline:'role-baseline',target:'role-target',capacity:'role-capacity',remainder:'role-remainder'};
   var SIGNAL_MARK={favorable:'✓',neutral:'•',caution:'!',unfavorable:'×'};
-  var seriesClass=function(series,index){
-    var semantic=series.semantic||{},classes=['s'+index];
+  var resolveSemantic=function(primary,fallback){
+    primary=primary||{};fallback=fallback||{};
+    return {role:primary.role||fallback.role,flow:primary.flow||fallback.flow,signal:primary.signal||fallback.signal};
+  };
+  var semanticClass=function(semantic){
+    semantic=semantic||{};var classes=[];
     if(SEM_FLOW[semantic.flow]){classes.push(SEM_FLOW[semantic.flow])}
     if(SEM_SIGNAL[semantic.signal]){classes.push(SEM_SIGNAL[semantic.signal])}
     if(SEM_ROLE[semantic.role]){classes.push(SEM_ROLE[semantic.role])}
     return classes.join(' ');
   };
+  var seriesSemantic=function(ch,series){return resolveSemantic(series.semantic,ch.semantic)};
+  var seriesClass=function(ch,series,index){return ('s'+index+' '+semanticClass(seriesSemantic(ch,series))).trim()};
   var categoryBands=function(ch,n,w,ht){
     if(!ch.categories||ch.categories.length!==n){return ''}
     var slot=w/n,bands='';
@@ -142,20 +159,20 @@ const GUEST_SCRIPT = `
       for(var rr=0;rr<n;rr++){
         var lowY=y(ch.ranges[rr].low),highY=y(ch.ranges[rr].high);
         var rx=rr*rangeSlot+(rangeSlot-rangeWidth)/2;
-        body+='<rect class="range" x="'+rx.toFixed(2)+'" y="'+Math.min(lowY,highY).toFixed(2)+'" width="'+rangeWidth.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lowY-highY)).toFixed(2)+'"/>';
+        body+='<rect class="range '+semanticClass(ch.semantic)+'" x="'+rx.toFixed(2)+'" y="'+Math.min(lowY,highY).toFixed(2)+'" width="'+rangeWidth.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lowY-highY)).toFixed(2)+'"/>';
         if(ch.ranges[rr].value!=null){
           var markerY=y(ch.ranges[rr].value).toFixed(2),markerInset=rangeSlot*0.16;
-          body+='<line class="marker" x1="'+(rr*rangeSlot+markerInset).toFixed(2)+'" x2="'+((rr+1)*rangeSlot-markerInset).toFixed(2)+'" y1="'+markerY+'" y2="'+markerY+'" vector-effect="non-scaling-stroke"/>';
+          body+='<line class="marker '+semanticClass(ch.semantic)+'" x1="'+(rr*rangeSlot+markerInset).toFixed(2)+'" x2="'+((rr+1)*rangeSlot-markerInset).toFixed(2)+'" y1="'+markerY+'" y2="'+markerY+'" vector-effect="non-scaling-stroke"/>';
         }
       }
-    }else if(ch.style==='bar'&&ch.series&&ch.series.length>1){
+    }else if(ch.style==='bar'&&ch.series&&ch.series.length){
       var slot=w/n,group=slot*0.76;
       if(ch.stacking==='grouped'){
         var one=group/ch.series.length;
         for(var si=0;si<ch.series.length;si++){
           for(var gi=0;gi<n;gi++){
             var gy=y(ch.series[si].points[gi]);
-            body+='<rect class="'+seriesClass(ch.series[si],si)+'" x="'+(gi*slot+(slot-group)/2+si*one).toFixed(2)+'" y="'+gy.toFixed(2)+'" width="'+one.toFixed(2)+'" height="'+Math.max(0.6,ht-gy).toFixed(2)+'"/>';
+            body+='<rect class="'+seriesClass(ch,ch.series[si],si)+'" x="'+(gi*slot+(slot-group)/2+si*one).toFixed(2)+'" y="'+gy.toFixed(2)+'" width="'+one.toFixed(2)+'" height="'+Math.max(0.6,ht-gy).toFixed(2)+'"/>';
           }
         }
       }else{
@@ -163,7 +180,7 @@ const GUEST_SCRIPT = `
         for(var ss=0;ss<ch.series.length;ss++){
           for(var sj=0;sj<n;sj++){
             var lower=y(sums[sj]);sums[sj]+=ch.series[ss].points[sj];var upper=y(sums[sj]);
-            body+='<rect class="'+seriesClass(ch.series[ss],ss)+'" x="'+(sj*slot+(slot-group)/2).toFixed(2)+'" y="'+Math.min(lower,upper).toFixed(2)+'" width="'+group.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lower-upper)).toFixed(2)+'"/>';
+            body+='<rect class="'+seriesClass(ch,ch.series[ss],ss)+'" x="'+(sj*slot+(slot-group)/2).toFixed(2)+'" y="'+Math.min(lower,upper).toFixed(2)+'" width="'+group.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lower-upper)).toFixed(2)+'"/>';
           }
         }
       }
@@ -172,12 +189,12 @@ const GUEST_SCRIPT = `
       var bw=w/n*0.7;
       for(var i=0;i<n;i++){
         var top=y(p[i]);
-        body+='<rect'+(top>base?' class="neg"':'')+' x="'+(i*w/n+(w/n-bw)/2).toFixed(2)+'" y="'+Math.min(base,top).toFixed(2)+'" width="'+bw.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(top-base)).toFixed(2)+'"/>';
+        body+='<rect class="'+(top>base?'neg ':'')+semanticClass(ch.semantic)+'" x="'+(i*w/n+(w/n-bw)/2).toFixed(2)+'" y="'+Math.min(base,top).toFixed(2)+'" width="'+bw.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(top-base)).toFixed(2)+'"/>';
       }
     }else{
       var pts=[];
       for(var j=0;j<n;j++){pts.push((j*w/(n-1)).toFixed(2)+','+y(p[j]).toFixed(2))}
-      body='<polyline points="'+pts.join(' ')+'" vector-effect="non-scaling-stroke"/>';
+      body='<polyline class="'+semanticClass(ch.semantic)+'" points="'+pts.join(' ')+'" vector-effect="non-scaling-stroke"/>';
     }
     var ref='';
     if(zero!=null){
@@ -191,14 +208,21 @@ const GUEST_SCRIPT = `
     if(ch.series&&ch.series.length){
       extra+='<div class="chart-legend">';
       for(var s=0;s<ch.series.length;s++){
-        var semantic=ch.series[s].semantic||{},words=[];
+        var semantic=seriesSemantic(ch,ch.series[s]),words=[];
         if(semantic.role){words.push(semantic.role)}
         if(semantic.flow){words.push(semantic.flow)}
         if(semantic.signal){words.push(semantic.signal)}
         var arrow=semantic.flow==='inbound'?'↓':(semantic.flow==='outbound'?'↑':'');
-        extra+='<span>'+arrow+'<i class="dot '+seriesClass(ch.series[s],s)+'"></i>'+esc(ch.series[s].label)+(words.length?'<small> · '+esc(words.join(', '))+'</small>':'')+'</span>';
+        extra+='<span>'+arrow+'<i class="dot '+seriesClass(ch,ch.series[s],s)+'"></i>'+esc(ch.series[s].label)+(words.length?'<small> · '+esc(words.join(', '))+'</small>':'')+'</span>';
       }
       extra+='</div>';
+    }else if(ch.semantic){
+      var words=[];
+      if(ch.semantic.role){words.push(ch.semantic.role)}
+      if(ch.semantic.flow){words.push(ch.semantic.flow)}
+      if(ch.semantic.signal){words.push(ch.semantic.signal)}
+      var arrow=ch.semantic.flow==='inbound'?'↓':(ch.semantic.flow==='outbound'?'↑':'');
+      if(words.length){extra+='<div class="chart-legend"><span>'+arrow+esc(words.join(', '))+'</span></div>'}
     }
     if(ch.categories&&ch.categories.length){
       var cpicks=ch.categories.length<=4?ch.categories:[ch.categories[0],ch.categories[Math.floor((ch.categories.length-1)/2)],ch.categories[ch.categories.length-1]];

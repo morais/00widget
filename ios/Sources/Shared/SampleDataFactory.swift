@@ -120,6 +120,7 @@ public enum SampleDataFactory {
                     min: 0,
                     max: 30,
                     reference: 20,
+                    semantic: MetricSemantic(role: .actual),
                     style: .bar,
                     categories: energyCategories,
                     series: [
@@ -127,8 +128,7 @@ public enum SampleDataFactory {
                             id: "solar",
                             label: "Solar",
                             points: energySolar,
-                            semantic: DashboardChartSemantic(
-                                role: .actual,
+                            semantic: MetricSemantic(
                                 flow: .inbound,
                                 signal: .favorable
                             )
@@ -137,8 +137,7 @@ public enum SampleDataFactory {
                             id: "grid",
                             label: "Grid",
                             points: energyGrid,
-                            semantic: DashboardChartSemantic(
-                                role: .actual,
+                            semantic: MetricSemantic(
                                 flow: .inbound,
                                 signal: .neutral
                             )
@@ -221,6 +220,7 @@ public enum SampleDataFactory {
                 min: 30,
                 max: 100,
                 reference: 100,
+                semantic: MetricSemantic(role: .forecast),
                 style: .range,
                 labels: ["Now", "+10", "+20", "+30", "+40", "+50", "+60", "+70", "+80", "+90", "+100", "+110"],
                 ranges: [

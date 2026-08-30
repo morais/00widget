@@ -476,7 +476,7 @@ describe("guest link browser page", () => {
 
     expect(script).toContain("ch.style==='range'");
     expect(script).toContain("ch.ranges[rr].low");
-    expect(script).toContain('class="marker"');
+    expect(script).toContain('class="marker ');
     expect(body).toContain(".spark rect.range{");
   });
 
@@ -486,6 +486,8 @@ describe("guest link browser page", () => {
     const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
 
     expect(script).toContain("var seriesClass=function");
+    expect(script).toContain("var resolveSemantic=function");
+    expect(script).toContain("semanticClass(ch.semantic)");
     expect(script).toContain("var categoryBands=function");
     expect(script).toContain("SIGNAL_MARK");
     expect(script).toContain("words.push(semantic.flow)");

@@ -4,7 +4,7 @@ public enum ChartSeriesPalette {
     public static func tint(
         index: Int,
         base: Color,
-        semantic: DashboardChartSemantic? = nil
+        semantic: MetricSemantic? = nil
     ) -> Color {
         if let signal = semantic?.signal { return signalTint(signal, base: base) }
         if let flow = semantic?.flow {
@@ -19,7 +19,7 @@ public enum ChartSeriesPalette {
         }
     }
 
-    public static func signalTint(_ signal: ChartSignal, base: Color) -> Color {
+    public static func signalTint(_ signal: MetricSignal, base: Color) -> Color {
         switch signal {
         case .favorable: return .green
         case .neutral: return .secondary
@@ -28,7 +28,7 @@ public enum ChartSeriesPalette {
         }
     }
 
-    public static func opacity(for role: ChartSemanticRole?) -> Double {
+    public static func opacity(for role: MetricRole?) -> Double {
         switch role {
         case .forecast: return 0.48
         case .baseline: return 0.55
@@ -80,16 +80,23 @@ public struct ChartSupplementView: View {
                                     ChartSeriesPalette.tint(
                                         index: index,
                                         base: tint,
-                                        semantic: entry.semantic
+                                        semantic: chart.resolvedSemantic(for: entry)
                                     )
-                                    .opacity(ChartSeriesPalette.opacity(for: entry.semantic?.role))
+                                    .opacity(
+                                        ChartSeriesPalette.opacity(
+                                            for: chart.resolvedSemantic(for: entry)?.role
+                                        )
+                                    )
                                 )
                                 .frame(width: 6, height: 6)
                             Text(entry.label).lineLimit(1)
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(
-                            Text(([entry.label] + (entry.semantic?.accessibilityWords ?? [])).joined(separator: ", "))
+                            Text(
+                                ([entry.label] + (chart.resolvedSemantic(for: entry)?.accessibilityWords ?? []))
+                                    .joined(separator: ", ")
+                            )
                         )
                     }
                 }
@@ -167,7 +174,7 @@ public struct ChartSupplementView: View {
         }
     }
 
-    private func signalSymbol(_ signal: ChartSignal) -> String {
+    private func signalSymbol(_ signal: MetricSignal) -> String {
         switch signal {
         case .favorable: return "checkmark.circle.fill"
         case .neutral: return "circle.fill"

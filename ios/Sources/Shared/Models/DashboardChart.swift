@@ -16,7 +16,7 @@ public enum ChartStacking: String, Codable, CaseIterable, Sendable {
     case grouped
 }
 
-public enum ChartSemanticRole: String, Codable, CaseIterable, Sendable {
+public enum MetricRole: String, Codable, CaseIterable, Sendable {
     case actual
     case forecast
     case baseline
@@ -26,18 +26,18 @@ public enum ChartSemanticRole: String, Codable, CaseIterable, Sendable {
     case remainder
 }
 
-public enum ChartFlow: String, Codable, CaseIterable, Sendable {
+public enum MetricFlow: String, Codable, CaseIterable, Sendable {
     case inbound
     case outbound
 }
 
-public enum ChartSignal: String, Codable, CaseIterable, Sendable {
+public enum MetricSignal: String, Codable, CaseIterable, Sendable {
     case favorable
     case neutral
     case caution
     case unfavorable
 
-    static func strongest<S: Sequence>(_ signals: S) -> ChartSignal? where S.Element == ChartSignal {
+    static func strongest<S: Sequence>(_ signals: S) -> MetricSignal? where S.Element == MetricSignal {
         signals.max { lhs, rhs in lhs.precedence < rhs.precedence }
     }
 
@@ -51,15 +51,15 @@ public enum ChartSignal: String, Codable, CaseIterable, Sendable {
     }
 }
 
-public struct DashboardChartSemantic: Codable, Hashable, Sendable {
-    public var role: ChartSemanticRole?
-    public var flow: ChartFlow?
-    public var signal: ChartSignal?
+public struct MetricSemantic: Codable, Hashable, Sendable {
+    public var role: MetricRole?
+    public var flow: MetricFlow?
+    public var signal: MetricSignal?
 
     public init(
-        role: ChartSemanticRole? = nil,
-        flow: ChartFlow? = nil,
-        signal: ChartSignal? = nil
+        role: MetricRole? = nil,
+        flow: MetricFlow? = nil,
+        signal: MetricSignal? = nil
     ) {
         self.role = role
         self.flow = flow
@@ -68,9 +68,9 @@ public struct DashboardChartSemantic: Codable, Hashable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        role = try c.decodeIfPresent(String.self, forKey: .role).flatMap(ChartSemanticRole.init(rawValue:))
-        flow = try c.decodeIfPresent(String.self, forKey: .flow).flatMap(ChartFlow.init(rawValue:))
-        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(ChartSignal.init(rawValue:))
+        role = try c.decodeIfPresent(String.self, forKey: .role).flatMap(MetricRole.init(rawValue:))
+        flow = try c.decodeIfPresent(String.self, forKey: .flow).flatMap(MetricFlow.init(rawValue:))
+        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(MetricSignal.init(rawValue:))
     }
 
     enum CodingKeys: String, CodingKey { case role, flow, signal }
@@ -78,14 +78,35 @@ public struct DashboardChartSemantic: Codable, Hashable, Sendable {
     var accessibilityWords: [String] {
         [role?.rawValue, flow?.rawValue, signal?.rawValue].compactMap { $0 }
     }
+
+    var isEmpty: Bool { role == nil && flow == nil && signal == nil }
+
+    /// A child metric overrides only the meanings it specifies and inherits
+    /// the rest from its chart. This lets a chart say "forecast" once while
+    /// individual series still distinguish inbound from outbound.
+    func overriding(_ fallback: MetricSemantic?) -> MetricSemantic? {
+        let resolved = MetricSemantic(
+            role: role ?? fallback?.role,
+            flow: flow ?? fallback?.flow,
+            signal: signal ?? fallback?.signal
+        )
+        return resolved.isEmpty ? nil : resolved
+    }
 }
+
+// Source-compatible names for code written against the first chart-only
+// release. The JSON wire format never carried these Swift type names.
+public typealias ChartSemanticRole = MetricRole
+public typealias ChartFlow = MetricFlow
+public typealias ChartSignal = MetricSignal
+public typealias DashboardChartSemantic = MetricSemantic
 
 public struct DashboardChartCategory: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var label: String
-    public var signal: ChartSignal?
+    public var signal: MetricSignal?
 
-    public init(id: String, label: String, signal: ChartSignal? = nil) {
+    public init(id: String, label: String, signal: MetricSignal? = nil) {
         self.id = id
         self.label = label
         self.signal = signal
@@ -95,7 +116,7 @@ public struct DashboardChartCategory: Codable, Hashable, Identifiable, Sendable 
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         label = try c.decode(String.self, forKey: .label)
-        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(ChartSignal.init(rawValue:))
+        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(MetricSignal.init(rawValue:))
     }
 
     enum CodingKeys: String, CodingKey { case id, label, signal }
@@ -105,13 +126,13 @@ public struct DashboardChartSeries: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var label: String
     public var points: [Double]
-    public var semantic: DashboardChartSemantic?
+    public var semantic: MetricSemantic?
 
     public init(
         id: String,
         label: String,
         points: [Double],
-        semantic: DashboardChartSemantic? = nil
+        semantic: MetricSemantic? = nil
     ) {
         self.id = id
         self.label = label
@@ -153,6 +174,9 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     public var max: Double?
     /// A target, budget, or threshold drawn as a dashed rule across the plot.
     public var reference: Double?
+    /// Meaning shared by a single points/range series and inherited by any
+    /// multi-series entry that omits one of its own semantic dimensions.
+    public var semantic: MetricSemantic?
     public var style: ChartStyle
     /// Optional category labels aligned one-for-one with `points`.
     public var labels: [String]?
@@ -174,6 +198,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         min: Double? = nil,
         max: Double? = nil,
         reference: Double? = nil,
+        semantic: MetricSemantic? = nil,
         style: ChartStyle = .line,
         labels: [String]? = nil,
         categories: [DashboardChartCategory]? = nil,
@@ -187,6 +212,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         self.min = min
         self.max = max
         self.reference = reference
+        self.semantic = semantic
         self.style = style
         self.labels = labels ?? categories?.map(\.label)
         self.categories = categories
@@ -205,6 +231,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         min = try c.decodeIfPresent(Double.self, forKey: .min)
         max = try c.decodeIfPresent(Double.self, forKey: .max)
         reference = try c.decodeIfPresent(Double.self, forKey: .reference)
+        semantic = try c.decodeIfPresent(MetricSemantic.self, forKey: .semantic)
         let rawStyle = try c.decodeIfPresent(String.self, forKey: .style)
         style = rawStyle.flatMap(ChartStyle.init(rawValue:)) ?? .line
         labels = try c.decodeIfPresent([String].self, forKey: .labels) ?? categories?.map(\.label)
@@ -213,7 +240,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case points, min, max, reference, style, labels, categories, series, stacking, ranges
+        case points, min, max, reference, semantic, style, labels, categories, series, stacking, ranges
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the
@@ -290,7 +317,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
                 return DashboardChartCategory(
                     id: last.id,
                     label: last.label,
-                    signal: ChartSignal.strongest(values.compactMap(\.signal))
+                    signal: MetricSignal.strongest(values.compactMap(\.signal))
                 )
             }
             reduced.labels = reduced.categories?.map(\.label)
@@ -360,12 +387,15 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         guard let first = points.first, let last = points.last else { return "No chart data" }
         let direction = last > first ? "rising" : (last < first ? "falling" : "flat")
         var description = "Trend \(direction), \(points.count) points, from \(format(first)) to \(format(last))"
+        if series?.isEmpty != false, let semantics = semantic?.accessibilityWords, !semantics.isEmpty {
+            description += ", " + semantics.joined(separator: ", ")
+        }
         if let reference {
             description += ", against a reference of \(format(reference))"
         }
         if let series, !series.isEmpty {
             description += ", \(series.count) series: " + series.map { entry in
-                let semantics = entry.semantic?.accessibilityWords ?? []
+                let semantics = resolvedSemantic(for: entry)?.accessibilityWords ?? []
                 return semantics.isEmpty ? entry.label : "\(entry.label) (\(semantics.joined(separator: ", ")))"
             }.joined(separator: ", ")
         }
@@ -374,12 +404,16 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         }
         if let categories {
             let signaled = categories.compactMap(\.signal)
-            for signal in ChartSignal.allCases {
+            for signal in MetricSignal.allCases {
                 let count = signaled.filter { $0 == signal }.count
                 if count > 0 { description += ", \(count) \(signal.rawValue) categories" }
             }
         }
         return description
+    }
+
+    func resolvedSemantic(for series: DashboardChartSeries) -> MetricSemantic? {
+        (series.semantic ?? MetricSemantic()).overriding(semantic)
     }
 
     private func format(_ value: Double) -> String {

@@ -243,7 +243,7 @@ export const DashboardBriefingSchema = z.object({
 // added/removed, spend vs refund.
 export const ChartStyleSchema = z.enum(["line", "bar", "delta", "range"]);
 export const ChartStackingSchema = z.enum(["stacked", "grouped"]);
-export const ChartSemanticRoleSchema = z.enum([
+export const MetricRoleSchema = z.enum([
   "actual",
   "forecast",
   "baseline",
@@ -252,29 +252,36 @@ export const ChartSemanticRoleSchema = z.enum([
   "balance",
   "remainder",
 ]);
-export const ChartFlowSchema = z.enum(["inbound", "outbound"]);
-export const ChartSignalSchema = z.enum(["favorable", "neutral", "caution", "unfavorable"]);
+export const MetricFlowSchema = z.enum(["inbound", "outbound"]);
+export const MetricSignalSchema = z.enum(["favorable", "neutral", "caution", "unfavorable"]);
 
-export const DashboardChartSemanticSchema = z.object({
-  role: ChartSemanticRoleSchema.optional().describe(
+export const MetricSemanticSchema = z.object({
+  role: MetricRoleSchema.optional().describe(
     "What the series represents; affects emphasis and fill treatment, never a producer-selected color.",
   ),
-  flow: ChartFlowSchema.optional().describe(
+  flow: MetricFlowSchema.optional().describe(
     "Whether a quantity flows into or out of the measured system.",
   ),
-  signal: ChartSignalSchema.optional().describe(
+  signal: MetricSignalSchema.optional().describe(
     "Contextual interpretation from the producer's perspective, not an intrinsic property of the value.",
   ),
 }).refine((semantic) => Object.values(semantic).some((value) => value !== undefined), {
   message: "semantic must contain at least one hint",
 });
 
+// Source-compatible exports for integrations importing the initial
+// chart-specific schema names. These names never appear in JSON.
+export const ChartSemanticRoleSchema = MetricRoleSchema;
+export const ChartFlowSchema = MetricFlowSchema;
+export const ChartSignalSchema = MetricSignalSchema;
+export const DashboardChartSemanticSchema = MetricSemanticSchema;
+
 export const DashboardChartCategorySchema = z.object({
   id: IdString.describe("Stable category id for the time period or bucket."),
   label: z.string().min(1).max(FieldLimits.chartAxisLabel).describe(
     "Short display label. The server derives the legacy labels array from categories.",
   ),
-  signal: ChartSignalSchema.optional().describe(
+  signal: MetricSignalSchema.optional().describe(
     "Contextual interpretation of this category, such as a favorable off-peak or unfavorable peak period.",
   ),
 });
@@ -287,7 +294,7 @@ export const DashboardChartSeriesSchema = z.object({
   points: z.array(z.number().min(0)).min(2).max(FieldLimits.chartPointCount).describe(
     "Non-negative values aligned one-for-one with every other series, label, and category.",
   ),
-  semantic: DashboardChartSemanticSchema.optional().describe(
+  semantic: MetricSemanticSchema.optional().describe(
     "Optional role, flow, and contextual signal hints. Renderers choose all actual colors and patterns.",
   ),
 });
@@ -333,6 +340,10 @@ const DashboardChartObjectSchema = z
       + "can act on, because above-or-below needs no axis labels. The rule has "
       + "no numeric label; when its exact value matters, lead the card's short "
       + "`subtitle` with its formatted meaning and value.",
+    ),
+    semantic: MetricSemanticSchema.optional().describe(
+      "Meaning shared by a single points or range series and inherited by any "
+      + "multi-series entry that omits a semantic dimension.",
     ),
     style: ChartStyleSchema.default("line").describe(
       "`line` is a sparkline with a soft area fill; `bar` grows every bar from "

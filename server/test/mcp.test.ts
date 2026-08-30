@@ -369,6 +369,10 @@ describe("tools/list", () => {
     );
     expect(properties.subtitle.description).toContain("truncates rather than wraps");
     expect(properties.unit.description).toContain("Suffix shown after `value`");
+    const chart = properties.chart as unknown as {
+      properties: { semantic: { properties: { role: { enum: string[] } } } };
+    };
+    expect(chart.properties.semantic.properties.role.enum).toContain("forecast");
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
   });
 });

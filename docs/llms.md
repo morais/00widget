@@ -321,6 +321,7 @@ legend does not fit a small widget.
   "min": "number? (pins the bottom of the plot)",
   "max": "number? (pins the top of the plot)",
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
+  "semantic": "MetricSemantic? ({role?, flow?, signal?})",
   "style": "line | bar | delta | range (default: line)",
   "labels": "string[]? (category labels aligned with points)",
   "categories": "DashboardChartCategory[]? ({id, label, signal?}, aligned with points)",
@@ -351,9 +352,8 @@ and a flat-but-noisy series looks dramatic. Send both â€” or at least `min: 0` â
 whenever the absolute scale is the point, such as a percentage or a 0-100
 score. Values outside an explicit range are clamped, not dropped.
 
-For semantic, stacked, or grouped vertical bars, send `series` instead of
-`points`. A single entry gives one series semantic hints; multiple entries are
-stacked or grouped. Every
+For stacked or grouped vertical bars, send `series` instead of `points`. A
+single entry gives one named series; multiple entries are stacked or grouped. Every
 series has a stable `id`, short legend `label`, and the same number of
 non-negative points. `stacking: "stacked"` adds the values into one column per
 category; `grouped` places them side by side. The server defaults `min` to zero
@@ -361,8 +361,8 @@ for these magnitude bars, then derives and stores
 `points` as the per-category totals. An older client ignores the new fields and
 still draws one truthful total bar per category.
 
-Series may carry a composable `semantic` object. These are meaning hints, never
-literal colors:
+The chart itself and each named series may carry a composable `semantic`
+object. These are meaning hints, never literal colors:
 
 ```json
 {
@@ -379,6 +379,13 @@ battery is inbound and discharging it is outbound. `signal` is the producer's
 contextual interpretation. It is deliberately not `high` or `low`: an expensive
 period is unfavorable to a consumer and favorable to an exporter, so the
 producer must state the perspective rather than expect the client to guess.
+
+Put `semantic` on the chart for an ordinary `points`, `delta`, or `ranges`
+plot. In a multi-series chart it becomes the default: each series inherits the
+dimensions it omits and overrides only what it states. For example, put
+`{"role":"forecast"}` on the chart and only the distinct `flow` on each
+series. This keeps shared meaning in one place without losing per-series
+specificity.
 
 Renderers own every actual color, opacity, pattern, symbol, and accessibility
 treatment. Missing hints retain the deterministic palette. Current Apple
@@ -822,6 +829,7 @@ easier to audit:
 {
   "style": "bar",
   "stacking": "stacked",
+  "semantic": {"role":"actual"},
   "categories": [
     {"id":"mon","label":"Mon","signal":"favorable"},
     {"id":"tue","label":"Tue","signal":"neutral"},
@@ -834,13 +842,13 @@ easier to audit:
       "id":"solar",
       "label":"Solar",
       "points":[12,14,9],
-      "semantic":{"role":"actual","flow":"inbound","signal":"favorable"}
+      "semantic":{"flow":"inbound","signal":"favorable"}
     },
     {
       "id":"grid",
       "label":"Grid",
       "points":[8,6,11],
-      "semantic":{"role":"actual","flow":"inbound","signal":"neutral"}
+      "semantic":{"flow":"inbound","signal":"neutral"}
     }
   ]
 }

@@ -264,8 +264,31 @@ describe("DashboardCardSchema", () => {
     expect(parsed.data.chart?.series?.[0].semantic?.role).toBe("balance");
   });
 
+  it("accepts chart-wide semantics for points and range charts", () => {
+    for (const chart of [
+      { points: [4, 7], semantic: { role: "forecast", flow: "outbound", signal: "caution" } },
+      {
+        ranges: [{ low: 4, high: 8 }, { low: 6, high: 10 }],
+        semantic: { role: "forecast" },
+      },
+    ]) {
+      const parsed = DashboardCardInputSchema.safeParse({
+        id: "semantic-chart",
+        template: "chart",
+        title: "Semantic chart",
+        chart,
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.chart?.semantic?.role).toBe("forecast");
+    }
+  });
+
   it("rejects empty semantics and misaligned or duplicate categories", () => {
     const base = { id: "semantic", template: "chart", title: "Semantic" };
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { points: [1, 2], semantic: {} },
+    }).success).toBe(false);
     expect(DashboardCardInputSchema.safeParse({
       ...base,
       chart: {

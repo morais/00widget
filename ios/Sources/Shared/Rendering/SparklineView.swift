@@ -45,9 +45,12 @@ public struct SparklineView: View {
     public var body: some View {
         let plotted = self.plotted
         let values = plotted.normalizedPoints
+        let semantic = plotted.semantic
+        let semanticTint = ChartSeriesPalette.tint(index: 0, base: tint, semantic: semantic)
+        let semanticOpacity = ChartSeriesPalette.opacity(for: semantic?.role)
         ZStack {
             if let signals = plotted.categorySignals {
-                ForEach(ChartSignal.allCases, id: \.rawValue) { signal in
+                ForEach(MetricSignal.allCases, id: \.rawValue) { signal in
                     CategorySignalBandsShape(signals: signals, selection: signal)
                         .fill(
                             ChartSeriesPalette.signalTint(signal, base: tint)
@@ -68,7 +71,10 @@ public struct SparklineView: View {
                     SparklineAreaShape(values: values)
                         .fill(
                             LinearGradient(
-                                colors: [tint.opacity(0.32), tint.opacity(0.02)],
+                                colors: [
+                                    semanticTint.opacity(0.32 * semanticOpacity),
+                                    semanticTint.opacity(0.02 * semanticOpacity),
+                                ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -76,7 +82,7 @@ public struct SparklineView: View {
                 }
                 SparklineLineShape(values: values)
                     .stroke(
-                        tint,
+                        semanticTint.opacity(semanticOpacity),
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
             case .bar:
@@ -93,14 +99,18 @@ public struct SparklineView: View {
                             ChartSeriesPalette.tint(
                                 index: index,
                                 base: tint,
-                                semantic: series[index].semantic
+                                semantic: plotted.resolvedSemantic(for: series[index])
                             )
-                            .opacity(ChartSeriesPalette.opacity(for: series[index].semantic?.role))
+                            .opacity(
+                                ChartSeriesPalette.opacity(
+                                    for: plotted.resolvedSemantic(for: series[index])?.role
+                                )
+                            )
                         )
                     }
                 } else {
                     SparklineBarsShape(values: values)
-                        .fill(tint.opacity(0.85))
+                        .fill(semanticTint.opacity(0.85 * semanticOpacity))
                 }
             case .delta:
                 // Falling back to the bottom when a pinned axis excludes zero
@@ -108,9 +118,9 @@ public struct SparklineView: View {
                 // without a zero rule that would not be where zero is.
                 let baseline = plotted.normalizedZero
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .above)
-                    .fill(tint.opacity(0.85))
+                    .fill(semanticTint.opacity(0.85 * semanticOpacity))
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .below)
-                    .fill(tint.opacity(0.4))
+                    .fill(semanticTint.opacity(0.4 * semanticOpacity))
                 if let baseline {
                     HorizontalRuleShape(position: baseline)
                         .stroke(.secondary, lineWidth: 0.75)
@@ -118,16 +128,16 @@ public struct SparklineView: View {
             case .range:
                 if let ranges = plotted.normalizedRanges {
                     RangeBarsShape(ranges: ranges)
-                        .fill(tint.opacity(0.32))
+                        .fill(semanticTint.opacity(0.32 * semanticOpacity))
                     RangeValueMarkersShape(ranges: ranges)
                         .stroke(
-                            tint,
+                            semanticTint.opacity(semanticOpacity),
                             style: StrokeStyle(lineWidth: max(1, lineWidth), lineCap: .round)
                         )
                 } else {
                     SparklineLineShape(values: values)
                         .stroke(
-                            tint,
+                            semanticTint.opacity(semanticOpacity),
                             style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                         )
                 }
@@ -157,7 +167,7 @@ private struct NormalizedRangeBand {
 }
 
 private extension DashboardChart {
-    var categorySignals: [ChartSignal?]? {
+    var categorySignals: [MetricSignal?]? {
         guard let categories, categories.count == points.count else { return nil }
         return categories.map(\.signal)
     }
@@ -192,8 +202,8 @@ private extension DashboardChart {
 }
 
 private struct CategorySignalBandsShape: Shape {
-    let signals: [ChartSignal?]
-    let selection: ChartSignal
+    let signals: [MetricSignal?]
+    let selection: MetricSignal
 
     func path(in rect: CGRect) -> Path {
         var path = Path()

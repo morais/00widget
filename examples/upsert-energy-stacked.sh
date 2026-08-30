@@ -21,13 +21,14 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
     "chart": {
       "style": "bar",
       "stacking": "stacked",
+      "semantic": {"role":"actual"},
       "labels": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
       "min": 0,
       "max": 30,
       "reference": 20,
       "series": [
-        {"id":"solar","label":"Solar","points":[12,14,9,16,13,17,11],"semantic":{"role":"actual","flow":"inbound","signal":"favorable"}},
-        {"id":"grid","label":"Grid","points":[8,6,11,5,7,4,9],"semantic":{"role":"actual","flow":"inbound","signal":"neutral"}}
+        {"id":"solar","label":"Solar","points":[12,14,9,16,13,17,11],"semantic":{"flow":"inbound","signal":"favorable"}},
+        {"id":"grid","label":"Grid","points":[8,6,11,5,7,4,9],"semantic":{"flow":"inbound","signal":"neutral"}}
       ]
     }
   }'

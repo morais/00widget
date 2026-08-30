@@ -16,12 +16,31 @@ struct DashboardChartTests {
 
         #expect(chart.labels == ["00", "18"])
         #expect(chart.categories?.map(\.signal) == [.favorable, nil])
-        #expect(chart.series?[0].semantic == DashboardChartSemantic(
+        #expect(chart.series?[0].semantic == MetricSemantic(
             role: .actual,
             flow: .inbound,
             signal: .favorable
         ))
-        #expect(chart.series?[1].semantic == DashboardChartSemantic())
+        #expect(chart.series?[1].semantic == MetricSemantic())
+    }
+
+    @Test("Chart semantics describe simple metrics and supply series defaults")
+    func chartSemanticsApplyToSimpleAndMultiSeriesCharts() throws {
+        let json = #"{"points":[3,5],"semantic":{"role":"forecast","signal":"caution"},"series":[{"id":"in","label":"Import","points":[2,3],"semantic":{"flow":"inbound"}},{"id":"out","label":"Export","points":[1,2],"semantic":{"signal":"favorable"}}],"style":"bar"}"#
+        let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
+        let series = try #require(chart.series)
+
+        #expect(chart.semantic == MetricSemantic(role: .forecast, signal: .caution))
+        #expect(chart.resolvedSemantic(for: series[0]) == MetricSemantic(
+            role: .forecast,
+            flow: .inbound,
+            signal: .caution
+        ))
+        #expect(chart.resolvedSemantic(for: series[1]) == MetricSemantic(
+            role: .forecast,
+            signal: .favorable
+        ))
+        #expect(chart.accessibilityDescription.contains("forecast"))
     }
 
     @Test("Downsampling keeps category labels and preserves the strongest signal")

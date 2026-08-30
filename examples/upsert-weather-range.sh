@@ -19,6 +19,7 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
     "status": "good",
     "icon": "thermometer.variable",
     "chart": {
+      "semantic": {"role":"forecast"},
       "labels": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
       "min": 0,
       "max": 30,
