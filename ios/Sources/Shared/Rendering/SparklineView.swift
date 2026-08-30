@@ -46,6 +46,15 @@ public struct SparklineView: View {
         let plotted = self.plotted
         let values = plotted.normalizedPoints
         ZStack {
+            if let signals = plotted.categorySignals {
+                ForEach(ChartSignal.allCases, id: \.rawValue) { signal in
+                    CategorySignalBandsShape(signals: signals, selection: signal)
+                        .fill(
+                            ChartSeriesPalette.signalTint(signal, base: tint)
+                                .opacity(signal == .neutral ? 0.05 : 0.10)
+                        )
+                }
+            }
             if let reference = plotted.normalizedReference {
                 HorizontalRuleShape(position: reference)
                     .stroke(
@@ -71,7 +80,7 @@ public struct SparklineView: View {
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                     )
             case .bar:
-                if let series = plotted.series, series.count >= 2 {
+                if let series = plotted.series, !series.isEmpty {
                     let bands = plotted.normalizedSeriesBands
                     ForEach(Array(series.indices), id: \.self) { index in
                         MultiSeriesBarsShape(
@@ -80,7 +89,14 @@ public struct SparklineView: View {
                             seriesCount: series.count,
                             stacking: plotted.stacking
                         )
-                        .fill(ChartSeriesPalette.tint(index: index, base: tint).opacity(0.88))
+                        .fill(
+                            ChartSeriesPalette.tint(
+                                index: index,
+                                base: tint,
+                                semantic: series[index].semantic
+                            )
+                            .opacity(ChartSeriesPalette.opacity(for: series[index].semantic?.role))
+                        )
                     }
                 } else {
                     SparklineBarsShape(values: values)
@@ -141,6 +157,11 @@ private struct NormalizedRangeBand {
 }
 
 private extension DashboardChart {
+    var categorySignals: [ChartSignal?]? {
+        guard let categories, categories.count == points.count else { return nil }
+        return categories.map(\.signal)
+    }
+
     var normalizedSeriesBands: [[NormalizedBarBand]] {
         guard let series, let count = series.first?.points.count else { return [] }
         var cumulative = Array(repeating: 0.0, count: count)
@@ -167,6 +188,28 @@ private extension DashboardChart {
                 value: range.value.map(normalizedValue)
             )
         }
+    }
+}
+
+private struct CategorySignalBandsShape: Shape {
+    let signals: [ChartSignal?]
+    let selection: ChartSignal
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard !signals.isEmpty else { return path }
+        let slot = rect.width / CGFloat(signals.count)
+        for (index, signal) in signals.enumerated() where signal == selection {
+            path.addRect(
+                CGRect(
+                    x: rect.minX + slot * CGFloat(index),
+                    y: rect.minY,
+                    width: slot,
+                    height: rect.height
+                )
+            )
+        }
+        return path
     }
 }
 

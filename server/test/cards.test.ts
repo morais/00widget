@@ -206,6 +206,94 @@ describe("DashboardCardSchema", () => {
     expect(parsed.data.chart?.labels).toEqual(["Mon", "Tue", "Wed"]);
   });
 
+  it("accepts composable series semantics and derives legacy labels from categories", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "battery",
+      template: "chart",
+      title: "Battery",
+      chart: {
+        labels: ["stale", "labels"],
+        categories: [
+          { id: "off-peak", label: "00:00", signal: "favorable" },
+          { id: "peak", label: "18:00", signal: "unfavorable" },
+        ],
+        series: [
+          {
+            id: "charge",
+            label: "Charging",
+            points: [4, 2],
+            semantic: { role: "actual", flow: "inbound", signal: "favorable" },
+          },
+          {
+            id: "discharge",
+            label: "Discharging",
+            points: [1, 5],
+            semantic: { role: "forecast", flow: "outbound", signal: "caution" },
+          },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.chart?.labels).toEqual(["00:00", "18:00"]);
+    expect(parsed.data.chart?.points).toEqual([5, 7]);
+    expect(parsed.data.chart?.series?.[1].semantic).toEqual({
+      role: "forecast",
+      flow: "outbound",
+      signal: "caution",
+    });
+  });
+
+  it("accepts one semantic series for a battery balance", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "battery-balance",
+      template: "chart",
+      title: "Battery",
+      chart: {
+        series: [{
+          id: "state-of-charge",
+          label: "Charge",
+          points: [42, 56, 71],
+          semantic: { role: "balance" },
+        }],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.chart?.points).toEqual([42, 56, 71]);
+    expect(parsed.data.chart?.series?.[0].semantic?.role).toBe("balance");
+  });
+
+  it("rejects empty semantics and misaligned or duplicate categories", () => {
+    const base = { id: "semantic", template: "chart", title: "Semantic" };
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        series: [
+          { id: "one", label: "One", points: [1, 2], semantic: {} },
+          { id: "two", label: "Two", points: [3, 4] },
+        ],
+      },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        points: [1, 2],
+        categories: [{ id: "one", label: "One", signal: "favorable" }],
+      },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: {
+        points: [1, 2],
+        categories: [
+          { id: "same", label: "One" },
+          { id: "same", label: "Two" },
+        ],
+      },
+    }).success).toBe(false);
+  });
+
   it("rejects inconsistent or signed multi-series bars", () => {
     const base = { id: "energy", template: "chart", title: "Energy" };
     expect(DashboardCardInputSchema.safeParse({

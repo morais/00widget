@@ -323,7 +323,8 @@ legend does not fit a small widget.
   "reference": "number? (target/budget/threshold, drawn as a dashed rule)",
   "style": "line | bar | delta | range (default: line)",
   "labels": "string[]? (category labels aligned with points)",
-  "series": "DashboardChartSeries[]? (2-4 non-negative bar series)",
+  "categories": "DashboardChartCategory[]? ({id, label, signal?}, aligned with points)",
+  "series": "DashboardChartSeries[]? (1-4 non-negative bar series)",
   "stacking": "stacked | grouped (default: stacked)",
   "ranges": "DashboardChartRange[]? ({low, high, value?}, 2-60 entries)"
 }
@@ -350,13 +351,47 @@ and a flat-but-noisy series looks dramatic. Send both — or at least `min: 0` �
 whenever the absolute scale is the point, such as a percentage or a 0-100
 score. Values outside an explicit range are clamped, not dropped.
 
-For stacked or grouped vertical bars, send `series` instead of `points`. Every
+For semantic, stacked, or grouped vertical bars, send `series` instead of
+`points`. A single entry gives one series semantic hints; multiple entries are
+stacked or grouped. Every
 series has a stable `id`, short legend `label`, and the same number of
 non-negative points. `stacking: "stacked"` adds the values into one column per
 category; `grouped` places them side by side. The server defaults `min` to zero
 for these magnitude bars, then derives and stores
 `points` as the per-category totals. An older client ignores the new fields and
 still draws one truthful total bar per category.
+
+Series may carry a composable `semantic` object. These are meaning hints, never
+literal colors:
+
+```json
+{
+  "role": "actual | forecast | baseline | target | capacity | balance | remainder",
+  "flow": "inbound | outbound",
+  "signal": "favorable | neutral | caution | unfavorable"
+}
+```
+
+Use only the dimensions you know. `role` tells the renderer whether a series
+is observed, predicted, a comparison, a limit, or stored/remaining quantity.
+`flow` describes movement relative to the system being measured — charging a
+battery is inbound and discharging it is outbound. `signal` is the producer's
+contextual interpretation. It is deliberately not `high` or `low`: an expensive
+period is unfavorable to a consumer and favorable to an exporter, so the
+producer must state the perspective rather than expect the client to guess.
+
+Renderers own every actual color, opacity, pattern, symbol, and accessibility
+treatment. Missing hints retain the deterministic palette. Current Apple
+clients also speak the semantic words, show direction arrows, vary emphasis by
+role, and pair category tones with non-color symbols. Never encode colors into
+an id or label.
+
+Use `categories` when meaning changes per bar rather than per series — tariff
+periods are the canonical example. Each category has a stable `id`, a short
+`label`, and an optional `signal`. The server derives and stores the legacy
+`labels` array from categories. Older clients ignore categories and semantics,
+retain those labels, and continue drawing the same aggregate bars or fallback
+line.
 
 For a min/max envelope, forecast band, confidence interval, or observed daily
 range, send `ranges` instead of `points`. Every entry has `low` and `high`, plus
@@ -438,7 +473,8 @@ Card field limits:
 | `items` | 20 rows |
 | `progress` | number, 0.0–1.0 |
 | `chart.points` | 2–60 finite numbers |
-| `chart.series` | 2–4 series; 2–60 non-negative points each |
+| `chart.series` | 1–4 series; 2–60 non-negative points each |
+| `chart.categories` | 2–60 unique ids, aligned one-for-one with points |
 | `chart.ranges` | 2–60 entries; `low <= high`, optional `value` inside the interval |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
@@ -517,6 +553,7 @@ Pick one based on the *shape* of the data, not the domain:
 | Discrete readings as vertical bars    | `chart`    | as above, plus `chart.style: "bar"`       |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
 | A low/high interval per category      | `chart`    | `chart.ranges[]`; optional `labels[]`       |
+| Periods with contextual meaning       | `chart`    | `chart.categories[]` with optional `signal` |
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
 | A conclusion with explanatory prose    | `briefing` | `value`, `subtitle`, `briefing.sections[]` |
@@ -785,12 +822,26 @@ easier to audit:
 {
   "style": "bar",
   "stacking": "stacked",
-  "labels": ["Mon", "Tue", "Wed"],
+  "categories": [
+    {"id":"mon","label":"Mon","signal":"favorable"},
+    {"id":"tue","label":"Tue","signal":"neutral"},
+    {"id":"wed","label":"Wed","signal":"caution"}
+  ],
   "min": 0,
   "max": 30,
   "series": [
-    {"id":"solar","label":"Solar","points":[12,14,9]},
-    {"id":"grid","label":"Grid","points":[8,6,11]}
+    {
+      "id":"solar",
+      "label":"Solar",
+      "points":[12,14,9],
+      "semantic":{"role":"actual","flow":"inbound","signal":"favorable"}
+    },
+    {
+      "id":"grid",
+      "label":"Grid",
+      "points":[8,6,11],
+      "semantic":{"role":"actual","flow":"inbound","signal":"neutral"}
+    }
   ]
 }
 ```

@@ -9,6 +9,42 @@ import Testing
 /// pinning down.
 @Suite("Dashboard chart downsampling")
 struct DashboardChartTests {
+    @Test("Rich categories derive labels and unknown future semantics are ignored")
+    func categoriesDeriveLabelsAndUnknownSemanticsAreIgnored() throws {
+        let json = #"{"points":[1,2],"categories":[{"id":"off","label":"00","signal":"favorable"},{"id":"peak","label":"18","signal":"future-signal"}],"series":[{"id":"charge","label":"Charging","points":[1,2],"semantic":{"role":"actual","flow":"inbound","signal":"favorable"}},{"id":"reserve","label":"Reserve","points":[0,0],"semantic":{"role":"future-role","flow":"future-flow"}}],"style":"bar"}"#
+        let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
+
+        #expect(chart.labels == ["00", "18"])
+        #expect(chart.categories?.map(\.signal) == [.favorable, nil])
+        #expect(chart.series?[0].semantic == DashboardChartSemantic(
+            role: .actual,
+            flow: .inbound,
+            signal: .favorable
+        ))
+        #expect(chart.series?[1].semantic == DashboardChartSemantic())
+    }
+
+    @Test("Downsampling keeps category labels and preserves the strongest signal")
+    func downsamplingKeepsCategoryMeaning() throws {
+        let chart = DashboardChart(
+            points: [1, 2, 3, 4],
+            style: .bar,
+            categories: [
+                DashboardChartCategory(id: "a", label: "A", signal: .favorable),
+                DashboardChartCategory(id: "b", label: "B", signal: .caution),
+                DashboardChartCategory(id: "c", label: "C", signal: .neutral),
+                DashboardChartCategory(id: "d", label: "D", signal: .unfavorable),
+            ]
+        )
+        let reduced = chart.downsampled(toAtMost: 2)
+
+        #expect(reduced.labels == ["B", "D"])
+        #expect(reduced.categories == [
+            DashboardChartCategory(id: "b", label: "B", signal: .caution),
+            DashboardChartCategory(id: "d", label: "D", signal: .unfavorable),
+        ])
+    }
+
     @Test("Range-only JSON derives representative fallback points")
     func rangeOnlyJSONDerivesFallbackPoints() throws {
         let json = #"{"ranges":[{"low":10,"high":20,"value":14},{"low":12,"high":24}],"labels":["Mon","Tue"],"style":"range"}"#

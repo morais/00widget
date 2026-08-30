@@ -26,8 +26,8 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
       "max": 30,
       "reference": 20,
       "series": [
-        {"id":"solar","label":"Solar","points":[12,14,9,16,13,17,11]},
-        {"id":"grid","label":"Grid","points":[8,6,11,5,7,4,9]}
+        {"id":"solar","label":"Solar","points":[12,14,9,16,13,17,11],"semantic":{"role":"actual","flow":"inbound","signal":"favorable"}},
+        {"id":"grid","label":"Grid","points":[8,6,11,5,7,4,9],"semantic":{"role":"actual","flow":"inbound","signal":"neutral"}}
       ]
     }
   }'

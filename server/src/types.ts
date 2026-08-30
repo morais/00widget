@@ -243,14 +243,52 @@ export const DashboardBriefingSchema = z.object({
 // added/removed, spend vs refund.
 export const ChartStyleSchema = z.enum(["line", "bar", "delta", "range"]);
 export const ChartStackingSchema = z.enum(["stacked", "grouped"]);
+export const ChartSemanticRoleSchema = z.enum([
+  "actual",
+  "forecast",
+  "baseline",
+  "target",
+  "capacity",
+  "balance",
+  "remainder",
+]);
+export const ChartFlowSchema = z.enum(["inbound", "outbound"]);
+export const ChartSignalSchema = z.enum(["favorable", "neutral", "caution", "unfavorable"]);
+
+export const DashboardChartSemanticSchema = z.object({
+  role: ChartSemanticRoleSchema.optional().describe(
+    "What the series represents; affects emphasis and fill treatment, never a producer-selected color.",
+  ),
+  flow: ChartFlowSchema.optional().describe(
+    "Whether a quantity flows into or out of the measured system.",
+  ),
+  signal: ChartSignalSchema.optional().describe(
+    "Contextual interpretation from the producer's perspective, not an intrinsic property of the value.",
+  ),
+}).refine((semantic) => Object.values(semantic).some((value) => value !== undefined), {
+  message: "semantic must contain at least one hint",
+});
+
+export const DashboardChartCategorySchema = z.object({
+  id: IdString.describe("Stable category id for the time period or bucket."),
+  label: z.string().min(1).max(FieldLimits.chartAxisLabel).describe(
+    "Short display label. The server derives the legacy labels array from categories.",
+  ),
+  signal: ChartSignalSchema.optional().describe(
+    "Contextual interpretation of this category, such as a favorable off-peak or unfavorable peak period.",
+  ),
+});
 
 export const DashboardChartSeriesSchema = z.object({
-  id: IdString.describe("Stable series id, used to keep its color consistent."),
+  id: IdString.describe("Stable series id, used to keep renderer-owned presentation consistent."),
   label: z.string().min(1).max(FieldLimits.chartSeriesLabel).describe(
     "Short legend label.",
   ),
   points: z.array(z.number().min(0)).min(2).max(FieldLimits.chartPointCount).describe(
-    "Non-negative values aligned one-for-one with every other series and labels.",
+    "Non-negative values aligned one-for-one with every other series, label, and category.",
+  ),
+  semantic: DashboardChartSemanticSchema.optional().describe(
+    "Optional role, flow, and contextual signal hints. Renderers choose all actual colors and patterns.",
   ),
 });
 
@@ -310,12 +348,20 @@ const DashboardChartObjectSchema = z
         "Optional category labels aligned with points. Small surfaces omit them; "
         + "large widgets and detail views show a readable subset.",
       ),
-    series: z.array(DashboardChartSeriesSchema)
+    categories: z.array(DashboardChartCategorySchema)
       .min(2)
+      .max(FieldLimits.chartPointCount)
+      .optional()
+      .describe(
+        "Rich categories aligned with points. Use category signal for meanings that vary per bar, "
+        + "such as favorable off-peak and unfavorable peak periods. The server derives labels.",
+      ),
+    series: z.array(DashboardChartSeriesSchema)
+      .min(1)
       .max(FieldLimits.chartSeriesCount)
       .optional()
       .describe(
-        "Two to four series for stacked or grouped vertical bars. The server "
+        "One to four semantic series for vertical bars, stacked or grouped when multiple. The server "
         + "derives legacy points as their totals for older clients.",
       ),
     ranges: z.array(DashboardChartRangeSchema)
@@ -337,9 +383,18 @@ const DashboardChartObjectSchema = z
     if (chart.labels && chart.labels.length !== chart.points.length) {
       ctx.addIssue({ code: "custom", path: ["labels"], message: "must match points length" });
     }
+    if (chart.categories) {
+      if (chart.categories.length !== chart.points.length) {
+        ctx.addIssue({ code: "custom", path: ["categories"], message: "must match points length" });
+      }
+      const ids = new Set(chart.categories.map((entry) => entry.id));
+      if (ids.size !== chart.categories.length) {
+        ctx.addIssue({ code: "custom", path: ["categories"], message: "category ids must be unique" });
+      }
+    }
     if (chart.series) {
       if (chart.style !== "bar") {
-        ctx.addIssue({ code: "custom", path: ["style"], message: "multiple series require bar style" });
+        ctx.addIssue({ code: "custom", path: ["style"], message: "series require bar style" });
       }
       const ids = new Set(chart.series.map((entry) => entry.id));
       if (ids.size !== chart.series.length) {
@@ -391,7 +446,16 @@ const DashboardChartObjectSchema = z
 // category. Builds that predate `series` ignore it and still draw those totals.
 export const DashboardChartSchema = z.preprocess((input) => {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
-  const chart = input as Record<string, unknown>;
+  const original = input as Record<string, unknown>;
+  const rawCategories = original.categories;
+  const categoryLabels = Array.isArray(rawCategories) && rawCategories.length > 0
+    && rawCategories.every((entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+      && typeof (entry as Record<string, unknown>).label === "string")
+    ? rawCategories.map((entry) => (entry as Record<string, string>).label)
+    : undefined;
+  const chart: Record<string, unknown> = categoryLabels
+    ? { ...original, labels: categoryLabels }
+    : original;
   const rawRanges = chart.ranges;
   if (Array.isArray(rawRanges) && rawRanges.length > 0) {
     const compatible = rawRanges.every((entry) => {
@@ -414,16 +478,16 @@ export const DashboardChartSchema = z.preprocess((input) => {
     }
   }
   const rawSeries = chart.series;
-  if (!Array.isArray(rawSeries) || rawSeries.length === 0) return input;
+  if (!Array.isArray(rawSeries) || rawSeries.length === 0) return chart;
   const pointArrays = rawSeries.map((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
     return (entry as Record<string, unknown>).points;
   });
-  if (!pointArrays.every(Array.isArray)) return input;
+  if (!pointArrays.every(Array.isArray)) return chart;
   const count = (pointArrays[0] as unknown[]).length;
-  if (!pointArrays.every((points) => (points as unknown[]).length === count)) return input;
+  if (!pointArrays.every((points) => (points as unknown[]).length === count)) return chart;
   if (!pointArrays.every((points) => (points as unknown[]).every((value) => typeof value === "number"))) {
-    return input;
+    return chart;
   }
   const points = Array.from({ length: count }, (_, index) =>
     pointArrays.reduce((total, values) => total + Number((values as number[])[index]), 0));

@@ -21,6 +21,13 @@ public enum SampleDataFactory {
             9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
         ]
         let energyTotals = zip(energySolar, energyGrid).map { $0.0 + $0.1 }
+        let energyCategories = energyTotals.enumerated().map { index, total in
+            DashboardChartCategory(
+                id: "day-\(index + 1)",
+                label: String(index + 1),
+                signal: total > 24 ? .unfavorable : (total > 20 ? .caution : .favorable)
+            )
+        }
         return [
             DashboardCard(
                 id: sampleId("solar"),
@@ -114,10 +121,28 @@ public enum SampleDataFactory {
                     max: 30,
                     reference: 20,
                     style: .bar,
-                    labels: (1...30).map(String.init),
+                    categories: energyCategories,
                     series: [
-                        DashboardChartSeries(id: "solar", label: "Solar", points: energySolar),
-                        DashboardChartSeries(id: "grid", label: "Grid", points: energyGrid),
+                        DashboardChartSeries(
+                            id: "solar",
+                            label: "Solar",
+                            points: energySolar,
+                            semantic: DashboardChartSemantic(
+                                role: .actual,
+                                flow: .inbound,
+                                signal: .favorable
+                            )
+                        ),
+                        DashboardChartSeries(
+                            id: "grid",
+                            label: "Grid",
+                            points: energyGrid,
+                            semantic: DashboardChartSemantic(
+                                role: .actual,
+                                flow: .inbound,
+                                signal: .neutral
+                            )
+                        ),
                     ],
                     stacking: .stacked
                 )

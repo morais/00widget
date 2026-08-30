@@ -16,15 +16,107 @@ public enum ChartStacking: String, Codable, CaseIterable, Sendable {
     case grouped
 }
 
+public enum ChartSemanticRole: String, Codable, CaseIterable, Sendable {
+    case actual
+    case forecast
+    case baseline
+    case target
+    case capacity
+    case balance
+    case remainder
+}
+
+public enum ChartFlow: String, Codable, CaseIterable, Sendable {
+    case inbound
+    case outbound
+}
+
+public enum ChartSignal: String, Codable, CaseIterable, Sendable {
+    case favorable
+    case neutral
+    case caution
+    case unfavorable
+
+    static func strongest<S: Sequence>(_ signals: S) -> ChartSignal? where S.Element == ChartSignal {
+        signals.max { lhs, rhs in lhs.precedence < rhs.precedence }
+    }
+
+    private var precedence: Int {
+        switch self {
+        case .neutral: return 0
+        case .favorable: return 1
+        case .caution: return 2
+        case .unfavorable: return 3
+        }
+    }
+}
+
+public struct DashboardChartSemantic: Codable, Hashable, Sendable {
+    public var role: ChartSemanticRole?
+    public var flow: ChartFlow?
+    public var signal: ChartSignal?
+
+    public init(
+        role: ChartSemanticRole? = nil,
+        flow: ChartFlow? = nil,
+        signal: ChartSignal? = nil
+    ) {
+        self.role = role
+        self.flow = flow
+        self.signal = signal
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        role = try c.decodeIfPresent(String.self, forKey: .role).flatMap(ChartSemanticRole.init(rawValue:))
+        flow = try c.decodeIfPresent(String.self, forKey: .flow).flatMap(ChartFlow.init(rawValue:))
+        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(ChartSignal.init(rawValue:))
+    }
+
+    enum CodingKeys: String, CodingKey { case role, flow, signal }
+
+    var accessibilityWords: [String] {
+        [role?.rawValue, flow?.rawValue, signal?.rawValue].compactMap { $0 }
+    }
+}
+
+public struct DashboardChartCategory: Codable, Hashable, Identifiable, Sendable {
+    public var id: String
+    public var label: String
+    public var signal: ChartSignal?
+
+    public init(id: String, label: String, signal: ChartSignal? = nil) {
+        self.id = id
+        self.label = label
+        self.signal = signal
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        label = try c.decode(String.self, forKey: .label)
+        signal = try c.decodeIfPresent(String.self, forKey: .signal).flatMap(ChartSignal.init(rawValue:))
+    }
+
+    enum CodingKeys: String, CodingKey { case id, label, signal }
+}
+
 public struct DashboardChartSeries: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var label: String
     public var points: [Double]
+    public var semantic: DashboardChartSemantic?
 
-    public init(id: String, label: String, points: [Double]) {
+    public init(
+        id: String,
+        label: String,
+        points: [Double],
+        semantic: DashboardChartSemantic? = nil
+    ) {
         self.id = id
         self.label = label
         self.points = points
+        self.semantic = semantic
     }
 }
 
@@ -64,6 +156,9 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     public var style: ChartStyle
     /// Optional category labels aligned one-for-one with `points`.
     public var labels: [String]?
+    /// Rich category metadata aligned with `points`. The server also derives
+    /// `labels`, so clients that predate categories retain the axis text.
+    public var categories: [DashboardChartCategory]?
     /// Multiple non-negative series. The server always also supplies `points`
     /// as their per-position totals so builds that predate this field draw one
     /// truthful fallback series rather than losing the chart.
@@ -81,6 +176,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         reference: Double? = nil,
         style: ChartStyle = .line,
         labels: [String]? = nil,
+        categories: [DashboardChartCategory]? = nil,
         series: [DashboardChartSeries]? = nil,
         stacking: ChartStacking = .stacked,
         ranges: [DashboardChartRange]? = nil
@@ -92,7 +188,8 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         self.max = max
         self.reference = reference
         self.style = style
-        self.labels = labels
+        self.labels = labels ?? categories?.map(\.label)
+        self.categories = categories
         self.series = series
         self.stacking = stacking
         self.ranges = ranges
@@ -102,6 +199,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         series = try c.decodeIfPresent([DashboardChartSeries].self, forKey: .series)
         ranges = try c.decodeIfPresent([DashboardChartRange].self, forKey: .ranges)
+        categories = try c.decodeIfPresent([DashboardChartCategory].self, forKey: .categories)
         points = try c.decodeIfPresent([Double].self, forKey: .points)
             ?? DashboardChart.fallbackPoints(series: series, ranges: ranges)
         min = try c.decodeIfPresent(Double.self, forKey: .min)
@@ -109,13 +207,13 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         reference = try c.decodeIfPresent(Double.self, forKey: .reference)
         let rawStyle = try c.decodeIfPresent(String.self, forKey: .style)
         style = rawStyle.flatMap(ChartStyle.init(rawValue:)) ?? .line
-        labels = try c.decodeIfPresent([String].self, forKey: .labels)
+        labels = try c.decodeIfPresent([String].self, forKey: .labels) ?? categories?.map(\.label)
         let rawStacking = try c.decodeIfPresent(String.self, forKey: .stacking)
         stacking = rawStacking.flatMap(ChartStacking.init(rawValue:)) ?? .stacked
     }
 
     enum CodingKeys: String, CodingKey {
-        case points, min, max, reference, style, labels, series, stacking, ranges
+        case points, min, max, reference, style, labels, categories, series, stacking, ranges
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the
@@ -185,7 +283,18 @@ public struct DashboardChart: Codable, Hashable, Sendable {
             }
             reduced.points = reduced.ranges?.map(\.fallbackValue) ?? reduced.points
         }
-        if let labels, labels.count == points.count {
+        if let categories, categories.count == points.count {
+            reduced.categories = buckets.map { bucket in
+                let values = categories[bucket]
+                let last = values.last ?? categories[bucket.lowerBound]
+                return DashboardChartCategory(
+                    id: last.id,
+                    label: last.label,
+                    signal: ChartSignal.strongest(values.compactMap(\.signal))
+                )
+            }
+            reduced.labels = reduced.categories?.map(\.label)
+        } else if let labels, labels.count == points.count {
             reduced.labels = buckets.map { labels[$0.index(before: $0.endIndex)] }
         }
         return reduced
@@ -255,10 +364,20 @@ public struct DashboardChart: Codable, Hashable, Sendable {
             description += ", against a reference of \(format(reference))"
         }
         if let series, !series.isEmpty {
-            description += ", \(series.count) series: " + series.map(\.label).joined(separator: ", ")
+            description += ", \(series.count) series: " + series.map { entry in
+                let semantics = entry.semantic?.accessibilityWords ?? []
+                return semantics.isEmpty ? entry.label : "\(entry.label) (\(semantics.joined(separator: ", ")))"
+            }.joined(separator: ", ")
         }
         if let ranges, let overallLow = ranges.map(\.low).min(), let overallHigh = ranges.map(\.high).max() {
             description += ", spanning \(format(overallLow)) to \(format(overallHigh))"
+        }
+        if let categories {
+            let signaled = categories.compactMap(\.signal)
+            for signal in ChartSignal.allCases {
+                let count = signaled.filter { $0 == signal }.count
+                if count > 0 { description += ", \(count) \(signal.rawValue) categories" }
+            }
         }
         return description
     }

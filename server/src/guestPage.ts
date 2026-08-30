@@ -32,6 +32,12 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .spark rect.s1{fill:#af52de}
 .spark rect.s2{fill:#30b0c7}
 .spark rect.s3{fill:#ff9f0a}
+.spark rect.flow-inbound{fill:#30b0c7}.spark rect.flow-outbound{fill:#af52de}
+.spark rect.sig-favorable{fill:#34c759}.spark rect.sig-neutral{fill:var(--muted)}
+.spark rect.sig-caution{fill:#ff9f0a}.spark rect.sig-unfavorable{fill:#ff3b30}
+.spark rect.role-forecast{fill-opacity:.48}.spark rect.role-baseline{fill-opacity:.55}
+.spark rect.role-target{fill-opacity:.72}.spark rect.role-capacity{fill-opacity:.35}
+.spark rect.role-remainder{fill-opacity:.45}.spark rect.period{fill-opacity:.1}
 .spark rect.neg{fill-opacity:.45}
 .spark line{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
 .spark line.zero{stroke-dasharray:none}
@@ -40,6 +46,12 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .chart-labels{justify-content:space-between}
 .dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);margin-right:.25rem}
 .dot.s1{background:#af52de}.dot.s2{background:#30b0c7}.dot.s3{background:#ff9f0a}
+.dot.flow-inbound{background:#30b0c7}.dot.flow-outbound{background:#af52de}
+.dot.sig-favorable{background:#34c759}.dot.sig-neutral{background:var(--muted)}
+.dot.sig-caution{background:#ff9f0a}.dot.sig-unfavorable{background:#ff3b30}
+.dot.role-forecast{opacity:.48}.dot.role-baseline{opacity:.55}.dot.role-target{opacity:.72}
+.dot.role-capacity{opacity:.35}.dot.role-remainder{opacity:.45}
+.chart-legend small{opacity:.8}
 .pips{display:flex;gap:3px;margin:.75rem 0}
 .pip{flex:1;height:12px;border-radius:4px;background:var(--muted);opacity:.35}
 .pip.g{background:#34c759;opacity:1}
@@ -79,6 +91,26 @@ const GUEST_SCRIPT = `
   var el=function(id){return document.getElementById(id)};
   var out=el('out');
   var token=location.hash.slice(1);
+  var SEM_SIGNAL={favorable:'sig-favorable',neutral:'sig-neutral',caution:'sig-caution',unfavorable:'sig-unfavorable'};
+  var SEM_FLOW={inbound:'flow-inbound',outbound:'flow-outbound'};
+  var SEM_ROLE={forecast:'role-forecast',baseline:'role-baseline',target:'role-target',capacity:'role-capacity',remainder:'role-remainder'};
+  var SIGNAL_MARK={favorable:'✓',neutral:'•',caution:'!',unfavorable:'×'};
+  var seriesClass=function(series,index){
+    var semantic=series.semantic||{},classes=['s'+index];
+    if(SEM_FLOW[semantic.flow]){classes.push(SEM_FLOW[semantic.flow])}
+    if(SEM_SIGNAL[semantic.signal]){classes.push(SEM_SIGNAL[semantic.signal])}
+    if(SEM_ROLE[semantic.role]){classes.push(SEM_ROLE[semantic.role])}
+    return classes.join(' ');
+  };
+  var categoryBands=function(ch,n,w,ht){
+    if(!ch.categories||ch.categories.length!==n){return ''}
+    var slot=w/n,bands='';
+    for(var i=0;i<n;i++){
+      var cls=SEM_SIGNAL[ch.categories[i].signal];
+      if(cls){bands+='<rect class="period '+cls+'" x="'+(i*slot).toFixed(2)+'" y="0" width="'+slot.toFixed(2)+'" height="'+ht+'"/>'}
+    }
+    return bands;
+  };
   // Same scaling rule as the iOS renderer: an explicit min/max pins the axis
   // and out-of-range points clamp; otherwise the series scales to itself.
   var spark=function(ch){
@@ -123,7 +155,7 @@ const GUEST_SCRIPT = `
         for(var si=0;si<ch.series.length;si++){
           for(var gi=0;gi<n;gi++){
             var gy=y(ch.series[si].points[gi]);
-            body+='<rect class="s'+si+'" x="'+(gi*slot+(slot-group)/2+si*one).toFixed(2)+'" y="'+gy.toFixed(2)+'" width="'+one.toFixed(2)+'" height="'+Math.max(0.6,ht-gy).toFixed(2)+'"/>';
+            body+='<rect class="'+seriesClass(ch.series[si],si)+'" x="'+(gi*slot+(slot-group)/2+si*one).toFixed(2)+'" y="'+gy.toFixed(2)+'" width="'+one.toFixed(2)+'" height="'+Math.max(0.6,ht-gy).toFixed(2)+'"/>';
           }
         }
       }else{
@@ -131,7 +163,7 @@ const GUEST_SCRIPT = `
         for(var ss=0;ss<ch.series.length;ss++){
           for(var sj=0;sj<n;sj++){
             var lower=y(sums[sj]);sums[sj]+=ch.series[ss].points[sj];var upper=y(sums[sj]);
-            body+='<rect class="s'+ss+'" x="'+(sj*slot+(slot-group)/2).toFixed(2)+'" y="'+Math.min(lower,upper).toFixed(2)+'" width="'+group.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lower-upper)).toFixed(2)+'"/>';
+            body+='<rect class="'+seriesClass(ch.series[ss],ss)+'" x="'+(sj*slot+(slot-group)/2).toFixed(2)+'" y="'+Math.min(lower,upper).toFixed(2)+'" width="'+group.toFixed(2)+'" height="'+Math.max(0.6,Math.abs(lower-upper)).toFixed(2)+'"/>';
           }
         }
       }
@@ -158,14 +190,24 @@ const GUEST_SCRIPT = `
     var extra='';
     if(ch.series&&ch.series.length){
       extra+='<div class="chart-legend">';
-      for(var s=0;s<ch.series.length;s++){extra+='<span><i class="dot s'+s+'"></i>'+esc(ch.series[s].label)+'</span>'}
+      for(var s=0;s<ch.series.length;s++){
+        var semantic=ch.series[s].semantic||{},words=[];
+        if(semantic.role){words.push(semantic.role)}
+        if(semantic.flow){words.push(semantic.flow)}
+        if(semantic.signal){words.push(semantic.signal)}
+        var arrow=semantic.flow==='inbound'?'↓':(semantic.flow==='outbound'?'↑':'');
+        extra+='<span>'+arrow+'<i class="dot '+seriesClass(ch.series[s],s)+'"></i>'+esc(ch.series[s].label)+(words.length?'<small> · '+esc(words.join(', '))+'</small>':'')+'</span>';
+      }
       extra+='</div>';
     }
-    if(ch.labels&&ch.labels.length){
+    if(ch.categories&&ch.categories.length){
+      var cpicks=ch.categories.length<=4?ch.categories:[ch.categories[0],ch.categories[Math.floor((ch.categories.length-1)/2)],ch.categories[ch.categories.length-1]];
+      extra+='<div class="chart-labels">'+cpicks.map(function(category){var mark=SIGNAL_MARK[category.signal];return '<span>'+(mark?mark+' ':'')+esc(category.label)+(category.signal?' <small>'+esc(category.signal)+'</small>':'')+'</span>'}).join('')+'</div>';
+    }else if(ch.labels&&ch.labels.length){
       var picks=ch.labels.length<=4?ch.labels:[ch.labels[0],ch.labels[Math.floor((ch.labels.length-1)/2)],ch.labels[ch.labels.length-1]];
       extra+='<div class="chart-labels">'+picks.map(function(label){return '<span>'+esc(label)+'</span>'}).join('')+'</div>';
     }
-    return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+ref+body+'</svg>'+extra;
+    return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+categoryBands(ch,n,w,ht)+ref+body+'</svg>'+extra;
   };
   // Status names are mapped to fixed class names rather than interpolated:
   // esc() escapes text, not attribute values, and this lands in a class.

@@ -480,6 +480,19 @@ describe("guest link browser page", () => {
     expect(body).toContain(".spark rect.range{");
   });
 
+  it("renders semantic series and categories with fixed classes and non-color labels", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+
+    expect(script).toContain("var seriesClass=function");
+    expect(script).toContain("var categoryBands=function");
+    expect(script).toContain("SIGNAL_MARK");
+    expect(script).toContain("words.push(semantic.flow)");
+    expect(body).toContain(".spark rect.sig-favorable{");
+    expect(body).toContain(".spark rect.role-forecast{");
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');
