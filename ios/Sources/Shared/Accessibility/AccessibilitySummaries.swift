@@ -82,8 +82,8 @@ enum CardAccessibilitySummary {
         let value = [item.value, item.unit]
             .compactMap { trimmed($0) }
             .joined(separator: " ")
-        return [item.title, value.isEmpty ? item.status?.label : value]
-            .compactMap { $0 }
+        return ([item.title, value.isEmpty ? item.status?.label : value]
+            .compactMap { $0 } + (item.semantic?.accessibilityWords ?? []))
             .joined(separator: " ")
     }
 
@@ -166,6 +166,7 @@ enum LiveActivityAccessibilitySummary {
         } else if let status = item.status {
             parts.append(status.label)
         }
+        parts.append(contentsOf: item.semantic?.accessibilityWords ?? [])
         if let progress = item.progress {
             parts.append("\(Int((min(max(progress, 0), 1) * 100).rounded()))% complete")
         }

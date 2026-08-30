@@ -501,7 +501,7 @@ private struct ActivityItemRow: View {
             rowLayout {
                 Image(systemName: item.icon ?? "circle.fill")
                     .font(.body)
-                    .foregroundStyle(item.status?.tint ?? .secondary)
+                    .foregroundStyle(item.tint())
                     .frame(width: 24, height: 24)
                 if let statusIcon = item.statusIcon {
                     Image(systemName: statusIcon)
@@ -510,9 +510,12 @@ private struct ActivityItemRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    HStack(spacing: 4) {
+                        SemanticFlowIcon(item.semantic)
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    }
                     if let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.caption)
@@ -547,7 +550,7 @@ private struct ActivityItemRow: View {
             if let progress = item.progress {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
-                    .tint(item.status?.tint)
+                    .tint(item.tint())
             }
         }
         .padding(10)

@@ -377,6 +377,9 @@ describe("tools/list", () => {
     };
     expect(chart.properties.semantic.properties.role.enum).toContain("forecast");
     expect(chart.properties.referenceMetadata.properties.label.type).toBe("string");
+    const itemSemantic = (properties.items as any).items.properties.semantic;
+    expect(itemSemantic.properties.role.enum).toContain("remainder");
+    expect(itemSemantic.properties.flow.enum).toEqual(["inbound", "outbound"]);
     expect(upsert.inputSchema.required).toEqual(expect.arrayContaining(["id", "template", "title"]));
 
     const start = tools.find((tool) => tool.name === "start_live_activity")!;
@@ -384,6 +387,7 @@ describe("tools/list", () => {
     const end = tools.find((tool) => tool.name === "end_live_activity")!;
     expect(JSON.stringify(start.inputSchema)).toContain('"signal"');
     expect(JSON.stringify(start.inputSchema)).toContain('"favorable"');
+    expect(JSON.stringify(start.inputSchema)).toContain('"semantic"');
     expect(JSON.stringify(update.inputSchema)).toContain('"signal"');
     expect(JSON.stringify(end.inputSchema)).toContain('"finalSignal"');
   });

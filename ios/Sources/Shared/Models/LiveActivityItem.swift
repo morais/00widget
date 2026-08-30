@@ -11,6 +11,7 @@ public struct LiveActivityItem: Codable, Hashable, Identifiable, Sendable {
     public var unit: String?
     public var progress: Double?
     public var status: DashboardStatus?
+    public var semantic: MetricSemantic?
 
     public init(
         id: String,
@@ -21,7 +22,8 @@ public struct LiveActivityItem: Codable, Hashable, Identifiable, Sendable {
         value: String? = nil,
         unit: String? = nil,
         progress: Double? = nil,
-        status: DashboardStatus? = nil
+        status: DashboardStatus? = nil,
+        semantic: MetricSemantic? = nil
     ) {
         self.id = id
         self.title = title
@@ -32,6 +34,7 @@ public struct LiveActivityItem: Codable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.progress = progress
         self.status = status
+        self.semantic = semantic
     }
 
     public var isActive: Bool {

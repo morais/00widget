@@ -537,9 +537,12 @@ private struct TVDetailRow: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .font(.title3)
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    SemanticFlowIcon(item.semantic, font: .body)
+                    Text(item.title)
+                        .font(.title3)
+                        .lineLimit(1)
+                }
                 if let subtitle = item.subtitle {
                     Text(subtitle)
                         .font(.body)
@@ -573,7 +576,7 @@ private struct TVDetailRow: View {
         .padding(.vertical, 12)
         .background(alignment: .leading) {
             if let fraction {
-                RankedRowBar(fraction: fraction, tint: item.status?.tint ?? tint)
+                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: tint))
             } else {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.secondary.opacity(0.12))

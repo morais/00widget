@@ -35,6 +35,15 @@ describe("live activities", () => {
     ).toBe(false);
     expect(
       StartLiveActivitySchema.safeParse({
+        externalActivityId: "semantic-item",
+        kind: "charging",
+        title: "Battery",
+        state: "charging",
+        items: [{ id: "solar", title: "Solar", semantic: { flow: "inbound", role: "actual" } }],
+      }).success,
+    ).toBe(true);
+    expect(
+      StartLiveActivitySchema.safeParse({
         externalActivityId: "duplicate-items",
         kind: "appliance",
         title: "Composite",

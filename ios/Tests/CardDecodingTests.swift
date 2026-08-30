@@ -44,6 +44,14 @@ struct CardDecodingTests {
         #expect(card.briefing?.sections.first?.text == "Refunds are delayed.")
     }
 
+    @Test("Item metric role and flow survive decoding")
+    func itemSemanticsDecode() throws {
+        let card = try decode(
+            #"{"id":"energy","template":"list","title":"Energy","items":[{"id":"solar","title":"Solar","semantic":{"role":"actual","flow":"inbound"}}]}"#
+        )
+        #expect(card.items?.first?.semantic == MetricSemantic(role: .actual, flow: .inbound))
+    }
+
     /// Deep links arrive from producers, and a card is rendered by the widget
     /// extension, so the sanitising has to happen where the value enters the
     /// process rather than where it is tapped.

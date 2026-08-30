@@ -77,6 +77,13 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .bar rect.w{fill:#ff9f0a}
 .bar rect.c{fill:#ff3b30}
 .bar rect.r{fill:#0a84ff}
+.bar rect.flow-inbound,.rank rect.flow-inbound{fill:#30b0c7}
+.bar rect.flow-outbound,.rank rect.flow-outbound{fill:#af52de}
+.bar rect.role-forecast,.rank rect.role-forecast{fill-opacity:.48}
+.bar rect.role-baseline,.rank rect.role-baseline{fill-opacity:.55}
+.bar rect.role-target,.rank rect.role-target{fill-opacity:.72}
+.bar rect.role-capacity,.rank rect.role-capacity{fill-opacity:.35}
+.bar rect.role-remainder,.rank rect.role-remainder{fill-opacity:.45}
 .prog{display:block;width:100%;height:10px;margin:.75rem 0}
 .prog rect.track{fill:var(--muted);fill-opacity:.22;rx:3px}
 .prog rect.fill{fill:var(--accent);rx:3px}
@@ -91,6 +98,7 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .state{color:var(--fg);font-weight:600;margin:0 0 .35rem}
 .signal{color:var(--muted);font-size:.8rem;font-weight:500;margin-left:.35rem}
 .rowsub{color:var(--muted);font-size:.85rem;margin:-.35rem 0 .35rem}
+.item-semantic{color:var(--muted);font-size:.75rem;margin-left:.35rem}
 .brief{padding:.65rem 0;border-top:1px solid var(--line)}
 .brief:first-of-type{margin-top:.75rem}
 .brief-label{font-size:.8rem;font-weight:700;color:var(--accent);margin:0 0 .15rem}
@@ -99,6 +107,8 @@ a.k{color:var(--accent);text-decoration:none}
 a.k:hover{text-decoration:underline}
 .rank{display:block;width:100%;height:4px;margin:-.15rem 0 .35rem}
 .rank rect{fill:var(--accent);fill-opacity:.5;rx:2px}
+.rank rect.g{fill:#34c759}.rank rect.w{fill:#ff9f0a}
+.rank rect.c{fill:#ff3b30}.rank rect.r{fill:#0a84ff}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
@@ -123,6 +133,13 @@ const GUEST_SCRIPT = `
     if(SEM_SIGNAL[semantic.signal]){classes.push(SEM_SIGNAL[semantic.signal])}
     if(SEM_ROLE[semantic.role]){classes.push(SEM_ROLE[semantic.role])}
     return classes.join(' ');
+  };
+  var itemMeaning=function(item){
+    var semantic=item.semantic||{},words=[];
+    if(semantic.flow==='inbound'){words.push('↙ inbound')}
+    if(semantic.flow==='outbound'){words.push('↗ outbound')}
+    if(semantic.role){words.push(semantic.role)}
+    return words.length?'<span class="item-semantic">'+esc(words.join(' · '))+'</span>':'';
   };
   var seriesSemantic=function(ch,series){return resolveSemantic(series.semantic,ch.semantic)};
   var seriesClass=function(ch,series,index){return ('s'+index+' '+semanticClass(seriesSemantic(ch,series))).trim()};
@@ -271,7 +288,7 @@ const GUEST_SCRIPT = `
     var w=100,ht=16,gap=0.8,n=items.length,avail=w-gap*(n-1),x=0,out='';
     for(i=0;i<n;i++){
       var sw=Math.max(0.8,avail*Math.max(0,items[i].amount||0)/total);
-      var cls=PIP[items[i].status]||'';
+      var cls=PIP[items[i].status]||semanticClass(items[i].semantic);
       var op=cls?1:Math.max(0.22,Math.pow(0.72,i));
       out+='<rect class="'+cls+'" x="'+x.toFixed(2)+'" y="0" width="'+sw.toFixed(2)+'" height="'+ht+'" fill-opacity="'+op.toFixed(2)+'"/>';
       x+=sw+gap;
@@ -351,11 +368,11 @@ const GUEST_SCRIPT = `
         var label=i.deepLink
           ? link(i.deepLink,i.title)
           : '<span class="k">'+esc(i.title)+'</span>';
-        h+='<div class="row">'+label+'<span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+        h+='<div class="row"><span>'+label+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
         // Ranked against the widest row, matching the app. Width has to be an
         // attribute rather than a style — see the note on breakdown() above.
         if(widest>0&&i.amount!=null){
-          h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(Math.max(0,i.amount)/widest*100).toFixed(2)+'"/></svg>';
+          h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="'+(PIP[i.status]||semanticClass(i.semantic))+'" x="0" y="0" height="4" width="'+(Math.max(0,i.amount)/widest*100).toFixed(2)+'"/></svg>';
         }
       });
     } else {
@@ -372,7 +389,7 @@ const GUEST_SCRIPT = `
       var rows=(a.items||[]).filter(function(i){return i.status!=='finished'&&i.status!=='offline'});
       if(rows.length){
         rows.forEach(function(i){
-          h+='<div class="row"><span class="k">'+esc(i.title)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+          h+='<div class="row"><span><span class="k">'+esc(i.title)+'</span>'+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
           if(i.subtitle){h+='<p class="rowsub">'+esc(i.subtitle)+'</p>'}
           if(typeof i.progress==='number'){
             h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(clamp01(i.progress)*100).toFixed(2)+'"/></svg>';

@@ -270,6 +270,7 @@ prefix such as a currency symbol belongs in the already-formatted `value`: send
   "value": "string?",
   "unit": "string?",
   "status": "DashboardStatus?",
+  "semantic": "{role?, flow?}? (meaning of the quantity, never presentation colors)",
   "amount": "number? (magnitude, for templates that draw items)",
   "deepLink": "HTTPS URL? (tapping this row opens it, instead of the card's)"
 }
@@ -279,6 +280,13 @@ prefix such as a currency symbol belongs in the already-formatted `value`: send
 a display string (`"12.40"`, `"3m 51s"`, `"Rinse"`) and parsing it back into a
 number would have to guess at your locale and formatting. Send both — `amount`
 for the drawing, `value` for the label.
+
+Items may reuse the metric `role` (`actual`, `forecast`, `baseline`, `target`,
+`capacity`, `balance`, `remainder`) and `flow` (`inbound`, `outbound`) hints used
+by charts. Clients choose any color/emphasis and also draw and speak direction,
+so the hint still works without color. Item semantics deliberately omit
+`signal`: keep row health, lifecycle, or outcome in the existing `status` field
+instead of publishing the same meaning twice.
 
 In a `list`, giving items an `amount` turns the rows into ranked bars: each row
 gets a bar behind it, measured against the largest amount in the card, so five
@@ -795,7 +803,7 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
       {"id": "media", "title": "Media", "value": "512 GB", "amount": 512},
       {"id": "backups", "title": "Backups", "value": "280 GB", "amount": 280},
       {"id": "system", "title": "System", "value": "120 GB", "amount": 120},
-      {"id": "free", "title": "Free", "value": "112 GB", "amount": 112, "status": "warning"}
+      {"id": "free", "title": "Free", "value": "112 GB", "amount": 112, "semantic":{"role":"remainder"}}
     ]
   }'
 ```
@@ -1102,7 +1110,7 @@ Live Activity rendering fields:
 - `statusIcon`: optional second SF Symbol for what the activity is *doing* right now, drawn beside the main one — `bolt.fill` while boosting, `exclamationmark.triangle.fill` when something needs attention, `pause.fill` while held. Where `icon` says what the activity is, this says what it is doing, so it is content state and may change on every update; send `null` to remove it. The same field exists on each item. Omitted from the compact and minimal Dynamic Island, which have no room for a second glyph.
 - `signal`: optional `favorable`, `neutral`, `caution`, or `unfavorable` meaning for the current state. The clients choose the color and fallback symbol; producers never send presentation colors. It is content state, so an update may change it as conditions change, and `null` returns to the ordinary `kind` accent. Use it for meaning such as charging cheaply, approaching a limit, or a failed run; keep the free-form detail in `state` and `subtitle`.
 - `progress`: optional `0.0`–`1.0` progress bar. It is also what fills the Dynamic Island's minimal ring — see ["When a second Live Activity is running"](#when-a-second-live-activity-is-running).
-- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `statusIcon`, `value`, `unit`, `progress`, and `status`. Nonempty items render as per-item rows on the Lock Screen, the expanded Dynamic Island, the app's Activities tab, and the Apple TV dashboard, in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
+- `items`: optional composite snapshot. Each item accepts `id`, `title`, `subtitle`, `icon`, `statusIcon`, `value`, `unit`, `progress`, `status`, and optional `semantic: {role?, flow?}` with the same item rules as cards. Nonempty items render as per-item rows on the Lock Screen, the expanded Dynamic Island, the app's Activities tab, and the Apple TV dashboard, in place of the top-level progress bar, and the activity summarises itself with an active-item count — `2 active`, or just `2` in compact mode. Send a top-level `value` (plus optional `unit`) to say what the headline number should be instead: an explicit value always outranks the derived count. Items with `status: "finished"` or `"offline"` are hidden. Omit inactive items from later snapshots when possible. **Items suppress a `chart` on the Lock Screen and Dynamic Island** — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space).
 - `chart`: optional **DashboardChart**, exactly as on a `chart` card — `points`, `min`, `max`, `reference`, `style`. This is where a chart earns the most: a Live Activity exists because a number is moving, and the plot says which way while a progress bar only says how far. Queue length dropping, watts climbing, download rate holding. It is content state, so every update may carry a new window; send the whole window each time. When both `chart` and `progress` are sent, the chart wins the space. When `items` are also sent, the chart loses it — see ["`items` and `chart` compete for the same space"](#items-and-chart-compete-for-the-same-space) before sending both.
 - `endsAt`: optional ISO-8601 end time. When present, iOS renders a countdown driven by the device clock; you do not need periodic updates just to tick time forward.
 - `countdownGranularity`: optional `second` or `minute`, and ignored when there is no `endsAt`. The default is `second`, which preserves the native ticking countdown. Use `minute` for approximate estimates: iOS renders rounded-up text such as `~12 min` or `~1h 12m` and updates it locally at minute boundaries without APNs pushes. Omitting this field from a partial update preserves the activity's current granularity.

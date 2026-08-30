@@ -119,3 +119,9 @@ public extension LiveActivitySession {
     var tint: Color { kind.tint(for: signal) }
     var semanticStatusIcon: String? { statusIcon ?? signal?.symbolName }
 }
+
+public extension LiveActivityItem {
+    func tint(base: Color = .secondary) -> Color {
+        status?.tint ?? ChartSeriesPalette.tint(index: 0, base: base, semantic: semantic)
+    }
+}

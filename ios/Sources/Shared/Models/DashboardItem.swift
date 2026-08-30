@@ -7,6 +7,9 @@ public struct DashboardItem: Codable, Hashable, Identifiable, Sendable {
     public var value: String?
     public var unit: String?
     public var status: DashboardStatus?
+    /// Meaning of this quantity. The public API accepts only role and flow on
+    /// items; status remains the row's health/outcome signal.
+    public var semantic: MetricSemantic?
     /// The row's magnitude, for templates that draw items rather than list
     /// them. Deliberately separate from `value`, which is a display string.
     public var amount: Double?
@@ -21,6 +24,7 @@ public struct DashboardItem: Codable, Hashable, Identifiable, Sendable {
         value: String? = nil,
         unit: String? = nil,
         status: DashboardStatus? = nil,
+        semantic: MetricSemantic? = nil,
         amount: Double? = nil,
         deepLink: URL? = nil
     ) {
@@ -30,6 +34,7 @@ public struct DashboardItem: Codable, Hashable, Identifiable, Sendable {
         self.value = value
         self.unit = unit
         self.status = status
+        self.semantic = semantic
         self.amount = amount
         self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
     }
@@ -43,6 +48,7 @@ public struct DashboardItem: Codable, Hashable, Identifiable, Sendable {
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
         let rawStatus = try c.decodeIfPresent(String.self, forKey: .status)
         status = rawStatus.flatMap { DashboardStatus(rawValue: $0) }
+        semantic = try c.decodeIfPresent(MetricSemantic.self, forKey: .semantic)
         amount = try c.decodeIfPresent(Double.self, forKey: .amount)
         deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(
             try c.decodeIfPresent(URL.self, forKey: .deepLink)
@@ -50,6 +56,6 @@ public struct DashboardItem: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, subtitle, value, unit, status, amount, deepLink
+        case id, title, subtitle, value, unit, status, semantic, amount, deepLink
     }
 }

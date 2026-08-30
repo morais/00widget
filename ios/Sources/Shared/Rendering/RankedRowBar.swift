@@ -25,6 +25,11 @@ public struct RankedRowBar: View {
 }
 
 public enum RankedRows {
+    public static func tint(for item: DashboardItem, base: Color) -> Color {
+        item.status?.tint
+            ?? ChartSeriesPalette.tint(index: 0, base: base, semantic: item.semantic)
+    }
+
     /// Fraction of the widest bar, keyed by item id.
     ///
     /// Measured against the largest amount rather than the total: a list ranks

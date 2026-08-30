@@ -115,6 +115,28 @@ describe("DashboardCardSchema", () => {
     expect(parsed.success && parsed.data.progress).toBe(0.767);
   });
 
+  it("accepts role and flow hints on items without duplicating status signals", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "energy-balance",
+      template: "breakdown",
+      title: "Energy",
+      items: [
+        { id: "solar", title: "Solar", amount: 12, semantic: { role: "actual", flow: "inbound" } },
+        { id: "export", title: "Export", amount: 4, semantic: { flow: "outbound" } },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.items?.[0].semantic).toEqual({ role: "actual", flow: "inbound" });
+
+    expect(DashboardCardInputSchema.safeParse({
+      id: "bad-item", template: "list", title: "Bad", items: [{ id: "x", title: "X", semantic: {} }],
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      id: "duplicate-signal", template: "list", title: "Bad",
+      items: [{ id: "x", title: "X", semantic: { signal: "caution" } }],
+    }).success).toBe(false);
+  });
+
   it("rejects a progress outside 0-1", () => {
     const card = (progress: number) => ({
       id: "a",

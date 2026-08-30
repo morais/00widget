@@ -34,6 +34,9 @@ public struct CompositionBarView: View {
     /// publisher marks the slice that is the problem.
     public static func tint(for item: DashboardItem, index: Int, base: Color) -> Color {
         if let status = item.status { return status.tint }
+        if let semantic = item.semantic {
+            return ChartSeriesPalette.tint(index: index, base: base, semantic: semantic)
+        }
         return base.opacity(Swift.max(0.22, pow(0.72, Double(index))))
     }
 
@@ -74,7 +77,12 @@ public struct CompositionBarView: View {
         let shares = Self.shares(of: items)
         guard !shares.isEmpty else { return "No breakdown data" }
         return shares
-            .map { "\($0.item.title) \(Int(($0.share * 100).rounded()))%" }
+            .map {
+                let meaning = $0.item.semantic?.accessibilityWords.joined(separator: " ") ?? ""
+                return ["\($0.item.title) \(Int(($0.share * 100).rounded()))%", meaning]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ", ")
+            }
             .joined(separator: ", ")
     }
 }

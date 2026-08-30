@@ -509,6 +509,19 @@ describe("guest link browser page", () => {
     expect(body).toContain(".prog rect.fill.sig-caution{");
   });
 
+  it("renders item roles and flow with fixed classes, arrows, and words", async () => {
+    const res = await fetch(new Request("https://x/app/g"), makeEnv());
+    const body = await res.text();
+    const script = /<script>([\s\S]*?)<\/script>/.exec(body)?.[1] ?? "";
+
+    expect(script).toContain("var itemMeaning=function");
+    expect(script).toContain("↙ inbound");
+    expect(script).toContain("↗ outbound");
+    expect(script).toContain("semanticClass(items[i].semantic)");
+    expect(body).toContain(".bar rect.flow-inbound");
+    expect(body).toContain(".rank rect.role-remainder");
+  });
+
   it("is not indexed", async () => {
     const res = await fetch(new Request("https://x/app/g"), makeEnv());
     expect(await res.text()).toContain('name="robots" content="noindex,nofollow"');

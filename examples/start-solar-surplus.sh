@@ -21,7 +21,8 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/start" \
         "unit": "°C",
         "subtitle": "Heating to 78°C",
         "progress": 0.86,
-        "status": "running"
+        "status": "running",
+        "semantic": {"flow":"inbound"}
       },
       {
         "id": "cooling",
@@ -30,7 +31,8 @@ curl -sS -X POST "$BASE_URL/v1/live-activities/start" \
         "value": "3",
         "unit": "rooms",
         "subtitle": "Office, Master Bedroom, Julia’s Bedroom",
-        "status": "running"
+        "status": "running",
+        "semantic": {"role":"actual"}
       }
     ]
   }'

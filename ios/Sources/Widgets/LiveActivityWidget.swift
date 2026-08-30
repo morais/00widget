@@ -444,7 +444,8 @@ private struct LockScreenView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Image(systemName: item.icon ?? "circle.fill")
                             .font(metrics.caption)
-                            .foregroundStyle(item.status?.tint ?? .secondary)
+                            .foregroundStyle(item.tint())
+                        SemanticFlowIcon(item.semantic, font: metrics.caption)
                         Text(item.value ?? item.title)
                             .font(metrics.value)
                             .lineLimit(1)
@@ -617,16 +618,19 @@ private struct LiveActivityItemRow: View {
                 Image(systemName: item.icon ?? "circle.fill")
                     .font(condensed ? .caption2 : .caption)
                     .frame(width: 14)
-                    .foregroundStyle(item.status?.tint ?? .secondary)
+                    .foregroundStyle(item.tint())
                 if let statusIcon = item.statusIcon {
                     Image(systemName: statusIcon)
                         .font(.caption2)
                         .foregroundStyle(.primary)
                 }
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(item.title)
-                        .font(condensed ? .caption2 : .caption.weight(.semibold))
-                        .lineLimit(1)
+                    HStack(spacing: 3) {
+                        SemanticFlowIcon(item.semantic, font: .caption2)
+                        Text(item.title)
+                            .font(condensed ? .caption2 : .caption.weight(.semibold))
+                            .lineLimit(1)
+                    }
                     if !condensed, let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.caption2)
@@ -657,7 +661,7 @@ private struct LiveActivityItemRow: View {
             if let progress = item.progress {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
-                    .tint(item.status?.tint)
+                    .tint(item.tint())
             }
         }
     }

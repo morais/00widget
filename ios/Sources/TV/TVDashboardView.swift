@@ -436,7 +436,7 @@ struct TVLiveActivityItemRow: View {
             HStack(spacing: 12) {
                 Image(systemName: item.icon ?? "circle.fill")
                     .font(.title3)
-                    .foregroundStyle(item.status?.tint ?? .secondary)
+                    .foregroundStyle(item.tint())
                     .frame(width: 32)
                 if let statusIcon = item.statusIcon {
                     Image(systemName: statusIcon)
@@ -445,9 +445,12 @@ struct TVLiveActivityItemRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.headline)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        SemanticFlowIcon(item.semantic, font: .callout)
+                        Text(item.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
                     if let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.callout)
@@ -481,7 +484,7 @@ struct TVLiveActivityItemRow: View {
             if let progress = item.progress {
                 ProgressView(value: max(0, min(progress, 1)))
                     .progressViewStyle(.linear)
-                    .tint(item.status?.tint)
+                    .tint(item.tint())
             }
         }
         .padding(.horizontal, 16)
@@ -675,6 +678,7 @@ private struct TVDashboardCardView: View {
             VStack(spacing: 8) {
                 ForEach(items.prefix(3)) { item in
                     HStack {
+                        SemanticFlowIcon(item.semantic, font: .callout)
                         Text(item.title)
                             .lineLimit(1)
                         Spacer()
@@ -688,7 +692,7 @@ private struct TVDashboardCardView: View {
                     .padding(.horizontal, 6)
                     .background(alignment: .leading) {
                         if let fraction = fractions?[item.id] {
-                            RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                            RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: card.status.tint))
                         }
                     }
                 }

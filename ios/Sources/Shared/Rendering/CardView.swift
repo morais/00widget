@@ -851,6 +851,7 @@ public struct CardView: View {
                             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                             : AnyLayout(HStackLayout(spacing: 12))
                         layout {
+                            SemanticFlowIcon(item.semantic)
                             Text(item.title)
                                 .font(.subheadline)
                                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
@@ -873,7 +874,7 @@ public struct CardView: View {
                         .padding(.horizontal, 6)
                         .background(alignment: .leading) {
                             if let fraction = fractions?[item.id] {
-                                RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: card.status.tint))
                             }
                         }
                     }
@@ -1145,6 +1146,7 @@ public struct CardView: View {
                 ForEach(items.dropFirst(dropping).prefix(max)) { item in
                     rowLink(item) {
                         HStack {
+                            SemanticFlowIcon(item.semantic)
                             Text(item.title).font(.caption).lineLimit(1)
                             Spacer()
                             if let v = item.value {
@@ -1156,7 +1158,7 @@ public struct CardView: View {
                         .padding(.horizontal, 3)
                         .background(alignment: .leading) {
                             if let fraction = fractions?[item.id] {
-                                RankedRowBar(fraction: fraction, tint: item.status?.tint ?? card.status.tint)
+                                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: card.status.tint))
                             }
                         }
                     }

@@ -51,10 +51,11 @@ struct AccessibilitySummaryTests {
             value: "4",
             unit: "min",
             progress: 0.25,
-            status: .running
+            status: .running,
+            semantic: MetricSemantic(role: .actual, flow: .inbound)
         )
 
-        #expect(LiveActivityAccessibilitySummary.summary(for: item) == "Rinse, 4 min, 25% complete, Cold water")
+        #expect(LiveActivityAccessibilitySummary.summary(for: item) == "Rinse, 4 min, actual, inbound, 25% complete, Cold water")
     }
 }
 

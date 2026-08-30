@@ -21,7 +21,7 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
       {"id": "media", "title": "Media", "value": "512 GB", "amount": 512},
       {"id": "backups", "title": "Backups", "value": "280 GB", "amount": 280},
       {"id": "system", "title": "System", "value": "120 GB", "amount": 120},
-      {"id": "free", "title": "Free", "value": "112 GB", "amount": 112, "status": "warning"}
+      {"id": "free", "title": "Free", "value": "112 GB", "amount": 112, "semantic":{"role":"remainder"}}
     ]
   }'
 echo

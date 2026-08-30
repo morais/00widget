@@ -185,6 +185,28 @@ export const ActionDefinitionInputSchema = z.object({
   ),
 });
 
+export const MetricRoleSchema = z.enum([
+  "actual",
+  "forecast",
+  "baseline",
+  "target",
+  "capacity",
+  "balance",
+  "remainder",
+]);
+export const MetricFlowSchema = z.enum(["inbound", "outbound"]);
+
+export const DashboardItemSemanticSchema = z.object({
+  role: MetricRoleSchema.optional().describe(
+    "What this item represents. Renderers choose the emphasis; producers never choose a color.",
+  ),
+  flow: MetricFlowSchema.optional().describe(
+    "Whether this item flows into or out of the measured system.",
+  ),
+}).refine((semantic) => Object.values(semantic).some((value) => value !== undefined), {
+  message: "item semantic must contain a role or flow",
+});
+
 export const DashboardItemSchema = z.object({
   id: IdString.describe("Stable id for this row, unique within the card."),
   title: TitleString.describe("The row's label."),
@@ -196,6 +218,10 @@ export const DashboardItemSchema = z.object({
   status: DashboardStatusSchema.optional().describe(
     "Colours the row. In a `history` card it is the entire content: each item is "
     + "one past outcome and only its status is drawn.",
+  ),
+  semantic: DashboardItemSemanticSchema.optional().describe(
+    "Optional role and flow hints for this quantity. Keep health/outcome meaning in `status`; "
+    + "items deliberately do not duplicate the chart/activity `signal` field.",
   ),
   deepLink: OptionalDeepLink.describe(
     "HTTPS URL opened when this row is tapped, instead of the card's own "
@@ -243,16 +269,6 @@ export const DashboardBriefingSchema = z.object({
 // added/removed, spend vs refund.
 export const ChartStyleSchema = z.enum(["line", "bar", "delta", "range"]);
 export const ChartStackingSchema = z.enum(["stacked", "grouped"]);
-export const MetricRoleSchema = z.enum([
-  "actual",
-  "forecast",
-  "baseline",
-  "target",
-  "capacity",
-  "balance",
-  "remainder",
-]);
-export const MetricFlowSchema = z.enum(["inbound", "outbound"]);
 export const MetricSignalSchema = z.enum(["favorable", "neutral", "caution", "unfavorable"]);
 
 export const MetricSemanticSchema = z.object({
@@ -815,6 +831,9 @@ export const LiveActivityItemSchema = z.object({
   status: DashboardStatusSchema.optional().describe(
     "Rows with `finished` or `offline` are hidden, and the activity counts the "
     + "rest as its active total.",
+  ),
+  semantic: DashboardItemSemanticSchema.optional().describe(
+    "Optional role and flow hints for this row. `status` remains its health/lifecycle meaning.",
   ),
 });
 
