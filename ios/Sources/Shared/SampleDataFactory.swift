@@ -78,7 +78,7 @@ public enum SampleDataFactory {
                 value: "18.4",
                 unit: "kWh",
                 status: .good,
-                icon: "chart.xyaxis.line",
+                icon: "chart.bar.xaxis",
                 updatedAt: now,
                 chart: DashboardChart(
                     points: [
@@ -86,7 +86,10 @@ public enum SampleDataFactory {
                         17.9, 18.6, 22.7, 25.1, 23.8, 21.2, 19.5, 18.1, 16.8, 17.5,
                         20.3, 22.0, 21.1, 19.3, 18.0, 16.4, 15.9, 18.7, 19.1, 18.4,
                     ],
-                    reference: 20
+                    min: 0,
+                    max: 30,
+                    reference: 20,
+                    style: .bar
                 )
             ),
             DashboardCard(

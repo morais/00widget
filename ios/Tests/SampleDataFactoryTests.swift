@@ -16,6 +16,10 @@ struct SampleDataFactoryTests {
         let energyPoints = try #require(energy.chart?.points)
         #expect(energyPoints.count == 30)
         #expect(energyPoints.count <= DashboardChart.publishedPointLimit)
+        #expect(energy.chart?.style == .bar)
+        #expect(energy.chart?.min == 0)
+        #expect(energy.chart?.max == 30)
+        #expect(energy.chart?.reference == 20)
         #expect(deploys.items?.count == 20)
     }
 

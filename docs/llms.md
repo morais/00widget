@@ -487,6 +487,7 @@ Pick one based on the *shape* of the data, not the domain:
 | …the same, ranked against each other  | `list`     | as above, plus an `amount` per item        |
 | One or more buttons                   | `action`   | `title`, `actions[]`                       |
 | One number moving over time           | `chart`    | `title`, `chart.points[]`, usually `value` |
+| Discrete readings as vertical bars    | `chart`    | as above, plus `chart.style: "bar"`       |
 | One number swinging above and below 0 | `chart`    | as above, plus `chart.style: "delta"`      |
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
@@ -710,6 +711,10 @@ badge and the tint on every widget size read from.
 Republish the whole window on every update — there is no append endpoint, and a
 `chart` card holds only what you last sent.
 
+Use `style: "bar"` for vertical columns rather than a line. `min` and `max`
+pin the y-axis, while `reference` adds a dashed target without changing the
+data. Use `style: "delta"` when signed values must grow above and below zero.
+
 ```sh
 curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
   -H "Authorization: Bearer $00WIDGET_API_KEY" \
@@ -721,12 +726,13 @@ curl -X POST "$00WIDGET_BASE_URL/v1/cards/upsert" \
     "subtitle": "SLO 5m · last 10 runs",
     "value": "4m 12s",
     "status": "good",
-    "icon": "chart.xyaxis.line",
+    "icon": "chart.bar.xaxis",
     "chart": {
       "points": [386, 402, 351, 498, 441, 370, 362, 415, 288, 252],
       "min": 0,
+      "max": 600,
       "reference": 300,
-      "style": "line"
+      "style": "bar"
     }
   }'
 ```

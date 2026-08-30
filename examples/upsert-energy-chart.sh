@@ -16,12 +16,13 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
     "value": "18.4",
     "unit": "kWh",
     "status": "good",
-    "icon": "chart.xyaxis.line",
+    "icon": "chart.bar.xaxis",
     "chart": {
       "points": [22.1, 19.8, 24.3, 20.6, 17.2, 15.9, 18.7, 21.4, 19.1, 18.4],
       "min": 0,
+      "max": 30,
       "reference": 20,
-      "style": "line"
+      "style": "bar"
     }
   }'
 echo

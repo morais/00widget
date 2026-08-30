@@ -20,7 +20,7 @@ chmod +x *.sh
 - `upsert-progress.sh` — a `progress` card: `progress` draws the bar, `value` is the label beside it, and `deadline` counts down on the device.
 - `upsert-school-balances.sh` — a `list` card with sub-items, ranked by their `amount`.
 - `upsert-boiler-action.sh` — an `action` card with a widget button.
-- `upsert-energy-chart.sh` — a `chart` card plotting a 10-point series as a sparkline, with a dashed `reference` target.
+- `upsert-energy-chart.sh` — a vertical `bar` chart with a pinned `min`/`max` axis and dashed `reference` target.
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.
