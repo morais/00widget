@@ -1,5 +1,5 @@
 import SwiftUI
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 import UIKit
 #endif
 
@@ -88,6 +88,11 @@ public struct InspectableChartView: View {
             )
             .focusable()
             .focused($isFocused)
+            .background {
+                TVRemoteSwipeCapture(isActive: isFocused) { direction in
+                    move(by: direction * remoteSwipeDistance)
+                }
+            }
             .onMoveCommand { direction in
                 switch direction {
                 case .left: move(by: -1)
@@ -205,11 +210,7 @@ public struct InspectableChartView: View {
                     .foregroundStyle(.secondary)
             }
 
-            #if os(tvOS)
-            Text("Focus the chart, then press left or right to inspect values")
-                .font(semanticFont)
-                .foregroundStyle(.tertiary)
-            #else
+            #if !os(tvOS)
             Text("Tap or drag across the chart to inspect values")
                 .font(semanticFont)
                 .foregroundStyle(.tertiary)
@@ -282,6 +283,12 @@ public struct InspectableChartView: View {
         setSelection(selectedIndex + offset)
     }
 
+    #if os(tvOS)
+    private var remoteSwipeDistance: Int {
+        min(10, max(2, (chart.points.count + 7) / 8))
+    }
+    #endif
+
     private func setSelection(_ index: Int) {
         guard !chart.points.isEmpty else { return }
         let clamped = min(max(0, index), chart.points.count - 1)
@@ -292,3 +299,84 @@ public struct InspectableChartView: View {
         #endif
     }
 }
+
+#if os(tvOS)
+/// SwiftUI's move command represents an edge tap on the Siri Remote, while a
+/// touch-surface swipe is a UIKit gesture. Install the two horizontal swipe
+/// recognizers on the window so they see the remote's indirect touch stream;
+/// the delegate lets them begin only while this particular chart has focus.
+private struct TVRemoteSwipeCapture: UIViewRepresentable {
+    let isActive: Bool
+    let onSwipe: (Int) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isActive: isActive, onSwipe: onSwipe)
+    }
+
+    func makeUIView(context: Context) -> AttachmentView {
+        let view = AttachmentView()
+        view.isUserInteractionEnabled = false
+        view.onWindowChange = { [weak coordinator = context.coordinator] window in
+            coordinator?.attach(to: window)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: AttachmentView, context: Context) {
+        context.coordinator.isActive = isActive
+        context.coordinator.onSwipe = onSwipe
+        context.coordinator.attach(to: uiView.window)
+    }
+
+    static func dismantleUIView(_ uiView: AttachmentView, coordinator: Coordinator) {
+        uiView.onWindowChange = nil
+        coordinator.attach(to: nil)
+    }
+
+    final class AttachmentView: UIView {
+        var onWindowChange: ((UIWindow?) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            onWindowChange?(window)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var isActive: Bool
+        var onSwipe: (Int) -> Void
+        private weak var attachedWindow: UIWindow?
+        private var recognizers: [UISwipeGestureRecognizer] = []
+
+        init(isActive: Bool, onSwipe: @escaping (Int) -> Void) {
+            self.isActive = isActive
+            self.onSwipe = onSwipe
+        }
+
+        func attach(to window: UIWindow?) {
+            guard attachedWindow !== window else { return }
+            recognizers.forEach { attachedWindow?.removeGestureRecognizer($0) }
+            recognizers.removeAll()
+            attachedWindow = window
+
+            guard let window else { return }
+            for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+                let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
+                recognizer.direction = direction
+                recognizer.delegate = self
+                window.addGestureRecognizer(recognizer)
+                recognizers.append(recognizer)
+            }
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            isActive
+        }
+
+        @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
+            guard isActive else { return }
+            onSwipe(recognizer.direction == .left ? -1 : 1)
+        }
+    }
+}
+#endif
