@@ -373,10 +373,13 @@ describe("tools/list", () => {
       properties: {
         semantic: { properties: { role: { enum: string[] } } };
         referenceMetadata: { properties: { label: { type: string } } };
+        rangeValueLabel: { type: string; description: string };
       };
     };
     expect(chart.properties.semantic.properties.role.enum).toContain("forecast");
     expect(chart.properties.referenceMetadata.properties.label.type).toBe("string");
+    expect(chart.properties.rangeValueLabel.type).toBe("string");
+    expect(chart.properties.rangeValueLabel.description).toContain("ranges[].value");
     const itemSemantic = (properties.items as any).items.properties.semantic;
     expect(itemSemantic.properties.role.enum).toContain("remainder");
     expect(itemSemantic.properties.flow.enum).toEqual(["inbound", "outbound"]);

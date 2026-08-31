@@ -6,21 +6,20 @@ public struct ChartInspectionValue: Hashable, Identifiable, Sendable {
         case series
         case total
         case rangeLow
-        case rangeCurrent
-        case rangeMidpoint
+        case rangeValue
         case rangeHigh
         case reference
     }
 
     public var id: String
-    public var label: String
+    public var label: String?
     public var value: Double
     public var kind: Kind
     public var semantic: MetricSemantic?
 
     public init(
         id: String,
-        label: String,
+        label: String? = nil,
         value: Double,
         kind: Kind,
         semantic: MetricSemantic? = nil
@@ -41,6 +40,9 @@ public struct ChartInspectionSnapshot: Hashable, Sendable {
     public var values: [ChartInspectionValue]
     public var comparison: String?
     public var referenceDifference: Double?
+    /// Compact reference result for an interval without a representative
+    /// marker. Unlike `referenceDifference`, it describes the whole envelope.
+    public var referenceComparison: String?
 
     public init(
         index: Int,
@@ -49,7 +51,8 @@ public struct ChartInspectionSnapshot: Hashable, Sendable {
         signal: MetricSignal?,
         values: [ChartInspectionValue],
         comparison: String?,
-        referenceDifference: Double?
+        referenceDifference: Double?,
+        referenceComparison: String? = nil
     ) {
         self.index = index
         self.count = count
@@ -58,13 +61,14 @@ public struct ChartInspectionSnapshot: Hashable, Sendable {
         self.values = values
         self.comparison = comparison
         self.referenceDifference = referenceDifference
+        self.referenceComparison = referenceComparison
     }
 
     public func accessibilityDescription(unit: String?) -> String {
         var parts = [label, "point \(index + 1) of \(count)"].compactMap { $0 }
         if let signal { parts.append(signal.rawValue) }
         parts.append(contentsOf: values.map { value in
-            var words = [value.label, Self.format(value.value, unit: unit)]
+            var words = [value.label, Self.format(value.value, unit: unit)].compactMap { $0 }
             words.append(contentsOf: value.semantic?.accessibilityWords ?? [])
             return words.joined(separator: ", ")
         })
@@ -91,19 +95,25 @@ public extension DashboardChart {
 
         var values: [ChartInspectionValue] = []
         var comparisonValue: Double?
+        var inspectedRange: DashboardChartRange?
 
         if style == .range,
            let ranges,
            ranges.indices.contains(index) {
             let range = ranges[index]
+            inspectedRange = range
             values.append(.init(id: "low", label: "Low", value: range.low, kind: .rangeLow, semantic: semantic))
-            if let current = range.value {
-                values.append(.init(id: "current", label: "Current", value: current, kind: .rangeCurrent, semantic: semantic))
-                comparisonValue = current
-            } else {
-                let midpoint = (range.low + range.high) / 2
-                values.append(.init(id: "midpoint", label: "Midpoint", value: midpoint, kind: .rangeMidpoint, semantic: semantic))
-                comparisonValue = midpoint
+            if let value = range.value {
+                values.append(
+                    .init(
+                        id: "range-value",
+                        label: rangeValueLabel,
+                        value: value,
+                        kind: .rangeValue,
+                        semantic: semantic
+                    )
+                )
+                comparisonValue = value
             }
             values.append(.init(id: "high", label: "High", value: range.high, kind: .rangeHigh, semantic: semantic))
         } else if let series, !series.isEmpty {
@@ -143,14 +153,19 @@ public extension DashboardChart {
         let referenceDifference = comparisonValue.flatMap { value in
             reference.map { value - $0 }
         }
+        let intervalComparison = comparisonValue == nil
+            ? inspectedRange.flatMap { rangeComparisonDescription(range: $0, unit: unit) }
+            : nil
         return ChartInspectionSnapshot(
             index: index,
             count: points.count,
             label: label,
             signal: category?.signal,
             values: values,
-            comparison: comparisonValue.flatMap { comparisonDescription(value: $0, unit: unit) },
-            referenceDifference: referenceDifference
+            comparison: comparisonValue.flatMap { comparisonDescription(value: $0, unit: unit) }
+                ?? intervalComparison?.accessibility,
+            referenceDifference: referenceDifference,
+            referenceComparison: intervalComparison?.compact
         )
     }
 
@@ -161,5 +176,43 @@ public extension DashboardChart {
         if abs(difference) < 0.000_001 { return "Matches \(label.lowercased())" }
         let amount = ChartInspectionSnapshot.format(abs(difference), unit: unit)
         return "\(amount) \(difference > 0 ? "above" : "below") \(label.lowercased())"
+    }
+
+    private func rangeComparisonDescription(
+        range: DashboardChartRange,
+        unit: String?
+    ) -> (compact: String, accessibility: String)? {
+        guard let reference else { return nil }
+        let label = referenceMetadata?.displayLabel ?? "reference"
+        if reference >= range.low, reference <= range.high {
+            return ("Within range", "\(label.capitalized) is within range")
+        }
+
+        let direction: String
+        let near: Double
+        let far: Double
+        if range.low > reference {
+            direction = "above"
+            near = range.low - reference
+            far = range.high - reference
+        } else {
+            direction = "below"
+            near = reference - range.high
+            far = reference - range.low
+        }
+        let amount = differenceSpan(from: near, to: far, unit: unit)
+        return (
+            "\(amount) \(direction)",
+            "Range is \(amount) \(direction) \(label.lowercased())"
+        )
+    }
+
+    private func differenceSpan(from near: Double, to far: Double, unit: String?) -> String {
+        if abs(near - far) < 0.000_001 {
+            return ChartInspectionSnapshot.format(near, unit: unit)
+        }
+        let first = ChartInspectionSnapshot.format(near, unit: nil)
+        let second = ChartInspectionSnapshot.format(far, unit: unit)
+        return "\(first)–\(second)"
     }
 }

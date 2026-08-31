@@ -319,7 +319,7 @@ export const DashboardChartRangeSchema = z.object({
   low: z.number().describe("Bottom of the observed or expected interval."),
   high: z.number().describe("Top of the observed or expected interval."),
   value: z.number().optional().describe(
-    "Optional current or typical value marked inside the interval.",
+    "Optional representative value marked inside the interval. Its meaning is supplied by the chart's rangeValueLabel; clients never infer one.",
   ),
 });
 
@@ -380,7 +380,7 @@ const DashboardChartObjectSchema = z
       "`line` is a sparkline with a soft area fill; `bar` grows every bar from "
       + "the bottom of the range; `delta` anchors at zero instead, so signed "
       + "values grow up or down from a zero rule; `range` draws floating "
-      + "low/high intervals with optional current-value markers.",
+      + "low/high intervals with optional publisher-defined value markers.",
     ),
     labels: z.array(z.string().max(FieldLimits.chartAxisLabel))
       .min(2)
@@ -414,6 +414,9 @@ const DashboardChartObjectSchema = z
         "Two to sixty low/high intervals. The server derives legacy points from "
         + "each value, or from its midpoint when value is absent.",
       ),
+    rangeValueLabel: z.string().min(1).max(FieldLimits.chartSeriesLabel).optional().describe(
+      "Short meaning shared by every supplied ranges[].value marker, such as Daily average, Median, or Current. Omit it rather than guessing.",
+    ),
     stacking: ChartStackingSchema.default("stacked").describe(
       "How multiple bar series share each category: stacked into one column or grouped side by side.",
     ),
@@ -469,6 +472,14 @@ const DashboardChartObjectSchema = z
       if (chart.ranges.length !== chart.points.length) {
         ctx.addIssue({ code: "custom", path: ["ranges"], message: "must match points length" });
       }
+      if (chart.rangeValueLabel !== undefined
+        && !chart.ranges.some((range) => range.value !== undefined)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["rangeValueLabel"],
+          message: "requires at least one ranges[].value",
+        });
+      }
       chart.ranges.forEach((range, index) => {
         if (range.low > range.high) {
           ctx.addIssue({
@@ -485,8 +496,13 @@ const DashboardChartObjectSchema = z
           });
         }
       });
-    } else if (chart.style === "range") {
-      ctx.addIssue({ code: "custom", path: ["ranges"], message: "range style requires ranges" });
+    } else {
+      if (chart.rangeValueLabel !== undefined) {
+        ctx.addIssue({ code: "custom", path: ["rangeValueLabel"], message: "requires ranges" });
+      }
+      if (chart.style === "range") {
+        ctx.addIssue({ code: "custom", path: ["ranges"], message: "range style requires ranges" });
+      }
     }
   });
 

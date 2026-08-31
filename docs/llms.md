@@ -336,7 +336,8 @@ legend does not fit a small widget.
   "categories": "DashboardChartCategory[]? ({id, label, signal?}, aligned with points)",
   "series": "DashboardChartSeries[]? (1-4 non-negative bar series)",
   "stacking": "stacked | grouped (default: stacked)",
-  "ranges": "DashboardChartRange[]? ({low, high, value?}, 2-60 entries)"
+  "ranges": "DashboardChartRange[]? ({low, high, value?}, 2-60 entries)",
+  "rangeValueLabel": "string? (meaning shared by supplied range value markers)"
 }
 ```
 
@@ -411,18 +412,24 @@ line.
 
 For a min/max envelope, forecast band, confidence interval, or observed daily
 range, send `ranges` instead of `points`. Every entry has `low` and `high`, plus
-an optional `value` marker inside the interval. `style` defaults to `range`.
+an optional representative `value` marker inside the interval. When any entry
+has a `value`, send `rangeValueLabel` once on the chart to say exactly what
+those markers mean — for example `Daily average`, `Median`, `Best estimate`, or
+`Current`. The client never guesses that meaning from the number. If there is
+no actual representative reading, omit `value`; new detail views show only the
+low and high rather than presenting a derived midpoint as observed data.
+`style` defaults to `range`.
 The server derives and stores one compatibility point per entry: `value` when
 present, otherwise the midpoint. Older clients ignore `ranges` and the unknown
 style, fall back to their line renderer, and still show that representative
 series. New clients draw translucent floating columns with a marker for each
-supplied value.
+supplied value. `rangeValueLabel` is additive: older clients ignore it.
 
 `style` picks how the series is drawn. `line` is a sparkline with a soft area
 fill; `bar` grows every bar from the bottom of the range; `delta` anchors the
 bars at zero instead, so signed values grow up or down from a zero rule — net
 grid import/export per hour, commits added and removed, spend against refunds;
-`range` draws floating low/high bands and optional current-value markers.
+`range` draws floating low/high bands and optional publisher-defined value markers.
 A `delta` chart always includes zero in its range unless you pin both edges away
 from it, in which case the bars fall back to plain magnitudes and no zero rule
 is drawn.
@@ -507,6 +514,7 @@ Card field limits:
 | `chart.series` | 1–4 series; 2–60 non-negative points each |
 | `chart.categories` | 2–60 unique ids, aligned one-for-one with points |
 | `chart.ranges` | 2–60 entries; `low <= high`, optional `value` inside the interval |
+| `chart.rangeValueLabel` | 60 chars; requires at least one `ranges[].value` |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
 | `actions` | 8 buttons |
 
@@ -886,6 +894,7 @@ style, so this is sufficient:
   "labels": ["Mon", "Tue", "Wed"],
   "min": 0,
   "max": 30,
+  "rangeValueLabel": "Expected daytime",
   "ranges": [
     {"low": 12, "high": 21, "value": 18},
     {"low": 10, "high": 19, "value": 16},

@@ -51,12 +51,14 @@ struct DashboardChartTests {
         #expect(snapshot.accessibilityDescription(unit: "kWh").contains("point 2 of 2"))
     }
 
-    @Test("Range inspection distinguishes a measured value from a derived midpoint")
+    @Test("Range inspection uses publisher meaning and never presents a midpoint as observed")
     func inspectionDescribesRangesHonestly() throws {
         let chart = DashboardChart(
             points: [],
+            reference: 15,
             style: .range,
             labels: ["Now", "+10"],
+            rangeValueLabel: "Daily average",
             ranges: [
                 DashboardChartRange(low: 10, high: 20, value: 14),
                 DashboardChartRange(low: 12, high: 24),
@@ -64,12 +66,38 @@ struct DashboardChartTests {
         )
 
         let measured = try #require(chart.inspection(at: 0))
-        #expect(measured.values.map(\.label) == ["Low", "Current", "High"])
-        #expect(measured.values.map(\.value) == [10, 14, 20])
+        #expect(measured.values.map(\.label) == ["Low", "Daily average", "High", "Reference"])
+        #expect(measured.values.map(\.value) == [10, 14, 20, 15])
+        #expect(measured.referenceDifference == -1)
 
         let derived = try #require(chart.inspection(at: 1))
-        #expect(derived.values.map(\.label) == ["Low", "Midpoint", "High"])
-        #expect(derived.values.map(\.value) == [12, 18, 24])
+        #expect(derived.values.map(\.label) == ["Low", "High", "Reference"])
+        #expect(derived.values.map(\.value) == [12, 24, 15])
+        #expect(derived.referenceDifference == nil)
+        #expect(derived.referenceComparison == "Within range")
+        #expect(derived.comparison == "Reference is within range")
+    }
+
+    @Test("An unlabelled range value stays numeric and range comparisons describe the envelope")
+    func inspectionDoesNotGuessRangeValueMeaning() throws {
+        let chart = DashboardChart(
+            points: [],
+            reference: 10,
+            style: .range,
+            ranges: [
+                DashboardChartRange(low: 12, high: 18, value: 14),
+                DashboardChartRange(low: 12, high: 18),
+            ]
+        )
+
+        let marked = try #require(chart.inspection(at: 0, unit: "%"))
+        #expect(marked.values[1].label == nil)
+        #expect(marked.values[1].kind == .rangeValue)
+        #expect(marked.referenceDifference == 4)
+
+        let envelope = try #require(chart.inspection(at: 1, unit: "%"))
+        #expect(envelope.referenceComparison == "2–8 % above")
+        #expect(envelope.comparison == "Range is 2–8 % above reference")
     }
 
     @Test("Inspection clamps external selections to the published window")
@@ -169,11 +197,12 @@ struct DashboardChartTests {
 
     @Test("Range-only JSON derives representative fallback points")
     func rangeOnlyJSONDerivesFallbackPoints() throws {
-        let json = #"{"ranges":[{"low":10,"high":20,"value":14},{"low":12,"high":24}],"labels":["Mon","Tue"],"style":"range"}"#
+        let json = #"{"ranges":[{"low":10,"high":20,"value":14},{"low":12,"high":24}],"rangeValueLabel":"Median","labels":["Mon","Tue"],"style":"range"}"#
         let chart = try JSONDecoder().decode(DashboardChart.self, from: Data(json.utf8))
 
         #expect(chart.points == [14, 18])
         #expect(chart.ranges?.count == 2)
+        #expect(chart.rangeValueLabel == "Median")
         #expect(chart.style == .range)
         #expect(chart.normalizedPoints == [0.2857142857142857, 0.5714285714285714])
     }

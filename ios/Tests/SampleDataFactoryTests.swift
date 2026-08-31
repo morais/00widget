@@ -48,6 +48,7 @@ struct SampleDataFactoryTests {
         #expect(points.count <= DashboardChart.publishedPointLimit)
         #expect(chart.style == .range)
         #expect(chart.ranges?.count == points.count)
+        #expect(chart.rangeValueLabel == "Best estimate")
         #expect(chart.semantic?.role == .forecast)
         #expect(chart.referenceMetadata?.semantic?.role == .capacity)
         #expect(points.last == 95)

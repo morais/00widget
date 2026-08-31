@@ -4,7 +4,8 @@ cd "$(dirname "$0")"
 source ./env.sh
 
 # Floating bars show each day's forecast low/high, with the expected daytime
-# reading marked inside. The server also stores the marker (or midpoint) as a
+# reading marked inside. rangeValueLabel tells new clients exactly what that
+# marker means. The server also stores the marker (or midpoint) as a
 # legacy point, so older clients fall back to a useful temperature line.
 curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
   -H "Authorization: Bearer $API_KEY" \
@@ -23,6 +24,7 @@ curl -sS -X POST "$BASE_URL/v1/cards/upsert" \
       "labels": ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
       "min": 0,
       "max": 30,
+      "rangeValueLabel": "Expected daytime",
       "ranges": [
         {"low":12,"high":21,"value":18},
         {"low":10,"high":19,"value":16},

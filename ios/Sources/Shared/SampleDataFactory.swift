@@ -232,6 +232,7 @@ public enum SampleDataFactory {
                 semantic: MetricSemantic(role: .forecast),
                 style: .range,
                 labels: ["Now", "+10", "+20", "+30", "+40", "+50", "+60", "+70", "+80", "+90", "+100", "+110"],
+                rangeValueLabel: "Best estimate",
                 ranges: [
                     DashboardChartRange(low: 35, high: 43, value: 38),
                     DashboardChartRange(low: 39, high: 49, value: 45),

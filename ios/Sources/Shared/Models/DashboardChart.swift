@@ -7,7 +7,7 @@ public enum ChartStyle: String, Codable, CaseIterable, Sendable {
     /// values grow up or down from a zero rule.
     case delta
     /// A floating vertical band from a low to a high value, with an optional
-    /// current/typical value marked inside it.
+    /// publisher-defined representative value marked inside it.
     case range
 }
 
@@ -210,6 +210,10 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// truthful fallback series rather than losing the chart.
     public var series: [DashboardChartSeries]?
     public var stacking: ChartStacking
+    /// Publisher-supplied meaning shared by every non-nil `ranges[].value`.
+    /// Nil deliberately means the client must not infer a meaning such as
+    /// "Current" or "Average" from the number alone.
+    public var rangeValueLabel: String?
     /// Min/max bands aligned with `points`. The server stores `value` (or the
     /// midpoint when absent) in `points`, so older clients render a useful
     /// fallback line while newer builds draw the full interval.
@@ -227,6 +231,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         categories: [DashboardChartCategory]? = nil,
         series: [DashboardChartSeries]? = nil,
         stacking: ChartStacking = .stacked,
+        rangeValueLabel: String? = nil,
         ranges: [DashboardChartRange]? = nil
     ) {
         self.points = points.isEmpty
@@ -242,6 +247,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
         self.categories = categories
         self.series = series
         self.stacking = stacking
+        self.rangeValueLabel = rangeValueLabel
         self.ranges = ranges
     }
 
@@ -260,6 +266,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
             forKey: .referenceMetadata
         )
         semantic = try c.decodeIfPresent(MetricSemantic.self, forKey: .semantic)
+        rangeValueLabel = try c.decodeIfPresent(String.self, forKey: .rangeValueLabel)
         let rawStyle = try c.decodeIfPresent(String.self, forKey: .style)
         style = rawStyle.flatMap(ChartStyle.init(rawValue:)) ?? .line
         labels = try c.decodeIfPresent([String].self, forKey: .labels) ?? categories?.map(\.label)
@@ -269,7 +276,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case points, min, max, reference, referenceMetadata, semantic
-        case style, labels, categories, series, stacking, ranges
+        case style, labels, categories, series, stacking, rangeValueLabel, ranges
     }
 
     /// A single point is a dot, not a trend; the renderers fall back to the

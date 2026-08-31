@@ -414,6 +414,7 @@ describe("DashboardCardSchema", () => {
       title: "Forecast",
       chart: {
         labels: ["Mon", "Tue", "Wed"],
+        rangeValueLabel: "Expected daytime",
         ranges: [
           { low: 12, high: 21, value: 18 },
           { low: 10, high: 20 },
@@ -425,6 +426,7 @@ describe("DashboardCardSchema", () => {
     if (!parsed.success) return;
     expect(parsed.data.chart?.style).toBe("range");
     expect(parsed.data.chart?.points).toEqual([18, 15, 20]);
+    expect(parsed.data.chart?.rangeValueLabel).toBe("Expected daytime");
     expect(parsed.data.chart?.ranges).toHaveLength(3);
   });
 
@@ -441,6 +443,14 @@ describe("DashboardCardSchema", () => {
     expect(DashboardCardInputSchema.safeParse({
       ...base,
       chart: { style: "bar", ranges: [{ low: 10, high: 20 }, { low: 12, high: 18 }] },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { rangeValueLabel: "Median", points: [10, 12] },
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      ...base,
+      chart: { rangeValueLabel: "Median", ranges: [{ low: 10, high: 20 }, { low: 12, high: 18 }] },
     }).success).toBe(false);
   });
 

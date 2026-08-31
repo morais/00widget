@@ -178,8 +178,8 @@ public struct InspectableChartView: View {
                 HStack(spacing: 8) {
                     valueMarker(value, index: index)
                     SemanticFlowIcon(value.semantic, font: semanticFont)
-                    if value.kind != .value {
-                        Text(value.label)
+                    if value.kind != .value, let label = value.label {
+                        Text(label)
                             .font(valueFont)
                     }
                     if let words = value.semantic?.accessibilityWords, !words.isEmpty {
@@ -200,9 +200,11 @@ public struct InspectableChartView: View {
                 HStack(spacing: 8) {
                     valueMarker(reference, index: readings.count)
                     SemanticFlowIcon(reference.semantic, font: semanticFont)
-                    Text(reference.label)
-                        .font(semanticFont)
-                        .lineLimit(1)
+                    if let label = reference.label {
+                        Text(label)
+                            .font(semanticFont)
+                            .lineLimit(1)
+                    }
                     Text(ChartInspectionSnapshot.format(reference.value, unit: unit))
                         .font(semanticFont)
                         .foregroundStyle(.secondary)
@@ -211,6 +213,11 @@ public struct InspectableChartView: View {
                     Spacer(minLength: 6)
                     if let difference = snapshot.referenceDifference {
                         Text(referenceDifferenceText(difference))
+                            .font(valueFont.weight(.semibold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    } else if let comparison = snapshot.referenceComparison {
+                        Text(comparison)
                             .font(valueFont.weight(.semibold))
                             .monospacedDigit()
                             .lineLimit(1)
