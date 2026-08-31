@@ -147,6 +147,10 @@ struct TVDashboardView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+        } else if !env.hasCompletedInitialSync {
+            Text("Loading dashboard…")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         } else {
             Text("Your agent widgets")
                 .font(.callout)
@@ -156,7 +160,9 @@ struct TVDashboardView: View {
 
     @ViewBuilder
     private var content: some View {
-        if env.cards.isEmpty && env.liveActivities.isEmpty {
+        if env.cards.isEmpty && env.liveActivities.isEmpty && !env.hasCompletedInitialSync {
+            initialLoadingState
+        } else if env.cards.isEmpty && env.liveActivities.isEmpty {
             emptyState
         } else {
             ScrollView {
@@ -247,6 +253,17 @@ struct TVDashboardView: View {
                 }
             }
         }
+    }
+
+    private var initialLoadingState: some View {
+        VStack(spacing: 24) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading dashboard")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {

@@ -15,6 +15,9 @@ final class TVEnvironment: ObservableObject {
     @Published private(set) var lastSyncAt: Date?
     @Published private(set) var lastSyncError: String?
     @Published private(set) var isRefreshing = false
+    /// Distinguishes a genuinely empty account from the brief interval before
+    /// the first network response. Cached content may still render immediately.
+    @Published private(set) var hasCompletedInitialSync = false
 
     let serverBaseURL: String
 
@@ -50,6 +53,7 @@ final class TVEnvironment: ObservableObject {
         self.liveActivities = screenshotSection == "widgets"
             ? []
             : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]
+        self.hasCompletedInitialSync = true
         SharedSettings.setHideSampleIndicators(true)
         #else
         let defaults = UserDefaults.standard
@@ -95,8 +99,10 @@ final class TVEnvironment: ObservableObject {
         #if ZW_SCREENSHOTS
         return
         #else
+        hasCompletedInitialSync = false
         await refreshAccount()
-        await fetchCards()
+        if isSignedIn { await fetchCards() }
+        hasCompletedInitialSync = true
         startAutoRefresh()
         #endif
     }
@@ -130,7 +136,9 @@ final class TVEnvironment: ObservableObject {
             )
             appleLoginEmail = response.tenant.ownerEmail
             UserDefaults.standard.set(appleLoginEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+            hasCompletedInitialSync = false
             await fetchCards()
+            hasCompletedInitialSync = true
             startAutoRefresh()
         } catch {
             appleLoginError = error.localizedDescription
@@ -242,6 +250,7 @@ final class TVEnvironment: ObservableObject {
         liveActivities = []
         lastSyncAt = nil
         lastSyncError = nil
+        hasCompletedInitialSync = false
     }
 
     func fetchCards() async {
