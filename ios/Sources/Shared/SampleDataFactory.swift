@@ -218,10 +218,13 @@ public enum SampleDataFactory {
             unit: "%",
             progress: 0.95,
             chart: DashboardChart(
-                // The charging forecast widens and narrows with expected solar
-                // input. Each marker is the current best estimate inside its
-                // low/high envelope.
-                points: [],
+                // Recent state of charge. A simple historical line agrees
+                // with the 95% headline; uncertainty ranges belong to samples
+                // whose subject is explicitly a forecast.
+                points: [
+                    38, 45, 51, 57, 64, 69,
+                    74, 82, 87, 91, 93, 95,
+                ],
                 min: 30,
                 max: 100,
                 reference: 100,
@@ -229,24 +232,9 @@ public enum SampleDataFactory {
                     label: "Full charge",
                     semantic: MetricSemantic(role: .capacity)
                 ),
-                semantic: MetricSemantic(role: .forecast),
-                style: .range,
-                labels: ["Now", "+10", "+20", "+30", "+40", "+50", "+60", "+70", "+80", "+90", "+100", "+110"],
-                rangeValueLabel: "Best estimate",
-                ranges: [
-                    DashboardChartRange(low: 35, high: 43, value: 38),
-                    DashboardChartRange(low: 39, high: 49, value: 45),
-                    DashboardChartRange(low: 44, high: 56, value: 51),
-                    DashboardChartRange(low: 49, high: 63, value: 57),
-                    DashboardChartRange(low: 55, high: 70, value: 64),
-                    DashboardChartRange(low: 61, high: 77, value: 69),
-                    DashboardChartRange(low: 67, high: 83, value: 74),
-                    DashboardChartRange(low: 73, high: 89, value: 82),
-                    DashboardChartRange(low: 79, high: 94, value: 87),
-                    DashboardChartRange(low: 84, high: 97, value: 91),
-                    DashboardChartRange(low: 88, high: 99, value: 93),
-                    DashboardChartRange(low: 91, high: 100, value: 95),
-                ]
+                semantic: MetricSemantic(role: .actual),
+                style: .line,
+                labels: ["−110m", "−100m", "−90m", "−80m", "−70m", "−60m", "−50m", "−40m", "−30m", "−20m", "−10m", "Now"]
             ),
             startedAt: Date(),
             updatedAt: Date(),

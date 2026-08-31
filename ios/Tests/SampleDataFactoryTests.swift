@@ -38,7 +38,7 @@ struct SampleDataFactoryTests {
         #expect(washer.briefing?.sections.count == 3)
     }
 
-    @Test("The demo Live Activity shows more than ten forecast ranges")
+    @Test("The demo Live Activity shows a long charge-history line")
     func liveActivityUsesLongWindow() throws {
         let activity = SampleDataFactory.makeLiveActivitySession()
         let chart = try #require(activity.chart)
@@ -46,11 +46,11 @@ struct SampleDataFactoryTests {
         let points = chart.points
         #expect(points.count == 12)
         #expect(points.count <= DashboardChart.publishedPointLimit)
-        #expect(chart.style == .range)
-        #expect(chart.ranges?.count == points.count)
-        #expect(chart.rangeValueLabel == "Best estimate")
-        #expect(chart.semantic?.role == .forecast)
+        #expect(chart.style == .line)
+        #expect(chart.ranges == nil)
+        #expect(chart.semantic?.role == .actual)
         #expect(chart.referenceMetadata?.semantic?.role == .capacity)
+        #expect(chart.labels?.last == "Now")
         #expect(points.last == 95)
     }
 }
