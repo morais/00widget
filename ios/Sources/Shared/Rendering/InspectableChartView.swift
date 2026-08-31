@@ -301,7 +301,10 @@ public struct InspectableChartView: View {
 
     #if os(tvOS)
     private var remoteSwipeDistance: Int {
-        min(10, max(2, (chart.points.count + 7) / 8))
+        // A touch-surface gesture is the page-sized counterpart to a one-point
+        // directional click. Six swipes cross a normal series, capped so a
+        // long chart still remains inspectable rather than jumping end to end.
+        min(12, max(3, (chart.points.count + 5) / 6))
     }
     #endif
 
@@ -385,10 +388,12 @@ private struct IOSChartGestureCapture: UIViewRepresentable {
 #endif
 
 #if os(tvOS)
-/// SwiftUI's move command represents an edge tap on the Siri Remote, while a
-/// touch-surface swipe is a UIKit gesture. Install the two horizontal swipe
-/// recognizers on the window so they see the remote's indirect touch stream;
-/// the delegate lets them begin only while this particular chart has focus.
+/// SwiftUI's move command represents a directional click on the Siri Remote,
+/// while a touch-surface gesture is an indirect pan. Install a pan recognizer
+/// on the window so it participates alongside the focus engine instead of
+/// losing the gesture to it. A discrete `UISwipeGestureRecognizer` used here
+/// previously never won that competition on a physical remote, so every swipe
+/// fell through to the one-point move command and appeared unaccelerated.
 private struct TVRemoteSwipeCapture: UIViewRepresentable {
     let isActive: Bool
     let onSwipe: (Int) -> Void
@@ -430,7 +435,7 @@ private struct TVRemoteSwipeCapture: UIViewRepresentable {
         var isActive: Bool
         var onSwipe: (Int) -> Void
         private weak var attachedWindow: UIWindow?
-        private var recognizers: [UISwipeGestureRecognizer] = []
+        private weak var recognizer: UIPanGestureRecognizer?
 
         init(isActive: Bool, onSwipe: @escaping (Int) -> Void) {
             self.isActive = isActive
@@ -439,27 +444,44 @@ private struct TVRemoteSwipeCapture: UIViewRepresentable {
 
         func attach(to window: UIWindow?) {
             guard attachedWindow !== window else { return }
-            recognizers.forEach { attachedWindow?.removeGestureRecognizer($0) }
-            recognizers.removeAll()
+            if let recognizer { attachedWindow?.removeGestureRecognizer(recognizer) }
             attachedWindow = window
 
             guard let window else { return }
-            for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
-                let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(swiped(_:)))
-                recognizer.direction = direction
-                recognizer.delegate = self
-                window.addGestureRecognizer(recognizer)
-                recognizers.append(recognizer)
-            }
+            let recognizer = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+            recognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            window.addGestureRecognizer(recognizer)
+            self.recognizer = recognizer
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             isActive
         }
 
-        @objc private func swiped(_ recognizer: UISwipeGestureRecognizer) {
-            guard isActive else { return }
-            onSwipe(recognizer.direction == .left ? -1 : 1)
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // The focus engine owns its own remote recognizer. Let both observe
+            // the gesture: focus remains on the chart while this recognizer
+            // turns the same touch into a page-sized value move.
+            true
+        }
+
+        @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
+            guard isActive, recognizer.state == .ended || recognizer.state == .cancelled else { return }
+            guard let view = recognizer.view else { return }
+            let translation = recognizer.translation(in: view)
+            let velocity = recognizer.velocity(in: view)
+            guard abs(translation.x) > abs(translation.y) else { return }
+            // A small resting movement on the clickpad is not a swipe. Accept
+            // either real travel or a quick flick, since both are natural on
+            // the two generations of Siri Remote touch surface.
+            guard abs(translation.x) >= 24 || abs(velocity.x) >= 250 else { return }
+            let horizontal = abs(velocity.x) >= 250 ? velocity.x : translation.x
+            onSwipe(horizontal < 0 ? -1 : 1)
         }
     }
 }
