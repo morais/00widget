@@ -145,11 +145,7 @@ public struct InspectableChartView: View {
     private func selectionPanel(_ snapshot: ChartInspectionSnapshot) -> some View {
         let readings = snapshot.values.filter { $0.kind != .reference }
         let reference = snapshot.values.first { $0.kind == .reference }
-        #if os(tvOS)
-        let showsHeader = true
-        #else
         let showsHeader = snapshot.label != nil || snapshot.signal != nil
-        #endif
 
         return VStack(alignment: .leading, spacing: compact ? 6 : 9) {
             if showsHeader {
@@ -166,11 +162,6 @@ public struct InspectableChartView: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
-                    #if os(tvOS)
-                    Text("\(snapshot.index + 1) of \(snapshot.count)")
-                        .font(semanticFont)
-                        .foregroundStyle(.secondary)
-                    #endif
                 }
             }
 
