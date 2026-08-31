@@ -136,16 +136,13 @@ public struct CardView: View {
         }
     }
 
-    /// The single relative time at the bottom of a card. A `deadline` displaces
-    /// the updated-at stamp rather than joining it: both are relative times, and
-    /// the one worth a glance is the one that has not happened yet.
-    ///
-    /// `Text(_:style:.relative)` is ticked by the device, so this stays right
-    /// between reloads. That is the whole reason the field exists — a countdown
-    /// republished as a string is wrong for most of the half hour that a Home
-    /// Screen widget waits between reloads.
+    /// A producer-supplied deadline is useful enough to spend scarce widget
+    /// space on because the device keeps it accurate between reloads. The
+    /// card's generic updated-at age is deliberately absent here: a timer that
+    /// changes every second is visual noise, not card content. Freshness remains
+    /// available in the app detail and in the accessibility stale warning.
     @ViewBuilder
-    private var footerLine: some View {
+    private var deadlineLine: some View {
         if let deadline = card.deadline {
             HStack(spacing: 3) {
                 Image(systemName: "clock")
@@ -154,10 +151,6 @@ public struct CardView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .lineLimit(1)
-        } else {
-            Text(card.updatedAt, style: .relative)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -244,7 +237,7 @@ public struct CardView: View {
             if card.template != .action {
                 actionButtons(max: density == .compact ? 0 : 1)
             }
-            if card.deadline != nil { footerLine }
+            if card.deadline != nil { deadlineLine }
         }
         .padding(8)
     }
@@ -296,8 +289,8 @@ public struct CardView: View {
                 actionButtons(max: density == .compact ? 1 : 2)
             }
             Spacer(minLength: 0)
-            if density != .compact {
-                footerLine
+            if density != .compact, card.deadline != nil {
+                deadlineLine
             }
         }
         .padding(10)
@@ -350,14 +343,8 @@ public struct CardView: View {
             if !largePlotFillsHeight {
                 Spacer(minLength: 0)
             }
-            if density != .compact {
-                if card.deadline != nil {
-                    footerLine
-                } else {
-                    Text("Updated \(card.updatedAt, style: .relative) ago")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if density != .compact, card.deadline != nil {
+                deadlineLine
             }
         }
         .padding(12)
@@ -387,14 +374,8 @@ public struct CardView: View {
             if !largePlotFillsHeight {
                 Spacer(minLength: 0)
             }
-            if density != .compact {
-                if card.deadline != nil {
-                    footerLine
-                } else {
-                    Text("Updated \(card.updatedAt, style: .relative) ago")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if density != .compact, card.deadline != nil {
+                deadlineLine
             }
         }
         .padding(14)
@@ -545,14 +526,8 @@ public struct CardView: View {
             if !largePlotFillsHeight {
                 Spacer(minLength: 0)
             }
-            if density != .compact {
-                if card.deadline != nil {
-                    footerLine
-                } else {
-                    Text("Updated \(card.updatedAt, style: .relative) ago")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if density != .compact, card.deadline != nil {
+                deadlineLine
             }
         }
         .padding(14)
