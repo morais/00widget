@@ -70,10 +70,13 @@ final class TVScreenshotTests: XCTestCase {
             "Pressing Select on the Energy card did not open its detail panel."
         )
         // The panel animates in, and a capture taken mid-transition shows the
-        // dashboard bleeding through a half-opaque cover.
+        // dashboard bleeding through a half-opaque cover. The interactive
+        // chart is now the panel's initial focus target, so waiting for Close
+        // is both stale and misses the focus treatment this image should show.
+        let inspector = app.otherElements["chart-inspector"]
         XCTAssertTrue(
-            waitForFocus(containing: "Close", in: app),
-            "The detail panel never settled with focus on Close."
+            inspector.waitForExistence(timeout: 10) && waitForFocus(on: inspector),
+            "The detail panel never settled with focus on its chart inspector."
         )
         capture(named: "screenshot-tv-card-detail")
     }
@@ -96,6 +99,15 @@ final class TVScreenshotTests: XCTestCase {
             .allElementsBoundByIndex
             .first(where: \.hasFocus)?
             .label ?? ""
+    }
+
+    private func waitForFocus(on element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.hasFocus { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return element.hasFocus
     }
 
     private func capture(named name: String) {
