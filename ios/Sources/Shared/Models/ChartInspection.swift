@@ -36,18 +36,20 @@ public struct ChartInspectionValue: Hashable, Identifiable, Sendable {
 public struct ChartInspectionSnapshot: Hashable, Sendable {
     public var index: Int
     public var count: Int
-    public var label: String
+    public var label: String?
     public var signal: MetricSignal?
     public var values: [ChartInspectionValue]
     public var comparison: String?
+    public var referenceDifference: Double?
 
     public init(
         index: Int,
         count: Int,
-        label: String,
+        label: String?,
         signal: MetricSignal?,
         values: [ChartInspectionValue],
-        comparison: String?
+        comparison: String?,
+        referenceDifference: Double?
     ) {
         self.index = index
         self.count = count
@@ -55,10 +57,11 @@ public struct ChartInspectionSnapshot: Hashable, Sendable {
         self.signal = signal
         self.values = values
         self.comparison = comparison
+        self.referenceDifference = referenceDifference
     }
 
     public func accessibilityDescription(unit: String?) -> String {
-        var parts = [label, "point \(index + 1) of \(count)"]
+        var parts = [label, "point \(index + 1) of \(count)"].compactMap { $0 }
         if let signal { parts.append(signal.rawValue) }
         parts.append(contentsOf: values.map { value in
             var words = [value.label, Self.format(value.value, unit: unit)]
@@ -84,7 +87,7 @@ public extension DashboardChart {
         let alignedLabel = labels.flatMap { values in
             values.indices.contains(index) ? values[index] : nil
         }
-        let label = category?.label ?? alignedLabel ?? "Point \(index + 1)"
+        let label = category?.label ?? alignedLabel
 
         var values: [ChartInspectionValue] = []
         var comparisonValue: Double?
@@ -137,13 +140,17 @@ public extension DashboardChart {
             )
         }
 
+        let referenceDifference = comparisonValue.flatMap { value in
+            reference.map { value - $0 }
+        }
         return ChartInspectionSnapshot(
             index: index,
             count: points.count,
             label: label,
             signal: category?.signal,
             values: values,
-            comparison: comparisonValue.flatMap { comparisonDescription(value: $0, unit: unit) }
+            comparison: comparisonValue.flatMap { comparisonDescription(value: $0, unit: unit) },
+            referenceDifference: referenceDifference
         )
     }
 

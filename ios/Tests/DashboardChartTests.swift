@@ -47,6 +47,7 @@ struct DashboardChartTests {
         #expect(snapshot.values.map(\.value) == [10, 5, 15, 12])
         #expect(snapshot.values[0].semantic == MetricSemantic(role: .actual, flow: .inbound))
         #expect(snapshot.comparison == "3 kWh above budget")
+        #expect(snapshot.referenceDifference == 3)
         #expect(snapshot.accessibilityDescription(unit: "kWh").contains("point 2 of 2"))
     }
 
@@ -76,6 +77,25 @@ struct DashboardChartTests {
         let chart = DashboardChart(points: [4, 7], labels: ["First", "Last"])
         #expect(try #require(chart.inspection(at: -20)).label == "First")
         #expect(try #require(chart.inspection(at: 20)).label == "Last")
+    }
+
+    @Test("Unlabelled points do not invent visible Point or Value context")
+    func inspectionLeavesGenericContextImplicit() throws {
+        let snapshot = try #require(DashboardChart(points: [4, 7]).inspection(at: 1))
+        #expect(snapshot.label == nil)
+        #expect(snapshot.values.map(\.kind) == [.value])
+        #expect(snapshot.accessibilityDescription(unit: nil).contains("point 2 of 2"))
+    }
+
+    @Test("Equal series semantics still receive distinct palette colors")
+    func equalSeriesSemanticsStayDistinct() {
+        let semantics = Array(
+            repeating: MetricSemantic(role: .actual, flow: .inbound),
+            count: 4
+        )
+        let tokens = ChartSeriesPalette.seriesColorTokens(semantics: semantics)
+        #expect(tokens.count == 4)
+        #expect(Set(tokens).count == 4)
     }
 
     @Test("Rich categories derive labels and unknown future semantics are ignored")

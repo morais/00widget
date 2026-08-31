@@ -1,5 +1,27 @@
 import SwiftUI
 
+enum ChartSeriesColorToken: Hashable {
+    case blue
+    case purple
+    case teal
+    case orange
+    case green
+    case red
+    case secondary
+
+    var color: Color {
+        switch self {
+        case .blue: return .blue
+        case .purple: return .purple
+        case .teal: return .teal
+        case .orange: return .orange
+        case .green: return .green
+        case .red: return .red
+        case .secondary: return .secondary
+        }
+    }
+}
+
 public enum ChartSeriesPalette {
     public static func tint(
         index: Int,
@@ -21,6 +43,44 @@ public enum ChartSeriesPalette {
 
     public static func signalTint(_ signal: MetricSignal, base: Color) -> Color {
         signal.tint
+    }
+
+    /// Multi-series colors are allocated together rather than independently.
+    /// A semantic signal or flow is the first choice, but once a color is in
+    /// use the next series receives an unused palette color. This preserves
+    /// semantic hints without letting equal metadata erase a stacked segment.
+    public static func seriesTints(semantics: [MetricSemantic?]) -> [Color] {
+        seriesColorTokens(semantics: semantics).map(\.color)
+    }
+
+    static func seriesColorTokens(semantics: [MetricSemantic?]) -> [ChartSeriesColorToken] {
+        let defaults: [ChartSeriesColorToken] = [.blue, .purple, .teal, .orange]
+        var used = Set<ChartSeriesColorToken>()
+
+        return semantics.enumerated().map { index, semantic in
+            let preferred: ChartSeriesColorToken? = if let signal = semantic?.signal {
+                switch signal {
+                case .favorable: .green
+                case .neutral: .secondary
+                case .caution: .orange
+                case .unfavorable: .red
+                }
+            } else if let flow = semantic?.flow {
+                flow == .inbound ? .teal : .purple
+            } else {
+                nil
+            }
+            let rotatedDefaults = (0..<defaults.count).map {
+                defaults[(index + $0) % defaults.count]
+            }
+            let token = ([preferred].compactMap { $0 } + rotatedDefaults)
+                .first { !used.contains($0) }
+                // The schema permits four series, so the four defaults make
+                // this unreachable even when every semantic choice collides.
+                ?? defaults[index % defaults.count]
+            used.insert(token)
+            return token
+        }
     }
 
     public static func opacity(for role: MetricRole?) -> Double {
@@ -95,6 +155,8 @@ public struct ChartSupplementView: View {
                 )
             }
             if legendLimit > 0, let series = chart.series, !series.isEmpty {
+                let semantics = series.map { chart.resolvedSemantic(for: $0) }
+                let seriesTints = ChartSeriesPalette.seriesTints(semantics: semantics)
                 HStack(spacing: 8) {
                     ForEach(Array(series.prefix(legendLimit).enumerated()), id: \.element.id) { index, entry in
                         HStack(spacing: 3) {
@@ -105,11 +167,7 @@ public struct ChartSupplementView: View {
                             }
                             Circle()
                                 .fill(
-                                    ChartSeriesPalette.tint(
-                                        index: index,
-                                        base: tint,
-                                        semantic: chart.resolvedSemantic(for: entry)
-                                    )
+                                    seriesTints[index]
                                     .opacity(
                                         ChartSeriesPalette.opacity(
                                             for: chart.resolvedSemantic(for: entry)?.role

@@ -99,6 +99,8 @@ public struct SparklineView: View {
             case .bar:
                 if let series = plotted.series, !series.isEmpty {
                     let bands = plotted.normalizedSeriesBands
+                    let semantics = series.map { plotted.resolvedSemantic(for: $0) }
+                    let seriesTints = ChartSeriesPalette.seriesTints(semantics: semantics)
                     ForEach(Array(series.indices), id: \.self) { index in
                         MultiSeriesBarsShape(
                             bands: bands[index],
@@ -107,11 +109,7 @@ public struct SparklineView: View {
                             stacking: plotted.stacking
                         )
                         .fill(
-                            ChartSeriesPalette.tint(
-                                index: index,
-                                base: tint,
-                                semantic: plotted.resolvedSemantic(for: series[index])
-                            )
+                            seriesTints[index]
                             .opacity(
                                 ChartSeriesPalette.opacity(
                                     for: plotted.resolvedSemantic(for: series[index])?.role

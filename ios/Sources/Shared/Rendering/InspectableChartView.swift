@@ -102,17 +102,11 @@ public struct InspectableChartView: View {
             }
         #else
         plot
-            .gesture(
-                SpatialTapGesture()
-                    .onEnded { value in select(at: value.location.x, width: width) }
-            )
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 8)
-                    .onChanged { value in
-                        guard abs(value.translation.width) >= abs(value.translation.height) else { return }
-                        select(at: value.location.x, width: width)
-                    }
-            )
+            .overlay {
+                IOSChartGestureCapture { x, gestureWidth in
+                    select(at: x, width: gestureWidth)
+                }
+            }
         #endif
     }
 
@@ -149,47 +143,45 @@ public struct InspectableChartView: View {
     }
 
     private func selectionPanel(_ snapshot: ChartInspectionSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: compact ? 6 : 9) {
-            HStack(spacing: 8) {
-                #if !os(tvOS)
-                Button { move(by: -1) } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .buttonStyle(.plain)
-                .disabled(snapshot.index == 0)
-                .accessibilityHidden(true)
-                #endif
+        let readings = snapshot.values.filter { $0.kind != .reference }
+        let reference = snapshot.values.first { $0.kind == .reference }
+        #if os(tvOS)
+        let showsHeader = true
+        #else
+        let showsHeader = snapshot.label != nil || snapshot.signal != nil
+        #endif
 
-                Text(snapshot.label)
-                    .font(headerFont)
-                    .lineLimit(1)
-                if let signal = snapshot.signal {
-                    Label(signal.rawValue.capitalized, systemImage: signal.symbolName)
+        return VStack(alignment: .leading, spacing: compact ? 6 : 9) {
+            if showsHeader {
+                HStack(spacing: 8) {
+                    if let label = snapshot.label {
+                        Text(label)
+                            .font(headerFont)
+                            .lineLimit(1)
+                    }
+                    if let signal = snapshot.signal {
+                        Label(signal.rawValue.capitalized, systemImage: signal.symbolName)
+                            .font(semanticFont)
+                            .foregroundStyle(signal.tint)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    #if os(tvOS)
+                    Text("\(snapshot.index + 1) of \(snapshot.count)")
                         .font(semanticFont)
-                        .foregroundStyle(signal.tint)
-                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                    #endif
                 }
-                Spacer(minLength: 8)
-                Text("\(snapshot.index + 1) of \(snapshot.count)")
-                    .font(semanticFont)
-                    .foregroundStyle(.secondary)
-
-                #if !os(tvOS)
-                Button { move(by: 1) } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .buttonStyle(.plain)
-                .disabled(snapshot.index == snapshot.count - 1)
-                .accessibilityHidden(true)
-                #endif
             }
 
-            ForEach(Array(snapshot.values.enumerated()), id: \.element.id) { index, value in
+            ForEach(Array(readings.enumerated()), id: \.element.id) { index, value in
                 HStack(spacing: 8) {
                     valueMarker(value, index: index)
                     SemanticFlowIcon(value.semantic, font: semanticFont)
-                    Text(value.label)
-                        .font(valueFont)
+                    if value.kind != .value {
+                        Text(value.label)
+                            .font(valueFont)
+                    }
                     if let words = value.semantic?.accessibilityWords, !words.isEmpty {
                         Text(words.joined(separator: " · "))
                             .font(semanticFont)
@@ -204,17 +196,27 @@ public struct InspectableChartView: View {
                 }
             }
 
-            if let comparison = snapshot.comparison {
-                Label(comparison, systemImage: "arrow.left.and.right")
-                    .font(semanticFont)
-                    .foregroundStyle(.secondary)
+            if let reference {
+                HStack(spacing: 8) {
+                    valueMarker(reference, index: readings.count)
+                    SemanticFlowIcon(reference.semantic, font: semanticFont)
+                    Text(reference.label)
+                        .font(semanticFont)
+                        .lineLimit(1)
+                    Text(ChartInspectionSnapshot.format(reference.value, unit: unit))
+                        .font(semanticFont)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    if let difference = snapshot.referenceDifference {
+                        Text(referenceDifferenceText(difference))
+                            .font(valueFont.weight(.semibold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
             }
-
-            #if !os(tvOS)
-            Text("Tap or drag across the chart to inspect values")
-                .font(semanticFont)
-                .foregroundStyle(.tertiary)
-            #endif
         }
         .padding(compact ? 10 : 14)
         .background(
@@ -227,12 +229,28 @@ public struct InspectableChartView: View {
     private func valueMarker(_ value: ChartInspectionValue, index: Int) -> some View {
         if value.kind == .reference {
             Image(systemName: "minus")
-                .foregroundStyle(ChartSeriesPalette.tint(index: index, base: tint, semantic: value.semantic))
+                .foregroundStyle(markerTint(for: value, index: index))
         } else {
             Circle()
-                .fill(ChartSeriesPalette.tint(index: index, base: tint, semantic: value.semantic))
+                .fill(markerTint(for: value, index: index))
                 .frame(width: markerSize, height: markerSize)
         }
+    }
+
+    private func markerTint(for value: ChartInspectionValue, index: Int) -> Color {
+        if value.kind == .series,
+           let series = chart.series,
+           let seriesIndex = series.firstIndex(where: { value.id == "series-\($0.id)" }) {
+            let semantics = series.map { chart.resolvedSemantic(for: $0) }
+            return ChartSeriesPalette.seriesTints(semantics: semantics)[seriesIndex]
+        }
+        return ChartSeriesPalette.tint(index: index, base: tint, semantic: value.semantic)
+    }
+
+    private func referenceDifferenceText(_ difference: Double) -> String {
+        if abs(difference) < 0.000_001 { return "Matches" }
+        let amount = ChartInspectionSnapshot.format(abs(difference), unit: unit)
+        return "\(amount) \(difference > 0 ? "above" : "below")"
     }
 
     private var markerSize: CGFloat {
@@ -299,6 +317,74 @@ public struct InspectableChartView: View {
         #endif
     }
 }
+
+#if os(iOS)
+/// A horizontal pan must fail before it begins when the finger is moving
+/// vertically. SwiftUI's `DragGesture` keeps participating after that choice,
+/// which makes the surrounding detail `ScrollView` feel sticky over the plot.
+private struct IOSChartGestureCapture: UIViewRepresentable {
+    let onSelection: (_ x: CGFloat, _ width: CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onSelection: onSelection)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isAccessibilityElement = false
+
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
+
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.panned(_:)))
+        pan.cancelsTouchesInView = false
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onSelection = onSelection
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onSelection: (_ x: CGFloat, _ width: CGFloat) -> Void
+
+        init(onSelection: @escaping (_ x: CGFloat, _ width: CGFloat) -> Void) {
+            self.onSelection = onSelection
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        @objc func tapped(_ recognizer: UITapGestureRecognizer) {
+            publishLocation(from: recognizer)
+        }
+
+        @objc func panned(_ recognizer: UIPanGestureRecognizer) {
+            guard recognizer.state == .began || recognizer.state == .changed else { return }
+            publishLocation(from: recognizer)
+        }
+
+        private func publishLocation(from recognizer: UIGestureRecognizer) {
+            guard let view = recognizer.view, view.bounds.width > 0 else { return }
+            onSelection(recognizer.location(in: view).x, view.bounds.width)
+        }
+    }
+}
+#endif
 
 #if os(tvOS)
 /// SwiftUI's move command represents an edge tap on the Siri Remote, while a
