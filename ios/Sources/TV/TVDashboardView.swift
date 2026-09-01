@@ -210,7 +210,6 @@ struct TVDashboardView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 24)
             }
-            .scrollClipDisabled()
         }
     }
 
@@ -323,7 +322,7 @@ private struct TVLiveActivityCardView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if let subtitle = activity.subtitle {
                             Text(subtitle)
-                                .font(.headline)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .tvReadableText(standardLineLimit: 2)
                         }
@@ -701,7 +700,7 @@ private struct TVDashboardCardView: View {
                 )
             if let subtitle = card.subtitle {
                 Text(subtitle)
-                    .font(.headline)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .tvReadableText(
                         largeTextLineLimit: 3,

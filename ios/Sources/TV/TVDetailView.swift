@@ -394,7 +394,7 @@ private struct TVCardDetailContent: View {
     private var headline: some View {
         VStack(alignment: .leading, spacing: 10) {
             if card.value != nil || card.unit != nil {
-                Text("\(card.value ?? "—")\(card.unit ?? "")")
+                Text("\(card.value ?? "—")\(card.unit.map { " \($0)" } ?? "")")
                     .tvScaledSystemFont(
                         size: TVDetailTypography.headline,
                         relativeTo: .largeTitle,
@@ -412,7 +412,7 @@ private struct TVCardDetailContent: View {
             }
             if let subtitle = card.subtitle {
                 Text(subtitle)
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -725,7 +725,7 @@ private struct TVActivityDetailContent: View {
                     )
                 )
             } else if activity.value != nil || activity.unit != nil {
-                Text("\(activity.value ?? "—")\(activity.unit ?? "")")
+                Text("\(activity.value ?? "—")\(activity.unit.map { " \($0)" } ?? "")")
                     .tvScaledSystemFont(
                         size: TVDetailTypography.headline,
                         relativeTo: .largeTitle,
@@ -743,7 +743,7 @@ private struct TVActivityDetailContent: View {
             }
             if let subtitle = activity.subtitle {
                 Text(subtitle)
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
