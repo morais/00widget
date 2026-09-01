@@ -17,6 +17,10 @@ struct GuestLinkShareSheet: View {
     @State private var link: APIClient.GuestLinkResponse?
     @State private var error: String?
     @State private var isLoading = true
+    /// The sheet mints the link on appearance, so its whole outcome — a code
+    /// to show someone, or a failure — arrives while focus is still on a
+    /// spinner that then disappears.
+    @AccessibilityFocusState private var errorFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -34,6 +38,7 @@ struct GuestLinkShareSheet: View {
                         Text(error ?? "Could not create a link.")
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)
+                            .accessibilityFocused($errorFocused)
                     }
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -115,14 +120,25 @@ struct GuestLinkShareSheet: View {
 
     private func mint() async {
         isLoading = true
-        defer { isLoading = false }
         do {
             link = try await env.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
+            isLoading = false
+            AccessibilityAnnouncement.post("Link created for \(title).")
         } catch let apiError as APIClientError where apiError.status == 403 {
-            error = AppEnvironment.reauthorizationMessage
+            reportFailure(AppEnvironment.reauthorizationMessage)
         } catch {
-            self.error = error.localizedDescription
+            reportFailure(error.localizedDescription)
         }
+    }
+
+    /// Clears `isLoading` before asking for focus rather than leaving it to a
+    /// `defer`: the message is not in the view tree until the spinner is gone,
+    /// and focus cannot move to a view that does not exist yet.
+    private func reportFailure(_ message: String) {
+        error = message
+        isLoading = false
+        AccessibilityAnnouncement.post("Could not create a link. \(message)")
+        errorFocused = true
     }
 }
 

@@ -277,6 +277,9 @@ struct DashboardView: View {
 
             Button("Generate sample widgets") {
                 env.generateSampleCards()
+                // The empty state this replaces is the element focus is on,
+                // and it disappears without saying why.
+                AccessibilityAnnouncement.post("Sample widgets added to your dashboard.")
             }
             .buttonStyle(.borderedProminent)
             Text("Samples are generated on this device and can be removed at any time.")
@@ -326,6 +329,7 @@ struct DashboardView: View {
 
             Button("Remove sample widgets", role: .destructive) {
                 env.clearSampleCards()
+                AccessibilityAnnouncement.post("Sample widgets removed.")
             }
             .buttonStyle(.borderedProminent)
         }

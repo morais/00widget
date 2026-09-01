@@ -10,10 +10,19 @@ struct CardDetailView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var runningActionIds: Set<String> = []
+    /// An error appears in the middle of a screen someone is not looking at
+    /// the middle of. Announcing it says what happened; moving focus to it is
+    /// what lets them read it again, and act on what it says.
+    @AccessibilityFocusState private var focusedMessage: Message?
     @Environment(\.dismiss) private var dismiss
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
     #endif
+
+    private enum Message: Hashable {
+        case actionError
+        case deleteError
+    }
 
     private var isGuestCard: Bool {
         card.isFromGuestLink || env.guestCards.contains { $0.id == card.id }
@@ -60,6 +69,7 @@ struct CardDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityFocused($focusedMessage, equals: .actionError)
                 }
 
                 if let deepLink = currentCard.deepLink {
@@ -85,6 +95,7 @@ struct CardDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                             .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityFocused($focusedMessage, equals: .deleteError)
                     }
 
                     HStack {
@@ -187,6 +198,7 @@ struct CardDetailView: View {
             } catch {
                 deleteError = error.localizedDescription
                 AccessibilityAnnouncement.post("Could not delete \(card.title). \(error.localizedDescription)")
+                focusedMessage = .deleteError
             }
         }
     }
@@ -233,6 +245,7 @@ struct CardDetailView: View {
     private func reportActionError(_ message: String) {
         actionError = message
         AccessibilityAnnouncement.post("Action failed. \(message)")
+        focusedMessage = .actionError
     }
 
     private func deepLinkDestination(_ url: URL) -> some View {

@@ -681,6 +681,7 @@ public struct CardView: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(card.title), Status: \(card.status.label)")
+        .accessibilityInputLabels([card.title])
     }
 
     @ViewBuilder
@@ -1212,6 +1213,13 @@ private struct CardAccessibilityModifier: ViewModifier {
             content
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(CardAccessibilitySummary.summary(for: card)))
+                // What someone *says* to activate this, as distinct from what
+                // is read to them. The label is a sentence — "Solar is 3.4 kW.
+                // Status: good." — and Voice Control matches on the label, so
+                // "Tap Solar" found nothing on a card whose name is written
+                // across the top of it. The spoken description is unchanged;
+                // this only adds the name to what will activate it.
+                .accessibilityInputLabels([card.title])
         } else {
             content
         }

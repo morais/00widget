@@ -66,6 +66,9 @@ public struct InspectableChartView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("chart-inspector")
         .accessibilityLabel("Chart values")
+        // The plot has no visible name at all, so both of the things someone
+        // would plausibly call it are accepted.
+        .accessibilityInputLabels(["Chart", "Chart values"])
         .accessibilityValue(snapshot?.accessibilityDescription(unit: unit) ?? "No chart data")
         .accessibilityAdjustableAction { direction in
             switch direction {

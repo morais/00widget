@@ -5,6 +5,9 @@ struct LiveActivitiesView: View {
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     @State private var isGeneratingSample = false
     @State private var sampleError: String?
+    /// See the note in `CardDetailView`: an announcement says what happened,
+    /// focus is what lets it be read again.
+    @AccessibilityFocusState private var sampleErrorFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -92,6 +95,7 @@ struct LiveActivitiesView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.red)
                         .padding(.horizontal, 32)
+                        .accessibilityFocused($sampleErrorFocused)
                 }
             }
         }
@@ -116,7 +120,10 @@ struct LiveActivitiesView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Button("Remove sample activity", role: .destructive) {
-                Task { await liveActivityController.endSamples() }
+                Task {
+                    await liveActivityController.endSamples()
+                    AccessibilityAnnouncement.post("Sample activity removed.")
+                }
             }
             .buttonStyle(.borderedProminent)
         }
@@ -134,8 +141,13 @@ struct LiveActivitiesView: View {
         defer { isGeneratingSample = false }
         do {
             try await liveActivityController.startSample()
+            // The list this replaces the empty state with is somewhere else on
+            // the screen entirely, so without this the button reports nothing.
+            AccessibilityAnnouncement.post("Sample activity started.")
         } catch {
             sampleError = "Could not start the sample: \(error.localizedDescription)"
+            AccessibilityAnnouncement.post("Could not start the sample activity. \(error.localizedDescription)")
+            sampleErrorFocused = true
         }
     }
 
@@ -577,6 +589,7 @@ private struct ActivityItemRow: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(LiveActivityAccessibilitySummary.summary(for: item)))
+        .accessibilityInputLabels([item.title])
     }
 }
 
@@ -590,6 +603,8 @@ private struct LiveActivityAccessibilityModifier: ViewModifier {
             content
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(LiveActivityAccessibilitySummary.summary(for: session)))
+                // "Tap Washer" — see the note on `CardAccessibilityModifier`.
+                .accessibilityInputLabels([session.title])
         } else {
             content
         }
