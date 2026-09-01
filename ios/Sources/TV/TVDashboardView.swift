@@ -47,6 +47,16 @@ enum TVTypography {
 enum TVCardMetrics {
     static let verticalPadding: CGFloat = 28
     static let height: CGFloat = 252
+    /// The same measurement at the top of the non-accessibility range.
+    ///
+    /// Derived from `height` rather than chosen beside it: the content is
+    /// `height` less both insets, that content is essentially type and so
+    /// grows with the type ramp — about 1.35x by `.xxxLarge` — and then the
+    /// insets are given back. Re-measure it the way `height` was measured if
+    /// the type sizes change, and check a screenshot, because the compiler
+    /// cannot see an overflow.
+    static let enlargedHeight: CGFloat =
+        (height - verticalPadding * 2) * 1.35 + verticalPadding * 2
 }
 
 struct TVDashboardView: View {
@@ -61,7 +71,7 @@ struct TVDashboardView: View {
     @State private var selectedDetail: TVDetailSubject?
 
     private var widgetColumnCount: Int {
-        dynamicTypeSize.usesTVLargeTextLayout ? 2 : 3
+        TVTextScale(dynamicTypeSize).widgetColumnCount
     }
 
     var body: some View {
@@ -365,7 +375,7 @@ private struct TVLiveActivityCardView: View {
             // against its content. Item rows then need more room than any
             // one number can reserve, so the card grows past the floor
             // rather than clipping them.
-            .frame(minHeight: dynamicTypeSize.usesTVLargeTextLayout ? 360 : 260)
+            .frame(minHeight: TVTextScale(dynamicTypeSize).liveActivityMinimumHeight)
             .contentShape(RoundedRectangle(cornerRadius: 24))
             // See the note in `TVDashboardCardView`: this has to sit inside
             // the button's label to replace what the button synthesizes.
@@ -554,6 +564,8 @@ private struct TVDashboardCardView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
+    private var textScale: TVTextScale { TVTextScale(dynamicTypeSize) }
+
     var body: some View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: 14) {
@@ -602,8 +614,8 @@ private struct TVDashboardCardView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, TVCardMetrics.verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: dynamicTypeSize.usesTVLargeTextLayout ? nil : TVCardMetrics.height)
-            .frame(minHeight: dynamicTypeSize.usesTVLargeTextLayout ? 360 : nil)
+            .frame(height: textScale.cardHeight)
+            .frame(minHeight: textScale.cardMinimumHeight)
             .contentShape(RoundedRectangle(cornerRadius: 24))
             // Inside the label, not on the button. A button builds its own
             // label out of its children, keeping each child's

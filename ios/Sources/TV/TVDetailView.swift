@@ -324,6 +324,7 @@ struct TVDetailView: View {
 private struct TVCardDetailContent: View {
     let card: DashboardCard
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// What the grid cell had no room for. The dashboard draws three list rows
     /// and fourteen history pips because nine cards share the screen; one card
@@ -337,9 +338,20 @@ private struct TVCardDetailContent: View {
     /// given, which cut the *header* off the top of a `history` card as well as
     /// the last rows off the bottom. What fits is the 1080-line screen less
     /// this panel's chrome and headline, divided by an 94-point row.
-    private let listRowLimit = 6
-    private let breakdownRowLimit = 5
+    /// Enlarged type does not make the screen taller, so every one of these
+    /// counts is the standard-size figure divided by how much bigger the rows
+    /// have become — see `TVTextScale.rowLimit(standard:)`. Before that they
+    /// were constants, which meant an accessibility size drew six rows into
+    /// the room for three and lost the last of them off a panel that cannot
+    /// scroll.
+    private var listRowLimit: Int { textScale.rowLimit(standard: 6) }
+    private var breakdownRowLimit: Int { textScale.rowLimit(standard: 5) }
+    private var briefingSectionLimit: Int { textScale.rowLimit(standard: 6) }
+    /// The strip is a fixed 44 points however large the type is, and its pips
+    /// share the width rather than stacking, so this one does not scale.
     private let historyPipLimit = 24
+
+    private var textScale: TVTextScale { TVTextScale(dynamicTypeSize) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -409,7 +421,7 @@ private struct TVCardDetailContent: View {
 
     private var briefing: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ForEach((card.briefing?.sections ?? []).prefix(6)) { section in
+            ForEach((card.briefing?.sections ?? []).prefix(briefingSectionLimit)) { section in
                 VStack(alignment: .leading, spacing: 4) {
                     if let label = section.label, !label.isEmpty {
                         Text(label)
@@ -469,7 +481,13 @@ private struct TVCardDetailContent: View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 24) {
                 StatusStripView(items: items, limit: historyPipLimit, height: 44)
-                rows(Array(items.suffix(plotted == nil ? 4 : 2).reversed()), ranked: false)
+                rows(
+                    Array(
+                        items.suffix(textScale.rowLimit(standard: plotted == nil ? 4 : 2))
+                            .reversed()
+                    ),
+                    ranked: false
+                )
             }
         }
         if let plotted {
