@@ -732,7 +732,7 @@ private struct TVDashboardCardView: View {
                 )
             if let subtitle = card.subtitle {
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .tvReadableText(largeTextLineLimit: 2)
             }
