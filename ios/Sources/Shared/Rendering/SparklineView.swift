@@ -18,6 +18,7 @@ public struct SparklineView: View {
     /// caller knows its own width, so the cap is set per call site the way
     /// `lineWidth` already is.
     public let maxPoints: Int?
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     public init(
         chart: DashboardChart,
@@ -102,19 +103,26 @@ public struct SparklineView: View {
                     let semantics = series.map { plotted.resolvedSemantic(for: $0) }
                     let seriesTints = ChartSeriesPalette.seriesTints(semantics: semantics)
                     ForEach(Array(series.indices), id: \.self) { index in
+                        // Stacked columns share an edge and grouped ones are a
+                        // point apart, so a series is otherwise its colour and
+                        // nothing else. The texture matches the glyph its
+                        // legend row draws.
                         MultiSeriesBarsShape(
                             bands: bands[index],
                             seriesIndex: index,
                             seriesCount: series.count,
                             stacking: plotted.stacking
                         )
-                        .fill(
+                        .seriesFill(
                             seriesTints[index]
                             .opacity(
                                 ChartSeriesPalette.opacity(
                                     for: plotted.resolvedSemantic(for: series[index])?.role
                                 )
-                            )
+                            ),
+                            marker: SeriesMarker.at(index),
+                            textured: differentiateWithoutColor,
+                            spacing: 4
                         )
                     }
                 } else {
@@ -128,8 +136,18 @@ public struct SparklineView: View {
                 let baseline = plotted.normalizedZero
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .above)
                     .fill(semanticTint.opacity(0.85 * semanticOpacity))
+                // Sign is the whole point of a delta plot, and below the rule
+                // it was carried by a lighter fill of the same colour. Where a
+                // bar hangs from the rule that is enough on its own; where a
+                // pinned axis excluded zero and both directions grow from the
+                // bottom, it was not.
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .below)
-                    .fill(semanticTint.opacity(0.4 * semanticOpacity))
+                    .seriesFill(
+                        semanticTint.opacity(0.4 * semanticOpacity),
+                        marker: .square,
+                        textured: differentiateWithoutColor,
+                        spacing: 4
+                    )
                 if let baseline {
                     HorizontalRuleShape(position: baseline)
                         .stroke(.secondary, lineWidth: 0.75)

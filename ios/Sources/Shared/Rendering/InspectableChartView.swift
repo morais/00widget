@@ -20,6 +20,7 @@ public struct InspectableChartView: View {
 
     @State private var selectedIndex: Int
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     #if os(tvOS)
     @FocusState private var isFocused: Bool
     #endif
@@ -330,10 +331,24 @@ public struct InspectableChartView: View {
             Image(systemName: "minus")
                 .foregroundStyle(markerTint(for: value, index: index))
         } else {
-            Circle()
-                .fill(markerTint(for: value, index: index))
-                .frame(width: markerSize, height: markerSize)
+            // The same glyph the plot's legend and columns carry for this
+            // series, so a reading in the panel can be matched to the region
+            // it came from without reading either colour.
+            SeriesSwatch(
+                index: seriesIndex(for: value) ?? index,
+                color: markerTint(for: value, index: index),
+                size: markerSize,
+                differentiateWithoutColor: differentiateWithoutColor
+            )
         }
+    }
+
+    /// Where this reading sits in `chart.series`, which is the index every
+    /// other surface allocates its colour and marker from. A total or a lone
+    /// value belongs to no series and falls back to its row position.
+    private func seriesIndex(for value: ChartInspectionValue) -> Int? {
+        guard value.kind == .series, let series = chart.series else { return nil }
+        return series.firstIndex { value.id == "series-\($0.id)" }
     }
 
     private func markerTint(for value: ChartInspectionValue, index: Int) -> Color {

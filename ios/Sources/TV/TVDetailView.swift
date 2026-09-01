@@ -501,6 +501,7 @@ private struct TVCardDetailContent: View {
                         TVDetailRow(
                             item: entry.item,
                             swatch: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            swatchIndex: index,
                             fraction: nil,
                             tint: card.status.tint,
                             share: entry.share
@@ -524,6 +525,7 @@ private struct TVCardDetailContent: View {
                     TVDetailRow(
                         item: item,
                         swatch: nil,
+                        swatchIndex: 0,
                         fraction: fractions?[item.id],
                         tint: card.status.tint,
                         share: nil
@@ -540,10 +542,14 @@ private struct TVDetailRow: View {
     /// The colour of this row's segment in a `breakdown` bar, drawn as a
     /// swatch so the legend and the bar can be matched up.
     let swatch: Color?
+    /// Which segment, so the swatch can carry the same marker the bar's
+    /// segment is textured with when colour is not being read.
+    let swatchIndex: Int
     let fraction: Double?
     let tint: Color
     let share: Double?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         let rowLayout = dynamicTypeSize.usesTVLargeTextLayout
@@ -569,10 +575,19 @@ private struct TVDetailRow: View {
     private var label: some View {
         HStack(alignment: .top, spacing: 16) {
             if let swatch {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(swatch)
-                    .frame(width: 24, height: 24)
-                    .accessibilityHidden(true)
+                if differentiateWithoutColor {
+                    SeriesSwatch(
+                        index: swatchIndex,
+                        color: swatch,
+                        size: 24,
+                        differentiateWithoutColor: true
+                    )
+                } else {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(swatch)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                }
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {

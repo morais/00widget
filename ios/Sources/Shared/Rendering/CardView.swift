@@ -49,6 +49,7 @@ public struct CardView: View {
     private let appActionIsBusy: ((ActionDefinition) -> Bool)?
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     #if canImport(WidgetKit)
     @Environment(\.widgetRenderingMode) private var widgetRenderingMode
     #endif
@@ -953,9 +954,12 @@ public struct CardView: View {
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(Array(shares.prefix(limit).enumerated()), id: \.element.item.id) { index, entry in
                     HStack(spacing: 5) {
-                        Circle()
-                            .fill(CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint))
-                            .frame(width: 6, height: 6)
+                        SeriesSwatch(
+                            index: index,
+                            color: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            size: 6,
+                            differentiateWithoutColor: differentiateWithoutColor
+                        )
                         Text(entry.item.title)
                             .font(.caption2)
                             .lineLimit(1)
@@ -983,9 +987,12 @@ public struct CardView: View {
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                         : AnyLayout(HStackLayout(spacing: 10))
                     layout {
-                        Circle()
-                            .fill(CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint))
-                            .frame(width: 8, height: 8)
+                        SeriesSwatch(
+                            index: index,
+                            color: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            size: 8,
+                            differentiateWithoutColor: differentiateWithoutColor
+                        )
                         Text(entry.item.title)
                             .font(.subheadline)
                             .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)

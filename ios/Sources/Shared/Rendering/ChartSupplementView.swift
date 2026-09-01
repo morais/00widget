@@ -112,6 +112,7 @@ public struct ChartSupplementView: View {
     public let legendLimit: Int
     public let labelLimit: Int
     public let font: Font
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     public init(
         chart: DashboardChart,
@@ -165,16 +166,17 @@ public struct ChartSupplementView: View {
                                     .font(.system(size: 7, weight: .bold))
                                     .accessibilityHidden(true)
                             }
-                            Circle()
-                                .fill(
-                                    seriesTints[index]
+                            SeriesSwatch(
+                                index: index,
+                                color: seriesTints[index]
                                     .opacity(
                                         ChartSeriesPalette.opacity(
                                             for: chart.resolvedSemantic(for: entry)?.role
                                         )
-                                    )
-                                )
-                                .frame(width: 6, height: 6)
+                                    ),
+                                size: 6,
+                                differentiateWithoutColor: differentiateWithoutColor
+                            )
                             Text(entry.label).lineLimit(1)
                         }
                         .accessibilityElement(children: .ignore)

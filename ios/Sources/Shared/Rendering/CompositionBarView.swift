@@ -9,6 +9,7 @@ public struct CompositionBarView: View {
     public let items: [DashboardItem]
     public let tint: Color
     public let height: CGFloat
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     private let gap: CGFloat = 2
 
@@ -47,8 +48,18 @@ public struct CompositionBarView: View {
             ZStack(alignment: .leading) {
                 ForEach(Array(shares.enumerated()), id: \.element.item.id) { index, entry in
                     let width = Swift.max(2, available * entry.share)
+                    // Segments of one quantity, so the colours are steps of a
+                    // single tint by design — which leaves adjacent segments
+                    // separated by a 2pt gap and a shade, and nothing at all
+                    // for someone not reading the shade. The texture is what
+                    // the gap alone could not say.
                     RoundedRectangle(cornerRadius: height / 3, style: .continuous)
-                        .fill(Self.tint(for: entry.item, index: index, base: tint))
+                        .seriesFill(
+                            Self.tint(for: entry.item, index: index, base: tint),
+                            marker: SeriesMarker.at(index),
+                            textured: differentiateWithoutColor,
+                            spacing: Swift.max(4, height / 3)
+                        )
                         .frame(width: width)
                         .offset(x: offset(before: index, shares: shares, available: available))
                 }
