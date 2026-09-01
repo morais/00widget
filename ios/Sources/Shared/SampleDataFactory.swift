@@ -83,7 +83,7 @@ public enum SampleDataFactory {
             ),
             DashboardCard(
                 id: sampleId("preview-mars"),
-                template: .summary,
+                template: .chart,
                 title: "Mars",
                 subtitle: "\(String(format: "%.1f", fixtures.mars.lightMinutes)) light-minutes",
                 value: "\(distance)M",
@@ -91,18 +91,54 @@ public enum SampleDataFactory {
                 status: .good,
                 icon: "sparkles",
                 updatedAt: referenceDate,
-                staleAfter: freshUntil
+                staleAfter: freshUntil,
+                chart: DashboardChart(
+                    points: [168, 181, 197, 214, 232, 239, distanceMillions],
+                    min: 150,
+                    max: 250,
+                    semantic: MetricSemantic(
+                        role: .actual,
+                        signal: .favorable
+                    ),
+                    style: .line,
+                    labels: ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Now"]
+                )
             ),
             DashboardCard(
                 id: sampleId("preview-weekend"),
-                template: .summary,
+                template: .chart,
                 title: fixtures.weekend.title,
                 subtitle: "\(fixtures.weekend.temperature)°C · wind \(fixtures.weekend.wind) km/h",
                 value: fixtures.weekend.status,
                 status: .good,
                 icon: "beach.umbrella",
                 updatedAt: referenceDate,
-                staleAfter: freshUntil
+                staleAfter: freshUntil,
+                chart: DashboardChart(
+                    points: [],
+                    min: 14,
+                    max: 30,
+                    semantic: MetricSemantic(
+                        role: .forecast,
+                        signal: .favorable
+                    ),
+                    style: .range,
+                    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                    rangeValueLabel: "Average",
+                    ranges: [
+                        DashboardChartRange(low: 16, high: 22, value: 19),
+                        DashboardChartRange(low: 17, high: 23, value: 20),
+                        DashboardChartRange(low: 18, high: 25, value: 21.5),
+                        DashboardChartRange(low: 17, high: 24, value: 20.5),
+                        DashboardChartRange(low: 19, high: 26, value: 22.5),
+                        DashboardChartRange(low: 20, high: 28, value: 24),
+                        DashboardChartRange(
+                            low: 19,
+                            high: Double(fixtures.weekend.temperature),
+                            value: 23
+                        ),
+                    ]
+                )
             ),
         ]
     }

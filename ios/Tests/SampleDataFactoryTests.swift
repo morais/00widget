@@ -72,6 +72,12 @@ struct SampleDataFactoryTests {
         #expect(cards.map(\.title) == ["Julia turns 12", "Mars", "Beach this weekend?"])
         #expect(cards.map(\.value) == ["45", "225M", "YES"])
         #expect(cards.map(\.subtitle) == ["7 weekends", "12.5 light-minutes", "27°C · wind 11 km/h"])
+        #expect(cards[1].chart?.style == .line)
+        #expect(cards[1].chart?.points.last == 225)
+        #expect(cards.last?.chart?.style == .range)
+        #expect(cards.last?.chart?.semantic?.role == .forecast)
+        #expect(cards.last?.chart?.ranges?.count == 7)
+        #expect(cards.last?.chart?.ranges?.last?.high == 27)
         #expect(cards.allSatisfy { $0.isSample })
         #expect(cards.allSatisfy { !$0.isStale })
     }

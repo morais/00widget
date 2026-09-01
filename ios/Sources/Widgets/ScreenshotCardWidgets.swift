@@ -137,7 +137,8 @@ struct PreviewMarsWidget: Widget {
         previewCardConfiguration(
             kind: "com.00widget.preview.mars",
             sampleSuffix: "preview-mars",
-            displayName: "Preview Mars"
+            displayName: "Preview Mars",
+            supportedFamilies: [.systemSmall, .systemMedium]
         )
     }
 }
@@ -147,7 +148,8 @@ struct PreviewWeekendWidget: Widget {
         previewCardConfiguration(
             kind: "com.00widget.preview.weekend",
             sampleSuffix: "preview-weekend",
-            displayName: "Preview Weekend"
+            displayName: "Preview Weekend",
+            supportedFamilies: [.systemSmall, .systemMedium]
         )
     }
 }
