@@ -48,6 +48,7 @@ struct CardDetailView: View {
                     InspectableChartView(
                         chart: chart,
                         tint: currentCard.status.tint,
+                        title: currentCard.title,
                         unit: currentCard.unit,
                         plotHeight: 180,
                         lineWidth: 3

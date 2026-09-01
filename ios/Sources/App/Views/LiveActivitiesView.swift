@@ -382,6 +382,7 @@ private struct ActivityDetailView: View {
                     InspectableChartView(
                         chart: chart,
                         tint: currentSession.tint,
+                        title: currentSession.title,
                         unit: currentSession.unit,
                         plotHeight: 180,
                         lineWidth: 3

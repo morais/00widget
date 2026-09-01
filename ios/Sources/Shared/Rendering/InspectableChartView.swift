@@ -9,6 +9,10 @@ import UIKit
 public struct InspectableChartView: View {
     public let chart: DashboardChart
     public let tint: Color
+    /// The card or activity this plot belongs to. Spoken by the audio graph,
+    /// which opens as a surface of its own and would otherwise be a nameless
+    /// series of tones.
+    public let title: String?
     public let unit: String?
     public let plotHeight: CGFloat
     public let lineWidth: CGFloat
@@ -23,6 +27,7 @@ public struct InspectableChartView: View {
     public init(
         chart: DashboardChart,
         tint: Color,
+        title: String? = nil,
         unit: String? = nil,
         plotHeight: CGFloat = 180,
         lineWidth: CGFloat = 3,
@@ -30,6 +35,7 @@ public struct InspectableChartView: View {
     ) {
         self.chart = chart
         self.tint = tint
+        self.title = title
         self.unit = unit
         self.plotHeight = plotHeight
         self.lineWidth = lineWidth
@@ -66,6 +72,13 @@ public struct InspectableChartView: View {
             @unknown default: break
             }
         }
+        // Stepping the selection answers "what is this point?"; the audio
+        // graph answers "what shape is this?", which is the question a metric
+        // dashboard is usually asked and the one a list of numbers answers
+        // worst. VoiceOver offers it on this element's rotor.
+        .accessibilityChartDescriptor(
+            ChartAudioGraph(chart: chart, title: title, unit: unit)
+        )
     }
 
     @ViewBuilder

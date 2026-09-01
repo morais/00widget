@@ -449,6 +449,7 @@ private struct TVCardDetailContent: View {
             InspectableChartView(
                 chart: chart,
                 tint: card.status.tint,
+                title: card.title,
                 unit: card.unit,
                 plotHeight: 230,
                 lineWidth: 6
@@ -474,6 +475,7 @@ private struct TVCardDetailContent: View {
             InspectableChartView(
                 chart: plotted,
                 tint: card.status.tint,
+                title: card.title,
                 unit: card.unit,
                 plotHeight: 130,
                 lineWidth: 6,
@@ -635,6 +637,7 @@ private struct TVActivityDetailContent: View {
                 InspectableChartView(
                     chart: chart,
                     tint: activity.tint,
+                    title: activity.title,
                     unit: activity.unit,
                     plotHeight: activeItems.isEmpty ? 230 : 120,
                     lineWidth: 6,

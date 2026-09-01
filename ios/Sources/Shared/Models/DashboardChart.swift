@@ -367,7 +367,11 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// because a target the plot cannot show is worse than no target at all,
     /// and to include zero for `delta`, whose bars have nothing to grow from
     /// otherwise.
-    private var bounds: (lower: Double, upper: Double) {
+    ///
+    /// Not private: `ChartAudioGraph` scales its y axis against exactly this,
+    /// so the pitch a value plays at and the height it is drawn at are one
+    /// reading rather than two.
+    var valueBounds: (lower: Double, upper: Double) {
         let lows = ranges?.map(\.low) ?? []
         let highs = ranges?.map(\.high) ?? []
         var lower = min ?? Swift.min(points.min() ?? 0, lows.min() ?? points.min() ?? 0)
@@ -383,7 +387,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     }
 
     func normalizedValue(_ value: Double) -> Double {
-        let bounds = self.bounds
+        let bounds = self.valueBounds
         guard bounds.upper > bounds.lower else { return 0.5 }
         return Swift.min(1, Swift.max(0, (value - bounds.lower) / (bounds.upper - bounds.lower)))
     }
@@ -393,7 +397,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// pin it. A series with no spread sits on the midline instead of dividing
     /// by zero. The guest link's browser page scales identically.
     public var normalizedPoints: [Double] {
-        let bounds = self.bounds
+        let bounds = self.valueBounds
         guard bounds.upper > bounds.lower else { return points.map { _ in 0.5 } }
         return points.map { normalizedValue($0) }
     }
@@ -403,7 +407,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// an edge would claim a target the card is not actually measuring against.
     public var normalizedReference: Double? {
         guard let reference else { return nil }
-        let bounds = self.bounds
+        let bounds = self.valueBounds
         guard reference >= bounds.lower, reference <= bounds.upper else { return nil }
         return normalizedValue(reference)
     }
@@ -413,7 +417,7 @@ public struct DashboardChart: Codable, Hashable, Sendable {
     /// back to growing from the bottom like plain `bar`.
     public var normalizedZero: Double? {
         guard style == .delta else { return nil }
-        let bounds = self.bounds
+        let bounds = self.valueBounds
         guard bounds.lower <= 0, bounds.upper >= 0 else { return nil }
         return normalizedValue(0)
     }
