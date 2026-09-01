@@ -26,6 +26,10 @@ import * as storage from "./storage";
 import { deleteCardForTenant } from "./cards";
 import { endAndDeleteActivity } from "./liveActivities";
 import { listTenantRateLimitBuckets, type RateLimitBucketView } from "./rateLimit";
+import {
+  listSubscriptionRowsForTenant,
+  type SubscriptionAdminRow,
+} from "./subscription";
 
 
 
@@ -268,6 +272,7 @@ function renderDashboard(d: DashboardData): string {
 }
 
 interface TenantRows {
+  subscriptions: SubscriptionAdminRow[];
   cards: storage.ScopedEntry<unknown>[];
   devices: storage.ScopedEntry<unknown>[];
   widgetTokens: storage.ScopedEntry<storage.WidgetTokenRecord>[];
@@ -278,7 +283,8 @@ interface TenantRows {
 }
 
 async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
-  const [cards, devices, widgetTokens, activities, pending, startTokens, rateLimits] = await Promise.all([
+  const [subscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits] = await Promise.all([
+    listSubscriptionRowsForTenant(env, tenantId),
     storage.listTenantCards(env, tenantId),
     storage.listTenantDevices(env, tenantId),
     storage.listTenantWidgetTokens(env, tenantId),
@@ -287,11 +293,12 @@ async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
     storage.listTenantStartTokens(env, tenantId),
     listTenantRateLimitBuckets(env, tenantId),
   ]);
-  return { cards, devices, widgetTokens, activities, pending, startTokens, rateLimits };
+  return { subscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits };
 }
 
 function emptyTenantRows(): TenantRows {
   return {
+    subscriptions: [],
     cards: [],
     devices: [],
     widgetTokens: [],
@@ -351,6 +358,7 @@ function renderTenantDetail(d: DashboardData): string {
       </tbody></table>
     </section>
     ${renderTenantApiKeysSection(d.selectedTenant, tenantApiKeys, d.session.csrf)}
+    ${renderSubscriptionsSection(d.rows.subscriptions)}
     ${renderCardsSection(d.selectedTenant.id, d.rows.cards, d.session.csrf)}
     ${renderTokenSection("Devices", d.rows.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
     ${renderWidgetTokensSection(d.selectedTenant.id, d.rows.widgetTokens, d.session.csrf)}
@@ -359,6 +367,28 @@ function renderTenantDetail(d: DashboardData): string {
     ${renderStartTokensSection(d.selectedTenant.id, d.rows.startTokens, d.session.csrf)}
     ${renderRateLimitsSection(d.rows.rateLimits)}
   `;
+}
+
+function renderSubscriptionsSection(rows: SubscriptionAdminRow[]): string {
+  if (rows.length === 0) {
+    return section("Subscriptions", `<p class="empty">No App Store subscriptions linked.</p>`);
+  }
+  const body = rows.map((row) => `<tr>
+      <td><code>${esc(shortHash(row.original_transaction_id))}</code></td>
+      <td>${esc(row.environment)}</td>
+      <td><code>${esc(row.product_id)}</code></td>
+      <td>${esc(row.status)}</td>
+      <td>${row.is_trial === 1 ? "yes" : "no"}</td>
+      <td>${row.auto_renew === 1 ? "yes" : "no"}</td>
+      <td class="ts">${esc(formatTimestamp(row.expires_at_ms))}</td>
+      <td class="ts">${esc(formatTimestamp(row.grace_expires_at_ms))}</td>
+      <td class="ts">${esc(formatTimestamp(row.revoked_at_ms))}</td>
+      <td class="ts">${esc(row.updated_at)}</td>
+    </tr>`).join("");
+  return section(
+    `Subscriptions <span class="count">${rows.length}</span>`,
+    `<table><thead><tr><th>original transaction</th><th>environment</th><th>product</th><th>stored status</th><th>trial</th><th>auto renew</th><th>expires</th><th>billing grace</th><th>revoked</th><th>updated</th></tr></thead><tbody>${body}</tbody></table>`,
+  );
 }
 
 function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[], csrf: string): string {
@@ -692,10 +722,13 @@ function formatWindow(seconds: number): string {
   return `${seconds}s`;
 }
 
+function formatTimestamp(milliseconds: number | null): string {
+  return milliseconds === null ? "" : new Date(milliseconds).toISOString();
+}
+
 
 
 // Post-sign-in destination, carried through Apple's cross-site form_post
 // round trip in a cookie. Only same-origin absolute /admin paths are honoured,
 // so this can never become an open redirect: no scheme, no host, no
 // protocol-relative "//evil" form survives the pattern.
-

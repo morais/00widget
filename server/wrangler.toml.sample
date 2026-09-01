@@ -90,6 +90,11 @@ SUBSCRIPTION_REQUIRED = "false"
 # "Sandbox" and register the sandbox notification URL in App Store Connect.
 # SUBSCRIPTION_ENVIRONMENT = "Production"
 
+# Accept Sandbox purchases alongside Production on this same deployment.
+# TestFlight uses Sandbox. Keep this off unless free test purchases are meant to
+# grant access here; accepted rows remain labelled "Sandbox" in D1 and /admin.
+# SUBSCRIPTION_SANDBOX_ENABLED = "false"
+
 # Days past expiry an entitlement still counts. Covers a late notification, not
 # a lapsed payment; Apple's own billing grace period arrives in the payload and
 # is honoured separately, with whichever window reaches further winning.

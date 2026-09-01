@@ -1497,6 +1497,10 @@ export interface Env {
   // "Production" (default) or "Sandbox". Sandbox purchases are free and
   // unlimited, so one must never entitle a production tenant.
   SUBSCRIPTION_ENVIRONMENT?: string;
+  // Explicitly accept Sandbox alongside Production (or a sandbox-only staging
+  // setting). TestFlight purchases use Sandbox, so this is useful when one
+  // backend serves both App Store and TestFlight builds. Off unless "true".
+  SUBSCRIPTION_SANDBOX_ENABLED?: string;
   // Days past expiry that an entitlement still counts. Covers a late webhook,
   // not a lapsed payment; Apple's own billing grace period arrives in the
   // payload and is honoured separately.

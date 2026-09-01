@@ -9,7 +9,7 @@ import {
   readSessionCookie,
   webSignInConfigured,
 } from "../src/webSession";
-import { authedRequest, makeAppleIdToken, makeEnv, seedApiKey } from "./helpers";
+import { authedRequest, FakeD1, makeAppleIdToken, makeEnv, seedApiKey } from "./helpers";
 
 const ctx = {} as ExecutionContext;
 const TEST_ADMIN_TOKEN = "test-admin-token-0123456789abcdef";
@@ -797,6 +797,30 @@ describe("admin routes (no Apple call required)", () => {
     expect(selectedHtml).not.toContain("Tenant B card");
   });
 
+  it("/admin tracks a tenant's sandbox subscription separately from production", async () => {
+    const env = adminEnv();
+    await seedApiKey(env, "tenant-a-key", "tenant-a");
+    (env.ZW_DB as unknown as FakeD1).seedSubscription({
+      originalTransactionId: "sandbox-original-123456789",
+      tenantId: "tenant-a",
+      productId: "com.example.zerozerowidget.monthly",
+      environment: "Sandbox",
+    });
+
+    const { cookie } = await adminCookie(env);
+    const selected = await (handler.fetch as any)(
+      new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const html = await selected.text();
+
+    expect(html).toContain("Subscriptions <span");
+    expect(html).toContain("Sandbox");
+    expect(html).toContain("com.example.zerozerowidget.monthly");
+    expect(html).toContain("sandbox-");
+  });
+
   it("/admin selected tenant can delete cards, widget tokens, and live activity state", async () => {
     const env = adminEnv();
     await seedApiKey(env, "tenant-a-key", "tenant-a");
@@ -1188,6 +1212,5 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
-
 
 

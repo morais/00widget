@@ -62,6 +62,9 @@ struct SubscriptionView: View {
     private var statusSection: some View {
         Section {
             KeyValue(key: "Status", value: subscriptions.state.displayLabel)
+            if subscriptions.state.environment == "Sandbox" {
+                KeyValue(key: "Environment", value: "Sandbox")
+            }
             if let expiresAt = subscriptions.state.expiresAt {
                 KeyValue(key: renewalLabel, value: expiresAt.formatted(date: .abbreviated, time: .shortened))
             }

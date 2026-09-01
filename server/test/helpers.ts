@@ -1085,10 +1085,18 @@ export class FakeD1 {
         .filter((row) => row.tenant_id === String(tenant_id) && Number(row.expires_at) > Number(now))
         .sort((a, b) => String(b.ended_at).localeCompare(String(a.ended_at)));
     }
-    if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
+    if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms, created_at, updated_at FROM subscriptions WHERE tenant_id = ?")) {
       const [tenant_id] = values.map(String);
       return [...this.subscriptions.values()]
         .filter((row) => row.tenant_id === tenant_id)
+        .sort((a, b) => Number(b.expires_at_ms ?? 0) - Number(a.expires_at_ms ?? 0));
+    }
+    if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
+      const [tenant_id, ...environments] = values.map(String);
+      return [...this.subscriptions.values()]
+        .filter((row) => row.tenant_id === tenant_id
+          && environments.some((environment) =>
+            environment.toLowerCase() === String(row.environment).toLowerCase()))
         .sort((a, b) => Number(b.expires_at_ms ?? 0) - Number(a.expires_at_ms ?? 0))
         .slice(0, 1);
     }

@@ -205,6 +205,26 @@ describe("POST /v1/subscription/verify", () => {
     expect((await res.json() as any).subscription.active).toBe(true);
   });
 
+  it("accepts both production and sandbox transactions with the explicit sandbox opt-in", async () => {
+    const env = subscriptionEnv({ SUBSCRIPTION_SANDBOX_ENABLED: "true" });
+
+    const production = await verify(env, [await signedTransaction({
+      originalTransactionId: "production-original",
+      environment: "Production",
+    })]);
+    const sandbox = await verify(env, [await signedTransaction({
+      originalTransactionId: "sandbox-original",
+      environment: "Sandbox",
+      expiresDate: Date.now() + 60 * DAY_MS,
+    })]);
+
+    expect(production.status).toBe(200);
+    expect(sandbox.status).toBe(200);
+    const body = await sandbox.json() as any;
+    expect(body.subscription.active).toBe(true);
+    expect(body.subscription.environment).toBe("Sandbox");
+  });
+
   it("keeps a usable transaction when another in the batch is not ours", async () => {
     const env = subscriptionEnv();
 
@@ -274,6 +294,20 @@ describe("GET /v1/subscription", () => {
     expect(body.subscription.status).toBe("none");
     expect(body.required).toBe(false);
     expect(body.productIds).toEqual([MONTHLY, YEARLY]);
+    expect(body.acceptedEnvironments).toEqual(["Production"]);
+  });
+
+  it("reports both accepted environments when sandbox testing is enabled", async () => {
+    const env = subscriptionEnv({ SUBSCRIPTION_SANDBOX_ENABLED: "true" });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+
+    expect((await res.json() as any).acceptedEnvironments)
+      .toEqual(["Production", "Sandbox"]);
   });
 
   it("tells the app when writes are gated, which it cannot otherwise know", async () => {
@@ -371,6 +405,18 @@ describe("POST /v1/apple/subscription-notifications", () => {
       executionCtx,
     );
     expect((await after.json() as any).subscription.active).toBe(true);
+  });
+
+  it("accepts sandbox notifications when sandbox testing is enabled", async () => {
+    const env = subscriptionEnv({ SUBSCRIPTION_SANDBOX_ENABLED: "true" });
+
+    const res = await notify(env, await signedNotification({
+      notificationType: "SUBSCRIBED",
+      transaction: { originalTransactionId: "sandbox-notification", environment: "Sandbox" },
+    }));
+
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).applied).toBe(true);
   });
 
   it("does not orphan a claimed row when a later notification arrives", async () => {
@@ -680,6 +726,22 @@ describe("entitlement expiry", () => {
     db.seedSubscription({ tenantId: "somebody-else" });
 
     expect((await status()).status).toBe("none");
+  });
+
+  it("does not let a stored sandbox purchase grant access when sandbox testing is off", async () => {
+    db.seedSubscription({ environment: "Sandbox" });
+
+    expect((await status()).status).toBe("none");
+  });
+
+  it("lets the same stored sandbox purchase grant access while the opt-in is on", async () => {
+    env = subscriptionEnv({ SUBSCRIPTION_SANDBOX_ENABLED: "true" });
+    db = env.ZW_DB as unknown as FakeD1;
+    db.seedSubscription({ environment: "Sandbox" });
+
+    const state = await status();
+    expect(state.active).toBe(true);
+    expect(state.environment).toBe("Sandbox");
   });
 });
 

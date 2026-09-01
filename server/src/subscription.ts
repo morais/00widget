@@ -60,6 +60,44 @@ function configuredProductIds(env: Env): string[] {
     .filter(Boolean);
 }
 
+export type SubscriptionEnvironment = "Production" | "Sandbox";
+
+/// App Store environments this deployment is willing to treat as an
+/// entitlement source.
+///
+/// Production stays the default and sandbox is a separate, explicit opt-in:
+/// TestFlight uses sandbox purchases, but those purchases are free and must not
+/// quietly unlock an ordinary production deployment. SUBSCRIPTION_ENVIRONMENT
+/// remains supported as the exclusive environment switch used by staging
+/// deployments; SUBSCRIPTION_SANDBOX_ENABLED widens either valid setting to
+/// both environments for testing against one backend.
+export function configuredSubscriptionEnvironments(env: Env): SubscriptionEnvironment[] {
+  const configured = (env.SUBSCRIPTION_ENVIRONMENT ?? "Production").trim().toLowerCase();
+  const primary: SubscriptionEnvironment | null = configured === "production"
+    ? "Production"
+    : configured === "sandbox"
+      ? "Sandbox"
+      : null;
+  if (!primary) return [];
+
+  const sandboxEnabled = (env.SUBSCRIPTION_SANDBOX_ENABLED ?? "").trim().toLowerCase() === "true";
+  if (!sandboxEnabled) return [primary];
+  return ["Production", "Sandbox"];
+}
+
+function subscriptionEnvironment(value: string): SubscriptionEnvironment | null {
+  switch (value.trim().toLowerCase()) {
+    case "production": return "Production";
+    case "sandbox": return "Sandbox";
+    default: return null;
+  }
+}
+
+function subscriptionEnvironmentIsConfigured(env: Env, environment: string): boolean {
+  const canonical = subscriptionEnvironment(environment);
+  return canonical !== null && configuredSubscriptionEnvironments(env).includes(canonical);
+}
+
 export type SubscriptionStatus = "active" | "trial" | "grace" | "expired" | "revoked" | "none";
 
 export interface SubscriptionState {
@@ -85,6 +123,11 @@ export interface SubscriptionRow {
   environment: string;
   revoked_at_ms: number | null;
   signed_date_ms: number;
+}
+
+export interface SubscriptionAdminRow extends SubscriptionRow {
+  created_at: string;
+  updated_at: string;
 }
 
 /// Turns a stored row into the entitlement decision. All the policy lives here
@@ -130,20 +173,47 @@ export async function readSubscriptionRow(
   env: Env,
   tenantId: string,
 ): Promise<SubscriptionRow | null> {
+  const environments = configuredSubscriptionEnvironments(env);
+  if (environments.length === 0) return null;
   // A tenant can hold more than one row: resubscribing after a lapse mints a
   // new originalTransactionId. The one that reaches furthest into the future
   // is the one that decides, so ordering beats picking the newest by date.
+  // Filtering here is as important as filtering writes: turning sandbox
+  // support back off must immediately stop an already-stored free test
+  // purchase from granting production access.
+  const placeholders = environments.map(() => "?").join(", ");
   return env.ZW_DB.prepare(
     `SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms,
             grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms,
             signed_date_ms
      FROM subscriptions
-     WHERE tenant_id = ?
+     WHERE tenant_id = ? AND environment IN (${placeholders})
      ORDER BY COALESCE(expires_at_ms, 0) DESC
      LIMIT 1`,
   )
-    .bind(tenantId)
+    .bind(tenantId, ...environments)
     .first<SubscriptionRow>();
+}
+
+/// Every stored subscription linked to a tenant, including sandbox rows that
+/// are no longer accepted. The admin dashboard is an audit surface, so hiding
+/// a row when its feature flag is switched off would erase the evidence an
+/// operator needs while diagnosing a test purchase.
+export async function listSubscriptionRowsForTenant(
+  env: Env,
+  tenantId: string,
+): Promise<SubscriptionAdminRow[]> {
+  const result = await env.ZW_DB.prepare(
+    `SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms,
+            grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms,
+            signed_date_ms, created_at, updated_at
+     FROM subscriptions
+     WHERE tenant_id = ?
+     ORDER BY COALESCE(expires_at_ms, 0) DESC, updated_at DESC`,
+  )
+    .bind(tenantId)
+    .all<SubscriptionAdminRow>();
+  return result.results;
 }
 
 export async function readSubscriptionState(
@@ -167,7 +237,7 @@ interface DecodedTransaction {
   originalTransactionId: string;
   productId: string;
   bundleId: string;
-  environment: string;
+  environment: SubscriptionEnvironment;
   expiresDate?: number;
   revocationDate?: number;
   signedDate?: number;
@@ -246,11 +316,15 @@ export async function verifyTransaction(
     throw new SubscriptionRejected("transaction is for an unrecognised product");
   }
 
-  const environment = requireString(payload, "environment");
+  const claimedEnvironment = requireString(payload, "environment");
+  const environment = subscriptionEnvironment(claimedEnvironment);
+  if (!environment) {
+    throw new SubscriptionRejected("transaction is from an unrecognised environment");
+  }
   // Sandbox purchases are free and unlimited. Letting one entitle a production
-  // tenant would make the paywall decorative.
-  const expectedEnvironment = (env.SUBSCRIPTION_ENVIRONMENT ?? "Production").trim();
-  if (environment.toLowerCase() !== expectedEnvironment.toLowerCase()) {
+  // tenant would make the paywall decorative, so accepting them requires the
+  // dedicated opt-in above rather than merely noticing Apple's signature.
+  if (!subscriptionEnvironmentIsConfigured(env, environment)) {
     throw new SubscriptionRejected(`transaction is from the ${environment} environment`);
   }
 
@@ -328,6 +402,13 @@ export async function recordTransaction(
       now,
     )
     .run();
+
+  if (transaction.environment === "Sandbox") {
+    console.info("subscription.sandbox_recorded", {
+      tenantId: tenantId ?? null,
+      productId: transaction.productId,
+    });
+  }
 }
 
 /// Claims an unowned row, or confirms the caller already owns it.
@@ -503,6 +584,7 @@ export async function getSubscription(
     // different where writes are gated than where they are not.
     required: isSubscriptionRequired(env),
     productIds: configuredProductIds(env),
+    acceptedEnvironments: configuredSubscriptionEnvironments(env),
   });
 }
 
@@ -677,9 +759,8 @@ function renewalInfoMismatch(
     return "renewal info is for an unrecognised product";
   }
 
-  const expectedEnvironment = (env.SUBSCRIPTION_ENVIRONMENT ?? "Production").trim();
   if (typeof renewal.environment === "string"
-      && renewal.environment.toLowerCase() !== expectedEnvironment.toLowerCase()) {
+      && subscriptionEnvironment(renewal.environment) !== transaction.environment) {
     return "renewal info is from a different environment";
   }
 

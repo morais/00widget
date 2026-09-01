@@ -96,6 +96,29 @@ persists the latest final APNs status, reason, id, attempt count, and timestamp
 per WidgetKit token. The row is overwritten rather than appended, but each
 attempt still adds one D1 write, so enable it only while diagnosing delivery.
 
+### Testing subscriptions with Sandbox and TestFlight
+
+Subscription verification accepts Production transactions by default. A
+sandbox-only staging deployment can set `SUBSCRIPTION_ENVIRONMENT="Sandbox"`.
+When App Store and TestFlight builds must use the same backend, keep
+`SUBSCRIPTION_ENVIRONMENT="Production"` and explicitly add:
+
+```toml
+SUBSCRIPTION_SANDBOX_ENABLED = "true"
+```
+
+This accepts both Apple environments. It is deliberately off by default
+because Sandbox purchases are free. Every stored subscription keeps Apple's
+`Production` or `Sandbox` label; select its tenant in `/admin` to inspect the
+environment, product, renewal state, expiry, grace, revocation, and last update.
+Removing the flag stops existing sandbox rows from granting access immediately
+but retains them in D1 for audit and notification tracking.
+
+Use the same `/v1/apple/subscription-notifications` endpoint for both App Store
+Connect notification URLs. If no Sandbox URL is configured, Apple sends both
+environments to the Production URL; the Worker still accepts Sandbox only when
+the opt-in above is enabled.
+
 ### API abuse controls
 
 Generated app and publisher bearer tokens have a fixed `zw_` or `zwa_` format.

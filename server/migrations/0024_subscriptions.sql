@@ -33,8 +33,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   grace_expires_at_ms     INTEGER,
   is_trial                INTEGER NOT NULL DEFAULT 0,
   auto_renew              INTEGER NOT NULL DEFAULT 1,
-  -- "Sandbox" or "Production". A sandbox purchase must never entitle a
-  -- production tenant, so this is compared rather than merely recorded.
+  -- "Sandbox" or "Production". Sandbox purchases are accepted only by an
+  -- explicit deployment opt-in, and entitlement reads filter on that current
+  -- policy. The value remains stored after the opt-in is removed for audit.
   environment             TEXT NOT NULL,
   revoked_at_ms           INTEGER,
   -- Apple's signedDate for the most recent payload applied to this row. Used

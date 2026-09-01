@@ -430,7 +430,12 @@ producer out.
    `SUBSCRIPTION_ENVIRONMENT`. Leave `SUBSCRIPTION_REQUIRED` off until the
    entitlement data looks right — that is what the two flags are for. Before
    turning it on, decide about existing tenants; grandfathering is a one-off
-   insert of non-expiring rows and is easiest while nothing is enforced.
+   insert of non-expiring rows and is easiest while nothing is enforced. A
+   production backend rejects Sandbox and TestFlight transactions by default;
+   set `SUBSCRIPTION_SANDBOX_ENABLED=true` only while that same backend should
+   accept both. The environment remains attached to each D1 row and is visible
+   on the selected tenant in `/admin`. Turning the flag off immediately stops
+   stored sandbox rows from granting access without deleting the audit trail.
 4. **App.** Add `ZW_SUBSCRIPTIONS_ENABLED` to
    `SWIFT_ACTIVE_COMPILATION_CONDITIONS` in your `project.yml` and rerun
    `xcodegen`. Test purchases against `ios/Resources/ZeroZeroWidget.storekit` in
