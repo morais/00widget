@@ -53,4 +53,18 @@ struct SampleDataFactoryTests {
         #expect(chart.labels?.last == "Now")
         #expect(points.last == 95)
     }
+
+    @Test("App Preview fixtures are stable at a reference date")
+    func appPreviewFixturesAreStable() throws {
+        let referenceDate = try #require(
+            ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")
+        )
+        let cards = SampleDataFactory.makeMarketingPreviewCards(referenceDate: referenceDate)
+
+        #expect(cards.map(\.title) == ["Julia turns 12", "Mars", "Beach this weekend?"])
+        #expect(cards.map(\.value) == ["196", "225M", "YES"])
+        #expect(cards.map(\.subtitle) == ["28 weekends", "12.5 light-minutes", "27°C · wind 11 km/h"])
+        #expect(cards.allSatisfy { $0.isSample })
+        #expect(cards.allSatisfy { !$0.isStale })
+    }
 }

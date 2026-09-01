@@ -1,0 +1,102 @@
+# App Store Preview capture
+
+`scripts/app-preview.sh` turns the prepared `00Widget Marketing` iPhone
+Simulator into a deterministic 22-second App Store Preview. It builds the
+private screenshot scheme, seeds offline fixtures, records the Simulator
+framebuffer, runs a monotonic XCUITest timeline, renders prompt cards with
+FFmpeg, and validates the MP4 with ffprobe.
+
+## Requirements
+
+- Xcode 26 or newer with the configured iOS Simulator runtime
+- XcodeGen
+- FFmpeg and ffprobe
+- Python 3 with Pillow (`python3.12 -m pip install -r scripts/requirements.txt`)
+- the one-time Simulator setup in [app-preview-simulator.md](app-preview-simulator.md)
+
+The committed `.yaml` config is deliberately JSON-compatible YAML. This keeps
+the timeline data-driven without adding PyYAML to the capture environment.
+
+## Capture
+
+From the repository root:
+
+```sh
+./scripts/app-preview.sh ios-main
+```
+
+The result is:
+
+```text
+artifacts/app-preview/
+  raw.mov
+  preview.mp4
+  preview.json
+```
+
+The JSON report records the device/runtime, measured scene timestamps, overlay
+copy and timing, config checksum, and every ffprobe validation result. Generated
+movies are ignored by Git; `.gitkeep` preserves the output directory.
+
+Useful options:
+
+```sh
+./scripts/app-preview.sh ios-main --device "iPhone 17 Pro"
+./scripts/app-preview.sh ios-main --prepare-only
+./scripts/app-preview.sh ios-main --app /path/to/ZeroZeroWidgetApp.app
+./scripts/app-preview.sh ios-main --raw-only
+./scripts/app-preview.sh ios-main --render-only
+./scripts/app-preview.sh ios-main --config marketing/app-preview/another.yaml
+./scripts/app-preview.sh ios-main --keep-temp --verbose
+```
+
+`--app` must be a Simulator build with the `ZW_SCREENSHOTS` fixture mode and
+the same widget kinds as the prepared device. The UI-test bundle is still built
+locally because it is the system interaction driver. Neither normal capture nor
+supplied-app mode uninstalls the app, erases the device, or clears the shared
+App Group.
+
+`--render-only` reads the existing `raw.mov`, making copy, timing, style, size,
+bitrate and duration changes cheap. The three overlay styles are `prompt`,
+`headline`, and `caption`. Each prompt is first rendered as a transparent,
+rounded PNG with the installed SF system font, then faded and composited by
+FFmpeg. Font files are referenced in place and never copied.
+
+## Timeline behavior
+
+Scene actions run against one `systemUptime` baseline in XCUITest, rather than
+sleeping relative to the previous scene. Supported actions are `hold`,
+`go_home`, `swipe_left`, `swipe_right`, and `open_app`.
+
+`stage.initialPage` counts ordinary Home Screen pages from zero. The driver
+first leaves iOS's far-left Today/widgets view, so `0` is the first page of apps
+and widgets rather than the Today view.
+
+The Simulator has no stable public command for lock/sleep control, and XCTest's
+Simulator device button API exposes Home but not Lock. The config validator
+therefore rejects `lock`, `wake`, and `sleep_wake` with an actionable message.
+If a later preview needs the Lock Screen, add a small macOS UI-automation driver
+as a separate adapter; do not put hard-coded screen coordinates into the
+capture or rendering code.
+
+The host/test handshake excludes Xcode startup from the movie:
+
+1. XCUITest launches `--marketing-demo`, refreshes the widgets, and stages the
+   configured initial Home Screen page.
+2. It writes a run-specific `ready` marker and waits.
+3. The host starts `simctl io recordVideo`, then writes `start`.
+4. XCUITest runs the scene timeline and writes actual timestamps.
+5. The host stops recording with `SIGINT` immediately after `finished`.
+
+Both the recorder and UI test are terminated from cleanup handlers after an
+error or signal. The status-bar override is also cleared.
+
+## Validation
+
+The final MP4 must be 15–30 seconds, exactly the configured dimensions, no more
+than 30 fps, H.264, progressive, and under 500 MB. A failed check exits nonzero.
+Run the validator directly when useful:
+
+```sh
+python3 tools/app-preview/validate.py ios-main artifacts/app-preview/preview.mp4
+```

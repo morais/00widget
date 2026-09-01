@@ -1,11 +1,110 @@
 import Foundation
 
+public struct MarketingPreviewFixtures: Codable, Sendable {
+    public struct Countdown: Codable, Sendable {
+        public var title: String
+        public var date: String
+    }
+
+    public struct Mars: Codable, Sendable {
+        public var distanceKm: Int
+        public var lightMinutes: Double
+    }
+
+    public struct Weekend: Codable, Sendable {
+        public var title: String
+        public var status: String
+        public var temperature: Int
+        public var wind: Int
+    }
+
+    public var referenceDate: String?
+    public var countdown: Countdown
+    public var mars: Mars
+    public var weekend: Weekend
+
+    public static let previewDefault = MarketingPreviewFixtures(
+        referenceDate: "2026-09-01T09:41:00Z",
+        countdown: Countdown(title: "Julia turns 12", date: "2027-03-16"),
+        mars: Mars(distanceKm: 225_000_000, lightMinutes: 12.5),
+        weekend: Weekend(
+            title: "Beach this weekend?",
+            status: "YES",
+            temperature: 27,
+            wind: 11
+        )
+    )
+}
+
 public enum SampleDataFactory {
     /// Sample cards live in the reserved `sample-` id namespace so the app and
     /// the widget extension can badge them and offer to remove them without
     /// mistaking a published card for a demo one.
     public static func sampleId(_ suffix: String) -> String {
         ZeroZeroWidgetConstants.sampleCardIdPrefix + suffix
+    }
+
+    /// Stable fixtures for the App Store Preview. Values are calculated from a
+    /// caller-provided reference date rather than the wall clock, so recaptures
+    /// do not silently change their numbers.
+    public static func makeMarketingPreviewCards(
+        referenceDate: Date,
+        fixtures: MarketingPreviewFixtures = .previewDefault
+    ) -> [DashboardCard] {
+        let calendar = Calendar(identifier: .gregorian)
+        let deadline = ZeroZeroWidgetDateFormat.parse("\(fixtures.countdown.date)T09:00:00Z")
+            ?? ZeroZeroWidgetDateFormat.parse("2027-03-16T09:00:00Z")!
+        let days = max(
+            0,
+            calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: referenceDate),
+                to: calendar.startOfDay(for: deadline)
+            ).day ?? 0
+        )
+        let weekends = Int(ceil(Double(days) / 7.0))
+        let freshUntil = Date.distantFuture
+        let distanceMillions = Double(fixtures.mars.distanceKm) / 1_000_000
+        let distance = distanceMillions.rounded() == distanceMillions
+            ? String(Int(distanceMillions))
+            : String(format: "%.1f", distanceMillions)
+        return [
+            DashboardCard(
+                id: sampleId("preview-countdown"),
+                template: .summary,
+                title: fixtures.countdown.title,
+                subtitle: "\(weekends) weekends",
+                value: String(days),
+                unit: "days",
+                status: .good,
+                icon: "birthday.cake",
+                updatedAt: referenceDate,
+                staleAfter: freshUntil
+            ),
+            DashboardCard(
+                id: sampleId("preview-mars"),
+                template: .summary,
+                title: "Mars",
+                subtitle: "\(String(format: "%.1f", fixtures.mars.lightMinutes)) light-minutes",
+                value: "\(distance)M",
+                unit: "km",
+                status: .good,
+                icon: "sparkles",
+                updatedAt: referenceDate,
+                staleAfter: freshUntil
+            ),
+            DashboardCard(
+                id: sampleId("preview-weekend"),
+                template: .summary,
+                title: fixtures.weekend.title,
+                subtitle: "\(fixtures.weekend.temperature)°C · wind \(fixtures.weekend.wind) km/h",
+                value: fixtures.weekend.status,
+                status: .good,
+                icon: "beach.umbrella",
+                updatedAt: referenceDate,
+                staleAfter: freshUntil
+            ),
+        ]
     }
 
     public static func makeCards() -> [DashboardCard] {

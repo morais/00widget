@@ -842,6 +842,24 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
+    /// Seeds the three fixed cards used by the App Store Preview. Unlike the
+    /// ordinary sample button this is reached only through `--marketing-demo`
+    /// in a screenshot build, and never performs a network request.
+    public func generateMarketingPreviewCards(
+        referenceDate: Date,
+        fixtures: MarketingPreviewFixtures = .previewDefault
+    ) {
+        let samples = SampleDataFactory.makeMarketingPreviewCards(
+            referenceDate: referenceDate,
+            fixtures: fixtures
+        )
+        try? CardCache.save(samples)
+        cards = samples
+        SharedSettings.setHideSampleIndicators(true)
+        SpotlightIndex.donate(samples)
+        reloadWidgetTimelines()
+    }
+
     public var hasSampleCards: Bool {
         cards.contains { $0.isSample }
     }

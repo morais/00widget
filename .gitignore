@@ -70,3 +70,7 @@ ios/Resources/*/*.entitlements
 
 # Generated ChatGPT app submission artifact
 /chatgpt-app-submission.json
+
+# Generated App Store Preview movies and validation report
+/artifacts/app-preview/*
+!/artifacts/app-preview/.gitkeep

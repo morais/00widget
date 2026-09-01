@@ -32,6 +32,29 @@ private struct ScreenshotCardProvider: TimelineProvider {
     }
 }
 
+private struct PreviewCardProvider: TimelineProvider {
+    let sampleSuffix: String
+
+    func placeholder(in context: Context) -> CardTimelineEntry { entry() }
+
+    func getSnapshot(in context: Context, completion: @escaping (CardTimelineEntry) -> Void) {
+        completion(entry())
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CardTimelineEntry>) -> Void) {
+        completion(Timeline(entries: [entry()], policy: .never))
+    }
+
+    private func entry() -> CardTimelineEntry {
+        let id = SampleDataFactory.sampleId(sampleSuffix)
+        let card = CardCache.load().cards.first(where: { $0.id == id })
+            ?? SampleDataFactory.makeMarketingPreviewCards(
+                referenceDate: ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")!
+            ).first(where: { $0.id == id })
+        return CardTimelineEntry(date: Date(), card: card, density: .compact)
+    }
+}
+
 private struct ScreenshotMetricsGridProvider: TimelineProvider {
     private let sampleSuffixes = ["solar", "car-charge", "energy-trend", "deploys"]
 
@@ -82,6 +105,51 @@ private func screenshotCardConfiguration(
     .configurationDisplayName(displayName)
     .description("Marketing screenshot sample.")
     .supportedFamilies(supportedFamilies)
+}
+
+private func previewCardConfiguration(
+    kind: String,
+    sampleSuffix: String,
+    displayName: String,
+    supportedFamilies: [WidgetFamily] = [.systemSmall]
+) -> some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: PreviewCardProvider(sampleSuffix: sampleSuffix)) { entry in
+        CardWidgetView(entry: entry)
+            .containerBackground(.fill.tertiary, for: .widget)
+    }
+    .configurationDisplayName(displayName)
+    .description("App Store Preview fixture.")
+    .supportedFamilies(supportedFamilies)
+}
+
+struct PreviewCountdownWidget: Widget {
+    var body: some WidgetConfiguration {
+        previewCardConfiguration(
+            kind: "com.00widget.preview.countdown",
+            sampleSuffix: "preview-countdown",
+            displayName: "Preview Countdown"
+        )
+    }
+}
+
+struct PreviewMarsWidget: Widget {
+    var body: some WidgetConfiguration {
+        previewCardConfiguration(
+            kind: "com.00widget.preview.mars",
+            sampleSuffix: "preview-mars",
+            displayName: "Preview Mars"
+        )
+    }
+}
+
+struct PreviewWeekendWidget: Widget {
+    var body: some WidgetConfiguration {
+        previewCardConfiguration(
+            kind: "com.00widget.preview.weekend",
+            sampleSuffix: "preview-weekend",
+            displayName: "Preview Weekend"
+        )
+    }
 }
 
 struct ScreenshotSolarWidget: Widget {

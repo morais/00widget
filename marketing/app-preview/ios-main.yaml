@@ -1,0 +1,100 @@
+{
+  "device": {
+    "name": "00Widget Marketing",
+    "appearance": "light"
+  },
+  "output": {
+    "directory": "artifacts/app-preview",
+    "width": 886,
+    "height": 1920,
+    "fps": 30,
+    "duration": 22,
+    "bitrate": "11M",
+    "maxrate": "12M",
+    "bufsize": "24M",
+    "overlayWidth": 760,
+    "overlayY": 1280,
+    "overlayFade": 0.2
+  },
+  "statusBar": {
+    "time": "9:41",
+    "batteryLevel": 100,
+    "batteryState": "charged",
+    "wifiBars": 3,
+    "cellularBars": 4
+  },
+  "build": {
+    "scheme": "ZeroZeroWidgetScreenshots",
+    "swiftConditions": "ZW_SHARING_ENABLED ZW_SCREENSHOTS"
+  },
+  "fixtures": {
+    "referenceDate": "2026-09-01T09:41:00Z",
+    "countdown": {
+      "title": "Julia turns 12",
+      "date": "2027-03-16"
+    },
+    "mars": {
+      "distanceKm": 225000000,
+      "lightMinutes": 12.5
+    },
+    "weekend": {
+      "title": "Beach this weekend?",
+      "status": "YES",
+      "temperature": 27,
+      "wind": 11
+    }
+  },
+  "stage": {
+    "initialPage": 0
+  },
+  "scenes": [
+    {
+      "start": 0.0,
+      "end": 5.5,
+      "action": "hold",
+      "label": "Countdown widget",
+      "overlay": {
+        "start": 0.5,
+        "end": 5.1,
+        "text": "My daughter turns 12 on March 16. Count down the days, hours and weekends.",
+        "style": "prompt"
+      }
+    },
+    {
+      "start": 5.5,
+      "end": 11.0,
+      "action": "swipe_left",
+      "label": "Mars widget",
+      "overlay": {
+        "start": 6.1,
+        "end": 10.6,
+        "text": "How far away is Mars right now? Show the distance and light travel time.",
+        "style": "prompt"
+      }
+    },
+    {
+      "start": 11.0,
+      "end": 16.5,
+      "action": "swipe_left",
+      "label": "Weekend widget",
+      "overlay": {
+        "start": 11.6,
+        "end": 16.1,
+        "text": "Will this weekend be good for the beach?",
+        "style": "prompt"
+      }
+    },
+    {
+      "start": 16.5,
+      "end": 22.0,
+      "action": "swipe_left",
+      "label": "Final widget page",
+      "overlay": {
+        "start": 17.1,
+        "end": 21.8,
+        "text": "Whatever you want to know. Put it on your Home Screen.",
+        "style": "headline"
+      }
+    }
+  ]
+}

@@ -20,7 +20,7 @@ struct ZeroZeroWidgetApp: App {
                     handleIncomingURL(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active else { return }
+                    guard phase == .active, !MarketingDemo.isEnabled else { return }
                     Task { await env.syncAfterForeground() }
                     #if ZW_SUBSCRIPTIONS_ENABLED
                     Task { await subscriptions.refresh() }
@@ -37,26 +37,37 @@ struct ZeroZeroWidgetApp: App {
                 delegate.env = env
                 IntentLanding.attach(env)
                 #if ZW_SCREENSHOTS
-                // Start every capture run from the empty dashboard. The App
-                // Group cache outlives a reinstall, so a retained sample set
-                // would both hide the empty-state branch one screenshot is
-                // specifically of and shoot the previous run's timestamps.
-                // Cleared here rather than regenerated, so the run goes on to
-                // tap the same "Generate sample widgets" button a user taps
-                // instead of needing a debug affordance of its own.
-                #if ZW_ACCESSIBILITY_AUDITS
-                if ProcessInfo.processInfo.arguments.contains("-ZWAccessibilitySeedSamples") {
-                    env.generateSampleCards()
+                if MarketingDemo.isEnabled {
+                    env.generateMarketingPreviewCards(
+                        referenceDate: MarketingDemo.referenceDate,
+                        fixtures: MarketingDemo.fixtures
+                    )
                 } else {
+                    // Start every capture run from the empty dashboard. The App
+                    // Group cache outlives a reinstall, so a retained sample set
+                    // would both hide the empty-state branch one screenshot is
+                    // specifically of and shoot the previous run's timestamps.
+                    // Cleared here rather than regenerated, so the run goes on to
+                    // tap the same "Generate sample widgets" button a user taps
+                    // instead of needing a debug affordance of its own.
+                    #if ZW_ACCESSIBILITY_AUDITS
+                    if ProcessInfo.processInfo.arguments.contains("-ZWAccessibilitySeedSamples") {
+                        env.generateSampleCards()
+                    } else {
+                        env.clearSampleCards()
+                    }
+                    #else
                     env.clearSampleCards()
+                    #endif
                 }
-                #else
-                env.clearSampleCards()
                 #endif
-                #endif
-                Task { await env.startupSync() }
+                if !MarketingDemo.isEnabled {
+                    Task { await env.startupSync() }
+                }
                 #if ZW_SUBSCRIPTIONS_ENABLED
-                subscriptions.start()
+                if !MarketingDemo.isEnabled {
+                    subscriptions.start()
+                }
                 #endif
             }
         #if ZW_SUBSCRIPTIONS_ENABLED
@@ -144,7 +155,9 @@ struct RootView: View {
         // dashboard as having an account: a guest may never sign in at all.
         let hasKey = !(KeychainStore.get(ZeroZeroWidgetConstants.KeychainKeys.apiKey) ?? "").isEmpty
         let hasGuestLinks = !GuestLinkStore.load().isEmpty
-        _selectedTab = State(initialValue: hasKey || hasGuestLinks ? "widgets" : "settings")
+        _selectedTab = State(
+            initialValue: MarketingDemo.isEnabled || hasKey || hasGuestLinks ? "widgets" : "settings"
+        )
     }
 
     var body: some View {
