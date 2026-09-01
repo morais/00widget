@@ -15,6 +15,7 @@ public struct InspectableChartView: View {
     public let compact: Bool
 
     @State private var selectedIndex: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #if os(tvOS)
     @FocusState private var isFocused: Bool
     #endif
@@ -149,71 +150,15 @@ public struct InspectableChartView: View {
 
         return VStack(alignment: .leading, spacing: compact ? 6 : 9) {
             if showsHeader {
-                HStack(spacing: 8) {
-                    if let label = snapshot.label {
-                        Text(label)
-                            .font(headerFont)
-                            .lineLimit(1)
-                    }
-                    if let signal = snapshot.signal {
-                        Label(signal.rawValue.capitalized, systemImage: signal.symbolName)
-                            .font(semanticFont)
-                            .foregroundStyle(signal.tint)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                }
+                selectionHeader(label: snapshot.label, signal: snapshot.signal)
             }
 
             ForEach(Array(readings.enumerated()), id: \.element.id) { index, value in
-                HStack(spacing: 8) {
-                    valueMarker(value, index: index)
-                    SemanticFlowIcon(value.semantic, font: semanticFont)
-                    if value.kind != .value, let label = value.label {
-                        Text(label)
-                            .font(valueFont)
-                    }
-                    if let words = value.semantic?.accessibilityWords, !words.isEmpty {
-                        Text(words.joined(separator: " · "))
-                            .font(semanticFont)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    Text(ChartInspectionSnapshot.format(value.value, unit: unit))
-                        .font(valueFont.weight(.semibold))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                }
+                readingRow(value, index: index)
             }
 
             if let reference {
-                HStack(spacing: 8) {
-                    valueMarker(reference, index: readings.count)
-                    SemanticFlowIcon(reference.semantic, font: semanticFont)
-                    if let label = reference.label {
-                        Text(label)
-                            .font(semanticFont)
-                            .lineLimit(1)
-                    }
-                    Text(ChartInspectionSnapshot.format(reference.value, unit: unit))
-                        .font(semanticFont)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                    Spacer(minLength: 6)
-                    if let difference = snapshot.referenceDifference {
-                        Text(referenceDifferenceText(difference))
-                            .font(valueFont.weight(.semibold))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    } else if let comparison = snapshot.referenceComparison {
-                        Text(comparison)
-                            .font(valueFont.weight(.semibold))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    }
-                }
+                referenceRow(reference, snapshot: snapshot, index: readings.count)
             }
         }
         .padding(compact ? 10 : 14)
@@ -221,6 +166,149 @@ public struct InspectableChartView: View {
             RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
                 .fill(Color.secondary.opacity(0.10))
         )
+    }
+
+    @ViewBuilder
+    private func selectionHeader(label: String?, signal: MetricSignal?) -> some View {
+        if usesStackedSelectionLayout {
+            VStack(alignment: .leading, spacing: 4) {
+                selectionHeaderContent(label: label, signal: signal)
+            }
+        } else {
+            HStack(spacing: 8) {
+                selectionHeaderContent(label: label, signal: signal)
+                Spacer(minLength: 8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func selectionHeaderContent(label: String?, signal: MetricSignal?) -> some View {
+        if let label {
+            Text(label)
+                .font(headerFont)
+                .inspectableChartText(tvLineLimit: 1)
+        }
+        if let signal {
+            Label(signal.rawValue.capitalized, systemImage: signal.symbolName)
+                .font(semanticFont)
+                .foregroundStyle(signal.tint)
+                .inspectableChartText(tvLineLimit: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func readingRow(_ value: ChartInspectionValue, index: Int) -> some View {
+        if usesStackedSelectionLayout {
+            VStack(alignment: .leading, spacing: 4) {
+                readingDescriptor(value, index: index)
+                readingValue(value)
+                    .padding(.leading, selectionValueIndent)
+            }
+        } else {
+            HStack(spacing: 8) {
+                readingDescriptor(value, index: index)
+                Spacer(minLength: 8)
+                readingValue(value)
+            }
+        }
+    }
+
+    private func readingDescriptor(_ value: ChartInspectionValue, index: Int) -> some View {
+        HStack(spacing: 8) {
+            valueMarker(value, index: index)
+            SemanticFlowIcon(value.semantic, font: semanticFont)
+            if value.kind != .value, let label = value.label {
+                Text(label)
+                    .font(valueFont)
+                    .inspectableChartText(tvLineLimit: nil)
+            }
+            if let words = value.semantic?.accessibilityWords, !words.isEmpty {
+                Text(words.joined(separator: " · "))
+                    .font(semanticFont)
+                    .foregroundStyle(.secondary)
+                    .inspectableChartText(tvLineLimit: 1)
+            }
+        }
+    }
+
+    private func readingValue(_ value: ChartInspectionValue) -> some View {
+        Text(ChartInspectionSnapshot.format(value.value, unit: unit))
+            .font(valueFont.weight(.semibold))
+            .monospacedDigit()
+            .inspectableChartText(tvLineLimit: 1)
+    }
+
+    @ViewBuilder
+    private func referenceRow(
+        _ reference: ChartInspectionValue,
+        snapshot: ChartInspectionSnapshot,
+        index: Int
+    ) -> some View {
+        if usesStackedSelectionLayout {
+            VStack(alignment: .leading, spacing: 4) {
+                referenceDescriptor(reference, index: index)
+                VStack(alignment: .leading, spacing: 2) {
+                    referenceValue(reference)
+                    referenceComparison(snapshot)
+                }
+                .padding(.leading, selectionValueIndent)
+            }
+        } else {
+            HStack(spacing: 8) {
+                referenceDescriptor(reference, index: index)
+                referenceValue(reference)
+                Spacer(minLength: 6)
+                referenceComparison(snapshot)
+            }
+        }
+    }
+
+    private func referenceDescriptor(_ reference: ChartInspectionValue, index: Int) -> some View {
+        HStack(spacing: 8) {
+            valueMarker(reference, index: index)
+            SemanticFlowIcon(reference.semantic, font: semanticFont)
+            if let label = reference.label {
+                Text(label)
+                    .font(semanticFont)
+                    .inspectableChartText(tvLineLimit: 1)
+            }
+        }
+    }
+
+    private func referenceValue(_ reference: ChartInspectionValue) -> some View {
+        Text(ChartInspectionSnapshot.format(reference.value, unit: unit))
+            .font(semanticFont)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .inspectableChartText(tvLineLimit: 1)
+    }
+
+    @ViewBuilder
+    private func referenceComparison(_ snapshot: ChartInspectionSnapshot) -> some View {
+        if let difference = snapshot.referenceDifference {
+            Text(referenceDifferenceText(difference))
+                .font(valueFont.weight(.semibold))
+                .monospacedDigit()
+                .inspectableChartText(tvLineLimit: 1)
+        } else if let comparison = snapshot.referenceComparison {
+            Text(comparison)
+                .font(valueFont.weight(.semibold))
+                .monospacedDigit()
+                .inspectableChartText(tvLineLimit: 1)
+        }
+    }
+
+    private var usesStackedSelectionLayout: Bool {
+        #if os(iOS)
+        dynamicTypeSize.isAccessibilitySize
+        #else
+        false
+        #endif
+    }
+
+    private var selectionValueIndent: CGFloat {
+        markerSize + 8
     }
 
     @ViewBuilder
@@ -316,6 +404,27 @@ public struct InspectableChartView: View {
         #if os(iOS)
         UISelectionFeedbackGenerator().selectionChanged()
         #endif
+    }
+}
+
+/// iOS text is allowed to grow vertically; tvOS retains the line limits its
+/// fixed card and detail layouts were designed around. Keeping that split here
+/// prevents an iOS Dynamic Type fix from subtly changing the television grid.
+private struct InspectableChartTextScaling: ViewModifier {
+    let tvLineLimit: Int?
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.fixedSize(horizontal: false, vertical: true)
+        #else
+        content.lineLimit(tvLineLimit)
+        #endif
+    }
+}
+
+private extension View {
+    func inspectableChartText(tvLineLimit: Int?) -> some View {
+        modifier(InspectableChartTextScaling(tvLineLimit: tvLineLimit))
     }
 }
 
