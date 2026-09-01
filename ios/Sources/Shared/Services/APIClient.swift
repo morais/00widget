@@ -95,12 +95,17 @@ public struct AppleTokenResponse: Codable {
     public let publisherCredential: String?
 }
 
+public struct ReviewLoginAvailabilityResponse: Codable, Sendable {
+    public let enabled: Bool
+}
+
 /// GET /v1/account. Only the app-only credential can read this, which is why
 /// the email it carries never reaches an agent holding a publisher token.
 public struct AccountResponse: Codable, Sendable {
     public struct Account: Codable, Sendable {
         public let tenantId: String
         public let ownerEmail: String?
+        public let isReviewTenant: Bool?
     }
 
     public let account: Account
@@ -285,6 +290,61 @@ public final class APIClient {
             ),
         )
 
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            let message = String(data: data, encoding: .utf8) ?? ""
+            throw APIClientError(status: status, message: message)
+        }
+        return try CardCache.jsonDecoder().decode(AppleTokenResponse.self, from: data)
+    }
+
+    public static func reviewLoginAvailability(baseURL: URL) async throws -> Bool {
+        guard APIClientConfig.validatedBaseURL(from: baseURL.absoluteString) != nil else {
+            throw APIClientError(status: 0, message: "Server URL must use HTTPS")
+        }
+        var req = URLRequest(url: baseURL.appendingPathComponent("/v1/auth/review/config"))
+        req.httpMethod = "GET"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            throw APIClientError(status: status, message: "Review sign-in is unavailable")
+        }
+        return try CardCache.jsonDecoder()
+            .decode(ReviewLoginAvailabilityResponse.self, from: data)
+            .enabled
+    }
+
+    public static func createTokenFromReviewAccessCode(
+        baseURL: URL,
+        accessCode: String,
+        label: String,
+        deviceId: String,
+        issuePublisherCredential: Bool = true
+    ) async throws -> AppleTokenResponse {
+        guard APIClientConfig.validatedBaseURL(from: baseURL.absoluteString) != nil else {
+            throw APIClientError(status: 0, message: "Server URL must use HTTPS")
+        }
+        struct Body: Codable {
+            let accessCode: String
+            let label: String
+            let deviceId: String
+            let issuePublisherCredential: Bool
+        }
+        var req = URLRequest(url: baseURL.appendingPathComponent("/v1/auth/review/token"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.httpBody = try CardCache.jsonEncoder().encode(
+            Body(
+                accessCode: accessCode,
+                label: label,
+                deviceId: deviceId,
+                issuePublisherCredential: issuePublisherCredential
+            )
+        )
         let (data, resp) = try await URLSession.shared.data(for: req)
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {

@@ -27,6 +27,7 @@ struct DeveloperOptionsView: View {
     private var showDummyAccountData = false
     @State private var showWidgetTimestamps = SharedSettings.showWidgetTimestamps
     @State private var hideSampleIndicators = SharedSettings.hideSampleIndicators
+    @State private var reviewAccessCode = ""
 
     var body: some View {
         Form {
@@ -89,8 +90,43 @@ struct DeveloperOptionsView: View {
                 Hiding sample indicators drops the SAMPLE badges and the "these are samples" notice from generated cards, in the app and on the Home Screen. They are still samples; only the labelling goes.
                 """)
             }
+
+            if env.apiKey.isEmpty && env.reviewLoginAvailable {
+                Section {
+                    SecureField("Review access code", text: $reviewAccessCode)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    Button(env.reviewLoginInProgress ? "Signing in…" : "Sign in to review account") {
+                        Task {
+                            if await env.signInWithReviewAccessCode(reviewAccessCode) {
+                                reviewAccessCode = ""
+                            }
+                        }
+                    }
+                    .disabled(
+                        env.reviewLoginInProgress
+                            || reviewAccessCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+
+                    if let error = env.appleLoginError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("App review")
+                } footer: {
+                    Text("Available only on servers with a preconfigured review tenant. The access code is exchanged for this device's normal app credentials and is not stored.")
+                }
+            }
         }
         .navigationTitle("Developer")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if env.apiKey.isEmpty {
+                await env.refreshReviewLoginAvailability()
+            }
+        }
     }
 }

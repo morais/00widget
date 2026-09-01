@@ -42,6 +42,9 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var appleLoginEmail: String?
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
+    @Published public private(set) var reviewLoginAvailable = false
+    @Published public private(set) var reviewLoginInProgress = false
+    @Published public private(set) var isReviewAccountSession: Bool
     @Published public private(set) var signOutInProgress = false
     @Published public private(set) var agentTokenRotationInProgress = false
     @Published public private(set) var accountDeletionInProgress = false
@@ -91,6 +94,9 @@ public final class AppEnvironment: ObservableObject {
             ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
         ) ?? ""
         self.appleLoginEmail = defaults.string(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+        self.isReviewAccountSession = defaults.bool(
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.reviewAccountSession
+        )
         if let t = defaults.object(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.lastSyncAt) as? Date {
             self.lastSyncAt = t
         }
@@ -131,24 +137,83 @@ public final class AppEnvironment: ObservableObject {
                 label: DeviceRegistration.appVersion(),
                 deviceId: DeviceRegistration.deviceId()
             )
-            apiKey = response.token
-            saveApiKey()
-            try KeychainStore.setAppOnly(
-                response.appCredential,
-                for: ZeroZeroWidgetConstants.KeychainKeys.appCredential
-            )
-            let agentCredential = response.publisherCredential ?? response.token
-            try KeychainStore.setAppOnly(
-                agentCredential,
-                for: ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
-            )
-            publisherCredential = agentCredential
-            appleLoginEmail = response.tenant.ownerEmail
-            UserDefaults.standard.set(response.tenant.ownerEmail, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+            try installLoginResponse(response, isReviewAccount: false)
             await refreshConnectionHealth()
         } catch {
             appleLoginError = error.localizedDescription
         }
+    }
+
+    public func refreshReviewLoginAvailability() async {
+        guard apiKey.isEmpty,
+              let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
+            reviewLoginAvailable = false
+            return
+        }
+        do {
+            reviewLoginAvailable = try await APIClient.reviewLoginAvailability(baseURL: url)
+        } catch {
+            reviewLoginAvailable = false
+        }
+    }
+
+    @discardableResult
+    public func signInWithReviewAccessCode(_ accessCode: String) async -> Bool {
+        guard apiKey.isEmpty,
+              let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
+            appleLoginError = "Server URL must use HTTPS"
+            return false
+        }
+        let code = accessCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else {
+            appleLoginError = "Review access code is required"
+            return false
+        }
+        reviewLoginInProgress = true
+        appleLoginError = nil
+        defer { reviewLoginInProgress = false }
+        do {
+            let response = try await APIClient.createTokenFromReviewAccessCode(
+                baseURL: url,
+                accessCode: code,
+                label: DeviceRegistration.appVersion(),
+                deviceId: DeviceRegistration.deviceId()
+            )
+            try installLoginResponse(response, isReviewAccount: true)
+            await refreshConnectionHealth()
+            return true
+        } catch {
+            appleLoginError = "Could not sign in to the review account: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func installLoginResponse(
+        _ response: AppleTokenResponse,
+        isReviewAccount: Bool
+    ) throws {
+        apiKey = response.token
+        saveApiKey()
+        try KeychainStore.setAppOnly(
+            response.appCredential,
+            for: ZeroZeroWidgetConstants.KeychainKeys.appCredential
+        )
+        let agentCredential = response.publisherCredential ?? response.token
+        try KeychainStore.setAppOnly(
+            agentCredential,
+            for: ZeroZeroWidgetConstants.KeychainKeys.publisherCredential
+        )
+        publisherCredential = agentCredential
+        appleLoginEmail = response.tenant.ownerEmail
+        isReviewAccountSession = isReviewAccount
+        UserDefaults.standard.set(
+            response.tenant.ownerEmail,
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail
+        )
+        UserDefaults.standard.set(
+            isReviewAccount,
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.reviewAccountSession
+        )
     }
 
     /// Re-reads the account this device is signed in as, from the server.
@@ -180,15 +245,21 @@ public final class AppEnvironment: ObservableObject {
         }
         guard let email = response.account.ownerEmail, !email.isEmpty else { return }
         appleLoginEmail = email
+        isReviewAccountSession = response.account.isReviewTenant ?? false
         UserDefaults.standard.set(
             email,
             forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail
+        )
+        UserDefaults.standard.set(
+            response.account.isReviewTenant ?? false,
+            forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.reviewAccountSession
         )
     }
 
     public func signOut() async -> Bool {
         signOutInProgress = true
         appleLoginError = nil
+        isReviewAccountSession = false
         defer { signOutInProgress = false }
 
         let appClient = confirmedActionClient()
@@ -288,6 +359,7 @@ public final class AppEnvironment: ObservableObject {
         KeychainStore.deleteAppOnly(ZeroZeroWidgetConstants.KeychainKeys.publisherCredential)
         publisherCredential = ""
         UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.appleLoginEmail)
+        UserDefaults.standard.removeObject(forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.reviewAccountSession)
         saveApiKey()
     }
 

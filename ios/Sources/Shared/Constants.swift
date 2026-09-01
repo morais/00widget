@@ -95,6 +95,7 @@ public enum ZeroZeroWidgetConstants {
         public static let lastSyncAt = "zw.lastSyncAt"
         public static let lastSyncError = "zw.lastSyncError"
         public static let appleLoginEmail = "zw.appleLoginEmail"
+        public static let reviewAccountSession = "zw.reviewAccountSession"
         public static let hideSampleIndicators = "zw.hideSampleIndicators"
         /// Prefix for one record per widget: when its timeline last ran and
         /// what interval it asked for. `WidgetRefreshPolicy` compares the two

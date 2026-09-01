@@ -59,9 +59,10 @@ struct AccountExitView: View {
                 Text("Signs this device out and leaves your account and everything in it untouched. You can sign back in at any time.")
             }
 
-            Section {
-                Text("Use this if a token copied from Agent config may have been exposed. Every old Agent-config token stops working and one replacement is created.")
-                    .font(.subheadline)
+            if !env.isReviewAccountSession {
+                Section {
+                    Text("Use this if a token copied from Agent config may have been exposed. Every old Agent-config token stops working and one replacement is created.")
+                        .font(.subheadline)
 
                 Button(role: .destructive) {
                     confirmingAgentTokenRotation = true
@@ -90,18 +91,18 @@ struct AccountExitView: View {
                 } message: {
                     Text("All existing Agent-config tokens will be revoked. Agents using them stop publishing until you give them the replacement shown in Settings. Approved connectors stay connected.")
                 }
-            } header: {
-                blockHeader("Agent access")
-            } footer: {
-                Text("This does not sign out your devices, delete any data, revoke shared links, or disconnect approved connectors.")
-            }
+                } header: {
+                    blockHeader("Agent access")
+                } footer: {
+                    Text("This does not sign out your devices, delete any data, revoke shared links, or disconnect approved connectors.")
+                }
 
-            // One section, not four. Split across several, the list of what
-            // goes read as one item among many — as though it were a summary
-            // of some of it rather than all of it.
-            Section {
-                Text("Deleting your account erases it from the server, with everything in it. Not part of it: all of it, immediately, with no grace period and no way to undo it.")
-                    .font(.subheadline)
+                // One section, not four. Split across several, the list of what
+                // goes read as one item among many — as though it were a summary
+                // of some of it rather than all of it.
+                Section {
+                    Text("Deleting your account erases it from the server, with everything in it. Not part of it: all of it, immediately, with no grace period and no way to undo it.")
+                        .font(.subheadline)
 
                 Text("That means:")
                     .font(.subheadline.weight(.semibold))
@@ -130,11 +131,11 @@ struct AccountExitView: View {
                     Label("Manage subscriptions", systemImage: "arrow.up.forward.app")
                 }
                 #endif
-            } header: {
-                blockHeader("Delete account")
-            }
+                } header: {
+                    blockHeader("Delete account")
+                }
 
-            Section {
+                Section {
                 Button(role: .destructive) {
                     confirmingDelete = true
                 } label: {
@@ -163,8 +164,9 @@ struct AccountExitView: View {
                     Text("This permanently deletes your account and everything in it. It cannot be undone.")
                 }
 
-            } footer: {
-                Text("You can sign in again afterwards, but it starts a new, empty account.")
+                } footer: {
+                    Text("You can sign in again afterwards, but it starts a new, empty account.")
+                }
             }
 
             if let error = env.appleLoginError {
