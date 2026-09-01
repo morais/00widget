@@ -4,6 +4,7 @@ import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { badRequest, json, notFound } from "./http";
 import { enforceRateLimits } from "./rateLimit";
+import { isReviewTenant } from "./reviewAuth";
 import { RequestBodyLimits, type Env } from "./types";
 
 // App Store subscription entitlements.
@@ -110,6 +111,7 @@ export interface SubscriptionState {
 }
 
 export const NO_SUBSCRIPTION: SubscriptionState = { status: "none", active: false };
+export const REVIEW_SUBSCRIPTION: SubscriptionState = { status: "active", active: true };
 
 export interface SubscriptionRow {
   original_transaction_id: string;
@@ -221,6 +223,11 @@ export async function readSubscriptionState(
   tenantId: string,
 ): Promise<SubscriptionState> {
   if (!isSubscriptionsEnabled(env)) return NO_SUBSCRIPTION;
+  // Review tenants are controlled fixtures, not customers. Their entitlement
+  // follows the same explicit allowlist as their login, so removing the tenant
+  // id switches both off without a synthetic App Store transaction to clean
+  // up or accidentally claim later.
+  if (isReviewTenant(env, tenantId)) return REVIEW_SUBSCRIPTION;
   return evaluateSubscription(await readSubscriptionRow(env, tenantId), env);
 }
 
@@ -474,7 +481,7 @@ export async function subscriptionGate(
 ): Promise<SubscriptionState | null> {
   if (!scope || !SUBSCRIPTION_GATED_SCOPES.has(scope)) return null;
   if (!isSubscriptionRequired(env)) return null;
-  const state = evaluateSubscription(await readSubscriptionRow(env, auth.tenantId), env);
+  const state = await readSubscriptionState(env, auth.tenantId);
   return state.active ? null : state;
 }
 

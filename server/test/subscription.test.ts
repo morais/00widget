@@ -280,6 +280,22 @@ describe("POST /v1/subscription/verify", () => {
 });
 
 describe("GET /v1/subscription", () => {
+  it("always reports an allowlisted review tenant as subscribed", async () => {
+    const env = subscriptionEnv({ REVIEW_TENANT_IDS: "test-tenant" });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).subscription).toEqual({
+      status: "active",
+      active: true,
+    });
+  });
+
   it("reports no subscription for a tenant that has never paid", async () => {
     const env = subscriptionEnv();
 
@@ -787,6 +803,18 @@ describe("SUBSCRIPTION_REQUIRED enforcement", () => {
     (env.ZW_DB as unknown as FakeD1).seedSubscription();
 
     expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("always allows an allowlisted review tenant to publish", async () => {
+    const env = gatedEnv({ REVIEW_TENANT_IDS: "test-tenant" });
+
+    expect((await upsert(env)).status).toBe(200);
+  });
+
+  it("stops the review entitlement when its tenant leaves the allowlist", async () => {
+    const env = gatedEnv({ REVIEW_TENANT_IDS: "some-other-tenant" });
+
+    expect((await upsert(env)).status).toBe(402);
   });
 
   it("allows a publish during the grace window", async () => {
