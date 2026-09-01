@@ -401,7 +401,7 @@ def main():
     ).get("data")
     image_matches = bool(
         image_data
-        and image_data.get("attributes", {}).get("sourceFileChecksum", "").lower()
+        and (image_data.get("attributes", {}).get("sourceFileChecksum") or "").lower()
         == header_checksum.lower()
         and (image_data.get("attributes", {}).get("assetDeliveryState") or {}).get("state")
         == "COMPLETE"
@@ -417,7 +417,9 @@ def main():
             localization_id, args.header, header_data, header_checksum
         )
         uploaded = wait_for_header(image_id, args.wait)
-        remote_checksum = uploaded["attributes"].get("sourceFileChecksum", "").lower()
+        remote_checksum = (
+            uploaded["attributes"].get("sourceFileChecksum") or ""
+        ).lower()
         if remote_checksum != header_checksum.lower():
             raise RuntimeError(
                 f"uploaded App Clip header checksum is {remote_checksum}, expected {header_checksum}"
