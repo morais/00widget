@@ -188,7 +188,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private var classicWidgetNames: [String] {
-        ["Screenshot Solar", "Screenshot Washer", "Screenshot Boiler", "Screenshot Energy Wide"]
+        ["Screenshot Solar", "Screenshot Nightly Run", "Screenshot Boiler", "Screenshot Energy Wide"]
     }
 
     private var insightWidgetNames: [String] {

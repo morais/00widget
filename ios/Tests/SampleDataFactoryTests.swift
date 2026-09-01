@@ -12,8 +12,8 @@ struct SampleDataFactoryTests {
         let deploys = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("deploys") }
         )
-        let washer = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("washer") }
+        let nightlyRun = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("nightly-run") }
         )
         let solar = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("solar") }
@@ -42,8 +42,8 @@ struct SampleDataFactoryTests {
         #expect(solar.chart?.points.last == 3.2)
         #expect(solar.chart?.semantic?.signal == .favorable)
         #expect(deploys.items?.count == 20)
-        #expect(washer.template == .briefing)
-        #expect(washer.briefing?.sections.count == 3)
+        #expect(nightlyRun.template == .briefing)
+        #expect(nightlyRun.briefing?.sections.count == 3)
     }
 
     @Test("The demo Live Activity shows a long charge-history line")

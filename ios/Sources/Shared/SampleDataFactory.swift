@@ -188,15 +188,17 @@ public enum SampleDataFactory {
                 )
             ),
             DashboardCard(
-                id: sampleId("school-balances"),
+                id: sampleId("services"),
                 template: .list,
-                title: "School balances",
-                status: .good,
-                icon: "creditcard",
+                title: "Services",
+                status: .warning,
+                icon: "server.rack",
                 updatedAt: now,
                 items: [
-                    DashboardItem(id: "child-1", title: "Child 1", value: "12.40", unit: "€", status: .good, amount: 12.4),
-                    DashboardItem(id: "child-2", title: "Child 2", value: "8.10", unit: "€", status: .warning, amount: 8.1)
+                    DashboardItem(id: "api", title: "API", value: "142", unit: "ms", status: .good, amount: 142),
+                    DashboardItem(id: "database", title: "Database", value: "8", unit: "ms", status: .good, amount: 8),
+                    DashboardItem(id: "queue", title: "Queue", value: "1204", unit: "jobs", status: .warning, amount: 1204),
+                    DashboardItem(id: "webhooks", title: "Webhooks", value: "3", unit: "failed", status: .critical, amount: 3)
                 ]
             ),
             DashboardCard(
@@ -226,29 +228,29 @@ public enum SampleDataFactory {
                 updatedAt: now
             ),
             DashboardCard(
-                id: sampleId("washer"),
+                id: sampleId("nightly-run"),
                 template: .briefing,
-                title: "Washer",
-                subtitle: "12 min left · all systems normal",
-                value: "Rinse",
+                title: "Nightly run",
+                subtitle: "Step 3 of 5 · 2 need review",
+                value: "Migrating",
                 status: .running,
-                icon: "washer",
+                icon: "moon.stars.fill",
                 updatedAt: now,
                 briefing: DashboardBriefing(sections: [
                     DashboardBriefingSection(
                         id: "stage",
                         label: "Now",
-                        text: "The rinse cycle is running normally. Water heating and drainage are on schedule."
+                        text: "Migrating 12,400 records. Throughput is steady and nothing has been rejected."
                     ),
                     DashboardBriefingSection(
                         id: "next",
                         label: "Next",
-                        text: "A short spin follows, then the load will be ready to unload."
+                        text: "The verification suite runs once the migration drains, then the report is published."
                     ),
                     DashboardBriefingSection(
                         id: "attention",
                         label: "Attention",
-                        text: "No action is needed. The machine will notify you when the door unlocks."
+                        text: "Two records have conflicting timestamps and are queued for review in the morning."
                     ),
                 ])
             ),

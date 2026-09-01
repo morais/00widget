@@ -8,7 +8,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         // Keep private configurations first: XCUITest must traverse the picker
         // carousel for every placement, so this halves the required swipes.
         ScreenshotSolarWidget()
-        ScreenshotWasherWidget()
+        ScreenshotNightlyRunWidget()
         ScreenshotBoilerWidget()
         ScreenshotEnergyLargeWidget()
         ScreenshotEnergyWideWidget()

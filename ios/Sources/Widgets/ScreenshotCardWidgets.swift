@@ -164,12 +164,12 @@ struct ScreenshotSolarWidget: Widget {
     }
 }
 
-struct ScreenshotWasherWidget: Widget {
+struct ScreenshotNightlyRunWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.washer",
-            sampleSuffix: "washer",
-            displayName: "Screenshot Washer"
+            kind: "com.00widget.screenshot.nightly-run",
+            sampleSuffix: "nightly-run",
+            displayName: "Screenshot Nightly Run"
         )
     }
 }

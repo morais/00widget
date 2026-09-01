@@ -235,7 +235,7 @@ XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 captured — a long-press on the island after backgrounding the app. The same test
 also rebuilds the dedicated marketing Home Screen page three times on every
 full run. The
-classic capture has three small Solar, Washer, and Boiler widgets plus a wide
+classic capture has three small Solar, Nightly run, and Boiler widgets plus a wide
 Energy chart; the insights capture uses a large 30-day Energy widget plus small
 Deploys and Device fleet widgets; the metrics capture uses one grid with Solar,
 Car, Energy, and Deploys. That grid uses the large family on iPhone and the
@@ -254,7 +254,7 @@ Library button previews the installed UI-test runner as an apparent extra
 because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
-condition. It adds static widget kinds that feed Solar, Washer, Boiler, Energy,
+condition. It adds static widget kinds that feed Solar, Nightly run, Boiler, Energy,
 Deploys, and Device fleet through the production card renderer, including
 medium and large Energy variants for the classic and insights layouts and a
 large four-card grid for the metrics layout. This is
