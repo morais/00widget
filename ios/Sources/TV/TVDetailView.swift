@@ -72,6 +72,7 @@ enum TVDetailSubject: Identifiable {
 struct TVDetailView: View {
     @EnvironmentObject var env: TVEnvironment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let subject: TVDetailSubject
 
     @State private var pendingAction: ActionDefinition?
@@ -158,14 +159,17 @@ struct TVDetailView: View {
                 HStack(spacing: 16) {
                     if let icon = iconName(for: subject) {
                         Image(systemName: icon)
-                            .font(.system(size: 44))
+                            .tvScaledSystemFont(size: 44, relativeTo: .largeTitle)
                             .foregroundStyle(subject.tint)
                             .accessibilityHidden(true)
                     }
                     Text(subject.title)
                         .font(.largeTitle.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .tvReadableText(
+                            standardLineLimit: 1,
+                            largeTextLineLimit: 2,
+                            standardMinimumScaleFactor: 0.7
+                        )
                         .accessibilityAddTraits(.isHeader)
                     statusChip(for: subject)
                 }
@@ -222,7 +226,10 @@ struct TVDetailView: View {
     @ViewBuilder
     private func footer(for subject: TVDetailSubject) -> some View {
         if case .card(let card) = subject, let actions = card.actions, !actions.isEmpty {
-            HStack(spacing: 24) {
+            let actionsLayout = dynamicTypeSize.usesTVLargeTextLayout
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 18))
+                : AnyLayout(HStackLayout(spacing: 24))
+            actionsLayout {
                 ForEach(actions) { action in
                     let isRunning = runningActionID == action.id
                     Button {
@@ -375,10 +382,19 @@ private struct TVCardDetailContent: View {
         VStack(alignment: .leading, spacing: 10) {
             if card.value != nil || card.unit != nil {
                 Text("\(card.value ?? "—")\(card.unit ?? "")")
-                    .font(.system(size: TVDetailTypography.headline, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(
-                        TVTypography.scale(0.5, for: TVDetailTypography.headline)
+                    .tvScaledSystemFont(
+                        size: TVDetailTypography.headline,
+                        relativeTo: .largeTitle,
+                        weight: .semibold,
+                        design: .rounded
+                    )
+                    .tvReadableText(
+                        standardLineLimit: 1,
+                        largeTextLineLimit: 2,
+                        standardMinimumScaleFactor: TVTypography.scale(
+                            0.5,
+                            for: TVDetailTypography.headline
+                        )
                     )
             }
             if let subtitle = card.subtitle {
@@ -402,7 +418,7 @@ private struct TVCardDetailContent: View {
                     Text(section.text)
                         .font(.title3)
                         .foregroundStyle(.primary)
-                        .lineLimit(3)
+                        .tvReadableText(standardLineLimit: 3, largeTextLineLimit: 6)
                 }
             }
         }
@@ -525,33 +541,57 @@ private struct TVDetailRow: View {
     let fraction: Double?
     let tint: Color
     let share: Double?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 16) {
+        let rowLayout = dynamicTypeSize.usesTVLargeTextLayout
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 16))
+        rowLayout {
+            label
+            Spacer(minLength: 16)
+            trailingValue
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(alignment: .leading) {
+            if let fraction {
+                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: tint))
+            } else {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+            }
+        }
+    }
+
+    private var label: some View {
+        HStack(alignment: .top, spacing: 16) {
             if let swatch {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(swatch)
                     .frame(width: 24, height: 24)
                     .accessibilityHidden(true)
             }
-
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
                     SemanticFlowIcon(item.semantic, font: .body)
                     Text(item.title)
                         .font(.title3)
-                        .lineLimit(1)
+                        .tvReadableText(largeTextLineLimit: 2)
                 }
                 if let subtitle = item.subtitle {
                     Text(subtitle)
                         .font(.body)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .tvReadableText(largeTextLineLimit: 3)
                 }
             }
+        }
+    }
 
-            Spacer(minLength: 16)
-
+    @ViewBuilder
+    private var trailingValue: some View {
+        HStack(spacing: 16) {
             if let share {
                 Text("\(Int((share * 100).rounded()))%")
                     .font(.body)
@@ -563,22 +603,12 @@ private struct TVDetailRow: View {
                 Text("\(value)\(item.unit ?? "")")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(item.status?.tint ?? .primary)
-                    .lineLimit(1)
+                    .tvReadableText()
             } else if let status = item.status {
                 Text(status.label)
                     .font(.title3.weight(.medium))
                     .foregroundStyle(status.tint)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(alignment: .leading) {
-            if let fraction {
-                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: tint))
-            } else {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.secondary.opacity(0.12))
+                    .tvReadableText()
             }
         }
     }
@@ -628,15 +658,37 @@ private struct TVActivityDetailContent: View {
                     endsAt: endsAt,
                     granularity: activity.countdownGranularity
                 )
-                .font(.system(size: TVDetailTypography.headline, weight: .semibold, design: .rounded))
+                .tvScaledSystemFont(
+                    size: TVDetailTypography.headline,
+                    relativeTo: .largeTitle,
+                    weight: .semibold,
+                    design: .rounded
+                )
                 .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(TVTypography.scale(0.5, for: TVDetailTypography.headline))
+                .tvReadableText(
+                    standardLineLimit: 1,
+                    largeTextLineLimit: 2,
+                    standardMinimumScaleFactor: TVTypography.scale(
+                        0.5,
+                        for: TVDetailTypography.headline
+                    )
+                )
             } else if activity.value != nil || activity.unit != nil {
                 Text("\(activity.value ?? "—")\(activity.unit ?? "")")
-                    .font(.system(size: TVDetailTypography.headline, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(TVTypography.scale(0.5, for: TVDetailTypography.headline))
+                    .tvScaledSystemFont(
+                        size: TVDetailTypography.headline,
+                        relativeTo: .largeTitle,
+                        weight: .semibold,
+                        design: .rounded
+                    )
+                    .tvReadableText(
+                        standardLineLimit: 1,
+                        largeTextLineLimit: 2,
+                        standardMinimumScaleFactor: TVTypography.scale(
+                            0.5,
+                            for: TVDetailTypography.headline
+                        )
+                    )
             }
             if let subtitle = activity.subtitle {
                 Text(subtitle)
@@ -689,7 +741,7 @@ struct TVQRPanel: View {
             // open on your phone" onto three ragged lines.
             VStack(spacing: 10) {
                 Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                    .font(.system(size: 40))
+                    .tvScaledSystemFont(size: 40, relativeTo: .title3)
                     .accessibilityHidden(true)
                 Text("Scan to open on your phone")
                     .multilineTextAlignment(.center)

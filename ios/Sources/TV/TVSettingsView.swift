@@ -3,6 +3,7 @@ import SwiftUI
 struct TVSettingsView: View {
     @EnvironmentObject var env: TVEnvironment
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var confirmingDelete = false
     @FocusState private var summaryFocused: Bool
     #if ZW_SUBSCRIPTIONS_ENABLED
@@ -15,7 +16,7 @@ struct TVSettingsView: View {
 
             VStack(spacing: 32) {
                 Text("Settings")
-                    .font(.system(size: 56, weight: .bold))
+                    .tvScaledSystemFont(size: 56, relativeTo: .largeTitle, weight: .bold)
 
                 // A Grid rather than a stack of fixed-width labels: the first
                 // column takes the width of the widest key, so a long one like
@@ -42,7 +43,10 @@ struct TVSettingsView: View {
                     }
                     #endif
                 }
-                .frame(maxWidth: 900, alignment: .leading)
+                .frame(
+                    maxWidth: dynamicTypeSize.usesTVLargeTextLayout ? 1_200 : 900,
+                    alignment: .leading
+                )
                 .padding(36)
                 .background(RoundedRectangle(cornerRadius: 24).fill(Color.white.opacity(0.08)))
                 // tvOS navigates by focus, and this block held no focusable
@@ -65,7 +69,10 @@ struct TVSettingsView: View {
                         .strokeBorder(.white.opacity(summaryFocused ? 0.85 : 0), lineWidth: 4)
                 }
 
-                HStack(spacing: 24) {
+                let actionsLayout = dynamicTypeSize.usesTVLargeTextLayout
+                    ? AnyLayout(VStackLayout(spacing: 18))
+                    : AnyLayout(HStackLayout(spacing: 24))
+                actionsLayout {
                     Button {
                         Task {
                             if await env.signOut() {
@@ -157,13 +164,16 @@ struct TVSettingsView: View {
             Text(key)
                 .font(.title3)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .tvReadableText(largeTextLineLimit: 2)
+                .fixedSize(
+                    horizontal: !dynamicTypeSize.usesTVLargeTextLayout,
+                    vertical: dynamicTypeSize.usesTVLargeTextLayout
+                )
                 .gridColumnAlignment(.leading)
             Text(value)
                 .font(.title3)
                 .foregroundStyle(valueColor)
-                .lineLimit(2)
+                .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 4)
                 .truncationMode(.middle)
                 .gridColumnAlignment(.leading)
         }

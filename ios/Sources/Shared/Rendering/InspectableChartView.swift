@@ -300,7 +300,7 @@ public struct InspectableChartView: View {
     }
 
     private var usesStackedSelectionLayout: Bool {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
         dynamicTypeSize.isAccessibilitySize
         #else
         false
@@ -412,12 +412,15 @@ public struct InspectableChartView: View {
 /// prevents an iOS Dynamic Type fix from subtly changing the television grid.
 private struct InspectableChartTextScaling: ViewModifier {
     let tvLineLimit: Int?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func body(content: Content) -> some View {
         #if os(iOS)
         content.fixedSize(horizontal: false, vertical: true)
         #else
-        content.lineLimit(tvLineLimit)
+        content
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : tvLineLimit)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
         #endif
     }
 }

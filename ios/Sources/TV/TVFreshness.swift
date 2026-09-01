@@ -43,7 +43,7 @@ struct TVFreshness: View {
             // 3:1 large-text threshold, let alone 4.5:1. Secondary is 60% and
             // about 7.4:1. Nothing here is decorative enough for tertiary.
             .foregroundStyle(isStale ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-            .lineLimit(1)
+            .tvReadableText(largeTextLineLimit: 2)
         }
     }
 }

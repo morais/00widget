@@ -3,6 +3,7 @@ import AuthenticationServices
 
 struct TVSignInView: View {
     @EnvironmentObject var env: TVEnvironment
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var appleSignIn = TVAppleSignInController()
 
     var body: some View {
@@ -31,7 +32,7 @@ struct TVSignInView: View {
                         .accessibilityHidden(true)
                     VStack(spacing: 10) {
                         Text("00Widget")
-                            .font(.system(size: 64, weight: .bold))
+                            .tvScaledSystemFont(size: 64, relativeTo: .largeTitle, weight: .bold)
                         Text("Widgets for all your agents.")
                             .font(.title3)
                             .foregroundStyle(.secondary)
@@ -46,7 +47,9 @@ struct TVSignInView: View {
                         env.clearAppleLoginError()
                         appleSignIn.start(completion: handleAppleSignIn)
                     }
-                    .frame(width: 480, height: 88)
+                    .frame(width: dynamicTypeSize.usesTVLargeTextLayout ? 700 : 480)
+                    .frame(height: dynamicTypeSize.usesTVLargeTextLayout ? nil : 88)
+                    .frame(minHeight: 88)
                 }
 
                 if let error = env.appleLoginError {
@@ -54,7 +57,7 @@ struct TVSignInView: View {
                         .font(.body)
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 600)
+                        .frame(maxWidth: dynamicTypeSize.usesTVLargeTextLayout ? 900 : 600)
                 }
 
                 Text("Version \(appVersionString)")

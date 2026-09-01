@@ -2,11 +2,10 @@ import SwiftUI
 
 /// Type sizes for a screen read from a sofa.
 ///
-/// tvOS has no Dynamic Type — `simctl ui content_size` answers `unsupported`,
-/// and there is no text-size control in Settings — so nothing scales these up
-/// for someone who needs them larger. What the app draws is what is read,
-/// which makes the platform's own floor the whole of the contract: Caption 2,
-/// the smallest system style, is 23pt, and `.body` is 29pt.
+/// tvOS 26 has no Dynamic Type setting, so what the app draws is what is read.
+/// tvOS 27 adds one. The fixed measurements below remain the standard-size
+/// design inputs, but `tvScaledSystemFont` scales them relative to semantic
+/// styles when the platform begins publishing a larger text preference.
 ///
 /// The trap is `minimumScaleFactor`, which shrinks past that floor silently. A
 /// 34pt headline at 0.65 renders at 22.1pt — under the floor, for the largest
@@ -52,6 +51,7 @@ enum TVCardMetrics {
 
 struct TVDashboardView: View {
     @EnvironmentObject var env: TVEnvironment
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Owned by `TVRootView`, which presents the cover: see the note there.
     @Binding var showingSettings: Bool
     /// What the viewer has opened. Every card and every activity opens one:
@@ -60,7 +60,9 @@ struct TVDashboardView: View {
     /// the link — lives behind this.
     @State private var selectedDetail: TVDetailSubject?
 
-    private let widgetColumnCount = 3
+    private var widgetColumnCount: Int {
+        dynamicTypeSize.usesTVLargeTextLayout ? 2 : 3
+    }
 
     var body: some View {
         VStack(spacing: 32) {
@@ -269,7 +271,7 @@ struct TVDashboardView: View {
     private var emptyState: some View {
         VStack(spacing: 24) {
             Image(systemName: "square.dashed")
-                .font(.system(size: 96))
+                .tvScaledSystemFont(size: 96, relativeTo: .largeTitle)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text("Nothing to show yet")
@@ -286,33 +288,43 @@ struct TVDashboardView: View {
 private struct TVLiveActivityCardView: View {
     let activity: LiveActivitySession
     let open: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Two columns rather than one row per item. Six rows is the published
     /// maximum, so the grid is at most three rows tall, and each row keeps
     /// roughly the proportions the phone card gives it. Stacking them full
     /// width would leave the same empty band across the middle of the card
     /// that drawing no items at all left.
-    private let itemColumns = Array(
-        repeating: GridItem(.flexible(), spacing: 16, alignment: .top),
-        count: 2
-    )
+    private var itemColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 16, alignment: .top),
+            count: dynamicTypeSize.usesTVLargeTextLayout ? 1 : 2
+        )
+    }
 
     var body: some View {
         Button(action: open) {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                HStack(alignment: .top, spacing: 20) {
+                let summaryLayout = dynamicTypeSize.usesTVLargeTextLayout
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 20))
+                summaryLayout {
                     VStack(alignment: .leading, spacing: 8) {
                         if let subtitle = activity.subtitle {
                             Text(subtitle)
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                                .tvReadableText(standardLineLimit: 2)
                         }
                         freshness
                     }
                     Spacer(minLength: 12)
                     trailingValue
+                        .frame(
+                            maxWidth: dynamicTypeSize.usesTVLargeTextLayout ? .infinity : nil,
+                            alignment: dynamicTypeSize.usesTVLargeTextLayout ? .leading : .trailing
+                        )
                 }
 
                 // A composite activity says what it is doing through its
@@ -353,7 +365,7 @@ private struct TVLiveActivityCardView: View {
             // against its content. Item rows then need more room than any
             // one number can reserve, so the card grows past the floor
             // rather than clipping them.
-            .frame(minHeight: 260)
+            .frame(minHeight: dynamicTypeSize.usesTVLargeTextLayout ? 360 : 260)
             .contentShape(RoundedRectangle(cornerRadius: 24))
             // See the note in `TVDashboardCardView`: this has to sit inside
             // the button's label to replace what the button synthesizes.
@@ -388,12 +400,15 @@ private struct TVLiveActivityCardView: View {
             }
             Text(activity.title)
                 .font(.title3.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .tvReadableText(
+                    standardLineLimit: 1,
+                    largeTextLineLimit: 2,
+                    standardMinimumScaleFactor: 0.75
+                )
             Spacer(minLength: 8)
             Text(activity.state.capitalized)
                 .font(.callout.weight(.semibold))
-                .lineLimit(1)
+                .tvReadableText(largeTextLineLimit: 2)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(Capsule().fill(activity.tint.opacity(0.18)))
@@ -412,13 +427,27 @@ private struct TVLiveActivityCardView: View {
                 endsAt: endsAt,
                 granularity: activity.countdownGranularity
             )
-            .font(.system(size: 32, weight: .semibold, design: .rounded))
+            .tvScaledSystemFont(
+                size: 32,
+                relativeTo: .title3,
+                weight: .semibold,
+                design: .rounded
+            )
             .monospacedDigit()
-            .lineLimit(1)
+            .tvReadableText()
         } else if let value = activity.value {
-            VStack(alignment: .trailing, spacing: 0) {
+            VStack(
+                alignment: dynamicTypeSize.usesTVLargeTextLayout ? .leading : .trailing,
+                spacing: 0
+            ) {
                 Text(value)
-                    .font(.system(size: 40, weight: .semibold, design: .rounded))
+                    .tvScaledSystemFont(
+                        size: 40,
+                        relativeTo: .title2,
+                        weight: .semibold,
+                        design: .rounded
+                    )
+                    .tvReadableText()
                 if let unit = activity.unit {
                     Text(unit)
                         .font(.headline)
@@ -466,13 +495,13 @@ struct TVLiveActivityItemRow: View {
                         SemanticFlowIcon(item.semantic, font: .callout)
                         Text(item.title)
                             .font(.headline)
-                            .lineLimit(1)
+                            .tvReadableText(largeTextLineLimit: 2)
                     }
                     if let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .tvReadableText(largeTextLineLimit: 2)
                     }
                 }
 
@@ -482,19 +511,19 @@ struct TVLiveActivityItemRow: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(value)
                             .font(.title3.weight(.semibold))
-                            .lineLimit(1)
+                            .tvReadableText()
                         if let unit = item.unit {
                             Text(unit)
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                                .tvReadableText()
                         }
                     }
                 } else if let status = item.status {
                     Text(status.label)
                         .font(.callout.weight(.medium))
                         .foregroundStyle(status.tint)
-                        .lineLimit(1)
+                        .tvReadableText()
                 }
             }
 
@@ -516,6 +545,7 @@ struct TVLiveActivityItemRow: View {
 private struct TVDashboardCardView: View {
     let card: DashboardCard
     let open: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: open) {
@@ -541,7 +571,7 @@ private struct TVDashboardCardView: View {
                         Text(section.text)
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                            .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 4)
                     }
                 case .summary, .action:
                     valueContent
@@ -557,7 +587,7 @@ private struct TVDashboardCardView: View {
                     // to read across a room is not caption material.
                     .font(.body)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .tvReadableText()
                 }
 
                 Spacer(minLength: 0)
@@ -565,7 +595,8 @@ private struct TVDashboardCardView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, TVCardMetrics.verticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: TVCardMetrics.height)
+            .frame(height: dynamicTypeSize.usesTVLargeTextLayout ? nil : TVCardMetrics.height)
+            .frame(minHeight: dynamicTypeSize.usesTVLargeTextLayout ? 360 : nil)
             .contentShape(RoundedRectangle(cornerRadius: 24))
             // Inside the label, not on the button. A button builds its own
             // label out of its children, keeping each child's
@@ -619,8 +650,11 @@ private struct TVDashboardCardView: View {
             }
             Text(card.title)
                 .font(.title3.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .tvReadableText(
+                    standardLineLimit: 1,
+                    largeTextLineLimit: 2,
+                    standardMinimumScaleFactor: 0.75
+                )
             Spacer(minLength: 8)
             if let statusIcon = card.statusIcon {
                 Image(systemName: statusIcon)
@@ -634,15 +668,26 @@ private struct TVDashboardCardView: View {
     private var valueContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("\(card.value ?? "—")\(card.unit ?? "")")
-                .font(.system(size: TVTypography.valueSize, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(TVTypography.scale(0.65, for: TVTypography.valueSize))
+                .tvScaledSystemFont(
+                    size: TVTypography.valueSize,
+                    relativeTo: .title,
+                    weight: .semibold,
+                    design: .rounded
+                )
+                .tvReadableText(
+                    standardMinimumScaleFactor: TVTypography.scale(
+                        0.65,
+                        for: TVTypography.valueSize
+                    )
+                )
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.headline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                    .tvReadableText(
+                        largeTextLineLimit: 3,
+                        standardMinimumScaleFactor: 0.75
+                    )
             }
         }
     }
@@ -655,14 +700,23 @@ private struct TVDashboardCardView: View {
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(card.value ?? "—")\(card.unit ?? "")")
-                .font(.system(size: TVTypography.chartValueSize, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(TVTypography.scale(0.65, for: TVTypography.chartValueSize))
+                .tvScaledSystemFont(
+                    size: TVTypography.chartValueSize,
+                    relativeTo: .title2,
+                    weight: .semibold,
+                    design: .rounded
+                )
+                .tvReadableText(
+                    standardMinimumScaleFactor: TVTypography.scale(
+                        0.65,
+                        for: TVTypography.chartValueSize
+                    )
+                )
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .tvReadableText(largeTextLineLimit: 2)
             }
         }
         // One plot per card, and the template picks it. `history` and
@@ -697,7 +751,7 @@ private struct TVDashboardCardView: View {
                     HStack {
                         SemanticFlowIcon(item.semantic, font: .callout)
                         Text(item.title)
-                            .lineLimit(1)
+                            .tvReadableText(largeTextLineLimit: 2)
                         Spacer()
                         if let value = item.value {
                             Text("\(value)\(item.unit ?? "")")
