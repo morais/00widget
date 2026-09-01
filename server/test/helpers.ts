@@ -1130,6 +1130,22 @@ export class FakeD1 {
           }]
         : [];
     }
+    if (normalized === "SELECT api_keys.tenant_id, tenants.owner_email, api_keys.kind, api_keys.expires_at, api_keys.scopes_json FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {
+      const [token_hash] = values.map(String);
+      const row = [...this.apiKeys.values()].find((candidate) => {
+        const tenant = this.tenants.get(String(candidate.tenant_id ?? ""));
+        return candidate.token_hash === token_hash && !candidate.revoked_at && tenant && !tenant.disabled_at;
+      });
+      return row
+        ? [{
+            tenant_id: row.tenant_id,
+            owner_email: this.tenants.get(String(row.tenant_id ?? ""))?.owner_email || null,
+            kind: row.kind,
+            expires_at: row.expires_at,
+            scopes_json: row.scopes_json,
+          }]
+        : [];
+    }
     if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
       return [...this.tenants.values()].sort(by("created_at", "owner_email")).reverse();
     }

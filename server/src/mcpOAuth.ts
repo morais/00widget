@@ -2,11 +2,11 @@ import { b64url, b64urlDecodeToText, constantTimeEqual, hmacSha256Hex, randomTok
 import { isSecureAdminSecret } from "./adminSecurity";
 import { ApiScopePresets, canonicalScope, createApiKey, type ApiScope } from "./auth";
 import { baseHTML, esc, htmlResponse } from "./html";
-import { resolveIdentity } from "./identity";
 import {
   redirectToSignIn,
   requireWebMutationSession,
   requireWebSession,
+  resolveWebTenantIdentity,
   type WebPrincipal,
 } from "./webSession";
 import { json } from "./http";
@@ -236,7 +236,7 @@ export async function handleAuthorize(req: Request, env: Env): Promise<Response>
   const session = await requireWebSession(req, env);
   if (!session) return redirectToSignIn(req);
 
-  const identity = await resolveIdentity(env, { appleSub: session.appleSub, email: session.email });
+  const identity = await resolveWebTenantIdentity(env, session);
   if (!identity) return htmlResponse(renderNoTenantError(session), 409);
 
   return consentResponse(renderConsentPage(request, session), request.redirectUri);
@@ -262,7 +262,7 @@ export async function handleAuthorizeDecision(req: Request, env: Env): Promise<R
   // the approver's own account — including for an administrator, who has other
   // ways to issue a credential on someone else's behalf and should have to use
   // one deliberately.
-  const identity = await resolveIdentity(env, { appleSub: session.appleSub, email: session.email });
+  const identity = await resolveWebTenantIdentity(env, session);
   if (!identity) return htmlResponse(renderNoTenantError(session), 409);
 
   if (String(form.get("decision") ?? "") !== "approve") {

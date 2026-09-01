@@ -414,6 +414,31 @@ issued — so a connector can only ever be pointed at the approver's own account
 That holds for administrators too; issuing a credential for someone else is what
 `/admin` is for, and should be deliberate.
 
+### Review tenant access
+
+A deployment can give an external reviewer access without an Apple ID by
+creating a normal tenant and a token with the admin dashboard's **Review login
+— sign-in only** preset, then putting that tenant's stable UUID in the
+gitignored `wrangler.toml`:
+
+```toml
+REVIEW_TENANT_IDS = "<tenant-uuid>"
+```
+
+The preset creates an ordinary `api_keys` row with no API scopes. The raw token
+can only establish the allowlisted tenant's identity: it cannot call `/v1/*` or
+`/mcp` directly. On an MCP authorization redirect, `/login` exposes a discreet
+**Reviewer access** form and revalidates that credential and allowlist on every
+browser request. While signed out, the iOS app exposes the same exchange at the
+bottom of Settings → Developer and stores only the normal device/app/agent
+credentials it receives, never the review access code.
+
+Unset `REVIEW_TENANT_IDS` (or remove a UUID) to hide both entry points. Revoke
+the zero-scope token to end new logins and existing reviewer web sessions. Any
+connector or app credentials already issued remain ordinary revocable tokens;
+remove them from `/admin` when the review ends. Allowlisted review tenants are
+protected from account deletion so the configured UUID cannot be orphaned.
+
 ## Storage layout
 
 Primary storage is D1. App/agent tokens live in `api_keys`, each token maps to a `tenant_id` and an explicit `scopes_json` capability list, and only `sha256(rawToken)` is stored. Tenants store an `owner_email` for ops/account ownership. Application data tables are scoped by `tenant_id`, while `api_key_hash` remains on rows for audit/debugging.

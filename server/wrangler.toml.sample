@@ -46,10 +46,14 @@ WEB_SIGNUP_ENABLED = "false"
 # Off by default because enabling it puts a browser sign-in flow that mints API
 # tokens on the public internet. It also needs a strong SESSION_SECRET: MCP
 # OAuth signs its client ids and authorization codes with it, and identifies the
-# operator through the same admin session cookie the dashboard uses. Approving a
-# connector is therefore an ADMIN_EMAILS action, and the credential it mints is
-# an ordinary tenant API token, revocable from /admin like any other.
+# operator through the same signed web session the dashboard uses. Any signed-
+# in tenant may approve a connector for itself; the credential it mints is an
+# ordinary tenant API token, revocable from /admin like any other.
 MCP_ENABLED = "false"
+# Comma-separated stable tenant UUIDs allowed to use a zero-scope reviewer
+# access code in the MCP consent flow and hidden iOS Developer screen.
+# Empty or unset disables both entry points.
+# REVIEW_TENANT_IDS = ""
 
 # OpenAI plugin submission domain verification. Put the exact token supplied
 # by the submission portal in the gitignored wrangler.toml. When unset, the

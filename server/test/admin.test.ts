@@ -575,6 +575,33 @@ describe("admin routes (no Apple call required)", () => {
     expect(html).not.toContain("Cards <span");
   });
 
+  it("/admin/api-keys can mint a zero-scope review login code", async () => {
+    const env = adminEnv();
+    const { cookie, csrf } = await adminCookie(env);
+    const res = await (handler.fetch as any)(
+      new Request("https://x/admin/api-keys", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          "x-csrf-token": csrf,
+          cookie,
+        },
+        body: JSON.stringify({
+          ownerEmail: "openai-review@00widget.com",
+          label: "OpenAI review login",
+          scopePreset: "review-login",
+        }),
+      }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(201);
+    const body = await res.json() as { apiKey: { scopes: string[] } };
+    expect(body.apiKey.scopes).toEqual([]);
+  });
+
   it("/admin mutation rejects missing CSRF tokens", async () => {
     const env = adminEnv();
     const { cookie } = await adminCookie(env);
@@ -1212,5 +1239,4 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
-
 

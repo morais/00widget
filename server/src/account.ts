@@ -1,5 +1,6 @@
 import type { AuthContext } from "./auth";
 import { json } from "./http";
+import { isReviewTenant } from "./reviewAuth";
 import * as storage from "./storage";
 import type { Env } from "./types";
 
@@ -17,13 +18,14 @@ import type { Env } from "./types";
 /// operator's email address.
 export async function getAccount(
   _req: Request,
-  _env: Env,
+  env: Env,
   auth: AuthContext,
 ): Promise<Response> {
   return json({
     account: {
       tenantId: auth.tenantId,
       ownerEmail: auth.ownerEmail ?? null,
+      isReviewTenant: isReviewTenant(env, auth.tenantId),
     },
   });
 }
@@ -101,6 +103,9 @@ export async function deleteAccount(
   auth: AuthContext,
 ): Promise<Response> {
   const tenantId = auth.tenantId;
+  if (isReviewTenant(env, tenantId)) {
+    return json({ error: "review tenants cannot be deleted" }, 403);
+  }
   const ownerEmail = auth.ownerEmail?.trim().toLowerCase() ?? null;
 
   // The two push-cadence tables are keyed by APNs token rather than by tenant,

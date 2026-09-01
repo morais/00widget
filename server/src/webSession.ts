@@ -11,6 +11,8 @@ import {
   isSecureAdminSecret,
 } from "./adminSecurity";
 import { htmlResponse, renderError } from "./html";
+import { resolveIdentity, type ResolvedIdentity } from "./identity";
+import { resolveReviewAccessCodeHash } from "./reviewAuth";
 import type { Env } from "./types";
 
 // The browser session, and the capability that sits on top of it.
@@ -29,7 +31,7 @@ import type { Env } from "./types";
 // The session never carries authority of its own: it names an identity, and the
 // handler re-resolves what that identity may touch. See `identity.ts`.
 
-export type WebAuthMethod = "apple" | "api-token";
+export type WebAuthMethod = "apple" | "api-token" | "review-token";
 
 export interface WebSession {
   /// For "apple": Apple's email claim. For "api-token": a label like "api-token".
@@ -45,6 +47,10 @@ export interface WebSession {
   /// API-token sessions are bound to the bootstrap token that minted them.
   /// If API_KEYS rotates, this hash stops matching and the session is rejected.
   apiTokenHash?: string;
+  /// Review sessions are bound to a zero-scope D1 credential. The raw access
+  /// code is never placed in the cookie.
+  reviewTokenHash?: string;
+  tenantId?: string;
 }
 
 /// A session plus the capability decision made at read time, so rotating
@@ -121,13 +127,21 @@ export async function makeSessionCookie(
   env: Env,
   email: string,
   method: WebAuthMethod = "apple",
-  options: { apiTokenHash?: string; appleSub?: string } = {},
+  options: {
+    apiTokenHash?: string;
+    appleSub?: string;
+    reviewTokenHash?: string;
+    tenantId?: string;
+  } = {},
 ): Promise<string> {
   if (!isSecureAdminSecret(env.SESSION_SECRET)) {
     throw new Error("SESSION_SECRET must be a strong random value of at least 32 bytes");
   }
   if (method === "api-token" && !options.apiTokenHash) {
     throw new Error("api-token sessions require apiTokenHash");
+  }
+  if (method === "review-token" && (!options.reviewTokenHash || !options.tenantId)) {
+    throw new Error("review-token sessions require reviewTokenHash and tenantId");
   }
   const now = Math.floor(Date.now() / 1000);
   const session: WebSession = {
@@ -138,6 +152,9 @@ export async function makeSessionCookie(
     csrf: randomToken(18),
     ...(options.appleSub ? { appleSub: options.appleSub } : {}),
     ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
+    ...(method === "review-token"
+      ? { reviewTokenHash: options.reviewTokenHash, tenantId: options.tenantId }
+      : {}),
   };
   const payload = b64url(JSON.stringify(session));
   const sig = await hmacSha256Hex(env.SESSION_SECRET!, `${SESSION_SIGNING_PURPOSE}:${payload}`);
@@ -181,8 +198,35 @@ export async function readSessionCookie(env: Env, req: Request): Promise<WebPrin
     // has signed in with Apple, so it is admin by definition and owns no tenant.
     return { ...session, isAdmin: true };
   }
+  if (session.method === "review-token") {
+    if (!session.reviewTokenHash || !session.tenantId) return null;
+    const identity = await resolveReviewAccessCodeHash(env, session.reviewTokenHash);
+    if (!identity || identity.tenantId !== session.tenantId) return null;
+    // A review identity is deliberately never an administrator, even if its
+    // controlled address is accidentally added to ADMIN_EMAILS.
+    return {
+      ...session,
+      email: identity.ownerEmail,
+      tenantId: identity.tenantId,
+      isAdmin: false,
+    };
+  }
   if (session.method !== "apple") return null;
   return { ...session, isAdmin: isAdminEmail(env, session.email) };
+}
+
+/// Resolve the tenant a signed-in browser may connect. Review sessions already
+/// carry a revalidated tenant id; Apple sessions keep the existing stable-sub
+/// / email lookup. API-token administrator sessions intentionally own none.
+export async function resolveWebTenantIdentity(
+  env: Env,
+  session: WebPrincipal,
+): Promise<ResolvedIdentity | null> {
+  if (session.method === "review-token" && session.tenantId) {
+    return { tenantId: session.tenantId, ownerEmail: session.email };
+  }
+  if (session.method !== "apple") return null;
+  return resolveIdentity(env, { appleSub: session.appleSub, email: session.email });
 }
 
 /// Constant-time on the tagged form, then — during the compatibility window —

@@ -16,6 +16,7 @@ import * as liveActivities from "./liveActivities";
 import * as actions from "./actions";
 import * as admin from "./admin";
 import * as appLogin from "./appLogin";
+import * as reviewLogin from "./reviewLogin";
 import * as appleAppSite from "./appleAppSite";
 import * as guestLinks from "./guestLinks";
 import * as guestPage from "./guestPage";
@@ -184,6 +185,12 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
   },
+  { method: "GET", pattern: /^\/v1\/auth\/review\/config\/?$/, handler: (req, env) =>
+    Promise.resolve(reviewLogin.handleReviewLoginConfig(req, env)),
+  },
+  { method: "POST", pattern: /^\/v1\/auth\/review\/token\/?$/, handler: (req, env) =>
+    reviewLogin.createTokenFromReviewAccessCode(req, env),
+  },
   // Subscription routes are never themselves gated on holding a subscription:
   // proving you have paid must work from a lapsed account, or renewing is
   // impossible.
@@ -222,6 +229,7 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/login\/?$/, handler: (req, env) => webLogin.handleLogin(req, env) },
   { method: "GET", pattern: /^\/login\/apple\/?$/, handler: (req, env) => webLogin.handleLoginApple(req, env) },
   { method: "POST", pattern: /^\/login\/api-token\/?$/, handler: (req, env) => webLogin.handleLoginApiToken(req, env) },
+  { method: "POST", pattern: /^\/login\/review-token\/?$/, handler: (req, env) => webLogin.handleLoginReviewToken(req, env) },
   { method: "POST", pattern: /^\/auth\/apple\/callback\/?$/, handler: (req, env, _match, ctx) =>
     webLogin.handleAppleCallback(req, env, ctx),
   },

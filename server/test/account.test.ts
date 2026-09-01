@@ -37,7 +37,11 @@ describe("GET /v1/account", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      account: { tenantId: device.tenant.id, ownerEmail: "owner@example.com" },
+      account: {
+        tenantId: device.tenant.id,
+        ownerEmail: "owner@example.com",
+        isReviewTenant: false,
+      },
     });
   });
 

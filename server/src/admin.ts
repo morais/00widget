@@ -429,6 +429,7 @@ function renderTenantApiKeysSection(tenant: TenantRecord, apiKeys: ApiKeyRecord[
            <option value="read-only">Read only</option>
            <option value="device">Device — read, register, and run safe actions</option>
            <option value="webhook-manager">Webhook manager</option>
+           <option value="review-login">Review login — sign-in only</option>
          </select>
        </label>
        <button class="button" type="submit">Create API token</button>
@@ -677,6 +678,7 @@ function scopesForAdminPreset(preset = "producer"): ApiScope[] {
     case "read-only": return [...ApiScopePresets.readOnly];
     case "device": return [...ApiScopePresets.device];
     case "webhook-manager": return [...ApiScopePresets.webhookManager];
+    case "review-login": return [];
     default: throw new Error("invalid API token permission preset");
   }
 }

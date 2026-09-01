@@ -12,6 +12,7 @@ export const RequestBodyLimits = {
   share: 4 * KiB,
   guestLink: 4 * KiB,
   appleLogin: 16 * KiB,
+  reviewLogin: 4 * KiB,
   // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
   // body any tool forwards (a card batch) plus the wrapper around it.
   mcpRpc: 160 * KiB,
@@ -53,6 +54,7 @@ export const FieldLimits = {
   alertTitle: 120,
   alertBody: 240,
   deviceId: 128,
+  reviewAccessCode: 256,
   localActivityId: 128,
   widgetKind: 128,
   widgetSubscriptionCount: 64,
@@ -1446,6 +1448,11 @@ export interface Env {
   // SESSION_SECRET: MCP OAuth signs its client ids and authorization codes with
   // it, and identifies the operator through the admin session cookie.
   MCP_ENABLED?: string;
+
+  // Comma-separated stable tenant ids that may use a zero-scope review access
+  // code on the MCP connection page and the iOS Developer screen. Empty or
+  // unset removes both entry points.
+  REVIEW_TENANT_IDS?: string;
 
   // OpenAI plugin submission domain verification. Deployment-specific and
   // served verbatim from /.well-known/openai-apps-challenge when configured.

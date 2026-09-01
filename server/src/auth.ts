@@ -166,7 +166,19 @@ export async function requireAuth(
   if (!match) {
     throw new AuthError("missing or malformed Authorization header");
   }
-  const apiKey = match[1].trim();
+  return authenticateApiKey(req, env, match[1].trim(), options);
+}
+
+/// Authenticate a token supplied outside the Authorization header. Review
+/// sign-in uses this for a form field / JSON body, while preserving the exact
+/// validation, rate limiting, expiry, and sliding-renewal behavior of every
+/// ordinary API request.
+export async function authenticateApiKey(
+  req: Request,
+  env: Env,
+  apiKey: string,
+  options: { allowExpired?: boolean } = {},
+): Promise<AuthContext> {
   if (!API_TOKEN_PATTERN.test(apiKey)) {
     throw new AuthError("invalid API key");
   }

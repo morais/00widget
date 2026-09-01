@@ -6,11 +6,22 @@ import {
   validateAppleIdToken,
 } from "./appleAuth";
 import { adminApiTokensAreSecure, isSecureAdminSecret } from "./adminSecurity";
-import { createTenantForOwner, isValidApiKey, TenantEmailTakenError } from "./auth";
+import {
+  AuthError,
+  AuthRateLimitError,
+  createTenantForOwner,
+  isValidApiKey,
+  TenantEmailTakenError,
+} from "./auth";
 import { baseHTML, esc, enc, htmlResponse, renderError } from "./html";
 import { putAppleAccount, resolveIdentity } from "./identity";
 import { incrementRateLimitBuckets, rateLimitResponse } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
+import {
+  authenticateReviewAccessCode,
+  isMcpAuthorizeNext,
+  reviewLoginEnabled,
+} from "./reviewAuth";
 import {
   adminEmails,
   apiTokenLoginConfigured,
@@ -21,6 +32,7 @@ import {
   makeSessionCookie,
   parseCookies,
   safeNextPath,
+  sameOriginRequest,
   webSignInConfigured,
 } from "./webSession";
 
@@ -62,9 +74,10 @@ export function webSignupEnabled(env: Env): boolean {
 export async function handleLogin(req: Request, env: Env): Promise<Response> {
   const apple = webSignInConfigured(env);
   const apiToken = apiTokenLoginConfigured(env);
-  if (!apple && !apiToken) return htmlResponse(renderConfigError(env), 500);
   const next = safeNextPath(new URL(req.url).searchParams.get("next"));
-  return htmlResponse(renderLoginPage({ apple, apiToken, next }));
+  const review = reviewWebLoginConfigured(env) && isMcpAuthorizeNext(next);
+  if (!apple && !apiToken && !review) return htmlResponse(renderConfigError(env), 500);
+  return htmlResponse(renderLoginPage({ apple, apiToken, review, next }));
 }
 
 export async function handleLoginApple(req: Request, env: Env): Promise<Response> {
@@ -112,6 +125,44 @@ export async function handleLoginApiToken(req: Request, env: Env): Promise<Respo
   const headers = new Headers({ Location: safeNextPath(next) ?? "/admin" });
   headers.append("Set-Cookie", cookie);
   return new Response(null, { status: 302, headers });
+}
+
+/// Reviewer-only browser sign-in for the MCP approval flow. The access code is
+/// a zero-scope D1 credential: it can establish this allowlisted tenant's
+/// identity, but cannot call an API endpoint or acquire admin capabilities.
+export async function handleLoginReviewToken(req: Request, env: Env): Promise<Response> {
+  if (!reviewWebLoginConfigured(env)) return htmlResponse(renderError("Not found."), 404);
+  if (!sameOriginRequest(req)) return htmlResponse(renderError("Invalid request origin."), 403);
+
+  let form: FormData;
+  try {
+    form = await parseAuthForm(req);
+  } catch (error) {
+    return formErrorResponse(error);
+  }
+  const next = safeNextPath(typeof form.get("next") === "string" ? String(form.get("next")) : undefined);
+  if (!isMcpAuthorizeNext(next)) return htmlResponse(renderError("Invalid review destination."), 400);
+  const accessCode = String(form.get("accessCode") ?? "").trim();
+  if (!accessCode) return htmlResponse(renderError("Review access code is required."), 400);
+
+  try {
+    const auth = await authenticateReviewAccessCode(req, env, accessCode);
+    const cookie = await makeSessionCookie(env, auth.ownerEmail!, "review-token", {
+      reviewTokenHash: auth.apiKeyHash,
+      tenantId: auth.tenantId,
+    });
+    const headers = new Headers({ Location: next! });
+    headers.append("Set-Cookie", cookie);
+    return new Response(null, { status: 302, headers });
+  } catch (error) {
+    if (error instanceof AuthRateLimitError) {
+      return htmlResponse(renderError("Too many review login attempts. Try again later."), 429);
+    }
+    if (error instanceof AuthError) {
+      return htmlResponse(renderError("Invalid review access code."), 401);
+    }
+    throw error;
+  }
 }
 
 export async function handleAppleCallback(
@@ -231,7 +282,12 @@ export async function handleLogout(_req: Request, _env: Env): Promise<Response> 
 
 // ---------- Rendering ----------
 
-function renderLoginPage(opts: { apple: boolean; apiToken: boolean; next?: string }): string {
+function renderLoginPage(opts: {
+  apple: boolean;
+  apiToken: boolean;
+  review: boolean;
+  next?: string;
+}): string {
   const appleHref = opts.next ? `/login/apple?next=${enc(opts.next)}` : "/login/apple";
   const appleBlock = opts.apple
     ? `<a class="button button-apple" href="${esc(appleHref)}">Sign in with Apple</a>`
@@ -250,7 +306,21 @@ function renderLoginPage(opts: { apple: boolean; apiToken: boolean; next?: strin
        </form>`
     : "";
 
-  const separator = opts.apple && opts.apiToken ? `<div class="divider"><span>or</span></div>` : "";
+  const reviewBlock = opts.review
+    ? `<details class="api-token-form">
+         <summary>Reviewer access</summary>
+         <form method="post" action="/login/review-token">
+           ${nextField}
+           <label for="reviewAccessCode">Review access code</label>
+           <input id="reviewAccessCode" type="password" name="accessCode" autocomplete="off" required>
+           <button type="submit" class="button">Continue as reviewer</button>
+         </form>
+       </details>`
+    : "";
+
+  const separator = opts.apple && (opts.apiToken || opts.review)
+    ? `<div class="divider"><span>or</span></div>`
+    : "";
 
   return baseHTML(
     "00Widget · Sign in",
@@ -261,6 +331,7 @@ function renderLoginPage(opts: { apple: boolean; apiToken: boolean; next?: strin
        ${appleBlock}
        ${separator}
        ${apiTokenBlock}
+       ${reviewBlock}
      </section>`,
   );
 }
@@ -313,6 +384,12 @@ function renderConfigError(env: Env): string {
 }
 
 // ---------- Helpers ----------
+
+function reviewWebLoginConfigured(env: Env): boolean {
+  return env.MCP_ENABLED === "true"
+    && reviewLoginEnabled(env)
+    && isSecureAdminSecret(env.SESSION_SECRET);
+}
 
 async function enforceApiTokenLoginRateLimit(req: Request, env: Env): Promise<Response | null> {
   const exceeded = await incrementRateLimitBuckets(env, [

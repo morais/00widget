@@ -3,7 +3,8 @@ import {
   isAppleEmailVerified,
   validateAppleIdTokenForAudience,
 } from "./appleAuth";
-import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
+import { sha256Hex } from "./auth";
+import { issueAppCredentialBundle } from "./appCredentials";
 import { parseJson } from "./cards";
 import { getAppleAccount, getTenantByOwnerEmail, putAppleAccount } from "./identity";
 import { json } from "./http";
@@ -119,42 +120,15 @@ export async function createTokenFromApple(
   const tenantId = existingAccount?.tenantId ?? existingTenant?.id;
   const ownerEmail = existingAccount?.email ?? existingTenant?.email ?? email;
 
-  const sessionId = crypto.randomUUID();
   const label = input.label?.trim() || "iOS app";
   const deviceId = input.deviceId?.trim() || undefined;
-  const created = await createApiKey(env, {
+  const created = await issueAppCredentialBundle(env, {
     tenantId,
-    ownerEmail,
+    ownerEmail: ownerEmail!,
     label,
-    kind: "publisher",
-    purpose: "device",
-    sessionId,
     deviceId,
-    scopes: ApiScopePresets.device,
+    issuePublisherCredential: input.issuePublisherCredential,
   });
-  const appCredential = await createApiKey(env, {
-    tenantId: created.tenant.id,
-    ownerEmail: created.tenant.ownerEmail,
-    label: `${label} (app only)`,
-    kind: "app",
-    purpose: "app",
-    sessionId,
-    deviceId,
-    scopes: ApiScopePresets.appOnly,
-  });
-  const publisherCredential = input.issuePublisherCredential === false
-    ? null
-    : await createApiKey(env, {
-        tenantId: created.tenant.id,
-        ownerEmail: created.tenant.ownerEmail,
-        label: `${label} (agent publisher)`,
-        kind: "publisher",
-        purpose: "agent",
-        // An agent token belongs to the account. It deliberately has neither
-        // the phone's session id nor its device id, so signing out one device
-        // cannot stop an agent that may be running somewhere else.
-        scopes: ApiScopePresets.producer,
-      });
   await putAppleAccount(env, {
     appleSub: claims.sub,
     tenantId: created.tenant.id,
@@ -172,17 +146,12 @@ export async function createTokenFromApple(
     // ExecutionContext, and a missing waitUntil must fall back rather than throw.
     if (typeof ctx?.waitUntil === "function") ctx.waitUntil(alert); else await alert;
   }
-  return json({
-    ...created,
-    appCredential: appCredential.token,
-    ...(publisherCredential ? { publisherCredential: publisherCredential.token } : {}),
-  }, 201);
+  return json(created, 201);
 }
 
 function appleLoginIpKey(req: Request): string {
   const ip = req.headers.get("cf-connecting-ip")?.trim();
   return `apple-login:${ip || "unknown"}`;
 }
-
 
 
