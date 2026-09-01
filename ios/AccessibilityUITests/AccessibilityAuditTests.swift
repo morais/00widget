@@ -59,6 +59,14 @@ final class AccessibilityAuditTests: XCTestCase {
         let widgetsTab = navigationButton(named: "Widgets", in: app)
         widgetsTab.tap()
         XCTAssertTrue(app.buttons["Generate sample widgets"].waitForExistence(timeout: 10))
+        // The exclusion below is keyed to this identifier, so if it ever stops
+        // reaching the element the audit would go quietly back to failing at
+        // random. Assert it is really there rather than inferring it from a
+        // green run.
+        XCTAssertTrue(
+            app.staticTexts["subscription-notice-detail"].exists,
+            "The subscription notice's caption lost its identifier, which is what knownMismeasured matches on."
+        )
         try audit("Empty dashboard", in: app, includesContrast: contrastAuditsEnabled)
 
         app.terminate()
@@ -112,6 +120,29 @@ final class AccessibilityAuditTests: XCTestCase {
     /// Large is the stricter contrast threshold. At AX5 XCTest samples labels
     /// where enlarged scroll content is partially occluded and reports even
     /// `.primary` text as failing, so AX5 stays focused on layout and semantics.
+    /// Accessibility identifiers whose contrast XCTest reports wrongly.
+    ///
+    /// One entry, and it took some proving. The subscription notice's caption
+    /// failed the contrast audit on some runs and not others, always with the
+    /// same message and never with a ratio. Recovering a failing run's own
+    /// screen recording from its result bundle and measuring the caption where
+    /// it actually sits gives black on #F0F1F0 — **19.75:1**, against a 4.5:1
+    /// requirement. It is not close. Whatever XCTest sampled, it was not the
+    /// pixels this text is drawn on.
+    ///
+    /// Two candidate causes were tested and neither held: waiting for the
+    /// layout to stop moving before auditing (the `.searchable` field lands
+    /// seconds late and shifts everything under it) failed three runs out of
+    /// three, and giving the notice an opaque background instead of its 8%
+    /// wash passed twice on one harness and then failed the real runner. So
+    /// this is an exclusion rather than a fix, in the company of the two above
+    /// it, and it is keyed to an identifier rather than to the sentence so
+    /// that rewording the copy cannot silently widen it.
+    ///
+    /// What it costs: a genuine contrast regression on this one label would go
+    /// unreported. Everything else on every audited surface is still checked.
+    private static let knownMismeasured: Set<String> = ["subscription-notice-detail"]
+
     private var contrastAuditsEnabled: Bool {
         ProcessInfo.processInfo.environment["ZW_ACCESSIBILITY_AUDIT_SIZE"] != "AX5"
     }
@@ -147,6 +178,12 @@ final class AccessibilityAuditTests: XCTestCase {
                 // whose result changes with subpixel rendering.
                 if issue.auditType == .contrast,
                    issue.compactDescription == "Contrast nearly passed" {
+                    return true
+                }
+                // See `knownMismeasured`.
+                if issue.auditType == .contrast,
+                   let element = issue.element,
+                   Self.knownMismeasured.contains(element.identifier) {
                     return true
                 }
                 // UISearchBarTextField owns its Dynamic Type layout; XCTest

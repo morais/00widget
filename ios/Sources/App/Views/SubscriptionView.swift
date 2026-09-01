@@ -229,6 +229,11 @@ struct SubscriptionNotice: View {
                             .font(.caption)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
+                            // Named only so the accessibility audit can
+                            // exclude it by identity rather than by its
+                            // wording — see the note on `knownMismeasured`
+                            // in AccessibilityAuditTests.
+                            .accessibilityIdentifier("subscription-notice-detail")
                     }
                     if !dynamicTypeSize.isAccessibilitySize {
                         Spacer(minLength: 0)
