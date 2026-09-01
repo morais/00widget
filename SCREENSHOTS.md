@@ -100,6 +100,58 @@ Copy it with `ios/scripts/copy-screenshots.sh --set iphone-6.5 --to
 
 iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Insights, Widgets, and Activities. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
+## Promotional compositions
+
+The XCUITest files above are raw captures and remain the provenance-backed
+source material. Promotional compositions are generated into the separate
+`ios/build/promotional-screenshots/` tree; never write them back into
+`ios/build/screenshots/` or replace a `.capture-manifest.json` checksum.
+
+The approved visual treatment is an off-white editorial headline panel, a
+short trend-teal rule, and the raw capture inside physical device chrome below
+it. The device begins about one fifth of the way down the canvas, fills roughly
+88% of its width, and deliberately runs past the bottom edge. That bottom crop
+is part of the composition: do not shrink the device to reveal its complete
+outline. The copy is identical on the 6.3-inch iPhone, 6.5-inch iPhone, and
+iPad; only the hardware frame and layout scale for the device class.
+
+The six images tell two integration stories before moving into product
+benefits:
+
+- ChatGPT, Claude, and another MCP host can connect directly and publish
+  without integration code.
+- Codex or Claude Code can work inside an existing project and add a small
+  00Widget publishing path to an app, script, or automation.
+
+Do not collapse those into one claim. MCP is the direct-host connection;
+Codex/Claude Code is the coding-agent path for existing software.
+
+| File | Headline | Supporting line |
+| --- | --- | --- |
+| `screenshot-home-widgets.png` | **Widgets for all your agents.** | Connect ChatGPT, Claude, or any MCP host. |
+| `screenshot-home-insights.png` | **From conversation to Home Screen.** | Publish through MCP—no integration code required. |
+| `screenshot-home-metrics.png` | **Connect what you've already built.** | Ask Codex or Claude Code to add 00Widget to any app, script, or automation. |
+| `screenshot-insights.png` | **See the whole picture.** | Turn agent output into clear, useful insights. |
+| `screenshot-widgets.png` | **Every agent. One dashboard.** | Follow status, progress, and actions in one place. |
+| `screenshot-activities.png` | **Live Activities that keep up.** | Follow changing work on the Lock Screen and Dynamic Island. |
+
+Generate all 18 promotional images from the current raw captures with:
+
+```sh
+python3.12 ios/scripts/generate-promotional-screenshots.py
+```
+
+Generate one device class while iterating with `--set iphone-6.3`,
+`--set iphone-6.5`, or `--set ipad`. The output keeps the canonical filenames
+inside device-specific directories and writes
+`promotional-manifest.json` with source and output SHA-256 checksums. The
+compositor validates the source dimensions before it writes anything.
+
+The App Store upload helper still reads the raw `ios/build/screenshots/`
+directories. Publishing the promotional suite therefore requires an explicit,
+reviewed change to the upload source; generating it alone cannot alter App
+Store Connect.
+
 ## App Store Connect
 
 The screenshot root contains one directory per App Store device class and no
@@ -159,4 +211,4 @@ listing-authoring step.
 
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/copy-screenshots.sh`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh`.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/generate-promotional-screenshots.py`, `ios/scripts/copy-screenshots.sh`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh`.
