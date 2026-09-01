@@ -25,7 +25,7 @@ public struct MarketingPreviewFixtures: Codable, Sendable {
 
     public static let previewDefault = MarketingPreviewFixtures(
         referenceDate: "2026-09-01T09:41:00Z",
-        countdown: Countdown(title: "Julia turns 12", date: "2027-03-16"),
+        countdown: Countdown(title: "Julia turns 12", date: "2026-10-16"),
         mars: Mars(distanceKm: 225_000_000, lightMinutes: 12.5),
         weekend: Weekend(
             title: "Beach this weekend?",
@@ -53,7 +53,7 @@ public enum SampleDataFactory {
     ) -> [DashboardCard] {
         let calendar = Calendar(identifier: .gregorian)
         let deadline = ZeroZeroWidgetDateFormat.parse("\(fixtures.countdown.date)T09:00:00Z")
-            ?? ZeroZeroWidgetDateFormat.parse("2027-03-16T09:00:00Z")!
+            ?? ZeroZeroWidgetDateFormat.parse("2026-10-16T09:00:00Z")!
         let days = max(
             0,
             calendar.dateComponents(
@@ -124,7 +124,7 @@ public enum SampleDataFactory {
             DashboardChartCategory(
                 id: "day-\(index + 1)",
                 label: String(index + 1),
-                signal: total > 24 ? .unfavorable : (total > 20 ? .caution : .favorable)
+                signal: total > 24 ? .unfavorable : (total > 22 ? .caution : .favorable)
             )
         }
         return [
@@ -137,7 +137,19 @@ public enum SampleDataFactory {
                 unit: "kW",
                 status: .good,
                 icon: "sun.max",
-                updatedAt: now
+                updatedAt: now,
+                chart: DashboardChart(
+                    points: [1.1, 1.6, 2.0, 2.5, 2.2, 2.8, 3.2],
+                    min: 0,
+                    max: 4,
+                    semantic: MetricSemantic(
+                        role: .actual,
+                        flow: .outbound,
+                        signal: .favorable
+                    ),
+                    style: .line,
+                    labels: ["08", "09", "10", "11", "12", "13", "Now"]
+                )
             ),
             DashboardCard(
                 id: sampleId("school-balances"),

@@ -31,7 +31,7 @@
     "referenceDate": "2026-09-01T09:41:00Z",
     "countdown": {
       "title": "Julia turns 12",
-      "date": "2027-03-16"
+      "date": "2026-10-16"
     },
     "mars": {
       "distanceKm": 225000000,
@@ -56,7 +56,7 @@
       "overlay": {
         "start": 0.5,
         "end": 5.1,
-        "text": "My daughter turns 12 on March 16. Count down the days, hours and weekends.",
+        "text": "My daughter turns 12 soon. Count down the days, hours and weekends.",
         "style": "prompt"
       }
     },

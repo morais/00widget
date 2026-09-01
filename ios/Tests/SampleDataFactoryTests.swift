@@ -15,6 +15,9 @@ struct SampleDataFactoryTests {
         let washer = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("washer") }
         )
+        let solar = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("solar") }
+        )
 
         let energyPoints = try #require(energy.chart?.points)
         #expect(energyPoints.count == 30)
@@ -31,8 +34,13 @@ struct SampleDataFactoryTests {
         #expect(energy.chart?.stacking == .stacked)
         #expect(energy.chart?.labels?.count == energyPoints.count)
         #expect(energy.chart?.categories?.count == energyPoints.count)
-        #expect(energy.chart?.categories?.contains { $0.signal == .caution } == true)
+        #expect(energy.chart?.categories?.count { $0.signal == .caution } == 5)
+        #expect(energy.chart?.categories?.count { $0.signal == .unfavorable } == 1)
         #expect(energyPoints.first == 21.8)
+        #expect(solar.chart?.style == .line)
+        #expect(solar.chart?.points.count == 7)
+        #expect(solar.chart?.points.last == 3.2)
+        #expect(solar.chart?.semantic?.signal == .favorable)
         #expect(deploys.items?.count == 20)
         #expect(washer.template == .briefing)
         #expect(washer.briefing?.sections.count == 3)
@@ -62,8 +70,8 @@ struct SampleDataFactoryTests {
         let cards = SampleDataFactory.makeMarketingPreviewCards(referenceDate: referenceDate)
 
         #expect(cards.map(\.title) == ["Julia turns 12", "Mars", "Beach this weekend?"])
-        #expect(cards.map(\.value) == ["196", "225M", "YES"])
-        #expect(cards.map(\.subtitle) == ["28 weekends", "12.5 light-minutes", "27°C · wind 11 km/h"])
+        #expect(cards.map(\.value) == ["45", "225M", "YES"])
+        #expect(cards.map(\.subtitle) == ["7 weekends", "12.5 light-minutes", "27°C · wind 11 km/h"])
         #expect(cards.allSatisfy { $0.isSample })
         #expect(cards.allSatisfy { !$0.isStale })
     }
