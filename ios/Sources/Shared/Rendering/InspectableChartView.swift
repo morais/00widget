@@ -21,6 +21,7 @@ public struct InspectableChartView: View {
     @State private var selectedIndex: Int
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if os(tvOS)
     @FocusState private var isFocused: Bool
     #endif
@@ -138,7 +139,11 @@ public struct InspectableChartView: View {
             ZStack(alignment: .topLeading) {
                 if categorical {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(tint.opacity(0.12))
+                        .fill(
+                            tint.opacity(
+                                VisualAccommodations.washOpacity(0.12, increasedContrast: increasedContrast)
+                            )
+                        )
                         .frame(width: max(4, slot * 0.78), height: plotHeight)
                         .offset(x: x - max(4, slot * 0.78) / 2)
                 }
@@ -178,7 +183,11 @@ public struct InspectableChartView: View {
         .padding(compact ? 10 : 14)
         .background(
             RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
-                .fill(Color.secondary.opacity(0.10))
+                .fill(
+                    Color.secondary.opacity(
+                        VisualAccommodations.washOpacity(0.10, increasedContrast: increasedContrast)
+                    )
+                )
         )
     }
 
@@ -206,7 +215,9 @@ public struct InspectableChartView: View {
         if let signal {
             Label(signal.rawValue.capitalized, systemImage: signal.symbolName)
                 .font(semanticFont)
-                .foregroundStyle(signal.tint)
+                .foregroundStyle(
+                    VisualAccommodations.textTint(signal.tint, increasedContrast: increasedContrast)
+                )
                 .inspectableChartText(tvLineLimit: 1)
         }
     }
@@ -312,6 +323,8 @@ public struct InspectableChartView: View {
                 .inspectableChartText(tvLineLimit: 1)
         }
     }
+
+    private var increasedContrast: Bool { colorSchemeContrast == .increased }
 
     private var usesStackedSelectionLayout: Bool {
         #if os(iOS) || os(tvOS)

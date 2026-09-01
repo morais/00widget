@@ -9,6 +9,7 @@ import SwiftUI
 public struct RankedRowBar: View {
     public let fraction: Double
     public let tint: Color
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(fraction: Double, tint: Color) {
         self.fraction = fraction
@@ -18,7 +19,15 @@ public struct RankedRowBar: View {
     public var body: some View {
         GeometryReader { proxy in
             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(tint.opacity(0.16))
+                // A wash rather than a fill: the row's own text sits on it.
+                .fill(
+                    tint.opacity(
+                        VisualAccommodations.washOpacity(
+                            0.16,
+                            increasedContrast: colorSchemeContrast == .increased
+                        )
+                    )
+                )
                 .frame(width: Swift.max(0, proxy.size.width * fraction))
         }
     }

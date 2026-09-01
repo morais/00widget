@@ -476,6 +476,7 @@ private struct TVLiveActivityCardView: View {
 /// target only, and the two surfaces size their type independently.
 struct TVLiveActivityItemRow: View {
     let item: LiveActivityItem
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         VStack(spacing: 8) {
@@ -522,7 +523,12 @@ struct TVLiveActivityItemRow: View {
                 } else if let status = item.status {
                     Text(status.label)
                         .font(.callout.weight(.medium))
-                        .foregroundStyle(status.tint)
+                        .foregroundStyle(
+                            VisualAccommodations.textTint(
+                                status.tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            )
+                        )
                         .tvReadableText()
                 }
             }
@@ -546,6 +552,7 @@ private struct TVDashboardCardView: View {
     let card: DashboardCard
     let open: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         Button(action: open) {
@@ -756,7 +763,14 @@ private struct TVDashboardCardView: View {
                         if let value = item.value {
                             Text("\(value)\(item.unit ?? "")")
                                 .fontWeight(.semibold)
-                                .foregroundStyle(item.status?.tint ?? .primary)
+                                .foregroundStyle(
+                                    item.status.map {
+                                        VisualAccommodations.textTint(
+                                            $0.tint,
+                                            increasedContrast: colorSchemeContrast == .increased
+                                        )
+                                    } ?? AnyShapeStyle(.primary)
+                                )
                         }
                     }
                     .font(.headline)

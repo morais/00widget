@@ -83,7 +83,7 @@ struct LiveActivitiesView: View {
                 Text("The sample runs only on this device and can be removed at any time.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 32)
 
                 if let sampleError {

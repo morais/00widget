@@ -105,7 +105,11 @@ struct GuestLinkScannerSheet: View {
                                 .font(.callout)
                                 .multilineTextAlignment(.center)
                                 .padding()
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                // Instructions over a live camera preview:
+                                // the one place in the app where a material
+                                // is all that separates text from moving
+                                // video.
+                                .background(.accommodatingMaterial, in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
                     }

@@ -323,6 +323,7 @@ struct TVDetailView: View {
 
 private struct TVCardDetailContent: View {
     let card: DashboardCard
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     /// What the grid cell had no room for. The dashboard draws three list rows
     /// and fourteen history pips because nine cards share the screen; one card
@@ -500,7 +501,12 @@ private struct TVCardDetailContent: View {
                     ) { index, entry in
                         TVDetailRow(
                             item: entry.item,
-                            swatch: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            swatch: CompositionBarView.tint(
+                                for: entry.item,
+                                index: index,
+                                base: card.status.tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            ),
                             swatchIndex: index,
                             fraction: nil,
                             tint: card.status.tint,
@@ -550,6 +556,7 @@ private struct TVDetailRow: View {
     let share: Double?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         let rowLayout = dynamicTypeSize.usesTVLargeTextLayout
@@ -571,6 +578,8 @@ private struct TVDetailRow: View {
             }
         }
     }
+
+    private var increasedContrast: Bool { colorSchemeContrast == .increased }
 
     private var label: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -619,12 +628,18 @@ private struct TVDetailRow: View {
             if let value = item.value {
                 Text("\(value)\(item.unit ?? "")")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(item.status?.tint ?? .primary)
+                    .foregroundStyle(
+                        item.status.map {
+                            VisualAccommodations.textTint($0.tint, increasedContrast: increasedContrast)
+                        } ?? AnyShapeStyle(.primary)
+                    )
                     .tvReadableText()
             } else if let status = item.status {
                 Text(status.label)
                     .font(.title3.weight(.medium))
-                    .foregroundStyle(status.tint)
+                    .foregroundStyle(
+                        VisualAccommodations.textTint(status.tint, increasedContrast: increasedContrast)
+                    )
                     .tvReadableText()
             }
         }

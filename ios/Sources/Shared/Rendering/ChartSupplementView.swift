@@ -83,15 +83,20 @@ public enum ChartSeriesPalette {
         }
     }
 
-    public static func opacity(for role: MetricRole?) -> Double {
+    /// How solidly a role is drawn. Alpha is the encoding here, which is why
+    /// `increasedContrast` raises these rather than flattening them — see
+    /// `VisualAccommodations.fillOpacity`.
+    public static func opacity(for role: MetricRole?, increasedContrast: Bool = false) -> Double {
+        let base: Double
         switch role {
-        case .forecast: return 0.48
-        case .baseline: return 0.55
-        case .target: return 0.72
-        case .capacity: return 0.35
-        case .remainder: return 0.45
-        case .actual, .balance, .none: return 0.88
+        case .forecast: base = 0.48
+        case .baseline: base = 0.55
+        case .target: base = 0.72
+        case .capacity: base = 0.35
+        case .remainder: base = 0.45
+        case .actual, .balance, .none: base = 0.88
         }
+        return VisualAccommodations.fillOpacity(base, increasedContrast: increasedContrast)
     }
 
     public static func referenceDash(for role: MetricRole?) -> [CGFloat] {
@@ -113,6 +118,7 @@ public struct ChartSupplementView: View {
     public let labelLimit: Int
     public let font: Font
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(
         chart: DashboardChart,
@@ -140,7 +146,12 @@ public struct ChartSupplementView: View {
                                 base: tint,
                                 semantic: metadata.semantic
                             )
-                            .opacity(ChartSeriesPalette.opacity(for: metadata.semantic?.role))
+                            .opacity(
+                                ChartSeriesPalette.opacity(
+                                    for: metadata.semantic?.role,
+                                    increasedContrast: increasedContrast
+                                )
+                            )
                         )
                         .frame(width: 14, height: 2)
                     Text(label).lineLimit(1)
@@ -171,7 +182,8 @@ public struct ChartSupplementView: View {
                                 color: seriesTints[index]
                                     .opacity(
                                         ChartSeriesPalette.opacity(
-                                            for: chart.resolvedSemantic(for: entry)?.role
+                                            for: chart.resolvedSemantic(for: entry)?.role,
+                                            increasedContrast: increasedContrast
                                         )
                                     ),
                                 size: 6,
@@ -265,4 +277,6 @@ public struct ChartSupplementView: View {
     private func signalSymbol(_ signal: MetricSignal) -> String {
         signal.symbolName
     }
+
+    private var increasedContrast: Bool { colorSchemeContrast == .increased }
 }

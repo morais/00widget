@@ -349,7 +349,7 @@ private struct LockScreenView: View {
             if state.activeItems.count > 3 {
                 Text("+\(state.activeItems.count - 3) more")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -410,7 +410,7 @@ private struct LockScreenView: View {
 
             Text("Updated \(state.updatedAt, style: .relative)")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .padding(.leading, 44)
         }
     }
@@ -611,6 +611,7 @@ private struct SmallActivityMetrics {
 private struct LiveActivityItemRow: View {
     let item: LiveActivityItem
     var condensed = false
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         VStack(spacing: condensed ? 2 : 3) {
@@ -654,7 +655,12 @@ private struct LiveActivityItemRow: View {
                 } else if let status = item.status {
                     Text(status.label)
                         .font(.caption2)
-                        .foregroundStyle(status.tint)
+                        .foregroundStyle(
+                            VisualAccommodations.textTint(
+                                status.tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            )
+                        )
                         .lineLimit(1)
                 }
             }

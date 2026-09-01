@@ -50,6 +50,7 @@ public struct CardView: View {
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if canImport(WidgetKit)
     @Environment(\.widgetRenderingMode) private var widgetRenderingMode
     #endif
@@ -956,7 +957,12 @@ public struct CardView: View {
                     HStack(spacing: 5) {
                         SeriesSwatch(
                             index: index,
-                            color: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            color: CompositionBarView.tint(
+                                for: entry.item,
+                                index: index,
+                                base: card.status.tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            ),
                             size: 6,
                             differentiateWithoutColor: differentiateWithoutColor
                         )
@@ -989,7 +995,12 @@ public struct CardView: View {
                     layout {
                         SeriesSwatch(
                             index: index,
-                            color: CompositionBarView.tint(for: entry.item, index: index, base: card.status.tint),
+                            color: CompositionBarView.tint(
+                                for: entry.item,
+                                index: index,
+                                base: card.status.tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            ),
                             size: 8,
                             differentiateWithoutColor: differentiateWithoutColor
                         )
@@ -1256,7 +1267,10 @@ public struct CardFallbackView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
             Text(title).font(.caption).foregroundStyle(.secondary)
-            if let detail { Text(detail).font(.caption2).foregroundStyle(.tertiary).multilineTextAlignment(.center) }
+            // Secondary, not tertiary: every one of these details is an
+            // instruction ("Open 00Widget and refresh"), and it is the only
+            // sentence on a widget that has nothing else to show.
+            if let detail { Text(detail).font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center) }
         }
         .padding(8)
     }

@@ -19,6 +19,7 @@ public struct SparklineView: View {
     /// `lineWidth` already is.
     public let maxPoints: Int?
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(
         chart: DashboardChart,
@@ -47,15 +48,24 @@ public struct SparklineView: View {
         let plotted = self.plotted
         let values = plotted.normalizedPoints
         let semantic = plotted.semantic
+        let increasedContrast = colorSchemeContrast == .increased
         let semanticTint = ChartSeriesPalette.tint(index: 0, base: tint, semantic: semantic)
-        let semanticOpacity = ChartSeriesPalette.opacity(for: semantic?.role)
+        let semanticOpacity = ChartSeriesPalette.opacity(
+            for: semantic?.role,
+            increasedContrast: increasedContrast
+        )
         ZStack {
             if let signals = plotted.categorySignals {
                 ForEach(MetricSignal.allCases, id: \.rawValue) { signal in
                     CategorySignalBandsShape(signals: signals, selection: signal)
                         .fill(
                             ChartSeriesPalette.signalTint(signal, base: tint)
-                                .opacity(signal == .neutral ? 0.05 : 0.10)
+                                .opacity(
+                                    VisualAccommodations.washOpacity(
+                                        signal == .neutral ? 0.05 : 0.10,
+                                        increasedContrast: increasedContrast
+                                    )
+                                )
                         )
                 }
             }
@@ -70,9 +80,14 @@ public struct SparklineView: View {
                                 base: tint,
                                 semantic: referenceSemantic
                             )
-                            .opacity(ChartSeriesPalette.opacity(for: referenceSemantic?.role)),
+                            .opacity(
+                                ChartSeriesPalette.opacity(
+                                    for: referenceSemantic?.role,
+                                    increasedContrast: increasedContrast
+                                )
+                            ),
                         style: StrokeStyle(
-                            lineWidth: 1,
+                            lineWidth: VisualAccommodations.ruleWidth(1, increasedContrast: increasedContrast),
                             dash: ChartSeriesPalette.referenceDash(for: referenceSemantic?.role)
                         )
                     )
@@ -84,7 +99,12 @@ public struct SparklineView: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    semanticTint.opacity(0.32 * semanticOpacity),
+                                    semanticTint.opacity(
+                                        VisualAccommodations.washOpacity(
+                                            0.32,
+                                            increasedContrast: increasedContrast
+                                        ) * semanticOpacity
+                                    ),
                                     semanticTint.opacity(0.02 * semanticOpacity),
                                 ],
                                 startPoint: .top,
@@ -117,7 +137,8 @@ public struct SparklineView: View {
                             seriesTints[index]
                             .opacity(
                                 ChartSeriesPalette.opacity(
-                                    for: plotted.resolvedSemantic(for: series[index])?.role
+                                    for: plotted.resolvedSemantic(for: series[index])?.role,
+                                    increasedContrast: increasedContrast
                                 )
                             ),
                             marker: SeriesMarker.at(index),
@@ -127,7 +148,12 @@ public struct SparklineView: View {
                     }
                 } else {
                     SparklineBarsShape(values: values)
-                        .fill(semanticTint.opacity(0.85 * semanticOpacity))
+                        .fill(
+                            semanticTint.opacity(
+                                VisualAccommodations.fillOpacity(0.85, increasedContrast: increasedContrast)
+                                    * semanticOpacity
+                            )
+                        )
                 }
             case .delta:
                 // Falling back to the bottom when a pinned axis excludes zero
@@ -135,7 +161,12 @@ public struct SparklineView: View {
                 // without a zero rule that would not be where zero is.
                 let baseline = plotted.normalizedZero
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .above)
-                    .fill(semanticTint.opacity(0.85 * semanticOpacity))
+                    .fill(
+                        semanticTint.opacity(
+                            VisualAccommodations.fillOpacity(0.85, increasedContrast: increasedContrast)
+                                * semanticOpacity
+                        )
+                    )
                 // Sign is the whole point of a delta plot, and below the rule
                 // it was carried by a lighter fill of the same colour. Where a
                 // bar hangs from the rule that is enough on its own; where a
@@ -143,19 +174,33 @@ public struct SparklineView: View {
                 // bottom, it was not.
                 SparklineBarsShape(values: values, baseline: baseline ?? 0, selection: .below)
                     .seriesFill(
-                        semanticTint.opacity(0.4 * semanticOpacity),
+                        semanticTint.opacity(
+                            VisualAccommodations.fillOpacity(0.4, increasedContrast: increasedContrast)
+                                * semanticOpacity
+                        ),
                         marker: .square,
                         textured: differentiateWithoutColor,
                         spacing: 4
                     )
                 if let baseline {
                     HorizontalRuleShape(position: baseline)
-                        .stroke(.secondary, lineWidth: 0.75)
+                        .stroke(
+                            .secondary,
+                            lineWidth: VisualAccommodations.ruleWidth(
+                                0.75,
+                                increasedContrast: increasedContrast
+                            )
+                        )
                 }
             case .range:
                 if let ranges = plotted.normalizedRanges {
                     RangeBarsShape(ranges: ranges)
-                        .fill(semanticTint.opacity(0.32 * semanticOpacity))
+                        .fill(
+                            semanticTint.opacity(
+                                VisualAccommodations.fillOpacity(0.32, increasedContrast: increasedContrast)
+                                    * semanticOpacity
+                            )
+                        )
                     RangeValueMarkersShape(ranges: ranges)
                         .stroke(
                             semanticTint.opacity(semanticOpacity),

@@ -114,7 +114,9 @@ public struct WidgetUpdateStampView: View {
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
-        .background(.ultraThinMaterial, in: Capsule())
+        // The badge sits on top of a card's own content, so under Reduce
+        // Transparency it becomes a surface rather than staying a window.
+        .background(.accommodatingMaterial, in: Capsule())
         .accessibilityLabel("Updated \(mark.date.formatted(date: .omitted, time: .standard)), source \(mark.source.label)")
     }
 }

@@ -10,6 +10,7 @@ public struct CompositionBarView: View {
     public let tint: Color
     public let height: CGFloat
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private let gap: CGFloat = 2
 
@@ -33,12 +34,27 @@ public struct CompositionBarView: View {
     /// reads as one quantity split up rather than as unrelated categories. An
     /// item that sets its own `status` overrides its step — that is how a
     /// publisher marks the slice that is the problem.
-    public static func tint(for item: DashboardItem, index: Int, base: Color) -> Color {
+    /// `increasedContrast` raises the steps rather than removing them: the
+    /// step *is* the segment's identity when nothing else distinguishes it,
+    /// and a fifth segment at 0.22 of the card's tint is the faintest thing
+    /// this app draws. Every surface that draws a swatch for a segment passes
+    /// the same flag, so a legend and its bar cannot land on different shades.
+    public static func tint(
+        for item: DashboardItem,
+        index: Int,
+        base: Color,
+        increasedContrast: Bool = false
+    ) -> Color {
         if let status = item.status { return status.tint }
         if let semantic = item.semantic {
             return ChartSeriesPalette.tint(index: index, base: base, semantic: semantic)
         }
-        return base.opacity(Swift.max(0.22, pow(0.72, Double(index))))
+        return base.opacity(
+            VisualAccommodations.fillOpacity(
+                Swift.max(0.22, pow(0.72, Double(index))),
+                increasedContrast: increasedContrast
+            )
+        )
     }
 
     public var body: some View {
@@ -55,7 +71,12 @@ public struct CompositionBarView: View {
                     // the gap alone could not say.
                     RoundedRectangle(cornerRadius: height / 3, style: .continuous)
                         .seriesFill(
-                            Self.tint(for: entry.item, index: index, base: tint),
+                            Self.tint(
+                                for: entry.item,
+                                index: index,
+                                base: tint,
+                                increasedContrast: colorSchemeContrast == .increased
+                            ),
                             marker: SeriesMarker.at(index),
                             textured: differentiateWithoutColor,
                             spacing: Swift.max(4, height / 3)
