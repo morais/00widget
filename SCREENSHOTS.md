@@ -16,10 +16,10 @@ The test captures these surfaces in order:
 
 | File | Surface |
 | --- | --- |
-| `screenshot-widgets.png` | The in-app Widgets dashboard with the Solar, Washer, Boiler, and other sample cards. |
+| `screenshot-widgets.png` | The in-app Widgets dashboard with the Solar, Nightly run, Boiler, and other sample cards. |
 | `screenshot-insights.png` | The in-app chart section centered on the 30-day Energy and 20-run Deploys cards. |
 | `screenshot-activities.png` | The in-app Activities screen with a 24-reading green home-battery curve that rises and dips with solar input and household load, currently ending at 95%. |
-| `screenshot-home-widgets.png` | The Home Screen with three small Solar, Washer, and Boiler widgets, a wide Energy chart, and the expanded Dynamic Island Live Activity. |
+| `screenshot-home-widgets.png` | The Home Screen with three small Solar, Nightly run, and Boiler widgets, a wide Energy chart, and the expanded Dynamic Island Live Activity. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Solar, Car, Energy, and Deploys. |
 
