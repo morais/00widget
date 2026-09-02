@@ -22,6 +22,28 @@ DEVICE="iPhone 17 Pro"
 OUT=""
 ONLY="all"
 
+run_with_heartbeat() {
+  local label="$1"
+  local log="$2"
+  shift 2
+
+  "$@" > "$log" 2>&1 &
+  local command_pid=$!
+  local started=$SECONDS
+  local next_heartbeat=30
+  local status=0
+  while kill -0 "$command_pid" 2>/dev/null; do
+    sleep 5
+    local elapsed=$((SECONDS - started))
+    if kill -0 "$command_pid" 2>/dev/null && ((elapsed >= next_heartbeat)); then
+      echo "  … $label still running (${elapsed}s elapsed)"
+      next_heartbeat=$((next_heartbeat + 30))
+    fi
+  done
+  wait "$command_pid" || status=$?
+  return "$status"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
@@ -89,19 +111,18 @@ xcrun simctl status_bar "$DEVICE" override \
 DERIVED="${ZW_SCREENSHOT_DERIVED_DATA:-$IOS_ROOT/build/ScreenshotDerivedData-ios}"
 
 echo "→ building for testing"
-xcodebuild build-for-testing \
+if ! run_with_heartbeat "iOS screenshot build" "$WORK/build.log" xcodebuild build-for-testing \
   -project ZeroZeroWidget.xcodeproj \
   -scheme ZeroZeroWidgetScreenshots \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -derivedDataPath "$DERIVED" \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS ZW_SUBSCRIPTIONS_ENABLED" \
-  > "$WORK/build.log" 2>&1 || {
-    echo "✗ build failed — tail of log:" >&2
-    tail -40 "$WORK/build.log" >&2
-    exit 1
-  }
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS ZW_SUBSCRIPTIONS_ENABLED"; then
+  echo "✗ build failed — tail of log:" >&2
+  tail -40 "$WORK/build.log" >&2
+  exit 1
+fi
 
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetApp.app"
 EXT="$APP/PlugIns/ZeroZeroWidgetWidgets.appex"
@@ -155,16 +176,15 @@ else
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots
   )
 fi
-xcodebuild test-without-building \
+if ! run_with_heartbeat "iOS ScreenshotTests on $DEVICE" "$WORK/xcodebuild.log" xcodebuild test-without-building \
   -xctestrun "$XCTESTRUN" \
   -destination "platform=iOS Simulator,name=$DEVICE" \
   -resultBundlePath "$RESULT" \
-  "${TEST_FILTERS[@]}" \
-  > "$WORK/xcodebuild.log" 2>&1 || {
-    echo "✗ UI test failed — tail of log:" >&2
-    tail -40 "$WORK/xcodebuild.log" >&2
-    exit 1
-  }
+  "${TEST_FILTERS[@]}"; then
+  echo "✗ UI test failed — tail of log:" >&2
+  tail -40 "$WORK/xcodebuild.log" >&2
+  exit 1
+fi
 
 echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null

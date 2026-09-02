@@ -9,6 +9,28 @@ set -euo pipefail
 DEVICE="Apple TV 4K (3rd generation) (at 1080p)"
 OUT=""
 
+run_with_heartbeat() {
+  local label="$1"
+  local log="$2"
+  shift 2
+
+  "$@" > "$log" 2>&1 &
+  local command_pid=$!
+  local started=$SECONDS
+  local next_heartbeat=30
+  local status=0
+  while kill -0 "$command_pid" 2>/dev/null; do
+    sleep 5
+    local elapsed=$((SECONDS - started))
+    if kill -0 "$command_pid" 2>/dev/null && ((elapsed >= next_heartbeat)); then
+      echo "  … $label still running (${elapsed}s elapsed)"
+      next_heartbeat=$((next_heartbeat + 30))
+    fi
+  done
+  wait "$command_pid" || status=$?
+  return "$status"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
@@ -43,7 +65,7 @@ TEST_FILTERS=(
   -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureCardDetailScreenshot
 )
 
-xcodebuild test \
+if ! run_with_heartbeat "Apple TV ScreenshotTests" "$WORK/xcodebuild.log" xcodebuild test \
   -project ZeroZeroWidget.xcodeproj \
   -scheme ZeroZeroWidgetTVScreenshots \
   -destination "platform=tvOS Simulator,name=$DEVICE" \
@@ -51,12 +73,11 @@ xcodebuild test \
   -resultBundlePath "$RESULT" \
   "${TEST_FILTERS[@]}" \
   CODE_SIGNING_ALLOWED=NO \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS" \
-  > "$WORK/xcodebuild.log" 2>&1 || {
-    echo "✗ TV UI test failed — tail of log:" >&2
-    tail -40 "$WORK/xcodebuild.log" >&2
-    exit 1
-  }
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS"; then
+  echo "✗ TV UI test failed — tail of log:" >&2
+  tail -40 "$WORK/xcodebuild.log" >&2
+  exit 1
+fi
 
 echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null

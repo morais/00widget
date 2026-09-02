@@ -157,6 +157,16 @@ set has a fresh full-capture manifest, the exact required filenames, matching
 checksums, and the canonical dimensions. Use `--verify-only` to validate the
 sets already on disk without capturing them again.
 
+The UI-driven captures are intentionally slow. A single iPhone or iPad run can
+take 10–15 minutes, and the four-device workflow can take 30–45 minutes. The
+scripts print a heartbeat every 30 seconds while `xcodebuild` is active. Do not
+terminate a capture merely because `xcodebuild` has low CPU usage, its detailed
+log pauses, or the log contains transient SpringBoard accessibility warnings
+such as `kAXErrorServerNotFound`, `App animations complete notification not
+received`, or `Supported platforms for the buildables in the current scheme is
+empty`. XCUITest has its own waits and failure handling; allow the script to
+finish and judge the run by its exit status and final manifest verification.
+
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
 (`ios/UITests/ScreenshotTests.swift`) and writes the default iPhone PNGs to
 `ios/build/screenshots/iphone-6.3/`. Each App Store device class owns a folder
