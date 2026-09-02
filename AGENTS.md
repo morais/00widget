@@ -47,9 +47,10 @@ npx wrangler dev          # local dev on :8787, reads .dev.vars
 cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
-ios/scripts/capture-all-marketing-screenshots.sh # raw + promotional, all devices
-ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
-ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
+marketing/screenshots/capture-all.sh       # raw + promotional, all devices
+marketing/screenshots/capture-ios.sh       # marketing screenshots via XCUITest
+marketing/screenshots/capture-tvos.sh      # 1920x1080 Apple TV screenshots
+marketing/app-preview/run.sh ios-main       # capture, render, and validate App Preview
 ios/scripts/run-accessibility-audits.sh    # XCTest audits at Large + AX5
 ios/scripts/upload-testflight.sh           # archive + gates + upload, both platforms
 ios/scripts/upload-testflight.sh --verify-only   # same, minus the upload
@@ -129,9 +130,9 @@ survive it. Use `xcrun simctl erase` for a genuinely clean device.
 
 ## CoreSimulator permissions
 
-The screenshot scripts (`ios/scripts/capture-all-marketing-screenshots.sh`,
-`ios/scripts/capture-screenshots.sh`, and
-`ios/scripts/capture-tv-screenshots.sh`) and direct `xcrun simctl` commands
+The screenshot scripts (`marketing/screenshots/capture-all.sh`,
+`marketing/screenshots/capture-ios.sh`, and
+`marketing/screenshots/capture-tvos.sh`) and direct `xcrun simctl` commands
 require access to the host's CoreSimulator services.
 
 If a sandboxed attempt reports `CoreSimulatorService connection became invalid`,
@@ -208,7 +209,7 @@ do not substitute raw capture alone or one default iPhone capture plus the other
 two platforms:
 
 ```
-ios/scripts/capture-all-marketing-screenshots.sh
+marketing/screenshots/capture-all.sh
 ```
 
 The wrapper records its start time and refuses to report success unless every
@@ -228,24 +229,25 @@ received`, or `Supported platforms for the buildables in the current scheme is
 empty`. XCUITest has its own waits and failure handling; allow the script to
 finish and judge the run by its exit status and final manifest verification.
 
-`ios/scripts/capture-screenshots.sh` drives the app with XCUITest
+`marketing/screenshots/capture-ios.sh` drives the app with XCUITest
 (`ios/UITests/ScreenshotTests.swift`) and writes the default iPhone PNGs to
-`ios/build/screenshots/iphone-6.3/`. Each App Store device class owns a folder
-under `ios/build/screenshots/`; no PNG belongs directly in that root. To publish
-the canonical iPhone set, pass the
-destination asset directory explicitly; the repository location is never
-assumed:
+`artifacts/screenshots/raw/iphone-6.3/`. Each App Store device class owns a folder
+under `artifacts/screenshots/raw/`; no PNG belongs directly in that root.
+Promotional compositions live in the parallel
+`artifacts/screenshots/promotional/` tree. To copy a promotional set into a
+website, pass the destination asset directory explicitly; the repository
+location is never assumed:
 
 ```
-ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
-ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
-ios/scripts/copy-screenshots.sh --set iphone-6.5 --to /path/to/site/public/assets
-ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
-ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
+marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
+marketing/screenshots/copy.sh --only activities --to /path/to/site/public/assets
+marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
+marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad
+marketing/screenshots/copy.sh --set tvos --to /path/to/site/public/assets/tvos
 ```
 
 For a quick Activities-only refresh, use
-`ios/scripts/capture-screenshots.sh --only activities` (and add `--device` for
+`marketing/screenshots/capture-ios.sh --only activities` (and add `--device` for
 iPad). This skips Home Screen widget placement while producing the same
 `screenshot-activities.png` filename consumed by the copy helper.
 
@@ -256,10 +258,10 @@ problem. Screenshot-only widget configurations are listed first in the private
 widget bundle so XCUITest traverses fewer picker pages. Shipping bundle order is
 unchanged because those configurations compile only with `ZW_SCREENSHOTS`.
 
-Apple TV uses `ios/scripts/capture-tv-screenshots.sh`, which builds a private
+Apple TV uses `marketing/screenshots/capture-tvos.sh`, which builds a private
 `ZW_SCREENSHOTS` sample dashboard through the dedicated
 `ZeroZeroWidgetTVScreenshots` scheme and writes native 1920×1080 PNGs to
-`ios/build/screenshots/tvos/`. The screenshot-only state and UI-test target are
+`artifacts/screenshots/raw/tvos/`. The screenshot-only state and UI-test target are
 not compiled into the shipping tvOS scheme. A full run captures the general
 dashboard and the Energy/Deploys/Device fleet insights dashboard with a running
 Live Activity, and the Energy card's detail panel. The App Store order is
@@ -345,7 +347,7 @@ exist before capturing `screenshot-home-widgets.png`,
 `screenshot-home-insights.png`, and `screenshot-home-metrics.png`.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
-`ios/build/screenshots/ipad/`. It produces native 2064×2752 images, uses the
+`artifacts/screenshots/raw/ipad/`. It produces native 2064×2752 images, uses the
 all three layouts on a clean regular Home Screen page, and captures
 the Widgets, insights, and Activities app surfaces. The run turns
 off both optional iPad dock sections through Settings; otherwise the App
@@ -371,7 +373,9 @@ the flag, and finish with `--verify-only`. The entry point manages every
 canonical screenshot set plus the default App Clip action, subtitle, App Review
 URL, and `docs/brand/app-clip-header.png`. The final verification compares
 remote screenshot counts, checksums, and order and therefore catches a missing
-required Home Screen image. Do not assemble or edit these resources manually in
+required Home Screen image. Screenshot uploads read the promotional tree, not
+the raw captures, and require its manifest to match the current raw checksums.
+Do not assemble or edit these resources manually in
 the App Store Connect website; use it only for visual inspection or when the API
 is unavailable and immediately verify the result from the command line.
 

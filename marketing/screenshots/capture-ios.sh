@@ -8,12 +8,12 @@
 # has no tap verb, and the Simulator exposes no accessibility windows. XCUITest
 # runs on-device and can tap, so it drives the app into each state.
 #
-#   ios/scripts/capture-screenshots.sh
-#   ios/scripts/capture-screenshots.sh --only activities
-#   ios/scripts/capture-screenshots.sh --only app
-#   ios/scripts/capture-screenshots.sh --only subscriptions
-#   ios/scripts/capture-screenshots.sh --device "iPhone 17 Pro" --out /tmp/shots
-#   ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"
+#   marketing/screenshots/capture-ios.sh
+#   marketing/screenshots/capture-ios.sh --only activities
+#   marketing/screenshots/capture-ios.sh --only app
+#   marketing/screenshots/capture-ios.sh --only subscriptions
+#   marketing/screenshots/capture-ios.sh --device "iPhone 17 Pro" --out /tmp/shots
+#   marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"
 #
 # Output is PNGs named after the XCTAttachment names in UITests/ScreenshotTests.swift.
 set -euo pipefail
@@ -59,7 +59,8 @@ if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY"
   exit 2
 fi
 
-IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+IOS_ROOT="$REPO_ROOT/ios"
 case "$DEVICE" in
   "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
   "iPhone 14 Plus – App Store 6.5") DEVICE_FOLDER="iphone-6.5" ;;
@@ -69,7 +70,7 @@ case "$DEVICE" in
     ;;
 esac
 if [[ -z "$OUT" ]]; then
-  OUT="$IOS_ROOT/build/screenshots/$DEVICE_FOLDER"
+  OUT="$REPO_ROOT/artifacts/screenshots/raw/$DEVICE_FOLDER"
   if [[ "$ONLY" == "subscriptions" ]]; then
     OUT="$OUT/subscriptions"
   fi

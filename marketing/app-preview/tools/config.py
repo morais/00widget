@@ -10,7 +10,7 @@ class ConfigError(RuntimeError):
 
 
 def repository_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[3]
 
 
 def profile_path(profile: str, explicit: str | None = None) -> Path:

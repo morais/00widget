@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Copies the canonical marketing screenshot set into any website asset folder.
 #
-#   ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
-#   ios/scripts/copy-screenshots.sh --set iphone-6.5 --to /path/to/site/public/assets
-#   ios/scripts/copy-screenshots.sh --only activities --to /path/to/site/public/assets
-#   ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad
-#   ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos
+#   marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
+#   marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
+#   marketing/screenshots/copy.sh --only activities --to /path/to/site/public/assets
+#   marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad
+#   marketing/screenshots/copy.sh --set tvos --to /path/to/site/public/assets/tvos
 set -euo pipefail
 
 SET="iphone"
@@ -36,12 +36,12 @@ if [[ -z "$DESTINATION" ]]; then
   exit 2
 fi
 
-IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 case "$SET" in
-  iphone|iphone-6.3) SOURCE="$IOS_ROOT/build/screenshots/iphone-6.3" ;;
-  iphone-6.5) SOURCE="$IOS_ROOT/build/screenshots/iphone-6.5" ;;
-  ipad) SOURCE="$IOS_ROOT/build/screenshots/ipad" ;;
-  tvos) SOURCE="$IOS_ROOT/build/screenshots/tvos" ;;
+  iphone|iphone-6.3) SOURCE="$REPO_ROOT/artifacts/screenshots/promotional/iphone-6.3" ;;
+  iphone-6.5) SOURCE="$REPO_ROOT/artifacts/screenshots/promotional/iphone-6.5" ;;
+  ipad) SOURCE="$REPO_ROOT/artifacts/screenshots/promotional/ipad" ;;
+  tvos) SOURCE="$REPO_ROOT/artifacts/screenshots/promotional/tvos" ;;
   *) echo "--set must be 'iphone-6.3', 'iphone-6.5', 'ipad', or 'tvos'" >&2; exit 2 ;;
 esac
 
@@ -50,7 +50,7 @@ if [[ "$SET" == "tvos" ]]; then
     echo "--only activities is not available for tvOS" >&2
     exit 2
   fi
-  FILES=(screenshot-tv-insights.png screenshot-tv-widgets.png)
+  FILES=(screenshot-tv-insights.png screenshot-tv-widgets.png screenshot-tv-card-detail.png)
 elif [[ "$ONLY" == "activities" ]]; then
   FILES=(screenshot-activities.png)
 else
@@ -66,7 +66,7 @@ fi
 
 for file in "${FILES[@]}"; do
   if [[ ! -f "$SOURCE/$file" ]]; then
-    echo "missing $SOURCE/$file; capture the $SET screenshots first" >&2
+    echo "missing $SOURCE/$file; run marketing/screenshots/capture-all.sh first" >&2
     exit 1
   fi
 done

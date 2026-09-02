@@ -4,12 +4,12 @@ The marketing screenshot suite is driven by XCUITest and uses built-in sample da
 
 ## iPhone with Dynamic Island
 
-This is the primary iPhone set. The default capture device is **iPhone 17 Pro**, and the files are written to `ios/build/screenshots/iphone-6.3/` at 1206×2622.
+This is the primary iPhone set. The default capture device is **iPhone 17 Pro**, and the raw files are written to `artifacts/screenshots/raw/iphone-6.3/` at 1206×2622.
 
 Run the full capture with:
 
 ```sh
-ios/scripts/capture-screenshots.sh
+marketing/screenshots/capture-ios.sh
 ```
 
 The test captures these surfaces in order:
@@ -27,15 +27,15 @@ The canonical App Store set contains Home Screen widgets, Home Screen insights,
 Home Screen metrics, Insights, Widgets, and Activities, in that order:
 
 ```sh
-ios/scripts/copy-screenshots.sh --set iphone-6.3 --to /path/to/site/public/assets
+marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
 
-For a quick Activities-only refresh, run `ios/scripts/capture-screenshots.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
+For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
 
 The subscription QA suite is separate from the public product-page set. Run
-`ios/scripts/capture-screenshots.sh --only subscriptions` to capture the free,
+`marketing/screenshots/capture-ios.sh --only subscriptions` to capture the free,
 trial, active, billing-retry, grace-period, expired, and publishing-paused
-states under `ios/build/screenshots/iphone-6.3/subscriptions/`. The command runs both the
+states under `artifacts/screenshots/raw/iphone-6.3/subscriptions/`. The command runs both the
 paywall-state test and the dashboard notice test; keep both filters when
 changing this mode.
 
@@ -54,10 +54,10 @@ migration of older assets.
 Apple TV has a separate, native 1920×1080 suite using the **Apple TV 4K (3rd generation) (at 1080p)** simulator. Run it with:
 
 ```sh
-ios/scripts/capture-tv-screenshots.sh
+marketing/screenshots/capture-tvos.sh
 ```
 
-It writes the following files to `ios/build/screenshots/tvos/`:
+It writes the following raw files to `artifacts/screenshots/raw/tvos/`:
 
 | File | Surface |
 | --- | --- |
@@ -73,7 +73,7 @@ new one against the bottom edge rather than trusting the full-size render. The
 1080 lines hold at the card's height, and an image that slices a third row
 through the middle of a number reads as a bug. The two it leaves out are the two
 the insights capture features, so the set covers every sample without repeating
-one. Copy the set with `ios/scripts/copy-screenshots.sh --set tvos --to /path/to/site/public/assets/tvos`.
+one. Copy the promotional set with `marketing/screenshots/copy.sh --set tvos --to /path/to/site/public/assets/tvos`.
 
 ## iPhone without Dynamic Island
 
@@ -85,27 +85,29 @@ do not use `--only app`, because that mode intentionally omits the required
 Home Screen images:
 
 ```sh
-ios/scripts/capture-screenshots.sh \
-  --device "iPhone 14 Plus – App Store 6.5" \
-  --out build/screenshots/iphone-6.5
+marketing/screenshots/capture-ios.sh \
+  --device "iPhone 14 Plus – App Store 6.5"
 ```
 
 The canonical published order is Home Screen widgets, Home Screen insights,
 Home Screen metrics, Insights, Widgets, and Activities.
-`--out` is resolved from `ios/`, so do not prefix that value with `ios/`.
-Copy it with `ios/scripts/copy-screenshots.sh --set iphone-6.5 --to
-/path/to/site/public/assets`.
+Relative `--out` paths are resolved from `ios/`; this canonical device already
+selects the correct default. Copy the promotional set with:
+
+```sh
+marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
+```
 
 ## iPad
 
-iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Insights, Widgets, and Activities. The standard App Store run uses `ios/scripts/capture-screenshots.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 files to `ios/build/screenshots/ipad/`, and can be copied with `ios/scripts/copy-screenshots.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Insights, Widgets, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## Promotional compositions
 
 The XCUITest files above are raw captures and remain the provenance-backed
 source material. Promotional compositions are generated into the separate
-`ios/build/promotional-screenshots/` tree; never write them back into
-`ios/build/screenshots/` or replace a `.capture-manifest.json` checksum.
+`artifacts/screenshots/promotional/` tree; never write them back into
+`artifacts/screenshots/raw/` or replace a `.capture-manifest.json` checksum.
 
 The approved visual treatment is an off-white editorial headline panel, a
 short trend-teal rule, and the raw capture inside physical device chrome below
@@ -157,14 +159,14 @@ frame. Its three-image copy is:
 Generate all 21 promotional images from the current raw captures with:
 
 ```sh
-python3.12 ios/scripts/generate-promotional-screenshots.py
+python3.12 marketing/screenshots/generate-promotional.py
 ```
 
 The canonical end-to-end workflow captures all four raw device sets and then
 generates and verifies all 21 promotional compositions:
 
 ```sh
-ios/scripts/capture-all-marketing-screenshots.sh
+marketing/screenshots/capture-all.sh
 ```
 
 Its `--verify-only` mode checks both trees and fails if a promotional image was
@@ -176,22 +178,28 @@ inside device-specific directories and writes
 `promotional-manifest.json` with source and output SHA-256 checksums. The
 compositor validates the source dimensions before it writes anything.
 
-The App Store upload helper still reads the raw `ios/build/screenshots/`
-directories. Publishing the promotional suite therefore requires an explicit,
-reviewed change to the upload source; generating it alone cannot alter App
-Store Connect.
+The App Store upload helper reads the verified
+`artifacts/screenshots/promotional/` directories. It refuses to publish by
+default unless `promotional-manifest.json` proves that every composition was
+generated from the current raw capture checksum.
 
 ## App Store Connect
 
-The screenshot root contains one directory per App Store device class and no
-PNG files directly inside it:
+The artifact root separates provenance-backed captures from the promotional
+images distributed to App Store Connect and websites:
 
 ```text
-ios/build/screenshots/
-├── iphone-6.3/
-├── iphone-6.5/
-├── ipad/
-└── tvos/
+artifacts/screenshots/
+├── raw/
+│   ├── iphone-6.3/
+│   ├── iphone-6.5/
+│   ├── ipad/
+│   └── tvos/
+└── promotional/
+    ├── iphone-6.3/
+    ├── iphone-6.5/
+    ├── ipad/
+    └── tvos/
 ```
 
 After all four device sets pass visual QA, preview the replacement plan with:
@@ -240,4 +248,4 @@ listing-authoring step.
 
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The entry points are `ios/scripts/capture-screenshots.sh`, `ios/scripts/capture-tv-screenshots.sh`, `ios/scripts/generate-promotional-screenshots.py`, `ios/scripts/copy-screenshots.sh`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh`.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. Marketing entry points live together as `marketing/screenshots/capture-ios.sh`, `marketing/screenshots/capture-tvos.sh`, `marketing/screenshots/capture-all.sh`, `marketing/screenshots/generate-promotional.py`, and `marketing/screenshots/copy.sh`. App Store distribution remains in `ios/scripts/upload-appstore-screenshots.py` and `ios/scripts/sync-appstore-listing.sh` because it is release tooling rather than asset creation.

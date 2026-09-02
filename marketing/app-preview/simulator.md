@@ -15,7 +15,7 @@ Build, install, launch, and open the device so the private widget
 configurations appear in the gallery:
 
 ```sh
-./scripts/app-preview.sh ios-main --prepare-only
+./marketing/app-preview/run.sh ios-main --prepare-only
 ```
 
 This command does not record, run the timeline, uninstall the app, or alter the

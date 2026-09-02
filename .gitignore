@@ -74,3 +74,7 @@ ios/Resources/*/*.entitlements
 # Generated App Store Preview movies and validation report
 /artifacts/app-preview/*
 !/artifacts/app-preview/.gitkeep
+
+# Generated raw and promotional App Store screenshots
+/artifacts/screenshots/*
+!/artifacts/screenshots/README.md

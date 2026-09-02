@@ -9,7 +9,7 @@ import XCTest
 /// the Simulator exposes no accessibility windows. XCUITest can tap, so it can
 /// drive the app into each state the website shows.
 ///
-/// Run via `ios/scripts/capture-screenshots.sh`, which sets a stable status bar,
+/// Run via `marketing/screenshots/capture-ios.sh`, which sets a stable status bar,
 /// runs this test, and extracts the attachments out of the .xcresult bundle.
 final class ScreenshotTests: XCTestCase {
     override func setUp() {

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Compose promotional App Store screenshots from the canonical raw captures.
 
-Raw XCUITest captures stay under ios/build/screenshots. This script only reads
-those files and writes the headline-led marketing compositions to the separate
-ios/build/promotional-screenshots tree.
+Raw XCUITest captures stay under artifacts/screenshots/raw. This script only
+reads those files and writes the headline-led marketing compositions to the
+separate artifacts/screenshots/promotional tree.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
-IOS_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_SOURCE_ROOT = IOS_ROOT / "build" / "screenshots"
-DEFAULT_OUTPUT_ROOT = IOS_ROOT / "build" / "promotional-screenshots"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SOURCE_ROOT = REPO_ROOT / "artifacts" / "screenshots" / "raw"
+DEFAULT_OUTPUT_ROOT = REPO_ROOT / "artifacts" / "screenshots" / "promotional"
 FONT_REGULAR = Path("/System/Library/Fonts/SFNS.ttf")
 FONT_BOLD = Path("/System/Library/Fonts/SFNS.ttf")
 

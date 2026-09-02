@@ -1,6 +1,6 @@
 # App Store Preview capture
 
-`scripts/app-preview.sh` turns the prepared `00Widget Marketing` iPhone
+`marketing/app-preview/run.sh` turns the prepared `00Widget Marketing` iPhone
 Simulator into a deterministic 22-second App Store Preview. It builds the
 private screenshot scheme, seeds offline fixtures, records the Simulator
 framebuffer, runs a monotonic XCUITest timeline, renders prompt cards with
@@ -12,7 +12,7 @@ FFmpeg, and validates the MP4 with ffprobe.
 - XcodeGen
 - FFmpeg and ffprobe
 - Python 3 with Pillow (`python3.12 -m pip install -r scripts/requirements.txt`)
-- the one-time Simulator setup in [app-preview-simulator.md](app-preview-simulator.md)
+- the one-time Simulator setup in [simulator.md](simulator.md)
 
 The committed `.yaml` config is deliberately JSON-compatible YAML. This keeps
 the timeline data-driven without adding PyYAML to the capture environment.
@@ -22,7 +22,7 @@ the timeline data-driven without adding PyYAML to the capture environment.
 From the repository root:
 
 ```sh
-./scripts/app-preview.sh ios-main
+./marketing/app-preview/run.sh ios-main
 ```
 
 The result is:
@@ -41,13 +41,13 @@ movies are ignored by Git; `.gitkeep` preserves the output directory.
 Useful options:
 
 ```sh
-./scripts/app-preview.sh ios-main --device "iPhone 17 Pro"
-./scripts/app-preview.sh ios-main --prepare-only
-./scripts/app-preview.sh ios-main --app /path/to/ZeroZeroWidgetApp.app
-./scripts/app-preview.sh ios-main --raw-only
-./scripts/app-preview.sh ios-main --render-only
-./scripts/app-preview.sh ios-main --config marketing/app-preview/another.yaml
-./scripts/app-preview.sh ios-main --keep-temp --verbose
+./marketing/app-preview/run.sh ios-main --device "iPhone 17 Pro"
+./marketing/app-preview/run.sh ios-main --prepare-only
+./marketing/app-preview/run.sh ios-main --app /path/to/ZeroZeroWidgetApp.app
+./marketing/app-preview/run.sh ios-main --raw-only
+./marketing/app-preview/run.sh ios-main --render-only
+./marketing/app-preview/run.sh ios-main --config marketing/app-preview/another.yaml
+./marketing/app-preview/run.sh ios-main --keep-temp --verbose
 ```
 
 `--app` must be a Simulator build with the `ZW_SCREENSHOTS` fixture mode and
@@ -98,5 +98,5 @@ than 30 fps, H.264, progressive, and under 500 MB. A failed check exits nonzero.
 Run the validator directly when useful:
 
 ```sh
-python3 tools/app-preview/validate.py ios-main artifacts/app-preview/preview.mp4
+python3 marketing/app-preview/tools/validate.py ios-main artifacts/app-preview/preview.mp4
 ```

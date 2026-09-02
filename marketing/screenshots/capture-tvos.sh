@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Captures native 1920x1080 Apple TV marketing screenshots via XCUITest.
 #
-#   ios/scripts/capture-tv-screenshots.sh
-#   ios/scripts/capture-tv-screenshots.sh --device "Apple TV 4K (3rd generation) (at 1080p)"
-#   ios/scripts/capture-tv-screenshots.sh --out /tmp/tv-shots
+#   marketing/screenshots/capture-tvos.sh
+#   marketing/screenshots/capture-tvos.sh --device "Apple TV 4K (3rd generation) (at 1080p)"
+#   marketing/screenshots/capture-tvos.sh --out /tmp/tv-shots
 set -euo pipefail
 
 DEVICE="Apple TV 4K (3rd generation) (at 1080p)"
@@ -40,8 +40,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-IOS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="${OUT:-$IOS_ROOT/build/screenshots/tvos}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+IOS_ROOT="$REPO_ROOT/ios"
+OUT="${OUT:-$REPO_ROOT/artifacts/screenshots/raw/tvos}"
 cd "$IOS_ROOT"
 
 if [[ ! -d ZeroZeroWidget.xcodeproj ]]; then

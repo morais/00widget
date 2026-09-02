@@ -64,6 +64,8 @@ If this project is itself a Cloudflare Worker, see the "Notes for Cloudflare Wor
   ios/          # SwiftUI app + WidgetKit extension + Live Activity (iOS 26+)
   server/       # Cloudflare Worker (TypeScript) — REST API + APNs fan-out
   examples/     # curl scripts showing how any agent can publish state
+  marketing/    # Screenshot and App Preview sources, docs, and entry points
+  artifacts/    # Generated marketing output (ignored by Git)
 ```
 
 ## Quick start
@@ -142,6 +144,8 @@ Setup walkthrough: `server/README.md` → "Web sign-in".
 - `examples/README.md` — publishing state from any shell or agent.
 - `docs/llms.md` — for agents (Claude Code / Codex) integrating *another* project with 00Widget.
 - `docs/brand/README.md` — logo, colors, tagline rules.
+- `marketing/screenshots/README.md` — raw capture, promotional composition, and App Store screenshot workflow.
+- `marketing/app-preview/README.md` — App Store Preview capture, rendering, and validation workflow.
 
 ## Status
 

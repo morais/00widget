@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Captures, composes, and verifies every App Store marketing screenshot set.
 #
-#   ios/scripts/capture-all-marketing-screenshots.sh
-#   ios/scripts/capture-all-marketing-screenshots.sh --verify-only
+#   marketing/screenshots/capture-all.sh
+#   marketing/screenshots/capture-all.sh --verify-only
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IOS_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+RAW_ROOT="$REPO_ROOT/artifacts/screenshots/raw"
 VERIFY_ONLY=false
 
 while [[ $# -gt 0 ]]; do
@@ -22,20 +23,20 @@ if [[ "$VERIFY_ONLY" == false ]]; then
   CAPTURE_STARTED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
   echo "→ capturing iPhone 6.3-inch set"
-  "$SCRIPT_DIR/capture-screenshots.sh" --device "iPhone 17 Pro"
+  "$SCRIPT_DIR/capture-ios.sh" --device "iPhone 17 Pro"
 
   echo "→ capturing iPhone 6.5-inch set"
-  "$SCRIPT_DIR/capture-screenshots.sh" --device "iPhone 14 Plus – App Store 6.5"
+  "$SCRIPT_DIR/capture-ios.sh" --device "iPhone 14 Plus – App Store 6.5"
 
   echo "→ capturing iPad set"
-  "$SCRIPT_DIR/capture-screenshots.sh" --device "iPad Pro 13-inch (M4)"
+  "$SCRIPT_DIR/capture-ios.sh" --device "iPad Pro 13-inch (M4)"
 
   echo "→ capturing Apple TV set"
-  "$SCRIPT_DIR/capture-tv-screenshots.sh"
+  "$SCRIPT_DIR/capture-tvos.sh"
 fi
 
 echo "→ verifying all canonical screenshot sets"
-python3 - "$IOS_ROOT/build/screenshots" "$CAPTURE_STARTED_AT" <<'PY'
+python3 - "$RAW_ROOT" "$CAPTURE_STARTED_AT" <<'PY'
 import datetime
 import hashlib
 import json
@@ -141,11 +142,11 @@ PY
 
 if [[ "$VERIFY_ONLY" == false ]]; then
   echo "→ generating all promotional screenshot compositions"
-  python3.12 "$SCRIPT_DIR/generate-promotional-screenshots.py" \
+  python3.12 "$SCRIPT_DIR/generate-promotional.py" \
     --generated-after "$CAPTURE_STARTED_AT"
 else
   echo "→ verifying all promotional screenshot compositions"
-  python3.12 "$SCRIPT_DIR/generate-promotional-screenshots.py" --verify-only
+  python3.12 "$SCRIPT_DIR/generate-promotional.py" --verify-only
 fi
 
 echo "✓ full marketing screenshot workflow complete: 21 raw captures + 21 promotional compositions"

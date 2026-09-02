@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replace 00Widget's App Store screenshots with the locally captured sets.
+"""Replace 00Widget's App Store screenshots with promotional compositions.
 
 Stages as many replacements as Apple's ten-image limit permits, verifies their
 processing, then removes only the old assets needed to finish the replacement
@@ -22,6 +22,9 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 IOS_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = IOS_ROOT.parent
+RAW_ROOT = REPO_ROOT / "artifacts" / "screenshots" / "raw"
+PROMOTIONAL_ROOT = REPO_ROOT / "artifacts" / "screenshots" / "promotional"
 AUTH_SCRIPT = SCRIPT_DIR / "set-appclip-invocation.py"
 
 spec = importlib.util.spec_from_file_location("zw_appstore_auth", AUTH_SCRIPT)
@@ -31,10 +34,10 @@ asc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(asc)
 
 
-CAPTURE_SETS = {
+PROMOTIONAL_SETS = {
     "IOS": {
         "APP_IPHONE_61": (
-            IOS_ROOT / "build/screenshots/iphone-6.3",
+            PROMOTIONAL_ROOT / "iphone-6.3",
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
@@ -45,7 +48,7 @@ CAPTURE_SETS = {
             ],
         ),
         "APP_IPHONE_65": (
-            IOS_ROOT / "build/screenshots/iphone-6.5",
+            PROMOTIONAL_ROOT / "iphone-6.5",
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
@@ -56,7 +59,7 @@ CAPTURE_SETS = {
             ],
         ),
         "APP_IPAD_PRO_3GEN_129": (
-            IOS_ROOT / "build/screenshots/ipad",
+            PROMOTIONAL_ROOT / "ipad",
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
@@ -69,7 +72,7 @@ CAPTURE_SETS = {
     },
     "TV_OS": {
         "APP_APPLE_TV": (
-            IOS_ROOT / "build/screenshots/tvos",
+            PROMOTIONAL_ROOT / "tvos",
             [
                 "screenshot-tv-insights.png",
                 "screenshot-tv-widgets.png",
@@ -180,25 +183,47 @@ def local_checksum(path):
     return hashlib.md5(path.read_bytes()).hexdigest()
 
 
-def verify_capture_provenance(directory, filenames):
-    path = directory / ".capture-manifest.json"
+def sha256_checksum(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def verify_promotional_provenance(directory, filenames):
+    path = PROMOTIONAL_ROOT / "promotional-manifest.json"
     if not path.is_file():
         raise RuntimeError(
-            f"{directory} has no full-capture manifest; run the device's full "
-            "capture command before publishing"
+            f"{PROMOTIONAL_ROOT} has no promotional manifest; run "
+            "marketing/screenshots/capture-all.sh before publishing"
         )
     manifest = json.loads(path.read_text())
-    if manifest.get("mode") != "all":
-        raise RuntimeError(f"{path} does not describe a full capture")
-    recorded = manifest.get("files") or {}
+    if manifest.get("sourceRoot") != str(RAW_ROOT.resolve()):
+        raise RuntimeError(f"{path} does not reference the canonical raw screenshot tree")
+    if manifest.get("outputRoot") != str(PROMOTIONAL_ROOT.resolve()):
+        raise RuntimeError(f"{path} does not reference the canonical promotional tree")
+
+    matching_sets = [
+        item for item in (manifest.get("sets") or [])
+        if item.get("deviceSet") == directory.name
+    ]
+    if len(matching_sets) != 1:
+        raise RuntimeError(f"{path} does not contain exactly one {directory.name} set")
+    recorded = {
+        item.get("filename"): item
+        for item in (matching_sets[0].get("files") or [])
+        if item.get("filename")
+    }
     errors = []
     for filename in filenames:
-        checksum = local_checksum(directory / filename)
-        if recorded.get(filename, "").lower() != checksum.lower():
+        entry = recorded.get(filename) or {}
+        output_checksum = sha256_checksum(directory / filename)
+        source_checksum = sha256_checksum(RAW_ROOT / directory.name / filename)
+        if (
+            entry.get("outputSha256") != output_checksum
+            or entry.get("sourceSha256") != source_checksum
+        ):
             errors.append(filename)
     if errors:
         raise RuntimeError(
-            f"{path} does not prove these files came from its capture run: "
+            f"{path} does not prove these compositions came from the current raw captures: "
             + ", ".join(errors)
         )
 
@@ -250,7 +275,7 @@ def main():
     )
     parser.add_argument(
         "--allow-unprovenanced", action="store_true",
-        help="publish existing files without a fresh full-capture manifest",
+        help="publish existing files without verified promotional provenance",
     )
     args = parser.parse_args()
     if not args.bundle_id or not args.version:
@@ -258,18 +283,18 @@ def main():
 
     missing = [
         str(directory / filename)
-        for platform in CAPTURE_SETS.values()
+        for platform in PROMOTIONAL_SETS.values()
         for directory, filenames in platform.values()
         for filename in filenames
         if not (directory / filename).is_file()
     ]
     if missing:
-        sys.exit("Missing captured screenshots:\n  " + "\n  ".join(missing))
+        sys.exit("Missing promotional screenshots:\n  " + "\n  ".join(missing))
     if not args.verify_only and not args.allow_unprovenanced:
         try:
-            for platform in CAPTURE_SETS.values():
+            for platform in PROMOTIONAL_SETS.values():
                 for directory, filenames in platform.values():
-                    verify_capture_provenance(directory, filenames)
+                    verify_promotional_provenance(directory, filenames)
         except RuntimeError as error:
             sys.exit(
                 f"✗ {error}\n"
@@ -283,7 +308,7 @@ def main():
     app_id = app_data[0]["id"]
 
     resolved = []
-    for platform, capture_sets in CAPTURE_SETS.items():
+    for platform, capture_sets in PROMOTIONAL_SETS.items():
         status, versions = asc.call(
             "GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={platform}&limit=50")
         versions = expect(status, versions, {200}, f"listing {platform} versions")["data"]
