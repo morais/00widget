@@ -9,12 +9,15 @@ import SwiftUI
 ///
 /// The trap is `minimumScaleFactor`, which shrinks past that floor silently. A
 /// 34pt headline at 0.65 renders at 22.1pt — under the floor, for the largest
-/// number on the card.
+/// number on the card. Dashboard values therefore use the same 44pt base size
+/// whether or not a plot follows them.
 enum TVTypography {
     static let valueSize: CGFloat = 44
-    /// The card is a fixed 220pt tall and the plot needs a real share of it, so
-    /// a charted headline is smaller than a plain one.
-    static let chartValueSize: CGFloat = 34
+    static let chartValueSize = valueSize
+    /// Supporting context below a chart value. Keep this explicit: tvOS's
+    /// semantic callout curve can make supporting text physically taller than
+    /// a custom value even when its nominal point size is smaller.
+    static let chartSubtitleSize: CGFloat = 26
     /// Caption 2, the smallest style tvOS defines.
     static let floor: CGFloat = 23
 
@@ -41,8 +44,8 @@ enum TVTypography {
 ///
 /// So the height is derived rather than chosen: it is what the tallest template
 /// actually measures at these type sizes — header, headline, subtitle and a
-/// 46-point plot, about 188 points — plus the inset on both sides, plus a
-/// little slack. Re-measure it if any of those change, and check a screenshot
+/// 46-point plot, about 196 points — plus the inset on both sides. Re-measure
+/// it if any of those change, and check a screenshot
 /// rather than the build, which cannot see an overflow.
 enum TVCardMetrics {
     static let verticalPadding: CGFloat = 28
@@ -711,9 +714,9 @@ private struct TVDashboardCardView: View {
     }
 
     /// Value and subtitle above a plot — a sparkline for `chart`, status pips
-    /// for `history`, a segmented bar for `breakdown`. The tvOS card is a fixed 220pt tall and the plot needs a
-    /// real share of it, so the headline is smaller here than `valueContent`
-    /// draws it.
+    /// for `history`, a segmented bar for `breakdown`. The primary value keeps
+    /// the same size as a non-chart card; the contextual subtitle is what steps
+    /// down, preserving hierarchy without sacrificing the plot.
     @ViewBuilder
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -732,7 +735,14 @@ private struct TVDashboardCardView: View {
                 )
             if let subtitle = card.subtitle {
                 Text(subtitle)
-                    .font(.callout)
+                    .tvScaledSystemFont(
+                        size: TVTypography.chartSubtitleSize,
+                        // Use the value's scaling curve. On tvOS, mixing the
+                        // `.title2` curve above with `.caption` here makes a
+                        // nominal 26pt caption physically taller than the
+                        // nominal 34pt value at the standard setting.
+                        relativeTo: .title2
+                    )
                     .foregroundStyle(.secondary)
                     .tvReadableText(largeTextLineLimit: 2)
             }

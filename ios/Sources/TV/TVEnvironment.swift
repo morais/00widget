@@ -35,6 +35,31 @@ final class TVEnvironment: ObservableObject {
         let samples = SampleDataFactory.makeCards()
         if screenshotSection == "activities" {
             self.cards = []
+        } else if screenshotSection == "typography" {
+            // A regression fixture for the tightest hierarchy on a dashboard
+            // card: a short range value followed by a long contextual line.
+            // Semantic tvOS styles made the latter appear larger even when its
+            // nominal point size was slightly smaller.
+            self.cards = [
+                DashboardCard(
+                    id: SampleDataFactory.sampleId("tv-typography"),
+                    template: .chart,
+                    title: "Basement Humidity",
+                    subtitle: "Min–max RH · Jul 29–Aug 29 · target 40–60%",
+                    value: "57–73",
+                    unit: "%",
+                    status: .warning,
+                    icon: "humidity",
+                    updatedAt: Date(),
+                    chart: DashboardChart(
+                        points: [68, 66, 64, 65, 61, 59, 62, 58, 57, 60, 63, 67, 71, 73],
+                        min: 40,
+                        max: 80,
+                        semantic: MetricSemantic(role: .actual, signal: .caution),
+                        style: .line
+                    )
+                )
+            ]
         } else if screenshotSection == "insights" {
             self.cards = Array(samples.suffix(3))
         } else if screenshotSection == "widgets" {
@@ -50,7 +75,7 @@ final class TVEnvironment: ObservableObject {
         } else {
             self.cards = samples
         }
-        self.liveActivities = screenshotSection == "widgets"
+        self.liveActivities = screenshotSection == "widgets" || screenshotSection == "typography"
             ? []
             : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]
         self.hasCompletedInitialSync = true
