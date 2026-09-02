@@ -49,6 +49,11 @@ public struct CardView: View {
     private let appActionIsBusy: ((ActionDefinition) -> Bool)?
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// A `.caption` list row and the gap under it, at the reader's text size.
+    /// It is both the unit a filling list measures its row count in and the
+    /// unit its type ladder steps against, so a larger text size buys fewer,
+    /// taller rows rather than a card that overflows.
+    @ScaledMetric(relativeTo: .caption) private var listRowUnit: CGFloat = 19
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if canImport(WidgetKit)
@@ -202,7 +207,9 @@ public struct CardView: View {
     private var smallView: some View {
         VStack(alignment: .leading, spacing: 6) {
             header
-            Spacer(minLength: 0)
+            if !listFillsHeight {
+                Spacer(minLength: 0)
+            }
             switch card.template {
             case .progress:
                 if let p = card.progressValue {
@@ -215,7 +222,7 @@ public struct CardView: View {
                 actionSummary
                 actionButtons(max: 1)
             case .list:
-                listRows(max: 3)
+                listRows(max: density == .compact ? 3 : 4, fills: true)
             case .chart:
                 chartHeadline
                 sparkline(height: 30, lineWidth: 1.8, maxPoints: 32)
@@ -249,7 +256,7 @@ public struct CardView: View {
             header
             switch card.template {
             case .list:
-                listRows(max: density == .detailed ? 4 : 3)
+                listRows(max: density == .compact ? 4 : 6, fills: true)
             case .action:
                 actionSummary
                 actionButtons(max: density == .compact ? 1 : 2)
@@ -290,7 +297,9 @@ public struct CardView: View {
             if card.template != .action {
                 actionButtons(max: density == .compact ? 1 : 2)
             }
-            Spacer(minLength: 0)
+            if !listFillsHeight {
+                Spacer(minLength: 0)
+            }
             if density != .compact, card.deadline != nil {
                 deadlineLine
             }
@@ -303,7 +312,7 @@ public struct CardView: View {
             header
             switch card.template {
             case .list:
-                listRows(max: density == .compact ? 4 : 6)
+                listRows(max: density == .compact ? 6 : 10, fills: true)
             case .action:
                 actionSummary
                 actionButtons(max: density == .compact ? 2 : 4)
@@ -342,7 +351,7 @@ public struct CardView: View {
             // The plot already claims the slack when it is drawn; a Spacer as
             // well would split the leftover height between them and leave the
             // chart short again.
-            if !largePlotFillsHeight {
+            if !bodyFillsHeight {
                 Spacer(minLength: 0)
             }
             if density != .compact, card.deadline != nil {
@@ -352,12 +361,44 @@ public struct CardView: View {
         .padding(12)
     }
 
+    /// Whether the body hands itself the canvas's spare vertical space instead
+    /// of leaving it to a trailing `Spacer`. Two things that both grow split
+    /// the slack and neither one fills, so a filling body and the Spacer are
+    /// exclusive at every call site.
+    private var bodyFillsHeight: Bool {
+        largePlotFillsHeight || listFillsHeight
+    }
+
+    /// Whether a `list` spreads its rows over the canvas rather than stacking
+    /// them under the header at a fixed size.
+    ///
+    /// Every single-column widget canvas qualifies. The double-width one does
+    /// not: it answers extra room with a second column, and two columns
+    /// measuring their own height independently would disagree about how many
+    /// rows fit and leave a hole in the middle of the sequence.
+    private var listFillsHeight: Bool {
+        guard card.template == .list, !(card.items?.isEmpty ?? true) else { return false }
+        switch context {
+        case .widgetSmall, .widgetMedium, .widgetLarge, .widgetExtraLargePortrait:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Whether `largeView` hands its spare vertical space to the plot instead
     /// of to a trailing `Spacer`. Only true when a plot is actually drawn — a
     /// `chart` card whose series is too short to render has nothing to grow,
-    /// and would otherwise centre its text in the widget.
+    /// and would otherwise centre its text in the widget. The small and medium
+    /// canvases are excluded because their plots are a fixed height there and
+    /// so have nothing to grow into.
     private var largePlotFillsHeight: Bool {
-        card.template == .chart && (card.chart?.isRenderable ?? false)
+        switch context {
+        case .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait:
+            return card.template == .chart && (card.chart?.isRenderable ?? false)
+        default:
+            return false
+        }
     }
 
     /// The double-width canvas: `systemExtraLarge` on iPad, and iOS 27's
@@ -373,7 +414,7 @@ public struct CardView: View {
             extraLargeBody
             // Same bargain as `largeView`: a plot that grows into the slack
             // must not also compete with a Spacer for it.
-            if !largePlotFillsHeight {
+            if !bodyFillsHeight {
                 Spacer(minLength: 0)
             }
             if density != .compact, card.deadline != nil {
@@ -489,7 +530,7 @@ public struct CardView: View {
             header
             switch card.template {
             case .list:
-                listRows(max: density == .compact ? 7 : 10)
+                listRows(max: density == .compact ? 8 : 12, fills: true)
             case .action:
                 actionSummary
                 actionButtons(max: density == .compact ? 5 : 8)
@@ -525,7 +566,7 @@ public struct CardView: View {
             if card.template != .action {
                 actionButtons(max: density == .compact ? 3 : 6)
             }
-            if !largePlotFillsHeight {
+            if !bodyFillsHeight {
                 Spacer(minLength: 0)
             }
             if density != .compact, card.deadline != nil {
@@ -1137,34 +1178,83 @@ public struct CardView: View {
     /// fractions stay computed over *all* items, so the two columns of an
     /// extra-large list remain comparable to each other rather than each
     /// rescaling to its own tallest row.
+    ///
+    /// `fills` hands the list the canvas's spare height instead of leaving it
+    /// to a trailing `Spacer`. `max` is then a readability ceiling rather than
+    /// a size estimate: the number of rows actually drawn comes from measuring
+    /// the room, and the rows spread across it. The caps used to be constants
+    /// picked well under what fits — a medium widget drew three rows into room
+    /// for six — so a six-item card showed half its data above a third of a
+    /// card left blank, and a large one showed all six as a small block under
+    /// the header with the rest of the card empty.
     @ViewBuilder
-    private func listRows(max: Int, dropping: Int = 0) -> some View {
+    private func listRows(max: Int, dropping: Int = 0, fills: Bool = false) -> some View {
         if let items = card.items, !items.isEmpty {
             let fractions = RankedRows.fractions(for: items)
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(items.dropFirst(dropping).prefix(max)) { item in
-                    rowLink(item) {
-                        HStack {
-                            SemanticFlowIcon(item.semantic)
-                            Text(item.title).font(.caption).lineLimit(1)
-                            Spacer()
-                            if let v = item.value {
-                                Text("\(v)\(item.unit ?? "")")
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
-                            }
+            let visible = Array(items.dropFirst(dropping).prefix(max))
+            if fills {
+                GeometryReader { proxy in
+                    // How many rows the canvas holds, then how tall each may
+                    // grow and what size they read at. Whatever the slots do
+                    // not use stays empty at the bottom.
+                    let capacity = ListRowFill.capacity(height: proxy.size.height, unit: listRowUnit)
+                    let rows = Array(visible.prefix(capacity))
+                    let slot = ListRowFill.slot(
+                        height: proxy.size.height,
+                        rows: rows.count,
+                        unit: listRowUnit
+                    )
+                    let font = ListRowFill.font(
+                        slot: slot,
+                        width: proxy.size.width,
+                        unit: listRowUnit
+                    )
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { item in
+                            listRow(item, font: font, fractions: fractions)
+                                .frame(maxHeight: slot)
                         }
-                        .padding(.horizontal, 3)
-                        .background(alignment: .leading) {
-                            if let fraction = fractions?[item.id] {
-                                RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: card.status.tint))
-                            }
-                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(visible) { item in
+                        listRow(item, font: .caption, fractions: fractions)
                     }
                 }
             }
         } else {
             Text("No items").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func listRow(
+        _ item: DashboardItem,
+        font: Font,
+        fractions: [String: Double]?
+    ) -> some View {
+        rowLink(item) {
+            HStack {
+                SemanticFlowIcon(item.semantic)
+                Text(item.title).font(font).lineLimit(1)
+                Spacer()
+                if let v = item.value {
+                    Text("\(v)\(item.unit ?? "")")
+                        .font(font)
+                        .foregroundStyle(.primary)
+                        // A filled row is as tall as its slot, which is room a
+                        // long value will otherwise wrap into — one row then
+                        // reads as two, and the row under it moves.
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 3)
+            .background(alignment: .leading) {
+                if let fraction = fractions?[item.id] {
+                    RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: card.status.tint))
+                }
+            }
         }
     }
 

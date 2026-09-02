@@ -288,6 +288,13 @@ so the hint still works without color. Item semantics deliberately omit
 `signal`: keep row health, lifecycle, or outcome in the existing `status` field
 instead of publishing the same meaning twice.
 
+A `list` draws as many rows as the canvas it lands on has room for, measured at
+render time rather than fixed per widget size: a small widget shows a few, a
+large one up to a dozen, and fewer of each once buttons, a deadline, or a large
+text size have taken their share. The rows spread over the card rather than
+crowding under the header. So order `items` most important first — what a
+smaller canvas drops is the tail.
+
 In a `list`, giving items an `amount` turns the rows into ranked bars: each row
 gets a bar behind it, measured against the largest amount in the card, so five
 rows can be compared at a glance instead of read one number at a time. Top
