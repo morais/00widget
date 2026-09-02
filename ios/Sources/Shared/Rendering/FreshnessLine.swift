@@ -26,34 +26,60 @@ struct FreshnessLine: View {
     let isStale: () -> Bool
     let font: Font
     var spacing: CGFloat = 8
+    /// A Live Activity is drawn by the system out of process, where the clock
+    /// below is not driven — see `TimeTicking`. This shipped wrapped in one
+    /// regardless, and the line stood still at "Updated 9 seconds ago" on the
+    /// Lock Screen, which is the exact failure the whole view exists to
+    /// prevent, wearing the costume of the fix.
+    var ticking: TimeTicking = .clock
 
     var body: some View {
-        RelativeTimeClock(since: updatedAt) {
-            let isStale = self.isStale()
-            HStack(spacing: spacing) {
-                // Not conditional on `accessibilityDifferentiateWithoutColor`.
-                // That setting is opt-in and most people who would benefit
-                // never turn it on, and with the words gone the colour would
-                // otherwise be carrying the whole signal by itself.
-                if isStale {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .accessibilityHidden(true)
-                }
-                // `.relative(presentation: .named)` and not `Text(_, style:
-                // .relative)`. The latter is self-updating, which is why it was
-                // reached for on a Live Activity, but it renders no "ago" — so
-                // "Updated 1 min, 9 secs" reads as how long the job has been
-                // running rather than as how old the reading is. The clock
-                // above buys back the self-updating half without the wording.
-                Text("Updated \(updatedAt.formatted(.relative(presentation: .named)))")
-            }
-            .font(font)
-            // Neither of these is `.tertiary`. On the dark grounds these draw
-            // against, tertiary is white at 30% and computes to about 2.5:1 —
-            // under the 3:1 large-text threshold, let alone 4.5:1. Secondary
-            // is 60% and about 7.4:1. Nothing here is decorative enough for
-            // tertiary.
-            .foregroundStyle(isStale ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+        switch ticking {
+        case .clock:
+            RelativeTimeClock(since: updatedAt) { line(isStale: isStale()) }
+        case .systemText:
+            // No timeline, and `Text`'s own `DateStyle` rather than the
+            // `.relative` FormatStyle: the style is what the system animates,
+            // and it is the only thing on this surface that counts up on its
+            // own. It renders no "ago" of its own, hence the wording around it.
+            //
+            // `isStale` is read when the system renders, so the hour-long
+            // fallback only lands on whatever redraw happens. The exact answer
+            // comes from ActivityKit's own `staleDate`, which does provoke one —
+            // one more reason for a producer to send `staleAt`.
+            line(
+                isStale: isStale(),
+                time: Text("Updated \(updatedAt, style: .relative) ago")
+            )
         }
+    }
+
+    private func line(isStale: Bool, time: Text? = nil) -> some View {
+        HStack(spacing: spacing) {
+            // Not conditional on `accessibilityDifferentiateWithoutColor`.
+            // That setting is opt-in and most people who would benefit
+            // never turn it on, and with the words gone the colour would
+            // otherwise be carrying the whole signal by itself.
+            if isStale {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .accessibilityHidden(true)
+            }
+            // In-process the wording is free, because the clock above is
+            // what makes it move: `.relative(presentation: .named)` reads
+            // "Updated 1 minute ago" where `Text(_, style: .relative)`
+            // renders "1 min, 9 secs" and no "ago" at all — which reads as
+            // how long the job has been running rather than how old the
+            // reading is. The widget surfaces pay that wording for a line
+            // that actually ticks, and get "ago" back from the sentence
+            // around it.
+            time ?? Text("Updated \(updatedAt.formatted(.relative(presentation: .named)))")
+        }
+        .font(font)
+        // Neither of these is `.tertiary`. On the dark grounds these draw
+        // against, tertiary is white at 30% and computes to about 2.5:1 —
+        // under the 3:1 large-text threshold, let alone 4.5:1. Secondary
+        // is 60% and about 7.4:1. Nothing here is decorative enough for
+        // tertiary.
+        .foregroundStyle(isStale ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
     }
 }

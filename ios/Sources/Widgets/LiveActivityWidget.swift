@@ -34,7 +34,8 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         } else if let endsAt = context.state.endsAt {
                             LiveActivityCountdownText(
                                 endsAt: endsAt,
-                                granularity: context.state.countdownGranularity
+                                granularity: context.state.countdownGranularity,
+                                ticking: .systemText
                             )
                                 .font(.headline)
                                 .monospacedDigit()
@@ -125,7 +126,8 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     } else if let endsAt = context.state.endsAt {
                         LiveActivityCountdownText(
                             endsAt: endsAt,
-                            granularity: context.state.countdownGranularity
+                            granularity: context.state.countdownGranularity,
+                                ticking: .systemText
                         )
                         .monospacedDigit()
                     } else if let value = context.state.value {
@@ -301,11 +303,6 @@ private struct LockScreenView: View {
     // bar as well. .medium is the iPhone Lock Screen.
     @Environment(\.activityFamily) private var activityFamily
 
-    // False when the system draws no container around this presentation. From
-    // iOS 27 that is StandBy, which reuses the Lock Screen layout at 200% on a
-    // charging iPhone in landscape. See `LiveActivityBackground`.
-    @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
-
     private var tint: Color { attributes.kind.tint(for: state.signal) }
 
     var body: some View {
@@ -351,7 +348,8 @@ private struct LockScreenView: View {
             updatedAt: state.updatedAt,
             isStale: { isStale },
             font: .caption2,
-            spacing: 4
+            spacing: 4,
+            ticking: .systemText
         )
     }
 
@@ -364,13 +362,21 @@ private struct LockScreenView: View {
             }
         }
         .padding()
-        .background {
-            // Only inside the system's container. Enlarged edge to edge for
-            // StandBy an inset wash of our own reads as stranded, so there the
-            // flat activityBackgroundTint carries the surface by itself.
-            if showsContainerBackground {
-                LiveActivityBackground.gradient(for: attributes.kind, signal: state.signal)
-            }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        // `containerBackground`, not `.background`. A `.background` is sized to
+        // the view it modifies, and the system's banner is taller and wider
+        // than our padded content — so the wash stopped short of the capsule on
+        // every side and the flat `activityBackgroundTint` showed beyond it, a
+        // visible band across the top and bottom of the Lock Screen banner.
+        //
+        // This is also what replaces the `showsWidgetContainerBackground` check
+        // that used to guard it. The system removes a container background
+        // itself where it wants one gone — StandBy, which enlarges the Lock
+        // Screen layout to 200% and draws no container of its own — so the rule
+        // the old comment described is now enforced by the API rather than
+        // restated here.
+        .containerBackground(for: .widget) {
+            LiveActivityBackground.gradient(for: attributes.kind, signal: state.signal)
         }
     }
 
@@ -431,7 +437,8 @@ private struct LockScreenView: View {
                     if let endsAt = state.endsAt {
                         LiveActivityCountdownText(
                             endsAt: endsAt,
-                            granularity: state.countdownGranularity
+                            granularity: state.countdownGranularity,
+                                ticking: .systemText
                         )
                             .font(.title3.weight(.semibold))
                             .monospacedDigit()
@@ -543,7 +550,8 @@ private struct LockScreenView: View {
         if let endsAt = state.endsAt {
             LiveActivityCountdownText(
                 endsAt: endsAt,
-                granularity: state.countdownGranularity
+                granularity: state.countdownGranularity,
+                                ticking: .systemText
             )
                 .font(metrics.value)
                 .monospacedDigit()

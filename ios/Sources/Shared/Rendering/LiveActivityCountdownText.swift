@@ -4,15 +4,35 @@ import SwiftUI
 public struct LiveActivityCountdownText: View {
     private let endsAt: Date
     private let granularity: CountdownGranularity
+    private let ticking: TimeTicking
 
-    public init(endsAt: Date, granularity: CountdownGranularity?) {
+    public init(endsAt: Date, granularity: CountdownGranularity?, ticking: TimeTicking = .clock) {
         self.endsAt = endsAt
         self.granularity = granularity ?? .second
+        self.ticking = ticking
     }
 
+    @ViewBuilder
     public var body: some View {
-        TimelineView(CountdownDeadlineSchedule(endsAt: endsAt, granularity: granularity)) { context in
-            remaining(at: context.date)
+        switch ticking {
+        case .clock:
+            TimelineView(CountdownDeadlineSchedule(endsAt: endsAt, granularity: granularity)) { context in
+                remaining(at: context.date)
+            }
+        case .systemText:
+            // A widget or Live Activity is drawn by the system out of process
+            // and the schedule above never fires there — see `TimeTicking`. So
+            // no timeline, and no "Overdue" either: reaching it depends on a
+            // wake-up this surface does not get. `.second` keeps ticking
+            // because `Text`'s `.timer` style is animated by the system itself;
+            // `.minute` is a string computed when the system renders, which is
+            // what it has always been here, and moves when the producer pushes.
+            switch granularity {
+            case .second:
+                Text(endsAt, style: .timer)
+            case .minute:
+                Text(Self.minuteText(endsAt: endsAt, now: Date()))
+            }
         }
     }
 
