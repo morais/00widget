@@ -344,9 +344,30 @@ private struct TVCardDetailContent: View {
     /// were constants, which meant an accessibility size drew six rows into
     /// the room for three and lost the last of them off a panel that cannot
     /// scroll.
-    private var listRowLimit: Int { textScale.rowLimit(standard: 6) }
-    private var breakdownRowLimit: Int { textScale.rowLimit(standard: 5) }
-    private var briefingSectionLimit: Int { textScale.rowLimit(standard: 6) }
+    private var listRowLimit: Int { rowLimit(standard: 6) }
+    private var breakdownRowLimit: Int { rowLimit(standard: 5) }
+    private var briefingSectionLimit: Int { rowLimit(standard: 6) }
+
+    /// The budget above is the room a panel has for rows when a headline is
+    /// the only other thing in it. Two blocks are optional and neither is in
+    /// that figure: the deadline line this view draws under the rows, and the
+    /// panel's footer of action buttons. Each costs about a row — and at
+    /// accessibility sizes the footer stacks its buttons, so it costs one for
+    /// each of them. A card carrying both used to draw its full six rows into
+    /// the room for four, and a panel that overruns is centred rather than
+    /// clipped: the header goes off the top and the buttons off the bottom, on
+    /// a column nothing can scroll. Verified against exactly that card.
+    private func rowLimit(standard: Int) -> Int {
+        var chrome = card.deadline != nil ? 1 : 0
+        let actions = card.actions?.count ?? 0
+        if actions > 0 {
+            chrome += textScale == .accessibility ? actions : 1
+        }
+        // The same floor `TVTextScale` applies, and for its reason: one row is
+        // a list that has stopped being one. A panel promised more than the
+        // screen holds can only pick which way to be wrong.
+        return Swift.max(2, textScale.rowLimit(standard: standard) - chrome)
+    }
     /// The strip is a fixed 44 points however large the type is, and its pips
     /// share the width rather than stacking, so this one does not scale.
     private let historyPipLimit = 24
@@ -414,7 +435,16 @@ private struct TVCardDetailContent: View {
                 Text(subtitle)
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    // Bounded like every other line on this screen. The row
+                    // counts below are a budget computed against a headline of
+                    // a known height, and the subtitle was the one part of it
+                    // a producer controls: it accepts 240 characters, which
+                    // wrap to about two rows' worth of height the budget does
+                    // not know it has lost. A panel that overruns is centred
+                    // rather than clipped, so the cost is the header off the
+                    // top as well as the last rows off the bottom, on a column
+                    // nothing can scroll.
+                    .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 3)
             }
         }
     }
@@ -483,7 +513,7 @@ private struct TVCardDetailContent: View {
                 StatusStripView(items: items, limit: historyPipLimit, height: 44)
                 rows(
                     Array(
-                        items.suffix(textScale.rowLimit(standard: plotted == nil ? 4 : 2))
+                        items.suffix(rowLimit(standard: plotted == nil ? 4 : 2))
                             .reversed()
                     ),
                     ranked: false
@@ -745,7 +775,8 @@ private struct TVActivityDetailContent: View {
                 Text(subtitle)
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    // Bounded for the reason the card panel's is.
+                    .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 3)
             }
         }
     }

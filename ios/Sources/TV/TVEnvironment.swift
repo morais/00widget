@@ -60,6 +60,43 @@ final class TVEnvironment: ObservableObject {
                     )
                 )
             ]
+        } else if screenshotSection == "detail-budget" {
+            // A regression fixture for the detail panel's row budget, not a
+            // marketing shot. It is the compound worst case: a list at its row
+            // cap, a subtitle at the API's 240-character limit, a deadline,
+            // and actions in the footer. The budget counted only the first of
+            // those, so this card drew six rows into the room for four — and a
+            // panel that overruns is centred rather than clipped, so it lost
+            // its header off the top and its buttons off the bottom, on a
+            // column nothing can scroll to.
+            self.cards = [
+                DashboardCard(
+                    id: SampleDataFactory.sampleId("tv-detail-budget"),
+                    template: .list,
+                    title: "Fleet checks",
+                    subtitle: "Last 30 days of household consumption including the heat pump, the car charger and the workshop sub-meter, compared against the same window last year and the tariff cap agreed in March for the winter",
+                    value: "8",
+                    unit: "checks",
+                    status: .warning,
+                    icon: "server.rack",
+                    updatedAt: Date(),
+                    deadline: Date().addingTimeInterval(7200),
+                    items: (0..<8).map { index in
+                        DashboardItem(
+                            id: "row\(index)",
+                            title: ["Edge cache", "Origin", "Database", "Queue", "Webhooks", "Search", "Billing", "Auth"][index],
+                            value: "\(120 + index * 17)",
+                            unit: "ms",
+                            status: index == 3 ? .critical : .good,
+                            amount: Double(120 + index * 17)
+                        )
+                    },
+                    actions: [
+                        ActionDefinition(id: "recheck", label: "Recheck all"),
+                        ActionDefinition(id: "drain", label: "Drain queue")
+                    ]
+                )
+            ]
         } else if screenshotSection == "insights" {
             self.cards = Array(samples.suffix(3))
         } else if screenshotSection == "widgets" {
