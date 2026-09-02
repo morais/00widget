@@ -146,6 +146,58 @@ A `simctl` device reported as `Booted` is not proof that the Simulator UI is
 open; do not replace the scripted launch with a headless boot or claim the
 simulator is visibly running based only on `simctl list`.
 
+## Looking at a widget layout without a widget
+
+A layout bug is invisible to everything else in this repo. The compiler does
+not see a `VStack` overflowing its canvas, or half a card left blank; a green
+suite says nothing about either. Marketing captures show it, but a full iPhone
+run is 10-15 minutes and drives real Home Screen placement, which is far more
+machinery than a question about one card's geometry needs.
+
+The fast loop is `ImageRenderer` from the unit test target, which is hosted by
+the app and so has all of SwiftUI:
+
+```swift
+@MainActor struct ScratchRenderTests {
+    @Test func render() {
+        let renderer = ImageRenderer(
+            content: CardView(card: card, context: .widgetMedium)
+                .frame(width: 364, height: 170)
+                .background(Color(white: 0.14))
+        )
+        renderer.scale = 2
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("render.png")
+        try? renderer.uiImage?.pngData()?.write(to: url)
+        print("WROTE \(url.path)")   // then read it off the host and look
+    }
+}
+```
+
+The PNG lands in the app's container: `ls -t
+~/Library/Developer/CoreSimulator/Devices/<id>/data/Containers/Data/Application/*/tmp/`.
+About a second per image, so thirty variants is a coffee rather than an
+afternoon.
+
+What makes it trustworthy is the **exact point size**: a widget hands its
+content a fixed box, which is what `.frame(width:height:)` reproduces, so a
+`GeometryReader` inside sees the same number it will see on a phone. Use real
+ones — 364x170 and 364x382 for a 6.3-inch phone, and 321x148 and 321x324 for the
+smallest, which is the pair that actually catches an overflow: caps that fit an
+iPhone 17 Pro do not fit a 4.7-inch screen. Drive text size with
+`.environment(\.dynamicTypeSize, .accessibility3)` rather than assuming.
+
+Two things it cannot tell you. Anything UIKit-backed renders wrong offscreen —
+a linear `ProgressView` comes back full-width with a marker whatever its value —
+so a control like that still needs a device. And it proves layout only, never
+WidgetKit behaviour: configuration, timelines, reload budget and push are
+outside it.
+
+The harness itself is scratch; delete it when the question is answered. What
+should survive is the arithmetic it helped you get right, extracted somewhere a
+unit test can reach it — `ListRowFill` and `BriefingFill` are the worked
+examples, both of which came out of exactly this loop.
+
 ## Marketing screenshots
 
 The phrase **full screenshot workflow** always means both stages for all four
