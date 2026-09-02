@@ -126,6 +126,19 @@ Note also that `build-sim.sh --fresh` only runs `simctl uninstall`, which leaves
 the **shared App Group container** intact — cached cards and widget placements
 survive it. Use `xcrun simctl erase` for a genuinely clean device.
 
+## CoreSimulator permissions
+
+The screenshot scripts (`ios/scripts/capture-screenshots.sh` and
+`ios/scripts/capture-tv-screenshots.sh`) and direct `xcrun simctl` commands
+require access to the host's CoreSimulator services.
+
+If a sandboxed attempt reports `CoreSimulatorService connection became invalid`,
+another launchd/CoreSimulator connection error, or an inability to communicate
+with a simulator service, immediately rerun the same command with elevated
+sandbox permissions and a concise approval justification. Do not wait for the
+service to recover, and do not report the capture as blocked before attempting
+the elevated retry.
+
 ## Marketing screenshots
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
