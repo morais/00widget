@@ -150,11 +150,13 @@ final class MarketingPreviewTests: XCTestCase {
         start.press(
             forDuration: 0.01,
             thenDragTo: end,
-            withVelocity: .fast,
+            withVelocity: 1_200,
             thenHoldForDuration: 0
         )
-        // Force a settled framebuffer sample so CoreSimulator preserves the
-        // following static hold in its variable-frame-rate recording.
+        // Let SpringBoard finish its animation before forcing a settled sample.
+        // Sampling immediately can freeze the animation; never sampling can
+        // make CoreSimulator's variable-frame-rate recorder omit the swipe.
+        Thread.sleep(forTimeInterval: 0.5)
         _ = XCUIScreen.main.screenshot()
     }
 
