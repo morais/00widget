@@ -54,6 +54,17 @@ public struct CardView: View {
     /// unit its type ladder steps against, so a larger text size buys fewer,
     /// taller rows rather than a card that overflows.
     @ScaledMetric(relativeTo: .caption) private var listRowUnit: CGFloat = 19
+    /// The same measurement for a `breakdown`'s legend, whose rows are a rung
+    /// smaller than a list's.
+    @ScaledMetric(relativeTo: .caption2) private var legendRowUnit: CGFloat = 17
+    /// A `summary` headline on a canvas whose whole job is to carry it. There
+    /// is no text style above `.largeTitle`, and `.largeTitle` centred in a
+    /// large widget reads as a small number adrift rather than as the point of
+    /// the card, so this is a point size — scaled with the reader's text size
+    /// like a style, and shrunk by `minimumScaleFactor` when the value is long.
+    @ScaledMetric(relativeTo: .largeTitle) private var summaryValueSize: CGFloat = 56
+    /// The same on the medium canvas, which has a third of the height.
+    @ScaledMetric(relativeTo: .largeTitle) private var summaryValueSizeMedium: CGFloat = 40
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if canImport(WidgetKit)
@@ -189,34 +200,58 @@ public struct CardView: View {
             .fixedSize()
     }
 
-    private var bigValue: some View {
+    private func bigValue(font: Font = .title, unitFont: Font = .caption) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 2) {
             Text(card.value ?? "—")
-                .font(.title.weight(.semibold))
+                .font(font.weight(.semibold))
                 .fontDesign(.rounded)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             if let unit = card.unit {
                 Text(unit)
-                    .font(.caption)
+                    .font(unitFont)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// The headline number on a card that exists to show one.
+    ///
+    /// `summary` is the template the integration guide tells producers to
+    /// default to, and its number was `.title` on every canvas — the same size
+    /// in a 170-point small widget and in a large one with four times the
+    /// area, where it sat above four fifths of a blank card. A chart, history
+    /// or breakdown headline deliberately does not grow with it: there the
+    /// number introduces something drawn underneath, and the height belongs to
+    /// that.
+    @ViewBuilder
+    private var summaryValue: some View {
+        switch context {
+        case .widgetLarge, .widgetExtraLargePortrait:
+            bigValue(font: .system(size: summaryValueSize, design: .rounded), unitFont: .title2)
+        case .widgetExtraLarge:
+            // Half the width, and action buttons in the column beside it.
+            bigValue(font: .largeTitle, unitFont: .title3)
+        case .widgetMedium:
+            bigValue(font: .system(size: summaryValueSizeMedium, design: .rounded), unitFont: .subheadline)
+        default:
+            bigValue()
         }
     }
 
     private var smallView: some View {
         VStack(alignment: .leading, spacing: 6) {
             header
-            if !listFillsHeight {
+            if !rowsFillHeight {
                 Spacer(minLength: 0)
             }
             switch card.template {
             case .progress:
                 if let p = card.progressValue {
-                    if card.progressValueIsLabel { bigValue }
+                    if card.progressValueIsLabel { bigValue() }
                     ProgressRow(progress: p, label: card.subtitle)
                 } else {
-                    bigValue
+                    bigValue()
                 }
             case .action:
                 actionSummary
@@ -235,7 +270,7 @@ public struct CardView: View {
             case .briefing:
                 briefingLead(subtitleLines: 2)
             case .summary:
-                bigValue
+                bigValue()
                 if let subtitle = card.subtitle {
                     Text(subtitle)
                         .font(.caption2)
@@ -261,10 +296,13 @@ public struct CardView: View {
                 actionSummary
                 actionButtons(max: density == .compact ? 1 : 2)
             case .progress:
-                if let p = card.progressValue {
-                    ProgressRow(progress: p, label: card.subtitle)
+                VStack(alignment: .leading, spacing: 6) {
+                    summaryValue
+                    if let p = card.progressValue {
+                        ProgressRow(progress: p, label: card.subtitle)
+                    }
                 }
-                bigValue
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             case .chart:
                 chartHeadline
                 sparkline(height: density == .compact ? 32 : 46)
@@ -277,27 +315,28 @@ public struct CardView: View {
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 14)
-                breakdownLegend(max: density == .compact ? 0 : 2)
+                breakdownLegend(max: density == .compact ? 2 : 4, fills: true)
             case .briefing:
                 briefingLead(subtitleLines: density == .compact ? 1 : 2)
                 briefingSections(max: density == .compact ? 0 : 1, lineLimit: 2)
             case .summary:
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
-                        bigValue
+                        summaryValue
                         if density != .compact, let subtitle = card.subtitle {
                             Text(subtitle)
-                                .font(.caption)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
                 }
+                .frame(maxHeight: .infinity, alignment: .leading)
             }
             if card.template != .action {
                 actionButtons(max: density == .compact ? 1 : 2)
             }
-            if !listFillsHeight {
+            if !bodyFillsHeight {
                 Spacer(minLength: 0)
             }
             if density != .compact, card.deadline != nil {
@@ -330,20 +369,23 @@ public struct CardView: View {
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 16)
-                breakdownLegend(max: density == .compact ? 3 : 5)
+                breakdownLegend(max: density == .compact ? 4 : 8, fills: true)
             case .briefing:
                 briefingLead(subtitleLines: 2)
                 briefingSections(max: density == .compact ? 1 : 3, lineLimit: 2)
             case .summary, .progress:
-                bigValue
-                if let subtitle = card.subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    summaryValue
+                    if let subtitle = card.subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let p = card.progressValue {
+                        ProgressRow(progress: p, label: nil)
+                    }
                 }
-                if let p = card.progressValue {
-                    ProgressRow(progress: p, label: nil)
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
             if card.template != .action {
                 actionButtons(max: density == .compact ? 2 : 4)
@@ -366,20 +408,40 @@ public struct CardView: View {
     /// the slack and neither one fills, so a filling body and the Spacer are
     /// exclusive at every call site.
     private var bodyFillsHeight: Bool {
-        largePlotFillsHeight || listFillsHeight
+        largePlotFillsHeight || rowsFillHeight || summaryFillsHeight
     }
 
-    /// Whether a `list` spreads its rows over the canvas rather than stacking
-    /// them under the header at a fixed size.
+    /// Whether stacked rows — a `list`'s, or a `breakdown`'s legend under its
+    /// bar — spread over the canvas rather than sitting under the header at a
+    /// fixed size and a fixed count.
     ///
     /// Every single-column widget canvas qualifies. The double-width one does
     /// not: it answers extra room with a second column, and two columns
     /// measuring their own height independently would disagree about how many
     /// rows fit and leave a hole in the middle of the sequence.
-    private var listFillsHeight: Bool {
-        guard card.template == .list, !(card.items?.isEmpty ?? true) else { return false }
-        switch context {
-        case .widgetSmall, .widgetMedium, .widgetLarge, .widgetExtraLargePortrait:
+    private var rowsFillHeight: Bool {
+        guard !(card.items?.isEmpty ?? true) else { return false }
+        switch (card.template, context) {
+        case (.list, .widgetSmall), (.list, .widgetMedium),
+             (.list, .widgetLarge), (.list, .widgetExtraLargePortrait):
+            return true
+        // A small widget draws the bar and no legend, so it has no rows here.
+        case (.breakdown, .widgetMedium), (.breakdown, .widgetLarge),
+             (.breakdown, .widgetExtraLargePortrait):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether a card whose whole content is a headline number centres that
+    /// number in the room instead of hanging it under the header with the rest
+    /// of the canvas blank beneath it.
+    private var summaryFillsHeight: Bool {
+        switch (card.template, context) {
+        case (.summary, .widgetMedium), (.progress, .widgetMedium),
+             (.summary, .widgetLarge), (.progress, .widgetLarge),
+             (.summary, .widgetExtraLargePortrait), (.progress, .widgetExtraLargePortrait):
             return true
         default:
             return false
@@ -501,7 +563,7 @@ public struct CardView: View {
         case .summary, .progress:
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    bigValue
+                    summaryValue
                     if let subtitle = card.subtitle {
                         Text(subtitle)
                             .font(.caption)
@@ -548,20 +610,23 @@ public struct CardView: View {
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 18)
-                breakdownLegend(max: density == .compact ? 5 : 8)
+                breakdownLegend(max: density == .compact ? 6 : 10, fills: true)
             case .briefing:
                 briefingLead(subtitleLines: 3)
                 briefingSections(max: density == .compact ? 3 : 6, lineLimit: 3)
             case .summary, .progress:
-                bigValue
-                if let subtitle = card.subtitle {
-                    Text(subtitle)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    summaryValue
+                    if let subtitle = card.subtitle {
+                        Text(subtitle)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let p = card.progressValue {
+                        ProgressRow(progress: p, label: nil)
+                    }
                 }
-                if let p = card.progressValue {
-                    ProgressRow(progress: p, label: nil)
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
             if card.template != .action {
                 actionButtons(max: density == .compact ? 3 : 6)
@@ -811,7 +876,7 @@ public struct CardView: View {
 
     private func briefingLead(subtitleLines: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            bigValue
+            bigValue()
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.caption)
@@ -970,7 +1035,7 @@ public struct CardView: View {
     /// which is why this keeps it even where `summary` drops it for space.
     private var chartHeadline: some View {
         VStack(alignment: .leading, spacing: 2) {
-            bigValue
+            bigValue()
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.caption2)
@@ -991,33 +1056,68 @@ public struct CardView: View {
     /// `value` when it has one and the computed share otherwise, so a publisher
     /// can label segments in its own units without restating the percentages.
     @ViewBuilder
-    private func breakdownLegend(max limit: Int) -> some View {
+    private func breakdownLegend(max limit: Int, fills: Bool = false) -> some View {
         let shares = CompositionBarView.shares(of: card.items ?? [])
         if limit > 0 && !shares.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(Array(shares.prefix(limit).enumerated()), id: \.element.item.id) { index, entry in
-                    HStack(spacing: 5) {
-                        SeriesSwatch(
-                            index: index,
-                            color: CompositionBarView.tint(
-                                for: entry.item,
-                                index: index,
-                                base: card.status.tint,
-                                increasedContrast: colorSchemeContrast == .increased
-                            ),
-                            size: 6,
-                            differentiateWithoutColor: differentiateWithoutColor
-                        )
-                        Text(entry.item.title)
-                            .font(.caption2)
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        Text(legendValue(entry.item, share: entry.share))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+            let visible = Array(shares.prefix(limit).enumerated())
+            if fills {
+                GeometryReader { proxy in
+                    let capacity = ListRowFill.capacity(height: proxy.size.height, unit: legendRowUnit)
+                    let rows = Array(visible.prefix(capacity))
+                    let slot = ListRowFill.slot(
+                        height: proxy.size.height,
+                        rows: rows.count,
+                        unit: legendRowUnit
+                    )
+                    let font = ListRowFill.font(
+                        slot: slot,
+                        width: proxy.size.width,
+                        unit: legendRowUnit,
+                        ladder: .legend
+                    )
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows, id: \.element.item.id) { index, entry in
+                            legendRow(index: index, entry: entry, font: font)
+                                .frame(maxHeight: slot)
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(visible, id: \.element.item.id) { index, entry in
+                        legendRow(index: index, entry: entry, font: .caption2)
                     }
                 }
             }
+        }
+    }
+
+    private func legendRow(
+        index: Int,
+        entry: (item: DashboardItem, share: Double),
+        font: Font
+    ) -> some View {
+        HStack(spacing: 5) {
+            SeriesSwatch(
+                index: index,
+                color: CompositionBarView.tint(
+                    for: entry.item,
+                    index: index,
+                    base: card.status.tint,
+                    increasedContrast: colorSchemeContrast == .increased
+                ),
+                size: 6,
+                differentiateWithoutColor: differentiateWithoutColor
+            )
+            Text(entry.item.title)
+                .font(font)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            Text(legendValue(entry.item, share: entry.share))
+                .font(font)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 
@@ -1138,7 +1238,7 @@ public struct CardView: View {
 
     private var actionSummary: some View {
         VStack(alignment: .leading, spacing: 2) {
-            bigValue
+            bigValue()
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.caption)

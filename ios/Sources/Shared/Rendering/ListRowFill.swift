@@ -33,13 +33,34 @@ public enum ListRowFill {
         return min(height / CGFloat(rows), unit * maxSlotUnits)
     }
 
+    /// The type ladder a surface climbs when it has room to spare. A legend
+    /// starts a rung lower than a list: it is a key to something drawn above
+    /// it, so it should not end up larger than the thing it explains.
+    public enum Ladder {
+        case row
+        case legend
+
+        var sizes: (base: Font, middle: Font, top: Font) {
+            switch self {
+            case .row: return (.caption, .subheadline, .body)
+            case .legend: return (.caption2, .caption, .subheadline)
+            }
+        }
+    }
+
     /// Type follows the room: a list with as many rows as the canvas holds
-    /// stays at `.caption`, and one with room to spare reads at the size the
+    /// stays at its base size, and one with room to spare reads at the size the
     /// space deserves rather than as small print.
-    public static func font(slot: CGFloat, width: CGFloat, unit: CGFloat) -> Font {
-        guard width >= minWidthForLargerType else { return .caption }
-        if slot >= unit * 1.9 { return .body }
-        if slot >= unit * 1.35 { return .subheadline }
-        return .caption
+    public static func font(
+        slot: CGFloat,
+        width: CGFloat,
+        unit: CGFloat,
+        ladder: Ladder = .row
+    ) -> Font {
+        let sizes = ladder.sizes
+        guard width >= minWidthForLargerType else { return sizes.base }
+        if slot >= unit * 1.9 { return sizes.top }
+        if slot >= unit * 1.35 { return sizes.middle }
+        return sizes.base
     }
 }

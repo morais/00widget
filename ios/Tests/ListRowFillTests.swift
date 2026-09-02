@@ -54,10 +54,19 @@ struct ListRowFillTests {
         #expect(ListRowFill.font(slot: unit * 2.5, width: wide, unit: unit) == .body)
     }
 
+    @Test("A legend never outgrows the bar it is a key to")
+    func legendLadderStartsLower() {
+        let wide: CGFloat = 340
+        #expect(ListRowFill.font(slot: unit, width: wide, unit: unit, ladder: .legend) == .caption2)
+        #expect(ListRowFill.font(slot: unit * 1.5, width: wide, unit: unit, ladder: .legend) == .caption)
+        #expect(ListRowFill.font(slot: unit * 2.5, width: wide, unit: unit, ladder: .legend) == .subheadline)
+    }
+
     @Test("A narrow canvas keeps small type, which is the only size that fits")
     func narrowCanvasKeepsCaption() {
         // A small widget has the height for a larger row and not the width:
         // the extra size would be spent on ellipses.
         #expect(ListRowFill.font(slot: unit * 2.5, width: 154, unit: unit) == .caption)
+        #expect(ListRowFill.font(slot: unit * 2.5, width: 154, unit: unit, ladder: .legend) == .caption2)
     }
 }
