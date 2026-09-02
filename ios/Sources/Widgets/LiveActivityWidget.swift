@@ -362,7 +362,12 @@ private struct LockScreenView: View {
             }
         }
         .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        // Width only. `maxHeight: .infinity` was here while the wash was a
+        // `.background` that had to be stretched to cover the banner;
+        // `containerBackground` fills the container whatever the content does,
+        // and an unbounded height proposal is the one thing that would stop
+        // `ViewThatFits` above from ever choosing a shorter candidate.
+        .frame(maxWidth: .infinity, alignment: .leading)
         // `containerBackground`, not `.background`. A `.background` is sized to
         // the view it modifies, and the system's banner is taller and wider
         // than our padded content — so the wash stopped short of the capsule on
@@ -380,8 +385,42 @@ private struct LockScreenView: View {
         }
     }
 
+    /// The composite banner, at whichever density fits the height the system
+    /// gave us.
+    ///
+    /// A Lock Screen banner has a fixed maximum height, and a `VStack` handed
+    /// less room than it needs does not compress — it *centres* and overflows,
+    /// which clipped this layout's header off the top and its freshness line
+    /// off the bottom at the same time. Nothing in a build, a test, or a
+    /// screenshot of any other activity could see it: the overflow only appears
+    /// once an activity carries enough rows, and every sample until now carried
+    /// none. It is the same fact that decides the row caps in `TVDetailView`,
+    /// arriving on the other platform.
+    ///
+    /// `ViewThatFits` rather than a hardcoded row count, because the number
+    /// depends on the device, on Dynamic Type, and on whether the rows carry
+    /// subtitles or progress bars — none of which this can measure and all of
+    /// which the layout engine already knows. It takes the first candidate
+    /// whose ideal height fits, so the ordering below is "most informative
+    /// first" and the last one is the floor that must always fit.
     private var compositeLockScreenBody: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        ViewThatFits(in: .vertical) {
+            composite(rows: 3, condensed: false)
+            // Rows before subtitles. Which parts a job has is the thing the
+            // banner is for; a row's subtitle is a detail of one of them, and
+            // dropping three subtitles to keep a third part on screen trades
+            // less than dropping the part does.
+            composite(rows: 3, condensed: true)
+            composite(rows: 2, condensed: false)
+            composite(rows: 2, condensed: true)
+            composite(rows: 1, condensed: true)
+        }
+    }
+
+    private func composite(rows: Int, condensed: Bool) -> some View {
+        let shown = Array(state.activeItems.prefix(rows))
+        let hidden = state.activeItems.count - shown.count
+        return VStack(alignment: .leading, spacing: condensed ? 5 : 7) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)
                     .font(.headline)
@@ -408,15 +447,22 @@ private struct LockScreenView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            ForEach(Array(state.activeItems.prefix(3))) { item in
-                LiveActivityItemRow(item: item)
+            ForEach(shown) { item in
+                LiveActivityItemRow(item: item, condensed: condensed)
             }
-            if state.activeItems.count > 3 {
-                Text("+\(state.activeItems.count - 3) more")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            // One line, not two. Both are trailing metadata and neither fills
+            // its own width, so pairing them buys back a whole row of item —
+            // which is the difference between showing three parts of a job and
+            // two.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if hidden > 0 {
+                    Text("+\(hidden) more")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                freshness
             }
-            freshness
         }
     }
 
