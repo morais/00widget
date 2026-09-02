@@ -953,8 +953,8 @@ public struct CardView: View {
                             if !dynamicTypeSize.isAccessibilitySize {
                                 Spacer(minLength: 8)
                             }
-                            if let value = item.value {
-                                Text("\(value)\(item.unit ?? "")")
+                            if let value = item.displayValue {
+                                Text(value)
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.primary)
                             }
@@ -1161,7 +1161,7 @@ public struct CardView: View {
     }
 
     private func legendValue(_ item: DashboardItem, share: Double) -> String {
-        if let value = item.value { return "\(value)\(item.unit ?? "")" }
+        if let value = item.displayValue { return value }
         return "\(Int((share * 100).rounded()))%"
     }
 
@@ -1339,8 +1339,8 @@ public struct CardView: View {
                 SemanticFlowIcon(item.semantic)
                 Text(item.title).font(font).lineLimit(1)
                 Spacer()
-                if let v = item.value {
-                    Text("\(v)\(item.unit ?? "")")
+                if let v = item.displayValue {
+                    Text(v)
                         .font(font)
                         .foregroundStyle(.primary)
                         // A filled row is as tall as its slot, which is room a

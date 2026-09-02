@@ -47,7 +47,7 @@ npx wrangler dev          # local dev on :8787, reads .dev.vars
 cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
-ios/scripts/capture-all-marketing-screenshots.sh # both iPhones + iPad + Apple TV
+ios/scripts/capture-all-marketing-screenshots.sh # raw + promotional, all devices
 ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
 ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
 ios/scripts/run-accessibility-audits.sh    # XCTest audits at Large + AX5
@@ -148,19 +148,23 @@ simulator is visibly running based only on `simctl list`.
 
 ## Marketing screenshots
 
-The phrase **full screenshot workflow** always means all four canonical device
-sets: iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV. Run the single entry
-point below; do not substitute one default iPhone capture plus the other two
-platforms:
+The phrase **full screenshot workflow** always means both stages for all four
+canonical device sets—iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV:
+first capture the 21 raw simulator screenshots, then generate the 21 framed
+promotional compositions with approved text. Run the single entry point below;
+do not substitute raw capture alone or one default iPhone capture plus the other
+two platforms:
 
 ```
 ios/scripts/capture-all-marketing-screenshots.sh
 ```
 
 The wrapper records its start time and refuses to report success unless every
-set has a fresh full-capture manifest, the exact required filenames, matching
-checksums, and the canonical dimensions. Use `--verify-only` to validate the
-sets already on disk without capturing them again.
+raw set has a fresh full-capture manifest and the promotional manifest was then
+generated from those exact source checksums. Both stages validate the required
+filenames, checksums, approved copy, and canonical dimensions. Use
+`--verify-only` to validate both the raw and promotional trees already on disk
+without capturing or generating them again.
 
 The UI-driven captures are intentionally slow. A single iPhone or iPad run can
 take 10–15 minutes, and the four-device workflow can take 30–45 minutes. The

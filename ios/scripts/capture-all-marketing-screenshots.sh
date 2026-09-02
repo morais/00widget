@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Captures and verifies every canonical App Store marketing screenshot set.
+# Captures, composes, and verifies every App Store marketing screenshot set.
 #
 #   ios/scripts/capture-all-marketing-screenshots.sh
 #   ios/scripts/capture-all-marketing-screenshots.sh --verify-only
@@ -139,4 +139,13 @@ if errors:
 print("✓ all four canonical screenshot sets verified")
 PY
 
-echo "✓ full marketing screenshot workflow complete"
+if [[ "$VERIFY_ONLY" == false ]]; then
+  echo "→ generating all promotional screenshot compositions"
+  python3.12 "$SCRIPT_DIR/generate-promotional-screenshots.py" \
+    --generated-after "$CAPTURE_STARTED_AT"
+else
+  echo "→ verifying all promotional screenshot compositions"
+  python3.12 "$SCRIPT_DIR/generate-promotional-screenshots.py" --verify-only
+fi
+
+echo "✓ full marketing screenshot workflow complete: 21 raw captures + 21 promotional compositions"

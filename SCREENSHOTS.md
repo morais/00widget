@@ -160,6 +160,16 @@ Generate all 21 promotional images from the current raw captures with:
 python3.12 ios/scripts/generate-promotional-screenshots.py
 ```
 
+The canonical end-to-end workflow captures all four raw device sets and then
+generates and verifies all 21 promotional compositions:
+
+```sh
+ios/scripts/capture-all-marketing-screenshots.sh
+```
+
+Its `--verify-only` mode checks both trees and fails if a promotional image was
+generated from an older raw capture.
+
 Generate one device class while iterating with `--set iphone-6.3`,
 `--set iphone-6.5`, `--set ipad`, or `--set tvos`. The output keeps the canonical filenames
 inside device-specific directories and writes

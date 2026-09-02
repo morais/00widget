@@ -92,6 +92,10 @@ TV_PROMOTIONS = (
 )
 
 
+def promotions_for(device_set: str) -> tuple[Promotion, ...]:
+    return TV_PROMOTIONS if device_set == "tvos" else PROMOTIONS
+
+
 def file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -551,6 +555,131 @@ def compose_tv(
     }
 
 
+def verify_promotional_screenshots(
+    source_root: Path,
+    output_root: Path,
+    selected_sets: tuple[str, ...],
+    generated_after: datetime | None,
+) -> None:
+    manifest_path = output_root / "promotional-manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"Cannot read promotional manifest: {error}") from error
+
+    errors: list[str] = []
+    try:
+        generated_at = datetime.fromisoformat(manifest["generatedAt"])
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.replace(tzinfo=timezone.utc)
+        if generated_after is not None and generated_at < generated_after:
+            errors.append("promotional manifest was not produced by this workflow run")
+    except (KeyError, TypeError, ValueError):
+        errors.append("promotional manifest has an invalid generatedAt value")
+
+    if manifest.get("sourceRoot") != str(source_root.resolve()):
+        errors.append("promotional manifest sourceRoot does not match the canonical raw captures")
+    if manifest.get("outputRoot") != str(output_root.resolve()):
+        errors.append("promotional manifest outputRoot does not match the canonical output directory")
+
+    manifest_sets = manifest.get("sets")
+    if not isinstance(manifest_sets, list):
+        errors.append("promotional manifest sets value is invalid")
+        manifest_sets = []
+    by_set: dict[str, list[dict[str, object]]] = {}
+    for entry in manifest_sets:
+        if not isinstance(entry, dict) or not isinstance(entry.get("deviceSet"), str):
+            errors.append("promotional manifest contains an invalid device set")
+            continue
+        device_set = entry["deviceSet"]
+        files = entry.get("files")
+        if device_set in by_set:
+            errors.append(f"promotional manifest repeats device set {device_set}")
+        elif not isinstance(files, list):
+            errors.append(f"{device_set}: promotional manifest files value is invalid")
+        else:
+            by_set[device_set] = files
+
+    if selected_sets == DEVICE_SETS and set(by_set) != set(DEVICE_SETS):
+        errors.append(
+            "promotional manifest device sets differ from the four canonical sets"
+        )
+
+    for device_set in selected_sets:
+        expected_promotions = {
+            promotion.filename: promotion for promotion in promotions_for(device_set)
+        }
+        entries = by_set.get(device_set)
+        if entries is None:
+            errors.append(f"{device_set}: missing from promotional manifest")
+            continue
+        manifest_files = {
+            entry.get("filename"): entry
+            for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("filename"), str)
+        }
+        if set(manifest_files) != set(expected_promotions):
+            missing = sorted(set(expected_promotions) - set(manifest_files))
+            extra = sorted(set(manifest_files) - set(expected_promotions))
+            errors.append(
+                f"{device_set}: promotional manifest file mismatch; "
+                f"missing={missing}, extra={extra}"
+            )
+
+        output_directory = output_root / device_set
+        try:
+            disk_files = {
+                path.name
+                for path in output_directory.iterdir()
+                if path.name.startswith("screenshot-") and path.suffix == ".png"
+            }
+        except OSError as error:
+            errors.append(f"{device_set}: cannot read promotional output: {error}")
+            continue
+        if disk_files != set(expected_promotions):
+            missing = sorted(set(expected_promotions) - disk_files)
+            extra = sorted(disk_files - set(expected_promotions))
+            errors.append(
+                f"{device_set}: promotional output mismatch; missing={missing}, extra={extra}"
+            )
+
+        for filename, promotion in expected_promotions.items():
+            entry = manifest_files.get(filename)
+            output_path = output_directory / filename
+            source_path = source_root / device_set / filename
+            if entry is None or not output_path.is_file() or not source_path.is_file():
+                continue
+            if entry.get("headline") != promotion.headline:
+                errors.append(f"{device_set}/{filename}: headline differs from approved copy")
+            if entry.get("supporting") != promotion.supporting:
+                errors.append(f"{device_set}/{filename}: supporting line differs from approved copy")
+            if entry.get("dimensions") != list(EXPECTED_DIMENSIONS[device_set]):
+                errors.append(f"{device_set}/{filename}: manifest dimensions are incorrect")
+            if entry.get("sourceSha256") != file_hash(source_path):
+                errors.append(f"{device_set}/{filename}: composition is stale for its raw capture")
+            if entry.get("outputSha256") != file_hash(output_path):
+                errors.append(f"{device_set}/{filename}: output checksum differs from manifest")
+            try:
+                with Image.open(output_path) as output:
+                    if output.size != EXPECTED_DIMENSIONS[device_set]:
+                        errors.append(f"{device_set}/{filename}: output dimensions are incorrect")
+            except OSError as error:
+                errors.append(f"{device_set}/{filename}: cannot read output PNG: {error}")
+
+        print(
+            f"  {device_set}: {len(expected_promotions)} promotional screenshots "
+            f"at {EXPECTED_DIMENSIONS[device_set][0]}x{EXPECTED_DIMENSIONS[device_set][1]}"
+        )
+
+    if errors:
+        print("Promotional screenshot verification failed:")
+        for error in errors:
+            print(f"  - {error}")
+        raise SystemExit(1)
+
+    print("✓ all 21 promotional screenshots verified")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, default=DEFAULT_SOURCE_ROOT)
@@ -561,19 +690,48 @@ def main() -> None:
         default="all",
         help="device set to generate (default: all)",
     )
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="verify existing promotional screenshots without generating them",
+    )
+    parser.add_argument(
+        "--generated-after",
+        help="require the promotional manifest to be at least this ISO-8601 time",
+    )
     args = parser.parse_args()
 
     if not FONT_REGULAR.is_file():
         raise SystemExit(f"Missing system font: {FONT_REGULAR}")
 
     selected_sets = DEVICE_SETS if args.set == "all" else (args.set,)
+    generated_after = None
+    if args.generated_after:
+        try:
+            generated_after = datetime.fromisoformat(
+                args.generated_after.replace("Z", "+00:00")
+            )
+            if generated_after.tzinfo is None:
+                generated_after = generated_after.replace(tzinfo=timezone.utc)
+        except ValueError as error:
+            raise SystemExit(f"Invalid --generated-after value: {error}") from error
+
+    if args.verify_only:
+        verify_promotional_screenshots(
+            args.source_root,
+            args.output_root,
+            selected_sets,
+            generated_after,
+        )
+        return
+
     generated_sets: list[dict[str, object]] = []
     for device_set in selected_sets:
         source_directory = args.source_root / device_set
         output_directory = args.output_root / device_set
         expected_size = EXPECTED_DIMENSIONS[device_set]
         items: list[dict[str, object]] = []
-        promotions = TV_PROMOTIONS if device_set == "tvos" else PROMOTIONS
+        promotions = promotions_for(device_set)
         composer = compose_tv if device_set == "tvos" else compose
         for promotion in promotions:
             source_path = source_directory / promotion.filename
@@ -604,6 +762,12 @@ def main() -> None:
     manifest_path = args.output_root / "promotional-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     print(f"✓ manifest {manifest_path}")
+    verify_promotional_screenshots(
+        args.source_root,
+        args.output_root,
+        selected_sets,
+        generated_after,
+    )
 
 
 if __name__ == "__main__":

@@ -688,7 +688,7 @@ private struct TVDashboardCardView: View {
 
     private var valueContent: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("\(card.value ?? "—")\(card.unit ?? "")")
+            Text(card.displayValue ?? "—")
                 .tvScaledSystemFont(
                     size: TVTypography.valueSize,
                     relativeTo: .title,
@@ -720,7 +720,7 @@ private struct TVDashboardCardView: View {
     @ViewBuilder
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(card.value ?? "—")\(card.unit ?? "")")
+            Text(card.displayValue ?? "—")
                 .tvScaledSystemFont(
                     size: TVTypography.chartValueSize,
                     relativeTo: .title2,
@@ -781,8 +781,8 @@ private struct TVDashboardCardView: View {
                         Text(item.title)
                             .tvReadableText(largeTextLineLimit: 2)
                         Spacer()
-                        if let value = item.value {
-                            Text("\(value)\(item.unit ?? "")")
+                        if let value = item.displayValue {
+                            Text(value)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(
                                     item.status.map {

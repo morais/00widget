@@ -643,8 +643,8 @@ private struct TVDetailRow: View {
                     .monospacedDigit()
             }
 
-            if let value = item.value {
-                Text("\(value)\(item.unit ?? "")")
+            if let value = item.displayValue {
+                Text(value)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(
                         item.status.map {
