@@ -58,6 +58,19 @@ echo "→ booting $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
+echo "→ opening Simulator.app"
+open -a Simulator
+for _ in {1..20}; do
+  if pgrep -x Simulator >/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+if ! pgrep -x Simulator >/dev/null; then
+  echo "✗ Simulator.app did not launch" >&2
+  exit 1
+fi
+
 echo "→ running TVScreenshotTests"
 TEST_FILTERS=(
   -only-testing:ZeroZeroWidgetTVUITests/TVScreenshotTests/testCaptureInsightsScreenshot

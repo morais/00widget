@@ -88,7 +88,23 @@ RESULT="$WORK/screenshots.xcresult"
 
 echo "→ booting $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
-xcrun simctl bootstatus "$DEVICE" -b >/dev/null 2>&1 || true
+xcrun simctl bootstatus "$DEVICE" -b >/dev/null
+
+# A headless `simctl boot` is not enough for reliable SpringBoard accessibility.
+# Keep Simulator.app open so XCUITest has a visible host for Home Screen and
+# Dynamic Island interactions.
+echo "→ opening Simulator.app"
+open -a Simulator
+for _ in {1..20}; do
+  if pgrep -x Simulator >/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+if ! pgrep -x Simulator >/dev/null; then
+  echo "✗ Simulator.app did not launch" >&2
+  exit 1
+fi
 
 # Marketing shots should not leak a real clock or a half-empty battery.
 echo "→ pinning status bar to 9:41"

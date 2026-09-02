@@ -141,6 +141,11 @@ sandbox permissions and a concise approval justification. Do not wait for the
 service to recover, and do not report the capture as blocked before attempting
 the elevated retry.
 
+The capture scripts explicitly launch Simulator.app after booting their target.
+A `simctl` device reported as `Booted` is not proof that the Simulator UI is
+open; do not replace the scripted launch with a headless boot or claim the
+simulator is visibly running based only on `simctl list`.
+
 ## Marketing screenshots
 
 The phrase **full screenshot workflow** always means all four canonical device
