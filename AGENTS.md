@@ -47,6 +47,7 @@ npx wrangler dev          # local dev on :8787, reads .dev.vars
 cd ios && xcodegen        # produces ZeroZeroWidget.xcodeproj
 open ZeroZeroWidget.xcodeproj # then Run on iOS 26 device/simulator
 ios/scripts/build-sim.sh --launch          # simulator, no Developer team needed
+ios/scripts/capture-all-marketing-screenshots.sh # both iPhones + iPad + Apple TV
 ios/scripts/capture-screenshots.sh         # marketing screenshots via XCUITest
 ios/scripts/capture-tv-screenshots.sh      # 1920x1080 Apple TV screenshots
 ios/scripts/run-accessibility-audits.sh    # XCTest audits at Large + AX5
@@ -128,7 +129,8 @@ survive it. Use `xcrun simctl erase` for a genuinely clean device.
 
 ## CoreSimulator permissions
 
-The screenshot scripts (`ios/scripts/capture-screenshots.sh` and
+The screenshot scripts (`ios/scripts/capture-all-marketing-screenshots.sh`,
+`ios/scripts/capture-screenshots.sh`, and
 `ios/scripts/capture-tv-screenshots.sh`) and direct `xcrun simctl` commands
 require access to the host's CoreSimulator services.
 
@@ -140,6 +142,20 @@ service to recover, and do not report the capture as blocked before attempting
 the elevated retry.
 
 ## Marketing screenshots
+
+The phrase **full screenshot workflow** always means all four canonical device
+sets: iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV. Run the single entry
+point below; do not substitute one default iPhone capture plus the other two
+platforms:
+
+```
+ios/scripts/capture-all-marketing-screenshots.sh
+```
+
+The wrapper records its start time and refuses to report success unless every
+set has a fresh full-capture manifest, the exact required filenames, matching
+checksums, and the canonical dimensions. Use `--verify-only` to validate the
+sets already on disk without capturing them again.
 
 `ios/scripts/capture-screenshots.sh` drives the app with XCUITest
 (`ios/UITests/ScreenshotTests.swift`) and writes the default iPhone PNGs to
