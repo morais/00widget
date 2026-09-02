@@ -62,6 +62,40 @@ struct SampleDataFactoryTests {
         #expect(points.last == 95)
     }
 
+    /// The two samples exist to show the two layouts, which is only true while
+    /// they stay on opposite sides of the rule that decides between them: item
+    /// rows fill the Lock Screen banner and suppress a chart entirely, so a
+    /// sample carrying both would silently demonstrate one of them twice.
+    @Test("The two Live Activity samples demonstrate different layouts")
+    func samplesCoverBothLayouts() throws {
+        let battery = SampleDataFactory.makeLiveActivitySession(.homeBattery)
+        #expect(battery.chart != nil)
+        #expect((battery.items ?? []).isEmpty)
+
+        let capture = SampleDataFactory.makeLiveActivitySession(.captureWorkflow)
+        #expect(capture.chart == nil)
+        #expect(capture.items?.count == 4)
+        // More rows than the banner draws, so the "+1 more" line is part of
+        // what this sample shows.
+        #expect((capture.items ?? []).filter(\.isActive).count == 4)
+
+        // Both, because they answer different questions and nothing derives
+        // the second from the first — the exact mistake the server now warns
+        // producers about.
+        #expect(capture.value == "1/4")
+        #expect(capture.progress == 0.25)
+
+        // Short enough for the Dynamic Island's leading region, which is what
+        // that warning asks for. A sample that broke its own rule would be the
+        // first thing anyone copied.
+        #expect(capture.title.count <= 24)
+
+        // A sample that goes quiet has to say so like any other activity.
+        for sample in SampleDataFactory.LiveActivitySample.allCases {
+            #expect(SampleDataFactory.makeLiveActivitySession(sample).staleAt != nil)
+        }
+    }
+
     @Test("App Preview fixtures are stable at a reference date")
     func appPreviewFixturesAreStable() throws {
         let referenceDate = try #require(

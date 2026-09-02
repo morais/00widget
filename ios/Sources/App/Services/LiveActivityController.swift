@@ -143,8 +143,14 @@ public final class LiveActivityController: ObservableObject {
     /// tenant, and the backend never learns it exists. That separation is why
     /// this is safe to offer again after `Fix remote Live Activity lifecycle`
     /// removed the previous local-start path.
-    public func startSample() async throws {
-        let session = SampleDataFactory.makeLiveActivitySession()
+    public func startSample(
+        _ sample: SampleDataFactory.LiveActivitySample = .homeBattery
+    ) async throws {
+        let session = SampleDataFactory.makeLiveActivitySession(sample)
+        // Still one at a time. A second running activity — anyone's — replaces
+        // both compact Dynamic Island regions with the minimal circle for every
+        // activity on the device, so two samples would demonstrate that one
+        // presentation at the cost of every other.
         guard !activeSessions.contains(where: { $0.isSample }) else { return }
         let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
         _ = try Activity.request(

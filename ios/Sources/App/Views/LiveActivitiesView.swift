@@ -77,8 +77,16 @@ struct LiveActivitiesView: View {
                 .padding(.horizontal, 32)
 
             if liveActivityController.supported {
-                Button("Generate sample activity") {
-                    Task { await generateSample() }
+                // A menu rather than two buttons: only one sample runs at a
+                // time, so these are two answers to one question.
+                Menu {
+                    ForEach(SampleDataFactory.LiveActivitySample.allCases, id: \.self) { sample in
+                        Button(sample.title) {
+                            Task { await generateSample(sample) }
+                        }
+                    }
+                } label: {
+                    Text("Generate sample activity")
                 }
                 .buttonStyle(.bordered)
                 .disabled(isGeneratingSample)
@@ -135,12 +143,12 @@ struct LiveActivitiesView: View {
         )
     }
 
-    private func generateSample() async {
+    private func generateSample(_ sample: SampleDataFactory.LiveActivitySample) async {
         isGeneratingSample = true
         sampleError = nil
         defer { isGeneratingSample = false }
         do {
-            try await liveActivityController.startSample()
+            try await liveActivityController.startSample(sample)
             // The list this replaces the empty state with is somewhere else on
             // the screen entirely, so without this the button reports nothing.
             AccessibilityAnnouncement.post("Sample activity started.")

@@ -350,10 +350,101 @@ public enum SampleDataFactory {
         ]
     }
 
+    /// Which demo a generated Live Activity shows.
+    ///
+    /// Two, because the two ways a Live Activity can be built look nothing
+    /// alike on the Lock Screen and only one of them was demonstrable. A
+    /// `chart` with a headline number draws the plain banner; `items` draw a
+    /// row each and suppress the chart entirely. The app shipped only the
+    /// first, so the layout an agent is now told to reach for — a job with
+    /// named parts — could not be seen anywhere in it.
+    ///
+    /// One runs at a time. Two would be a better demonstration of exactly one
+    /// thing, the Dynamic Island's minimal circle, and would cost the compact
+    /// presentation that every other surface and every marketing capture
+    /// depends on.
+    public enum LiveActivitySample: String, CaseIterable, Sendable {
+        case homeBattery
+        case captureWorkflow
+
+        public var title: String {
+            switch self {
+            case .homeBattery: return "Home battery"
+            case .captureWorkflow: return "Screenshot capture"
+            }
+        }
+    }
+
     /// Uses the reserved `sample-` prefix like the demo cards, so the app can
     /// badge it and offer to remove it without mistaking it for an activity an
     /// agent started.
-    public static func makeLiveActivitySession() -> LiveActivitySession {
+    ///
+    /// The default is unchanged and deliberately so: the Apple TV dashboard,
+    /// the marketing capture and `SampleDataFactoryTests` all call this bare,
+    /// and the tvOS grid in particular is tuned to a height that one more row
+    /// would push the Widgets section past.
+    public static func makeLiveActivitySession(
+        _ sample: LiveActivitySample = .homeBattery
+    ) -> LiveActivitySession {
+        switch sample {
+        case .homeBattery: return homeBatterySession()
+        case .captureWorkflow: return captureWorkflowSession()
+        }
+    }
+
+    /// A job made of named parts, which is the shape an agent most often has
+    /// and the one `items` exists for.
+    ///
+    /// The title is "Screenshots" rather than "Marketing screenshot capture"
+    /// on purpose. The server now warns a producer whose title is too long for
+    /// the Dynamic Island's leading region and names that exact substitution;
+    /// a sample that ignored its own advice would be the first thing anyone
+    /// copied.
+    private static func captureWorkflowSession() -> LiveActivitySession {
+        let now = Date()
+        return LiveActivitySession(
+            externalActivityId: sampleId("screenshot-capture"),
+            kind: .job,
+            title: "Screenshots",
+            subtitle: "Four device sets",
+            state: "running",
+            signal: .neutral,
+            icon: "camera",
+            statusIcon: "play.fill",
+            // Both, and not one or the other. `value` is the headline the
+            // compact island draws; `progress` is what draws the bar and the
+            // Watch gauge, and nothing derives it from the string.
+            value: "1/4",
+            unit: nil,
+            progress: 0.25,
+            items: [
+                LiveActivityItem(
+                    id: "iphone-63",
+                    title: "iPhone 6.3\"",
+                    subtitle: "UI tests running",
+                    icon: "iphone",
+                    value: "6m 30s",
+                    progress: 0.6,
+                    status: .running
+                ),
+                // No `status` on the queued three: a row with no value falls
+                // back to its status label, and "Unknown" reads as a fault
+                // rather than as a turn that has not come yet.
+                LiveActivityItem(id: "iphone-65", title: "iPhone 6.5\"", subtitle: "Queued", icon: "iphone"),
+                LiveActivityItem(id: "ipad", title: "iPad", subtitle: "Queued", icon: "ipad"),
+                LiveActivityItem(id: "apple-tv", title: "Apple TV", subtitle: "Queued", icon: "appletv"),
+            ],
+            // Four rows against a banner that draws three, so the "+1 more"
+            // line is part of what this demonstrates rather than an oversight.
+            endsAt: now.addingTimeInterval(37 * 60),
+            countdownGranularity: .minute,
+            startedAt: now,
+            updatedAt: now,
+            staleAt: now.addingTimeInterval(3600)
+        )
+    }
+
+    private static func homeBatterySession() -> LiveActivitySession {
         LiveActivitySession(
             externalActivityId: sampleId("home-battery"),
             kind: .charging,
