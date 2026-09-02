@@ -39,6 +39,14 @@ On Home Screen widgets, iOS first launches the containing 00Widget app with the 
 
 ## Operator checklist for agents
 
+- **Decide card or Live Activity first.** Standing state the operator checks on
+  is a card. Work with a start and an end that you will report on while it runs
+  — a build, a deploy, a test or capture run, a batch job — is a
+  [Live Activity](#live-activities). It is the only surface that reaches the
+  Lock Screen and Dynamic Island, where progress can be watched without opening
+  anything; a card reaches a Home Screen widget on a rationed refresh budget
+  (see [Rate limits](#rate-limits)). If you are about to spend minutes doing
+  something and report on it, that is a Live Activity.
 - Verify `00WIDGET_BASE_URL` with `/health` and `00WIDGET_API_KEY` with `GET /v1/status`, which also tells you whether any device can receive what you publish.
 - If you start a Live Activity, check `pushToStartAttempted` in the response. `0` means no device can receive it, and nothing else will tell you.
 - Pick one stable `id` per logical card.
@@ -586,7 +594,14 @@ Registration and integration limits:
 
 ## Choosing a template
 
-Pick one based on the *shape* of the data, not the domain:
+First check you want a card at all. A template describes **standing state** —
+something with a current value the operator checks on. Work that starts, runs
+and finishes, and that you will report on as it goes, belongs on a
+[Live Activity](#live-activities) instead; `progress` is the template that most
+often gets picked for a job by mistake, because it is the first thing in this
+table that sounds like one.
+
+Then pick one based on the *shape* of the data, not the domain:
 
 | Source feels like…                    | Template   | Required fields                            |
 | ------------------------------------- | ---------- | ------------------------------------------ |
@@ -1043,7 +1058,13 @@ Use a Live Activity instead of a card when:
 - The user benefits from seeing it on the Lock Screen / Dynamic Island while it's happening.
 - It will end on its own within ~hours.
 
-Otherwise, stick with cards — they're cheaper and don't compete for screen real estate.
+A job you are about to spend minutes on and report progress for meets all three
+by construction, and that is the case most often published as a card by mistake.
+
+Otherwise — standing state with no end, something the operator checks rather
+than watches — use a card. Cards are cheaper and don't compete for screen real
+estate, but "cheaper" is about the reload budget, not about which is safer to
+reach for.
 
 ### Start
 

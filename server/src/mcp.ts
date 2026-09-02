@@ -175,14 +175,37 @@ const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 // while the work continues is the single failure on this API that answers 200
 // to every call and still misinforms the operator: the calls that would have
 // corrected it are the ones that were never made.
+/// Read before anything else by every client, so it has to answer the question
+/// an agent actually arrives with: which of the two surfaces is this?
+///
+/// It used to answer a different one. One clause named both surfaces, the only
+/// concrete instruction pointed at "the card templates", and the remaining four
+/// sentences were obligations and a named failure mode, all attached to Live
+/// Activities. Nothing said when to choose one. A coding agent asked to track a
+/// forty-minute capture run read that, reported that the app had "no dedicated
+/// capture job tracker", and published a progress card — the surface that is
+/// both less visible and, because widget reloads are rationed, slower to
+/// update. It was not being careless. It was doing what this said.
+///
+/// So the choice leads and the obligations follow, where they read as how to
+/// keep a Live Activity honest rather than as reasons to avoid one.
 const SERVER_INSTRUCTIONS =
-  "Publish project state to the operator's iOS widgets and Live Activities. Call "
-  + "get_integration_guide first to learn the card templates and their fields. "
-  + "A Live Activity is a commitment to keep reporting: it sits on the operator's "
-  + "Lock Screen showing whatever you last sent. Update it at every step of the "
-  + "work it describes, set `staleAt` on every push so it marks itself out of date "
-  + "if you stop, and always end it. Going quiet is the one failure here that "
-  + "returns 200 on every call and still misleads.";
+  "Publish project state to the operator's iOS widgets and Live Activities. "
+  + "Two surfaces, and picking the right one matters more than any other choice "
+  + "here. Standing state the operator checks on — a balance, a queue depth, "
+  + "today's total — is a CARD. Work with a start and an end that you will report "
+  + "on while it runs — a build, a deploy, a test or capture run, a batch job, "
+  + "anything you are about to spend minutes doing — is a LIVE ACTIVITY, which is "
+  + "the only surface that puts it on the Lock Screen and Dynamic Island where it "
+  + "can be watched without opening anything. Cards reach a Home Screen widget on "
+  + "a rationed refresh budget; a Live Activity update is pushed straight to the "
+  + "screen. Call get_integration_guide for the card templates, the Live Activity "
+  + "fields, and how to choose between them. "
+  + "Then keep the Live Activity honest: it sits on the operator's Lock Screen "
+  + "showing whatever you last sent, so update it at every step of the work it "
+  + "describes, set `staleAt` on every push so it marks itself out of date if you "
+  + "stop, and always end it. Going quiet is the one failure here that returns "
+  + "200 on every call and still misleads.";
 
 // tools/list is a pure function of this file, so clients may cache it. The
 // 2026-07-28 revision reads these fields; older ones ignore them.
@@ -389,7 +412,11 @@ const TOOLS: McpTool[] = [
     name: "upsert_card",
     title: "Publish a card",
     description:
-      "Create or replace one dashboard card. The `id` is the identity of the thing being shown, so "
+      "Create or replace one dashboard card, for standing state the operator checks on — a balance, "
+      + "a queue depth, today's total. For work with a start and an end that you will report on "
+      + "while it runs, start_live_activity is the better surface: it reaches the Lock Screen and "
+      + "Dynamic Island, where a card only reaches a Home Screen widget on a rationed refresh "
+      + "budget. The `id` is the identity of the thing being shown, so "
       + "reuse it on every publish — never embed a timestamp or run id, or each update becomes a new "
       + "card. Publishing several cards from one snapshot? Use upsert_cards_batch instead.",
     schema: DashboardCardInputSchema,
@@ -492,9 +519,14 @@ const TOOLS: McpTool[] = [
     name: "start_live_activity",
     title: "Start a Live Activity",
     description:
-      "Start a Live Activity on the Lock Screen and Dynamic Island. Use this only for something "
-      + "time-bounded with a clear end — a build, a wash cycle, a charge, a delivery — and always end "
-      + "it. `title`, `kind` and `deepLink` are frozen when it starts and cannot be changed by an "
+      // "Use this for", not "Use this only for". The restriction read as a gate
+      // to argue your way past, next to an ungated upsert_card — so an agent
+      // with a textbook case for this tool reached for the other one.
+      "Start a Live Activity on the Lock Screen and Dynamic Island. Use this for work with a start "
+      + "and an end that you will report on while it runs — a build, a deploy, a test or capture "
+      + "run, a batch job, a wash cycle, a charge, a delivery. It is the right surface whenever the "
+      + "operator wants to watch progress without opening anything, and the only one that can be. "
+      + "Always end it. `title`, `kind` and `deepLink` are frozen when it starts and cannot be changed by an "
       + "update, so anything that must move belongs in the content state fields. Calling this again "
       + "with an id that is already running restarts it, which is visible to the user.",
     schema: StartLiveActivitySchema,
