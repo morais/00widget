@@ -114,6 +114,14 @@ it. The device begins about one fifth of the way down the canvas, fills roughly
 is part of the composition: do not shrink the device to reveal its complete
 outline. The copy is identical on the 6.3-inch iPhone, 6.5-inch iPhone, and
 iPad; only the hardware frame and layout scale for the device class.
+The iPad uses the 13-inch iPad Pro's native 60 px framebuffer corner radius
+and a uniform bezel matching the display-to-device width ratio; do not reuse
+the much thinner iPhone bezel treatment.
+The compositor also restores hardware that simulator screenshots omit. It uses
+native iPhone 16 Pro coordinates for the 6.3-inch Dynamic Island and detects
+whether SpringBoard already rendered a compact or expanded Live Activity before
+adding the empty state. Every 6.5-inch screen uses the exact smaller iPhone 14
+Plus notch silhouette from Xcode's bundled framebuffer mask.
 
 The six images tell two integration stories before moving into product
 benefits:
@@ -128,21 +136,32 @@ Codex/Claude Code is the coding-agent path for existing software.
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
-| `screenshot-home-widgets.png` | **Widgets for all your agents.** | Connect ChatGPT, Claude, or any MCP host. |
+| `screenshot-home-widgets.png` | **Widgets for all your agents.** | Connect ChatGPT, Claude or any MCP host and create widgets and live activities |
 | `screenshot-home-insights.png` | **From conversation to Home Screen.** | Publish through MCP—no integration code required. |
-| `screenshot-home-metrics.png` | **Connect what you've already built.** | Ask Codex or Claude Code to add 00Widget to any app, script, or automation. |
+| `screenshot-home-metrics.png` | **Connect what you've already built.** | Ask Codex or Claude Code to add widgets and live activities to any app, script, automation |
 | `screenshot-insights.png` | **See the whole picture.** | Turn agent output into clear, useful insights. |
 | `screenshot-widgets.png` | **Every agent. One dashboard.** | Follow status, progress, and actions in one place. |
 | `screenshot-activities.png` | **Live Activities that keep up.** | Follow changing work on the Lock Screen and Dynamic Island. |
 
-Generate all 18 promotional images from the current raw captures with:
+Apple TV follows the same physical-device treatment with a landscape television
+frame that extends past the right and bottom edges. The television uses square
+screen corners and a very thin bezel; do not reuse the rounded tablet or phone
+frame. Its three-image copy is:
+
+| File | Headline | Supporting line |
+| --- | --- | --- |
+| `screenshot-tv-insights.png` | **See the whole picture.** | Publish directly from ChatGPT and Claude. |
+| `screenshot-tv-widgets.png` | **Every agent. One big-screen dashboard.** | Ask Codex or Claude Code to add widgets to any app, script, automation. |
+| `screenshot-tv-card-detail.png` | **More detail when you need it.** | Open any card for a closer look. |
+
+Generate all 21 promotional images from the current raw captures with:
 
 ```sh
 python3.12 ios/scripts/generate-promotional-screenshots.py
 ```
 
 Generate one device class while iterating with `--set iphone-6.3`,
-`--set iphone-6.5`, or `--set ipad`. The output keeps the canonical filenames
+`--set iphone-6.5`, `--set ipad`, or `--set tvos`. The output keeps the canonical filenames
 inside device-specific directories and writes
 `promotional-manifest.json` with source and output SHA-256 checksums. The
 compositor validates the source dimensions before it writes anything.

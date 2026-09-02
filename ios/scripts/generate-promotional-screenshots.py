@@ -24,11 +24,12 @@ DEFAULT_OUTPUT_ROOT = IOS_ROOT / "build" / "promotional-screenshots"
 FONT_REGULAR = Path("/System/Library/Fonts/SFNS.ttf")
 FONT_BOLD = Path("/System/Library/Fonts/SFNS.ttf")
 
-DEVICE_SETS = ("iphone-6.3", "iphone-6.5", "ipad")
+DEVICE_SETS = ("iphone-6.3", "iphone-6.5", "ipad", "tvos")
 EXPECTED_DIMENSIONS = {
     "iphone-6.3": (1206, 2622),
     "iphone-6.5": (1284, 2778),
     "ipad": (2064, 2752),
+    "tvos": (1920, 1080),
 }
 
 
@@ -43,7 +44,7 @@ PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
         "Widgets for all your agents.",
-        "Connect ChatGPT, Claude, or any MCP host.",
+        "Connect ChatGPT, Claude or any MCP host and create widgets and live activities",
     ),
     Promotion(
         "screenshot-home-insights.png",
@@ -53,7 +54,7 @@ PROMOTIONS = (
     Promotion(
         "screenshot-home-metrics.png",
         "Connect what you've already built.",
-        "Ask Codex or Claude Code to add 00Widget to any app, script, or automation.",
+        "Ask Codex or Claude Code to add widgets and live activities to any app, script, automation",
     ),
     Promotion(
         "screenshot-insights.png",
@@ -69,6 +70,24 @@ PROMOTIONS = (
         "screenshot-activities.png",
         "Live Activities that keep up.",
         "Follow changing work on the Lock Screen and Dynamic Island.",
+    ),
+)
+
+TV_PROMOTIONS = (
+    Promotion(
+        "screenshot-tv-insights.png",
+        "See the whole picture.",
+        "Publish directly from ChatGPT and Claude.",
+    ),
+    Promotion(
+        "screenshot-tv-widgets.png",
+        "Every agent. One big-screen dashboard.",
+        "Ask Codex or Claude Code to add widgets to any app, script, automation.",
+    ),
+    Promotion(
+        "screenshot-tv-card-detail.png",
+        "More detail when you need it.",
+        "Open any card for a closer look.",
     ),
 )
 
@@ -154,6 +173,105 @@ def rounded_image(image: Image.Image, radius: int) -> Image.Image:
     return result
 
 
+def cubic_points(
+    start: tuple[float, float],
+    control_1: tuple[float, float],
+    control_2: tuple[float, float],
+    end: tuple[float, float],
+    steps: int = 24,
+) -> list[tuple[int, int]]:
+    """Sample a cubic Bezier while retaining its exact endpoints."""
+    points: list[tuple[int, int]] = []
+    for index in range(1, steps + 1):
+        amount = index / steps
+        inverse = 1 - amount
+        x = (
+            inverse**3 * start[0]
+            + 3 * inverse**2 * amount * control_1[0]
+            + 3 * inverse * amount**2 * control_2[0]
+            + amount**3 * end[0]
+        )
+        y = (
+            inverse**3 * start[1]
+            + 3 * inverse**2 * amount * control_1[1]
+            + 3 * inverse * amount**2 * control_2[1]
+            + amount**3 * end[1]
+        )
+        points.append((round(x), round(y)))
+    return points
+
+
+def iphone_14_plus_notch() -> list[tuple[int, int]]:
+    """Return Apple's iPhone 14 Plus framebuffer-notch silhouette.
+
+    These are the native 1284x2778 coordinates from Xcode's bundled
+    iPhone 14 Plus framebuffer mask, transformed into top-left image space.
+    """
+    points: list[tuple[int, int]] = [(908, 0), (884, 23)]
+    current = (884.1562, 23.321)
+    curves = (
+        ((883.9402, 30.217), (883.8632, 36.713), (882.7812, 43.877)),
+        ((881.7432, 50.792), (879.9092, 57.122), (876.9232, 63.266)),
+        ((873.0762, 71.175), (867.4792, 78.409), (860.6272, 84.350)),
+        ((853.8842, 90.202), (846.2742, 94.513), (838.0472, 97.181)),
+        ((824.5412, 101.562), (811.1112, 101.014), (796.8342, 101.014)),
+    )
+    for control_1, control_2, end in curves:
+        points.extend(cubic_points(current, control_1, control_2, end))
+        current = end
+
+    points.append((487, 101))
+    current = (487.1592, 101.014)
+    curves = (
+        ((472.8882, 101.014), (459.4532, 101.562), (445.9462, 97.181)),
+        ((437.7252, 94.513), (430.1102, 90.202), (423.3732, 84.350)),
+        ((416.5202, 78.409), (410.9242, 71.175), (407.0772, 63.266)),
+        ((404.0912, 57.122), (402.2572, 50.792), (401.2132, 43.877)),
+        ((400.1362, 36.713), (400.0592, 30.217), (399.8432, 23.321)),
+        ((399.7412, 20.157), (399.8112, 16.877), (399.0482, 13.311)),
+        ((398.3082, 9.879), (396.9142, 6.937), (394.5902, 4.695)),
+        ((392.2722, 2.448), (389.2792, 1.149), (385.8212, 0.518)),
+        ((382.2432, -0.137), (378.9442, 0.000), (375.7992, 0.000)),
+    )
+    for control_1, control_2, end in curves:
+        points.extend(cubic_points(current, control_1, control_2, end))
+        current = end
+    return points
+
+
+def has_dynamic_island(screen: Image.Image) -> bool:
+    """Detect the compact or expanded Island already rendered by SpringBoard."""
+    # The empty iPhone 16 Pro Island is 126x37 points at 3x. Sample its
+    # interior, where compact and expanded Live Activities remain black.
+    interior = screen.crop((444, 52, 762, 143)).convert("L")
+    histogram = interior.histogram()
+    dark_pixels = sum(histogram[:32])
+    return dark_pixels / (interior.width * interior.height) > 0.75
+
+
+def add_iphone_hardware_cutout(
+    screen: Image.Image,
+    device_set: str,
+) -> None:
+    draw = ImageDraw.Draw(screen)
+
+    if device_set == "iphone-6.5":
+        # Use the exact smaller notch from the last notched iPhone in this
+        # resolution class, rather than approximating it with a rounded box.
+        draw.polygon(iphone_14_plus_notch(), fill=(0, 0, 0))
+        return
+
+    if device_set == "iphone-6.3" and not has_dynamic_island(screen):
+        # Native iPhone 16 Pro geometry: 126x37 points at 3x. Its vertical
+        # placement is also measured from the compact Live Activity in the raw
+        # SpringBoard capture, so empty and active states share one centerline.
+        draw.rounded_rectangle(
+            (414, 42, 792, 153),
+            radius=56,
+            fill=(0, 0, 0),
+        )
+
+
 def draw_device(
     canvas: Image.Image,
     source: Image.Image,
@@ -163,14 +281,25 @@ def draw_device(
     width, height = canvas.size
     is_ipad = device_set == "ipad"
     outer_width = round(width * 0.88)
-    chrome = max(8, round(width * (0.007 if is_ipad else 0.0085)))
-    bezel = max(8, round(width * (0.009 if is_ipad else 0.0105)))
+    if is_ipad:
+        # The 13-inch iPad Pro display occupies about 92% of the physical
+        # device width. Keep that real, uniform black bezel instead of scaling
+        # up the much thinner iPhone treatment.
+        chrome = max(8, round(width * 0.006))
+        bezel = max(8, round(width * 0.0305))
+    else:
+        chrome = max(8, round(width * 0.0085))
+        bezel = max(8, round(width * 0.0105))
     screen_width = outer_width - 2 * (chrome + bezel)
     scale = screen_width / source.width
     screen_size = (screen_width, round(source.height * scale))
-    screen = source.resize(screen_size, Image.Resampling.LANCZOS)
+    screen = source.copy()
+    add_iphone_hardware_cutout(screen, device_set)
+    screen = screen.resize(screen_size, Image.Resampling.LANCZOS)
 
-    screen_radius = round(screen_width * (0.038 if is_ipad else 0.074))
+    # Xcode's iPad Pro 13-inch (M4) framebuffer mask has a native 60 px
+    # display radius. Scale that device coordinate with the raw capture.
+    screen_radius = round(60 * scale) if is_ipad else round(screen_width * 0.074)
     outer_radius = screen_radius + chrome + bezel
     screen = rounded_image(screen, screen_radius)
     outer_height = screen.height + 2 * (chrome + bezel)
@@ -255,8 +384,10 @@ def draw_device(
         ),
         radius=screen_radius,
         outline=(0, 0, 0, 210),
-        width=max(3, bezel // 2),
+        width=max(2, chrome // 3) if is_ipad else max(3, bezel // 2),
     )
+
+
 def compose(
     source_path: Path,
     output_path: Path,
@@ -318,6 +449,108 @@ def compose(
     }
 
 
+def draw_tv(canvas: Image.Image, source: Image.Image) -> None:
+    width, height = canvas.size
+    outer_width = round(width * 0.73)
+    bezel = max(6, round(height * 0.0075))
+    screen_width = outer_width - 2 * bezel
+    screen_height = round(screen_width * 9 / 16)
+    screen = source.resize(
+        (screen_width, screen_height),
+        Image.Resampling.LANCZOS,
+    ).convert("RGBA")
+    outer_height = screen_height + 2 * bezel
+    outer_x = round(width * 0.315)
+    top = round(height * 0.27)
+    screen_x = outer_x + bezel
+    screen_y = top + bezel
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow_layer)
+    shadow_draw.rectangle(
+        (outer_x, top + 14, outer_x + outer_width, top + outer_height + 14),
+        fill=(6, 21, 42, 132),
+    )
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=28))
+    canvas.alpha_composite(shadow_layer)
+
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle(
+        (outer_x, top, outer_x + outer_width, top + outer_height),
+        fill=(13, 14, 16),
+        outline=(91, 94, 99),
+        width=2,
+    )
+    canvas.alpha_composite(screen, (screen_x, screen_y))
+    ImageDraw.Draw(canvas).rectangle(
+        (
+            screen_x,
+            screen_y,
+            screen_x + screen.width - 1,
+            screen_y + screen.height - 1,
+        ),
+        outline=(0, 0, 0, 230),
+        width=2,
+    )
+
+
+def compose_tv(
+    source_path: Path,
+    output_path: Path,
+    promotion: Promotion,
+    device_set: str,
+) -> dict[str, object]:
+    source = Image.open(source_path).convert("RGB")
+    width, height = source.size
+    canvas = background(source.size).convert("RGBA")
+    draw = ImageDraw.Draw(canvas)
+
+    side = round(width * 0.047)
+    copy_width = round(width * 0.265)
+    top_padding = round(height * 0.095)
+    headline_font = font(round(height * 0.070), bold=True)
+    supporting_font = font(round(height * 0.029))
+    headline_lines = wrap_text(draw, promotion.headline, headline_font, copy_width)
+    supporting_lines = wrap_text(draw, promotion.supporting, supporting_font, copy_width)
+
+    y = draw_lines(
+        draw,
+        headline_lines,
+        (side, top_padding),
+        headline_font,
+        (8, 20, 38),
+        round(height * 0.008),
+    )
+    rule_y = y + round(height * 0.018)
+    rule_width = round(width * 0.065)
+    rule_height = max(5, round(height * 0.006))
+    draw.rounded_rectangle(
+        (side, rule_y, side + rule_width, rule_y + rule_height),
+        radius=rule_height // 2,
+        fill=(31, 184, 154),
+    )
+    draw_lines(
+        draw,
+        supporting_lines,
+        (side, rule_y + rule_height + round(height * 0.025)),
+        supporting_font,
+        (62, 78, 101),
+        round(height * 0.008),
+    )
+    draw_tv(canvas, source)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
+    return {
+        "filename": promotion.filename,
+        "headline": promotion.headline,
+        "supporting": promotion.supporting,
+        "sourceSha256": file_hash(source_path),
+        "outputSha256": file_hash(output_path),
+        "dimensions": [width, height],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, default=DEFAULT_SOURCE_ROOT)
@@ -340,7 +573,9 @@ def main() -> None:
         output_directory = args.output_root / device_set
         expected_size = EXPECTED_DIMENSIONS[device_set]
         items: list[dict[str, object]] = []
-        for promotion in PROMOTIONS:
+        promotions = TV_PROMOTIONS if device_set == "tvos" else PROMOTIONS
+        composer = compose_tv if device_set == "tvos" else compose
+        for promotion in promotions:
             source_path = source_directory / promotion.filename
             if not source_path.is_file():
                 raise SystemExit(f"Missing raw capture: {source_path}")
@@ -351,7 +586,7 @@ def main() -> None:
                         f"expected {expected_size[0]}x{expected_size[1]}"
                     )
             output_path = output_directory / promotion.filename
-            items.append(compose(source_path, output_path, promotion, device_set))
+            items.append(composer(source_path, output_path, promotion, device_set))
             print(f"✓ {device_set}/{promotion.filename}")
         generated_sets.append({"deviceSet": device_set, "files": items})
 
