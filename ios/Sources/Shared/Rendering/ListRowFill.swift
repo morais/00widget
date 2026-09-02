@@ -27,6 +27,40 @@ public enum ListRowFill {
         max(1, Int(height / unit))
     }
 
+    /// What a filling stack draws: how many rows, and how many items are left
+    /// out once it has spent a line saying so.
+    ///
+    /// A dropped row is invisible — the card looks complete either way — and
+    /// the count now varies with the device, the reader's text size and
+    /// whatever else the card draws, so two people can see different amounts
+    /// of the same card with nothing to say so. The line costs a row, which is
+    /// why it appears only when it has something worth saying: hiding exactly
+    /// one row is not worth giving up a row to announce, and where the line
+    /// fits in the space left under the rows it costs nothing at all.
+    public struct Fit: Equatable {
+        public let rows: Int
+        /// Zero when nothing is hidden, or when saying so is not worth a line.
+        public let hidden: Int
+    }
+
+    public static func fit(
+        height: CGFloat,
+        unit: CGFloat,
+        itemCount: Int,
+        ceiling: Int,
+        indicatorHeight: CGFloat
+    ) -> Fit {
+        let shown = min(itemCount, ceiling, capacity(height: height, unit: unit))
+        guard itemCount - shown >= 2 else { return Fit(rows: shown, hidden: 0) }
+        let withLine = min(
+            itemCount,
+            ceiling,
+            capacity(height: height - indicatorHeight, unit: unit)
+        )
+        let rows = max(1, withLine)
+        return Fit(rows: rows, hidden: itemCount - rows)
+    }
+
     /// The height each of `rows` rows may occupy.
     public static func slot(height: CGFloat, rows: Int, unit: CGFloat) -> CGFloat {
         guard rows > 0 else { return unit }

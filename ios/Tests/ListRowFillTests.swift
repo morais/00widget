@@ -46,6 +46,47 @@ struct ListRowFillTests {
         #expect(ListRowFill.slot(height: 313, rows: 2, unit: unit) == unit * ListRowFill.maxSlotUnits)
     }
 
+    @Test("A row count that varies by device says what it left out")
+    func fitReportsHiddenRows() {
+        // A large widget's list column: the ceiling of ten rows fits with
+        // slack to spare, so the line saying what was left out lands in the
+        // space under them and costs no data at all.
+        let fit = ListRowFill.fit(
+            height: 210, unit: unit, itemCount: 15, ceiling: 10, indicatorHeight: 14
+        )
+        #expect(fit.rows == 10)
+        #expect(fit.hidden == 5)
+    }
+
+    @Test("Hiding exactly one row is not worth a row to announce")
+    func oneHiddenRowStaysQuiet() {
+        let fit = ListRowFill.fit(
+            height: 210, unit: unit, itemCount: 11, ceiling: 10, indicatorHeight: 14
+        )
+        #expect(fit.rows == 10)
+        #expect(fit.hidden == 0)
+    }
+
+    @Test("Nothing hidden, nothing said")
+    func completeListSaysNothing() {
+        let fit = ListRowFill.fit(
+            height: 210, unit: unit, itemCount: 4, ceiling: 10, indicatorHeight: 14
+        )
+        #expect(fit.rows == 4)
+        #expect(fit.hidden == 0)
+    }
+
+    @Test("Where the line does not fit under the rows it costs one")
+    func theLineCanCostARow() {
+        // Exactly five rows of room and no slack: the line has to come out of
+        // the rows, and the count it reports grows to match.
+        let fit = ListRowFill.fit(
+            height: unit * 5, unit: unit, itemCount: 12, ceiling: 10, indicatorHeight: unit
+        )
+        #expect(fit.rows == 4)
+        #expect(fit.hidden == 8)
+    }
+
     @Test("Type follows the room")
     func fontFollowsSlot() {
         let wide: CGFloat = 340

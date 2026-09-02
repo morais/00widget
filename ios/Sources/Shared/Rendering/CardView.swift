@@ -65,6 +65,12 @@ public struct CardView: View {
     @ScaledMetric(relativeTo: .largeTitle) private var summaryValueSize: CGFloat = 56
     /// The same on the medium canvas, which has a third of the height.
     @ScaledMetric(relativeTo: .largeTitle) private var summaryValueSizeMedium: CGFloat = 40
+    /// The line a filling stack spends to say what it left out.
+    @ScaledMetric(relativeTo: .caption2) private var truncationLineUnit: CGFloat = 14
+    /// One line of a briefing section's prose, and the label line above it,
+    /// at the reader's text size.
+    @ScaledMetric(relativeTo: .caption) private var briefingLineUnit: CGFloat = 16
+    @ScaledMetric(relativeTo: .caption2) private var briefingLabelUnit: CGFloat = 15
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if canImport(WidgetKit)
@@ -365,14 +371,14 @@ public struct CardView: View {
             case .history:
                 chartHeadline
                 statusStrip(limit: 20, height: 16)
-                listRows(max: density == .compact ? 2 : 4)
+                listRows(max: density == .compact ? 3 : 6, fills: true)
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 16)
                 breakdownLegend(max: density == .compact ? 4 : 8, fills: true)
             case .briefing:
                 briefingLead(subtitleLines: 2)
-                briefingSections(max: density == .compact ? 1 : 3, lineLimit: 2)
+                briefingSections(max: density == .compact ? 2 : 4, fills: true)
             case .summary, .progress:
                 VStack(alignment: .leading, spacing: 8) {
                     summaryValue
@@ -420,15 +426,19 @@ public struct CardView: View {
     /// measuring their own height independently would disagree about how many
     /// rows fit and leave a hole in the middle of the sequence.
     private var rowsFillHeight: Bool {
-        guard !(card.items?.isEmpty ?? true) else { return false }
         switch (card.template, context) {
         case (.list, .widgetSmall), (.list, .widgetMedium),
              (.list, .widgetLarge), (.list, .widgetExtraLargePortrait):
-            return true
+            return !(card.items?.isEmpty ?? true)
         // A small widget draws the bar and no legend, so it has no rows here.
         case (.breakdown, .widgetMedium), (.breakdown, .widgetLarge),
              (.breakdown, .widgetExtraLargePortrait):
-            return true
+            return !(card.items?.isEmpty ?? true)
+        // Only the tall canvases draw history's rows under the strip.
+        case (.history, .widgetLarge), (.history, .widgetExtraLargePortrait):
+            return !(card.items?.isEmpty ?? true)
+        case (.briefing, .widgetLarge), (.briefing, .widgetExtraLargePortrait):
+            return !(card.briefing?.sections.isEmpty ?? true)
         default:
             return false
         }
@@ -606,14 +616,14 @@ public struct CardView: View {
             case .history:
                 chartHeadline
                 statusStrip(limit: 30, height: 18)
-                listRows(max: density == .compact ? 4 : 7)
+                listRows(max: density == .compact ? 5 : 9, fills: true)
             case .breakdown:
                 chartHeadline
                 compositionBar(height: 18)
                 breakdownLegend(max: density == .compact ? 6 : 10, fills: true)
             case .briefing:
                 briefingLead(subtitleLines: 3)
-                briefingSections(max: density == .compact ? 3 : 6, lineLimit: 3)
+                briefingSections(max: density == .compact ? 4 : 8, fills: true)
             case .summary, .progress:
                 VStack(alignment: .leading, spacing: 10) {
                     summaryValue
@@ -887,24 +897,70 @@ public struct CardView: View {
     }
 
     @ViewBuilder
-    private func briefingSections(max: Int, lineLimit: Int) -> some View {
+    private func briefingSections(max: Int, lineLimit: Int = 2, fills: Bool = false) -> some View {
         if max > 0, let sections = card.briefing?.sections, !sections.isEmpty {
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(sections.prefix(max)) { section in
-                    VStack(alignment: .leading, spacing: 1) {
-                        if let label = section.label, !label.isEmpty {
-                            Text(label)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(card.status.tint)
-                                .lineLimit(1)
+            if fills {
+                GeometryReader { proxy in
+                    // Same bargain the row stacks make: a line spent saying
+                    // what was left out, but only when two or more sections
+                    // went and the plan can still afford them a line each.
+                    let first = briefingPlan(sections.count, ceiling: max, height: proxy.size.height)
+                    let dropped = Swift.min(sections.count, max) - first.sections
+                    let saysMore = dropped >= 2
+                    let plan = saysMore
+                        ? briefingPlan(
+                            sections.count,
+                            ceiling: max,
+                            height: proxy.size.height - truncationLineUnit
+                        )
+                        : first
+                    let hidden = sections.count - plan.sections
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(sections.prefix(plan.sections)) { section in
+                            briefingSection(section, font: .caption, lineLimit: plan.lines)
                         }
-                        Text(section.text)
-                            .font(.caption2)
-                            .foregroundStyle(.primary)
-                            .lineLimit(lineLimit)
+                        if saysMore, hidden > 0 {
+                            truncationLine(hidden)
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(sections.prefix(max)) { section in
+                        briefingSection(section, font: .caption2, lineLimit: lineLimit)
                     }
                 }
             }
+        }
+    }
+
+    private func briefingPlan(_ sectionCount: Int, ceiling: Int, height: CGFloat) -> BriefingFill.Plan {
+        BriefingFill.plan(
+            height: height,
+            sectionCount: Swift.min(sectionCount, ceiling),
+            lineHeight: briefingLineUnit,
+            labelHeight: briefingLabelUnit,
+            spacing: 5
+        )
+    }
+
+    private func briefingSection(
+        _ section: DashboardBriefingSection,
+        font: Font,
+        lineLimit: Int
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let label = section.label, !label.isEmpty {
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(card.status.tint)
+                    .lineLimit(1)
+            }
+            Text(section.text)
+                .font(font)
+                .foregroundStyle(.primary)
+                .lineLimit(lineLimit)
         }
     }
 
@@ -1062,10 +1118,16 @@ public struct CardView: View {
             let visible = Array(shares.prefix(limit).enumerated())
             if fills {
                 GeometryReader { proxy in
-                    let capacity = ListRowFill.capacity(height: proxy.size.height, unit: legendRowUnit)
-                    let rows = Array(visible.prefix(capacity))
-                    let slot = ListRowFill.slot(
+                    let fit = ListRowFill.fit(
                         height: proxy.size.height,
+                        unit: legendRowUnit,
+                        itemCount: shares.count,
+                        ceiling: limit,
+                        indicatorHeight: truncationLineUnit
+                    )
+                    let rows = Array(visible.prefix(fit.rows))
+                    let slot = ListRowFill.slot(
+                        height: proxy.size.height - (fit.hidden > 0 ? truncationLineUnit : 0),
                         rows: rows.count,
                         unit: legendRowUnit
                     )
@@ -1080,6 +1142,9 @@ public struct CardView: View {
                             legendRow(index: index, entry: entry, font: font)
                                 .frame(maxHeight: slot)
                         }
+                        if fit.hidden > 0 {
+                            truncationLine(fit.hidden)
+                        }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
                 }
@@ -1091,6 +1156,20 @@ public struct CardView: View {
                 }
             }
         }
+    }
+
+    /// What the canvas could not hold. Deliberately quiet — it is chrome, not
+    /// data — and deliberately present: the Live Activity has always said
+    /// `+N more`, and a widget row count that now depends on the device and the
+    /// reader's text size needs it more than a fixed one did.
+    private func truncationLine(_ hidden: Int) -> some View {
+        Text("+\(hidden) more")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("\(hidden) more not shown")
     }
 
     private func legendRow(
@@ -1294,13 +1373,19 @@ public struct CardView: View {
             let visible = Array(items.dropFirst(dropping).prefix(max))
             if fills {
                 GeometryReader { proxy in
-                    // How many rows the canvas holds, then how tall each may
-                    // grow and what size they read at. Whatever the slots do
-                    // not use stays empty at the bottom.
-                    let capacity = ListRowFill.capacity(height: proxy.size.height, unit: listRowUnit)
-                    let rows = Array(visible.prefix(capacity))
-                    let slot = ListRowFill.slot(
+                    // How many rows the canvas holds, how many items that
+                    // leaves out, then how tall each row may grow and what
+                    // size it reads at.
+                    let fit = ListRowFill.fit(
                         height: proxy.size.height,
+                        unit: listRowUnit,
+                        itemCount: items.count - dropping,
+                        ceiling: max,
+                        indicatorHeight: truncationLineUnit
+                    )
+                    let rows = Array(visible.prefix(fit.rows))
+                    let slot = ListRowFill.slot(
+                        height: proxy.size.height - (fit.hidden > 0 ? truncationLineUnit : 0),
                         rows: rows.count,
                         unit: listRowUnit
                     )
@@ -1313,6 +1398,9 @@ public struct CardView: View {
                         ForEach(rows) { item in
                             listRow(item, font: font, fractions: fractions)
                                 .frame(maxHeight: slot)
+                        }
+                        if fit.hidden > 0 {
+                            truncationLine(fit.hidden)
                         }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
