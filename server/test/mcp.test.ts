@@ -437,7 +437,6 @@ describe("get_integration_guide", () => {
       "## Choosing a template",
       "## Publishing a card",
       "## Live Activities",
-      "## Actions",
       "## Errors",
       "## Don'ts",
     ]) {
@@ -447,6 +446,11 @@ describe("get_integration_guide", () => {
     // invocations, four language bindings and key setup are all noise it pays
     // for in context.
     for (const heading of [
+      // Not in `essentials` any more: the MCP preset is the producer preset
+      // minus `webhook:manage`, so registering the endpoint a button calls is
+      // something this credential cannot do. It remains its own section, and
+      // the preamble says so — `test/mcpGuide.test.ts` holds that.
+      "## Actions",
       "## Snippets",
       "## Get the operator to give you",
       "## Notes for Cloudflare Workers callers",

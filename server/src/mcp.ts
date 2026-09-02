@@ -60,13 +60,23 @@ import {
 // Filtered from the one source document rather than written separately, so it
 // cannot fall out of step with it.
 export const MCP_GUIDE_SECTIONS = {
+  // `essentials` is both halves — every card rule and every Live Activity
+  // rule — which is why it is twice the size of either and why the parameter
+  // description now steers away from it rather than recommending it.
+  //
+  // No "Actions": `ApiScopePresets.mcp` is the producer preset minus
+  // `webhook:manage`, so that section teaches registering an HTTPS endpoint and
+  // receiving a signing secret, neither of which this credential can do. Cards
+  // published here may still carry `actions`, against a webhook registered with
+  // an API token elsewhere — which the preamble says, because dropping the
+  // section would otherwise be the only place that fact was ever going to come
+  // from.
   essentials: [
     "Tap behavior",
     "Data model",
     "Choosing a template",
     "Publishing a card",
     "Live Activities",
-    "Actions",
     "Rate limits",
     "Errors",
     "Don'ts",
@@ -82,7 +92,65 @@ export type McpGuideSection = keyof typeof MCP_GUIDE_SECTIONS;
 export function renderMcpGuide(section: McpGuideSection, baseURL: string): string {
   const wanted = MCP_GUIDE_SECTIONS[section];
   if (wanted === null) return renderHostedLlmsMarkdown(baseURL);
-  return mcpGuidePreamble(section, baseURL) + stripShellExamples(selectSections(llmsMarkdown, wanted));
+  const body = stripShellExamples(selectSections(llmsMarkdown, wanted));
+  return mcpGuidePreamble(section, baseURL) + resolveCrossSectionLinks(body);
+}
+
+/// GitHub's heading slug, near enough: lower-cased, backticks and punctuation
+/// dropped, spaces hyphenated. Only needs to agree with itself, since both
+/// sides of the comparison are produced here.
+function headingSlug(heading: string): string {
+  return heading
+    .toLowerCase()
+    .replace(/`/g, "")
+    .replace(/[^a-z0-9 -]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
+/// Which named section carries each heading in the document, narrowest first.
+///
+/// Built once from the source document, so a heading that moves between `##`
+/// sections re-points on its own rather than going stale.
+const SECTION_OWNING_SLUG: Map<string, McpGuideSection> = (() => {
+  const owners = new Map<string, McpGuideSection>();
+  // Narrow sections first so a heading in more than one is attributed to the
+  // smallest answer; `everything` is never suggested, because a caller sent
+  // there has learned nothing about where the rule actually lives.
+  const order: McpGuideSection[] = ["actions", "cards", "live-activities", "essentials"];
+  let current: string | null = null;
+  let inFence = false;
+  for (const line of llmsMarkdown.split("\n")) {
+    if (line.startsWith("```")) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    if (line.startsWith("## ")) current = line.slice(3).trim();
+    if (!current || !/^#{2,4} /.test(line)) continue;
+    const slug = headingSlug(line.replace(/^#+ /, ""));
+    if (owners.has(slug)) continue;
+    const owner = order.find((s) => (MCP_GUIDE_SECTIONS[s] as readonly string[] | null)?.includes(current!));
+    if (owner) owners.set(slug, owner);
+  }
+  return owners;
+})();
+
+/// Rewrites a link whose target this rendering does not contain.
+///
+/// Steering a caller to one half only works if that half can say where the
+/// other one is. A `](#live-activities)` inside the `cards` rendering is a dead
+/// end an agent reads as "this product does not do that" — and the links that
+/// created it were added in the same change that started doing the steering.
+function resolveCrossSectionLinks(markdown: string): string {
+  const present = new Set(
+    markdown
+      .split("\n")
+      .filter((line) => /^#{1,4} /.test(line))
+      .map((line) => headingSlug(line.replace(/^#+ /, ""))),
+  );
+  return markdown.replace(/\[([^\]]+)\]\(#([a-z0-9-]+)\)/g, (whole, text: string, anchor: string) => {
+    if (present.has(anchor)) return whole;
+    const owner = SECTION_OWNING_SLUG.get(anchor);
+    return owner ? `${text} (ask for \`section: "${owner}"\`)` : text;
+  });
 }
 
 /// Says what was left out and how to get it back, so a caller that needs the
@@ -98,12 +166,48 @@ function mcpGuidePreamble(section: McpGuideSection, baseURL: string): string {
     "say. Credential setup, curl invocations and the client snippets are gone;",
     'ask for `section: "everything"` to read the full public document.',
     "",
+    ...missingFrom(section),
     `This deployment is \`00WIDGET_BASE_URL=${baseURL}\`, if you ever need to`,
     "call the HTTP API directly instead of through these tools.",
     "",
     "---",
     "",
   ].join("\n");
+}
+
+/// Names what this section does not contain and where the rest is.
+///
+/// The rule the preamble already followed for the HTTP surface, extended to the
+/// split that now matters most: a caller steered to one half has to be able to
+/// tell "not in this section" from "not in this product", or narrowing turns
+/// into publishing against rules it never saw.
+function missingFrom(section: McpGuideSection): string[] {
+  const lines: Record<McpGuideSection, string[]> = {
+    essentials: [
+      "Buttons on cards are not covered here. You can publish a card carrying",
+      "`actions`, and the buttons work — but they call a webhook that must be",
+      "registered with an API token, which this credential cannot do. Ask for",
+      '`section: "actions"` for the shape of an `ActionDefinition`.',
+    ],
+    cards: [
+      "Cards only. For starting, updating and ending a Live Activity — the right",
+      "surface for work with a start and an end that you report on while it runs",
+      '— ask for `section: "live-activities"`. Buttons are `section: "actions"`.',
+    ],
+    "live-activities": [
+      "Live Activities only. For dashboard cards — the right surface for standing",
+      "state the operator checks on — and for the chart and item semantics an",
+      'activity shares with them, ask for `section: "cards"`.',
+    ],
+    actions: [
+      'Buttons only. Publishing itself is `section: "cards"` or',
+      '`section: "live-activities"`. Registering the webhook a button calls needs',
+      "an API token; this credential cannot do it.",
+    ],
+    everything: [],
+  };
+  const body = lines[section];
+  return body.length ? [...body, ""] : [];
 }
 
 /// Keeps whole `##` sections by title, with every `###` under them.
@@ -199,8 +303,10 @@ const SERVER_INSTRUCTIONS =
   + "the only surface that puts it on the Lock Screen and Dynamic Island where it "
   + "can be watched without opening anything. Cards reach a Home Screen widget on "
   + "a rationed refresh budget; a Live Activity update is pushed straight to the "
-  + "screen. Call get_integration_guide for the card templates, the Live Activity "
-  + "fields, and how to choose between them. "
+  + "screen. Once you have chosen, call get_integration_guide with "
+  + "`section: \"cards\"` or `section: \"live-activities\"` for that surface's rules — "
+  + "the ones no argument schema can carry. Take the default only if the choice above "
+  + "is genuinely still open; it returns both halves. "
   + "Then keep the Live Activity honest: it sits on the operator's Lock Screen "
   + "showing whatever you last sent, so update it at every step of the work it "
   + "describes, set `staleAt` on every push so it marks itself out of date if you "
@@ -695,15 +801,32 @@ const TOOLS: McpTool[] = [
     description:
       "The rules no argument schema can carry: which template fits which shape of data, what a "
       + "Live Activity freezes at start, and what publishing etiquette costs you if you ignore it. "
-      + "Read it before publishing for the first time. Narrow it with `section` when you already "
-      + "know which half you need.",
+      + "Read it before publishing for the first time. ALWAYS pass `section`: pick `cards` or "
+      + "`live-activities` for the surface you decided on, which is half the size of the default "
+      + "and all of it relevant. Only fall back to `essentials` if you genuinely do not know yet "
+      + "which of the two you are publishing to.",
     schema: z.object({
+      // The old wording opened with "`essentials` (default) is everything a
+      // publisher needs", which reads as "the default is complete, narrowing is
+      // an optimisation nobody asked for" — and it was the only honest answer
+      // while the card-versus-Live-Activity decision itself lived inside the
+      // document being fetched. The server instructions now carry that
+      // decision, so by the time this is called the caller has already chosen a
+      // surface and can ask for it. Hence a rule and a cost rather than a
+      // recommendation.
       section: McpGuideSectionSchema
         .default("essentials")
         .describe(
-          "Which part to return. `essentials` (default) is everything a publisher needs; `cards`, "
-          + "`live-activities` and `actions` narrow it further; `everything` is the full public "
-          + "document, including the HTTP and code-level material an MCP client has no use for.",
+          "Which part to return; pick by what you have already decided to publish. "
+          + "`cards` — dashboard cards: the templates, chart semantics and item rows. "
+          + "`live-activities` — starting, updating and ending a run on the Lock Screen. "
+          + "`actions` — the shape of a button on a card. "
+          + "`essentials` (the default) is `cards` AND `live-activities` together, so it is "
+          + "roughly twice the size of either and half of it will be about the surface you are "
+          + "not using; take it only when you do not yet know which you need. "
+          + "`everything` is the full public document, including the HTTP and code-level material "
+          + "an MCP client has no use for. Every section names what it omits and where to find it, "
+          + "so narrowing costs you nothing you cannot ask for.",
         ),
     }),
     outputSchema: z.object({
