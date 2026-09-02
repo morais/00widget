@@ -10,21 +10,38 @@ public struct LiveActivityCountdownText: View {
         self.granularity = granularity ?? .second
     }
 
-    @ViewBuilder
     public var body: some View {
-        switch granularity {
-        case .second:
-            Text(endsAt, style: .timer)
-        case .minute:
-            TimelineView(.periodic(from: nextMinuteBoundary(endsAt: endsAt, after: Date()), by: 60)) { context in
-                Text(Self.minuteText(endsAt: endsAt, now: context.date))
+        TimelineView(CountdownDeadlineSchedule(endsAt: endsAt, granularity: granularity)) { context in
+            remaining(at: context.date)
+        }
+    }
+
+    /// A deadline that has passed says so, rather than parking on the last
+    /// number before it.
+    ///
+    /// An ETA is an estimate, so overrunning it is ordinary — but "~0 min" is
+    /// not a smaller estimate, it is a claim that the job is about to finish,
+    /// and it stayed on screen for as long as anyone cared to look. Between
+    /// that and a `.timer` quietly counting *up* past zero, the honest reading
+    /// is that the estimate is spent and the countdown has nothing left to
+    /// say.
+    @ViewBuilder
+    private func remaining(at now: Date) -> some View {
+        if now >= endsAt {
+            Text("Overdue")
+        } else {
+            switch granularity {
+            case .second:
+                Text(endsAt, style: .timer)
+            case .minute:
+                Text(Self.minuteText(endsAt: endsAt, now: now))
             }
         }
     }
 
     public static func minuteText(endsAt: Date, now: Date) -> String {
         let remaining = endsAt.timeIntervalSince(now)
-        guard remaining > 0 else { return "~0 min" }
+        guard remaining > 0 else { return "Overdue" }
 
         let totalMinutes = max(1, Int(ceil(remaining / 60)))
         guard totalMinutes >= 60 else { return "~\(totalMinutes) min" }
@@ -87,6 +104,52 @@ public struct LiveActivityCountdownToken: View {
         let hours = Int((remaining / 3600).rounded())
         if hours < 24 { return "\(max(1, hours))h" }
         return "\(Int((remaining / 86_400).rounded()))d"
+    }
+}
+
+/// Wakes the countdown when its text can actually change, and once more the
+/// instant the deadline passes.
+///
+/// The deadline entry is the point. `Text(_, style: .timer)` redraws itself
+/// and a minute countdown needs a minute's cadence, so both were already
+/// covered — but neither can *stop*, and a Live Activity is rebuilt only when
+/// its content state changes, which is precisely what a producer that has
+/// overrun is no longer doing. Without an entry at `endsAt`, "Overdue" would
+/// depend on the very update whose absence it is reporting.
+private struct CountdownDeadlineSchedule: TimelineSchedule {
+    let endsAt: Date
+    let granularity: CountdownGranularity
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var next = startDate
+        return AnyIterator {
+            let entry = next
+            next = Self.successor(after: entry, endsAt: endsAt, granularity: granularity)
+            return entry
+        }
+    }
+
+    private static func successor(
+        after entry: Date,
+        endsAt: Date,
+        granularity: CountdownGranularity
+    ) -> Date {
+        // "Overdue" is terminal: nothing about it changes again. An hour is a
+        // stand-in for never, since a schedule that stops emitting is not one
+        // SwiftUI has a use for.
+        guard entry < endsAt else { return entry.addingTimeInterval(3600) }
+        let candidate: Date
+        switch granularity {
+        // `.timer` draws its own seconds, so across the whole life of the
+        // activity this schedule wakes exactly once — at the deadline.
+        case .second:
+            candidate = endsAt
+        case .minute:
+            candidate = min(nextMinuteBoundary(endsAt: endsAt, after: entry), endsAt)
+        }
+        // A boundary that lands on or before the entry it follows would spin
+        // the iterator on one date.
+        return candidate > entry ? candidate : entry.addingTimeInterval(1)
     }
 }
 

@@ -157,7 +157,7 @@ struct TVDashboardView: View {
                 .foregroundStyle(.red)
                 .lineLimit(1)
         } else if let lastSyncAt = env.lastSyncAt {
-            TVTickingClock(since: lastSyncAt) {
+            RelativeTimeClock(since: lastSyncAt) {
                 Text("Updated \(lastSyncAt.formatted(.relative(presentation: .named)))")
                     .font(.callout)
                     .foregroundStyle(.secondary)

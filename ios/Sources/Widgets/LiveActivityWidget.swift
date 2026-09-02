@@ -5,19 +5,25 @@ import ActivityKit
 struct ZeroZeroWidgetLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ZeroZeroWidgetActivityAttributes.self) { context in
-            LockScreenView(attributes: context.attributes, state: context.state)
+            LockScreenView(attributes: context.attributes, state: context.state, systemIsStale: context.isStale)
                 .activityBackgroundTint(LiveActivityBackground.tint(for: context.attributes.kind, signal: context.state.signal))
                 .activitySystemActionForegroundColor(.white)
                 .widgetURL(tapURL(for: context.attributes))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
+                    // No `layoutPriority`. The three top-row regions compete
+                    // for one width, and priority here spends it on identity —
+                    // which is the wrong half. `MinimalIslandView` states the
+                    // rule for the circle and it holds just as well here: the
+                    // app icon is already on screen, so a title that wins room
+                    // from the number wins it from the only thing the operator
+                    // is looking at.
                     Label(context.attributes.title, systemImage: iconName(attributes: context.attributes, state: context.state))
                         .font(.caption)
                         .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .layoutPriority(1)
+                        .minimumScaleFactor(0.6)
                         .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -45,13 +51,22 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         }
                     }
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    // 0.6, matching `compactTrailing`. At 0.8 a countdown as
+                    // ordinary as "~37 min" truncated to "~37…" — a clipped
+                    // number on the one surface the whole activity exists to
+                    // put a number on.
+                    .minimumScaleFactor(0.6)
                     .padding(.trailing, 8)
                 }
+                // Deliberately empty. The centre region shares the top row
+                // with the leading and trailing ones, around a camera housing
+                // that takes the middle of it — so a subtitle of any length put
+                // here is not a caption under a header, it is a third claimant
+                // on the same width. A two-line one crushed the title to "Mar…"
+                // and the countdown to "~37…" at the same time. The bottom
+                // region spans the full width and is where prose belongs.
                 DynamicIslandExpandedRegion(.center) {
-                    if context.state.activeItems.isEmpty, let subtitle = context.state.subtitle {
-                        Text(subtitle).font(.caption)
-                    }
+                    EmptyView()
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if !context.state.activeItems.isEmpty {
@@ -62,17 +77,37 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                         }
                         .padding(.horizontal, 8)
                         .padding(.bottom, 4)
-                    } else if let chart = context.state.chart, chart.isRenderable {
-                        // Ranked above progress: a producer sending both has a
-                        // number that moves, and the plot says which way while
-                        // a bar only says how far.
-                        SparklineView(chart: chart, tint: context.attributes.kind.tint(for: context.state.signal), lineWidth: 1.5)
-                            .frame(height: 26)
-                            .padding(.horizontal, 8)
-                            .padding(.bottom, 4)
-                    } else if let p = context.state.progress, context.state.endsAt == nil {
-                        ProgressView(value: max(0, min(p, 1)))
-                            .progressViewStyle(.linear)
+                    } else {
+                        VStack(alignment: .leading, spacing: 5) {
+                            if let chart = context.state.chart, chart.isRenderable {
+                                // Ranked above progress: a producer sending both
+                                // has a number that moves, and the plot says
+                                // which way while a bar only says how far.
+                                SparklineView(chart: chart, tint: context.attributes.kind.tint(for: context.state.signal), lineWidth: 1.5)
+                                    .frame(height: 26)
+                            } else if let p = context.state.progress {
+                                // Not gated on `endsAt == nil` any more. A
+                                // deadline and a completion fraction are two
+                                // facts, not two spellings of one: a four-part
+                                // job with an ETA has both, and suppressing the
+                                // bar left the 24pt minimal circle able to show
+                                // completion — `minimalProgress` even derives it
+                                // from a "1/4" written into `value` — while this
+                                // region, with room for it, showed nothing.
+                                ProgressView(value: max(0, min(p, 1)))
+                                    .progressViewStyle(.linear)
+                                    .tint(context.attributes.kind.tint(for: context.state.signal))
+                            }
+                            if let subtitle = context.state.subtitle {
+                                Text(subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 4)
                     }
                 }
             } compactLeading: {
@@ -254,6 +289,12 @@ private extension View {
 private struct LockScreenView: View {
     let attributes: ZeroZeroWidgetActivityAttributes
     let state: ZeroZeroWidgetActivityAttributes.ContentState
+    /// ActivityKit's own verdict, from the `staleDate` on `ActivityContent`.
+    /// Taken *in addition to* `state.isStale` rather than instead of it: the
+    /// system's flag is exact and arrives with a redraw, but it exists only
+    /// for a producer that sent `staleAt`, and the ones worth worrying about
+    /// are disproportionately the ones that did not.
+    let systemIsStale: Bool
 
     // .small covers every compact renderer of this activity — the Apple Watch
     // Smart Stack, and from iOS 27 the CarPlay Dashboard and the macOS menu
@@ -280,10 +321,10 @@ private struct LockScreenView: View {
         .accessibilityLabel(Text(accessibilitySummary))
     }
 
+    private var isStale: Bool { systemIsStale || state.isStale }
+
     private var accessibilitySummary: String {
-        let stale = state.staleAt.map { Date() >= $0 }
-            ?? (Date().timeIntervalSince(state.updatedAt) > 3600)
-        return LiveActivityAccessibilitySummary.summary(
+        LiveActivityAccessibilitySummary.summary(
             title: attributes.title,
             state: state.state,
             signal: state.signal,
@@ -292,7 +333,25 @@ private struct LockScreenView: View {
             progress: state.progress,
             subtitle: state.subtitle,
             activeItemCount: state.activeItems.count,
-            isStale: stale
+            isStale: isStale
+        )
+    }
+
+    /// The line that says the producer went quiet.
+    ///
+    /// It is the only thing on this surface that can, and until now nothing
+    /// did: `isStale` was computed for the VoiceOver summary and drawn
+    /// nowhere, so a blind user was told an activity had stopped updating and
+    /// a sighted one went on reading its last numbers as current. A Live
+    /// Activity is rebuilt only when its content state changes, which makes a
+    /// producer that has stopped sending exactly the case no redraw is coming
+    /// for — hence the clock inside `FreshnessLine`.
+    private var freshness: some View {
+        FreshnessLine(
+            updatedAt: state.updatedAt,
+            isStale: { isStale },
+            font: .caption2,
+            spacing: 4
         )
     }
 
@@ -351,6 +410,7 @@ private struct LockScreenView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            freshness
         }
     }
 
@@ -376,9 +436,17 @@ private struct LockScreenView: View {
                             .font(.title3.weight(.semibold))
                             .monospacedDigit()
                             .lineLimit(1)
-                    } else if let p = state.progress, state.chart == nil {
+                    }
+                    // Not an `else`. "How long is left" and "how much is done"
+                    // are different questions, and a job that can answer both
+                    // was answering neither here — the bar was suppressed by
+                    // the deadline, and the deadline is an estimate while the
+                    // fraction is a count. The chart still wins, because it
+                    // says which way the number is going rather than how far.
+                    if let p = state.progress, state.chart == nil {
                         ProgressView(value: max(0, min(p, 1)))
                             .progressViewStyle(.linear)
+                            .tint(tint)
                     }
                 }
                 Spacer()
@@ -408,9 +476,7 @@ private struct LockScreenView: View {
                     .padding(.leading, 44)
             }
 
-            Text("Updated \(state.updatedAt, style: .relative)")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            freshness
                 .padding(.leading, 44)
         }
     }
@@ -462,8 +528,7 @@ private struct LockScreenView: View {
                 Text("\(state.activeItems.count)")
                     .font(metrics.value)
                     .monospacedDigit()
-            } else if let p = state.activeItems.first?.progress ?? state.progress,
-                      state.endsAt == nil {
+            } else if let p = state.activeItems.first?.progress ?? state.progress {
                 Gauge(value: max(0, min(p, 1))) { EmptyView() }
                     .gaugeStyle(.accessoryCircularCapacity)
                     .scaleEffect(metrics.gaugeScale)

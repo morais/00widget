@@ -95,6 +95,24 @@ public struct ZeroZeroWidgetActivityAttributes: ActivityAttributes, Hashable {
     }
 }
 
+public extension ZeroZeroWidgetActivityAttributes.ContentState {
+    /// Whether the producer has gone quiet, by the same rule
+    /// `LiveActivitySession.isStale` uses — `staleAt` when one was sent, an
+    /// hour since `updatedAt` when one was not.
+    ///
+    /// One definition, because the visible line and the VoiceOver summary read
+    /// it. They were previously separate, and only the summary existed: a
+    /// blind user was told the activity had stopped updating and a sighted one
+    /// was not.
+    ///
+    /// A comparison against `Date()`, so it is only ever as fresh as the
+    /// redraw that evaluates it — see `RelativeTimeClock`.
+    var isStale: Bool {
+        if let staleAt { return Date() >= staleAt }
+        return Date().timeIntervalSince(updatedAt) > 3600
+    }
+}
+
 public extension ZeroZeroWidgetActivityAttributes {
     static func from(_ session: LiveActivitySession) -> (ZeroZeroWidgetActivityAttributes, ContentState) {
         let attrs = ZeroZeroWidgetActivityAttributes(

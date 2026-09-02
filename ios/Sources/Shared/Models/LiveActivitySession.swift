@@ -67,10 +67,15 @@ public struct LiveActivitySession: Codable, Hashable, Identifiable, Sendable {
     }
 
     /// Mirrors `DashboardCard.isStale`, hour-long fallback included, for a
-    /// producer that never sent `staleAt`. ActivityKit applies `staleAt` for
-    /// itself on the Lock Screen, so nothing had to decide this in-app; a
-    /// surface that draws a session fetched from the API — the Apple TV
-    /// dashboard — gets no such help and has to ask.
+    /// producer that never sent `staleAt`.
+    ///
+    /// ActivityKit does carry `staleAt` through to `ActivityViewContext`, but
+    /// what it does with it is expose a flag — it does not dim, annotate, or
+    /// otherwise mark a stale Live Activity by itself. Reading that as "the
+    /// Lock Screen handles this" is what left the Live Activity presenting a
+    /// dead producer's last numbers as current for as long as anyone cared to
+    /// look. Every surface has to ask, and every surface has to draw the
+    /// answer.
     public var isStale: Bool {
         if let staleAt { return Date() >= staleAt }
         return Date().timeIntervalSince(updatedAt) > 3600

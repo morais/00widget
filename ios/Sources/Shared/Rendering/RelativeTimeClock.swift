@@ -4,26 +4,29 @@ import SwiftUI
 /// counts up on its own.
 ///
 /// `Text(updatedAt.formatted(.relative(...)))` is a string computed once, at
-/// whatever moment something else caused a redraw. On a phone that is hard to
-/// notice, because scrolling and returning to a screen redraw it constantly. A
-/// television left running on a wall redraws only when a fetch returns, so
-/// "Updated 18 seconds ago" sat unchanged for a whole refresh interval and then
-/// jumped straight to "38 seconds ago". Minutes hide that. Seconds do not.
+/// whatever moment something else caused a redraw. Scrolling a list hides
+/// that, because scrolling redraws constantly. Two surfaces do not scroll and
+/// are redrawn only when something arrives: an Apple TV left running on a
+/// wall, where the line sat unchanged for a whole refresh interval and then
+/// jumped from "18 seconds ago" to "38 seconds ago"; and a Live Activity,
+/// which ActivityKit rebuilds only when its content state changes — so a
+/// producer that has *stopped* sending is precisely the case where nothing
+/// will ever provoke the redraw that would reveal it.
 ///
 /// Nothing is threaded through to the content: the point is only that the body
 /// is evaluated again, so the `Date()` inside the formatter — and inside
-/// `isStale` — is read afresh. That second part is a real gain rather than a
+/// `isStale` — is read afresh. That second part is the real gain rather than a
 /// side effect. Staleness used to be noticed only when something else provoked
 /// a redraw, so an activity whose producer stopped went on presenting its last
-/// numbers as current; now the card says so on its own.
-struct TVTickingClock<Content: View>: View {
+/// numbers as current; now the surface says so on its own.
+struct RelativeTimeClock<Content: View>: View {
     /// The timestamp being described. The schedule widens as it ages, so this
     /// decides how often the redraw happens.
     let since: Date
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        TimelineView(TVRelativeTimeSchedule(since: since)) { _ in
+        TimelineView(RelativeTimeSchedule(since: since)) { _ in
             content()
         }
     }
@@ -35,8 +38,9 @@ struct TVTickingClock<Content: View>: View {
 /// cannot change more than once a minute however often it is asked, and past an
 /// hour the wording moves so slowly that a lagging first transition costs
 /// nothing. Waking a view more often than its own text can change is work
-/// nobody sees.
-private struct TVRelativeTimeSchedule: TimelineSchedule {
+/// nobody sees — and on a Live Activity it is work paid for out of someone's
+/// battery.
+private struct RelativeTimeSchedule: TimelineSchedule {
     let since: Date
 
     func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
