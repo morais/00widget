@@ -124,14 +124,38 @@ final class MarketingPreviewTests: XCTestCase {
         case "go_home":
             XCUIDevice.shared.press(.home)
         case "swipe_left":
-            springboard.swipeLeft()
+            swipePage(left: true, in: springboard)
         case "swipe_right":
-            springboard.swipeRight()
+            swipePage(left: false, in: springboard)
         case "open_app":
             app.activate()
         default:
             XCTFail("Unsupported preview action: \(action)")
         }
+    }
+
+    private func swipePage(left: Bool, in springboard: XCUIApplication) {
+        // Drive the gesture through the empty strip between the widgets and
+        // Search. Starting on a widget briefly highlights its snapshot (and
+        // can record as a black flash), while XCUIElement.swipeLeft() also
+        // takes about two seconds and makes the page look stuck mid-scroll.
+        let startX = left ? 0.90 : 0.10
+        let endX = left ? 0.10 : 0.90
+        let start = springboard.coordinate(
+            withNormalizedOffset: CGVector(dx: startX, dy: 0.78)
+        )
+        let end = springboard.coordinate(
+            withNormalizedOffset: CGVector(dx: endX, dy: 0.78)
+        )
+        start.press(
+            forDuration: 0.01,
+            thenDragTo: end,
+            withVelocity: .fast,
+            thenHoldForDuration: 0
+        )
+        // Force a settled framebuffer sample so CoreSimulator preserves the
+        // following static hold in its variable-frame-rate recording.
+        _ = XCUIScreen.main.screenshot()
     }
 
     private func wait(until deadline: TimeInterval) {

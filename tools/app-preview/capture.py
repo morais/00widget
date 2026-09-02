@@ -385,6 +385,22 @@ def capture_with_configured_simulator(
         )
         logger.info("Preview stage is ready")
 
+        # Ask CoreSimulator for one full, settled framebuffer before starting
+        # recordVideo. Without this priming read, the movie's first keyframe can
+        # contain a stale partial SpringBoard swipe even though the page has
+        # already been stationary for a second.
+        run(
+            [
+                "xcrun",
+                "simctl",
+                "io",
+                udid,
+                "screenshot",
+                str(temp_dir / "stage-prime.png"),
+            ],
+            logger,
+        )
+
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         if raw_path.exists():
             raw_path.unlink()
@@ -411,9 +427,7 @@ def capture_with_configured_simulator(
         )
         logger.capture_started = time.monotonic()
         logger.info("Recording started")
-        go_time = time.monotonic()
         (handshake_dir / "start").write_text("start\n", encoding="utf-8")
-        trim_start = max(0.0, go_time - logger.capture_started)
         wait_for(
             lambda: (handshake_dir / "finished").is_file(),
             float(config["output"]["duration"]) + 30,
@@ -447,7 +461,6 @@ def capture_with_configured_simulator(
             "runId": run_id,
             "rawPath": str(raw_path),
             "rawSizeBytes": raw_path.stat().st_size,
-            "trimStart": trim_start,
             "events": events,
             "config": str(config_path),
         }
@@ -543,24 +556,22 @@ def main() -> int:
 
         require_tool("ffmpeg")
         require_tool("ffprobe")
-        trim_start = float(report.get("capture", {}).get("trimStart", 0.0))
         if args.render_only:
             existing_report = {}
             if report_path.is_file():
                 existing_report = json.loads(report_path.read_text(encoding="utf-8"))
-            trim_start = float(existing_report.get("capture", {}).get("trimStart", 0.0))
             report.update({key: value for key, value in existing_report.items() if key == "capture"})
         report["overlays"] = render(
             raw_path,
             preview_path,
             config,
             temp_dir / "overlays",
-            trim_start=trim_start,
             log=logger.info,
         )
         logger.info("Validating App Store Preview output")
         report["validation"] = validate(preview_path, config)
         write_report(report_path, report)
+        print(f"✓ raw capture (untrimmed, no text): {raw_path}")
         print(f"✓ preview: {preview_path}")
         print(f"✓ report: {report_path}")
         return 0

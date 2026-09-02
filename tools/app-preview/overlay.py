@@ -44,6 +44,14 @@ def _wrap(text: str, font: Any, max_width: int, max_lines: int) -> list[str]:
     return lines
 
 
+def _text_metrics(font: Any, lines: list[str]) -> tuple[int, int, tuple[int, int, int, int]]:
+    sample_box = font.getbbox("Ag")
+    line_height = sample_box[3] - sample_box[1]
+    line_spacing = max(10, int(line_height * 0.28))
+    text_height = len(lines) * line_height + max(0, len(lines) - 1) * line_spacing
+    return text_height, line_spacing, sample_box
+
+
 def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[str, int]:
     try:
         from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -56,15 +64,47 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
     style = STYLE[style_name]
     requested_width = int(spec.get("width", width))
     padding_x = int(style["paddingX"])
-    padding_y = int(style["paddingY"])
-    font = ImageFont.truetype(_font_path(style_name), int(style["fontSize"]))
-    lines = _wrap(spec["text"], font, requested_width - 2 * padding_x, int(style["maxLines"]))
+    base_padding_y = int(style["paddingY"])
+    base_font_size = int(style["fontSize"])
+    font_path = _font_path(style_name)
+    base_font = ImageFont.truetype(font_path, base_font_size)
+    base_lines = _wrap(
+        spec["text"], base_font, requested_width - 2 * padding_x, int(style["maxLines"])
+    )
+    base_text_height, _, _ = _text_metrics(base_font, base_lines)
+    base_card_height = base_text_height + 2 * base_padding_y
 
-    sample_box = font.getbbox("Ag")
+    height_scale = float(spec.get("heightScale", 1))
+    card_height = round(base_card_height * height_scale)
+    padding_y = round(base_padding_y * height_scale)
+    available_text_height = card_height - 2 * padding_y
+    scaled_max_lines = max(int(style["maxLines"]), round(int(style["maxLines"]) * height_scale))
+    font = base_font
+    lines = base_lines
+    text_height, line_spacing, sample_box = _text_metrics(font, lines)
+    for font_size in range(round(base_font_size * height_scale), base_font_size - 1, -1):
+        candidate_font = ImageFont.truetype(font_path, font_size)
+        try:
+            candidate_lines = _wrap(
+                spec["text"],
+                candidate_font,
+                requested_width - 2 * padding_x,
+                scaled_max_lines,
+            )
+        except OverlayError:
+            continue
+        candidate_height, candidate_spacing, candidate_box = _text_metrics(
+            candidate_font, candidate_lines
+        )
+        if candidate_height <= available_text_height:
+            font = candidate_font
+            lines = candidate_lines
+            text_height = candidate_height
+            line_spacing = candidate_spacing
+            sample_box = candidate_box
+            break
+
     line_height = sample_box[3] - sample_box[1]
-    line_spacing = max(10, int(line_height * 0.28))
-    text_height = len(lines) * line_height + max(0, len(lines) - 1) * line_spacing
-    card_height = text_height + 2 * padding_y
     shadow_margin = 24
     canvas = Image.new("RGBA", (requested_width + shadow_margin * 2, card_height + shadow_margin * 2))
 
@@ -78,7 +118,7 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
     )
     shadow_draw.rounded_rectangle(
         (rect[0], rect[1] + 7, rect[2], rect[3] + 7),
-        radius=int(style["radius"]),
+        radius=round(int(style["radius"]) * height_scale),
         fill=(0, 0, 0, 54),
     )
     canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(12)))
@@ -86,12 +126,12 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle(
         rect,
-        radius=int(style["radius"]),
+        radius=round(int(style["radius"]) * height_scale),
         fill=(250, 250, 249, 238),
         outline=(255, 255, 255, 184),
         width=1,
     )
-    y = shadow_margin + padding_y - sample_box[1]
+    y = shadow_margin + (card_height - text_height) / 2 - sample_box[1]
     for line in lines:
         line_width = font.getlength(line)
         x = shadow_margin + (requested_width - line_width) / 2
@@ -100,4 +140,10 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(destination)
-    return {"width": canvas.width, "height": canvas.height, "lines": len(lines)}
+    return {
+        "width": canvas.width,
+        "height": canvas.height,
+        "baseHeight": base_card_height + shadow_margin * 2,
+        "fontSize": font.size,
+        "lines": len(lines),
+    }
