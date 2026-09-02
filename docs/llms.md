@@ -1157,6 +1157,99 @@ short, keep `value` short too and put the prose in `subtitle` — `value: "1/4"`
 with `subtitle: "Capturing screenshots"` reads in the minimal circle, where
 `value: "Capture 1/4"` does not.
 
+#### How much room each surface actually has
+
+The size limits above are **transport** limits: 120 characters of `title` will
+be stored, pushed, and reported back to you intact. They are not design
+budgets, and reading them as budgets is the commonest way to publish an
+activity that is valid, succeeds, and renders badly. Roughly a third of a
+Dynamic Island is what draws that title.
+
+What each surface has room for, in characters:
+
+| Surface | `title` | `value` | `subtitle` |
+| --- | ---: | ---: | --- |
+| Dynamic Island, minimal circle | — | 3 | — |
+| Dynamic Island, compact | — | ~7 | — |
+| Dynamic Island, expanded | ~24 | ~10 | ~80, over two lines |
+| Lock Screen | ~30 | ~10 | ~80, over two lines |
+| Apple Watch (Smart Stack) | ~20 | ~8 | — |
+| 00Widget app, Apple TV | full | full | full |
+
+Three things follow that are not obvious from the table:
+
+- **The compact and minimal Dynamic Island regions never draw `subtitle` at
+  all**, and the minimal circle does not draw `title` either. Anything that
+  must survive being reduced to a 24pt circle has to be in `value`, `progress`,
+  `items` or `endsAt`.
+- **Over-budget text shrinks before it truncates**, so the failure looks like a
+  smaller font rather than an error, and then like a word cut off mid-way. No
+  API response tells you it happened; you are not holding the phone.
+- **`title` is the one you cannot fix later.** It is an ActivityAttribute
+  (below), so an over-long title is frozen for the life of the activity.
+
+`start` and `update` return a `warnings` array on success when they can see one
+of these coming — an over-long title, prose in `subtitle`, a step counter in
+`value` with no `progress`, a deadline already passed, a `chart` that `items`
+will hide, or a missing `staleAt`. It is advisory, never an error, and empty
+when there is nothing to say. Read it: it is the only view you get of a screen
+you cannot see.
+
+#### A job with named parts is `items`
+
+Every other example here is one moving number. The commonest shape an agent
+actually has is different: a job made of several named parts, each with its own
+state — four device sets to capture, six services to deploy, three files to
+upload. That is what `items` is for, and it is worth reaching for even when the
+job also has a headline number.
+
+Sending it as prose in `subtitle` is the alternative, and it is worse on every
+surface: the compact and minimal Dynamic Island regions never draw `subtitle`,
+the expanded island gives it two lines, and no part can carry its own status.
+
+```sh
+curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/start" \
+  -H "Authorization: Bearer $00WIDGET_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "externalActivityId": "screenshots-2026-09-02",
+    "kind": "job",
+    "title": "Screenshots",
+    "state": "running",
+    "value": "1/4",
+    "progress": 0.25,
+    "endsAt": "2026-09-02T11:32:00Z",
+    "countdownGranularity": "minute",
+    "staleAt": "2026-09-02T11:00:00Z",
+    "items": [
+      {"id": "iphone-63", "title": "iPhone 6.3\"", "value": "6m 30s", "progress": 0.6, "status": "running"},
+      {"id": "iphone-65", "title": "iPhone 6.5\"", "status": "pending"},
+      {"id": "ipad",      "title": "iPad",        "status": "pending"},
+      {"id": "tvos",      "title": "Apple TV",    "status": "pending"}
+    ]
+  }'
+```
+
+What that buys, none of which needs another field:
+
+- **Per-part state on the Lock Screen and in the expanded island.** Up to three
+  rows are drawn, with a `+N more` line beneath them; each row can carry its own
+  `value`, `unit`, `progress`, `icon` and `status`.
+- **A count for free.** With `items` and no top-level `value`, the surfaces that
+  have room draw "3 active" and the compact island draws `3`. Send `value` when
+  you have a better headline — as above — and it wins.
+- **A ring in the minimal circle.** Failing an explicit `progress`, one is
+  derived from how many items have finished, or from the mean of their own
+  `progress` when they all carry one.
+
+Then update the rows as parts complete. Items are snapshot semantics, so send
+the whole array each time; a part that is done gets `status: "finished"`, which
+both greys it out and feeds the derived count.
+
+Keep the parts to six or fewer — that is the hard limit — and keep each `title`
+short, because a row is one line. If a job has twenty parts, the items are the
+*stages*, not the units of work.
+
 #### `title` is frozen when the activity starts
 
 iOS splits a Live Activity into *static attributes*, fixed for the whole life of
@@ -1265,7 +1358,8 @@ The response:
   "recipientResults": [],
   "pendingUpdated": false,
   "secondsSincePreviousUpdate": 47,
-  "staleAtPushed": "2026-04-26T19:00:00Z"
+  "staleAtPushed": "2026-04-26T19:00:00Z",
+  "warnings": []
 }
 ```
 

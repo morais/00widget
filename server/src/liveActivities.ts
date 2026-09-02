@@ -26,6 +26,7 @@ import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { isSharingEnabled, listAcceptedShares } from "./shares";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
+import { liveActivityWarnings } from "./liveActivityAdvice";
 
 // The Swift attributes type the iOS app declares. iOS 18+ rejects start
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
@@ -457,6 +458,7 @@ export async function startLiveActivity(
     pending: true,
     pushToStartAttempted: startTokens.length,
     apnsResults,
+    warnings: liveActivityWarnings(session, { isStart: true, staleAtPushed: d.staleAt }),
   });
 }
 
@@ -629,6 +631,14 @@ export async function updateLiveActivity(
     // the stored value would tell a producer it is covered when the device may
     // not be; this answers the question the producer can act on.
     staleAtPushed: d.staleAt ?? null,
+    warnings: liveActivityWarnings(updated, {
+      isStart: false,
+      // Only what this request named. `updated.title` always holds a title,
+      // merged from the stored one, so reading it here would warn on every
+      // update that a title it never mentioned is frozen.
+      requestedTitle: d.title,
+      staleAtPushed: d.staleAt ?? undefined,
+    }),
   });
 }
 

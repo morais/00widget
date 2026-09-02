@@ -257,6 +257,20 @@ const DashboardOutput = z.object({
   activities: z.array(LiveActivitySessionSchema),
 });
 const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchema) });
+/// Rendering advice on a request that succeeded. Never an error, never a reason
+/// to retry — but the only way a producer learns that the Lock Screen it cannot
+/// see is truncating its title or drawing no progress bar.
+const ActivityWarningsSchema = z.array(z.object({
+  code: z.string(),
+  field: z.string().optional(),
+  message: z.string(),
+})).describe(
+  "Advisory notes about how this activity will RENDER, on a call that "
+  + "otherwise succeeded. Empty when there is nothing to say. These never "
+  + "affect whether the request worked; act on them anyway, because the "
+  + "operator's Lock Screen is the one thing you cannot look at.",
+);
+
 const StartActivityOutput = z.object({
   ok: z.boolean(),
   activityInstanceId: z.string().describe("The server's id for this exact activity."),
@@ -273,6 +287,7 @@ const StartActivityOutput = z.object({
     + "notifications rather than continuing to publish.",
   ),
   apnsResults: z.array(ApnsResultSchema),
+  warnings: ActivityWarningsSchema,
 });
 const UpdateActivityOutput = z.object({
   ok: z.boolean(),
@@ -295,6 +310,7 @@ const UpdateActivityOutput = z.object({
     + "push set none, so nothing marks the activity out of date if you stop "
     + "here — send `staleAt` on the next one.",
   ),
+  warnings: ActivityWarningsSchema,
 });
 const EndActivityOutput = z.object({
   ok: z.boolean(),
