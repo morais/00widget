@@ -164,6 +164,18 @@ def render(
     command = ["ffmpeg", "-hide_banner", "-y", "-i", str(normalized_path)]
     for overlay in overlays:
         command.extend(["-loop", "1", "-i", str(overlay["path"])])
+    audio_input = len(overlays) + 1
+    # App Store Connect requires an enabled stereo AAC track. Very low-level
+    # dither is inaudible but keeps AAC's encoded bitrate near the required
+    # 256 kbps; digital silence otherwise collapses to only a few kbps.
+    command.extend(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=color=white:amplitude=0.00003:sample_rate=48000",
+        ]
+    )
 
     filters = ["[0:v]setpts=PTS-STARTPTS[base]"]
     fade = float(output.get("overlayFade", 0.2))
@@ -234,19 +246,20 @@ def render(
             ";".join(filters),
             "-map",
             f"[{output_label}]",
+            "-map",
+            f"{audio_input}:a:0",
             "-t",
             f"{duration:.3f}",
             "-r",
             f"{fps:g}",
             "-fps_mode",
             "cfr",
-            "-an",
             "-c:v",
             "libx264",
             "-profile:v",
             "high",
             "-level:v",
-            "4.1",
+            "4.0",
             "-pix_fmt",
             "yuv420p",
             "-b:v",
@@ -255,6 +268,18 @@ def render(
             maxrate,
             "-bufsize",
             bufsize,
+            "-c:a",
+            "aac",
+            "-profile:a",
+            "aac_low",
+            "-b:a",
+            "256k",
+            "-ar",
+            "48000",
+            "-ac",
+            "2",
+            "-disposition:a:0",
+            "default",
             "-movflags",
             "+faststart",
             "-map_metadata",

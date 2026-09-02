@@ -94,7 +94,10 @@ error or signal. The status-bar override is also cleared.
 ## Validation
 
 The final MP4 must be 15–30 seconds, exactly the configured dimensions, no more
-than 30 fps, H.264, progressive, and under 500 MB. A failed check exits nonzero.
+than 30 fps, H.264 High Profile Level 4.0 or lower, progressive, and under 500
+MB. It also includes the App Store-required stereo AAC-LC track at 48 kHz and a
+target bitrate of 256 kbps; the track carries inaudible dither rather than
+content. A failed check exits nonzero.
 Run the validator directly when useful:
 
 ```sh

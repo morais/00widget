@@ -19,10 +19,9 @@ def probe(path: Path) -> dict[str, Any]:
         "ffprobe",
         "-v",
         "error",
-        "-select_streams",
-        "v:0",
         "-show_entries",
-        "stream=codec_name,width,height,avg_frame_rate,field_order:format=duration,size",
+        "stream=codec_name,codec_type,profile,level,width,height,avg_frame_rate,field_order,"
+        "sample_rate,channels,channel_layout,bit_rate:format=duration,size",
         "-of",
         "json",
         str(path),
@@ -35,28 +34,63 @@ def validate(path: Path, config: dict[str, Any], *, emit: bool = True) -> dict[s
     if not path.is_file():
         raise ValidationError(f"preview file not found: {path}")
     payload = probe(path)
-    stream = payload["streams"][0]
+    video = next((stream for stream in payload["streams"] if stream.get("codec_type") == "video"), None)
+    audio = next((stream for stream in payload["streams"] if stream.get("codec_type") == "audio"), None)
+    if video is None:
+        raise ValidationError("App Store preview validation failed: no video track")
     container = payload["format"]
     duration = float(container["duration"])
-    fps = float(Fraction(stream["avg_frame_rate"]))
+    fps = float(Fraction(video["avg_frame_rate"]))
     size_bytes = int(container["size"])
+    audio_bit_rate = int(audio.get("bit_rate", 0)) if audio else 0
     expected = config["output"]
 
     checks = [
         (15 <= duration <= 30, "duration", f"{duration:.2f} s", "must be between 15 and 30 seconds"),
         (
-            stream["width"] == int(expected["width"]) and stream["height"] == int(expected["height"]),
+            video["width"] == int(expected["width"]) and video["height"] == int(expected["height"]),
             "resolution",
-            f"{stream['width']}x{stream['height']}",
+            f"{video['width']}x{video['height']}",
             f"must be {expected['width']}x{expected['height']}",
         ),
         (fps <= 30.001, "frame rate", f"{fps:g} fps", "must not exceed 30 fps"),
-        (stream["codec_name"] == "h264", "codec", stream["codec_name"], "must be h264"),
+        (video["codec_name"] == "h264", "codec", video["codec_name"], "must be h264"),
         (
-            stream.get("field_order") == "progressive",
+            video.get("profile") == "High" and int(video.get("level", 999)) <= 40,
+            "video profile",
+            f"{video.get('profile', 'unknown')} Level {int(video.get('level', 0)) / 10:g}",
+            "must be H.264 High Profile Level 4.0 or lower",
+        ),
+        (
+            video.get("field_order") == "progressive",
             "scan",
-            stream.get("field_order", "unknown"),
+            video.get("field_order", "unknown"),
             "must be progressive",
+        ),
+        (audio is not None, "audio track", "present" if audio else "missing", "must be present and enabled"),
+        (
+            audio is not None and audio.get("codec_name") == "aac" and audio.get("profile") == "LC",
+            "audio codec",
+            f"{audio.get('codec_name', 'missing')} {audio.get('profile', '')}" if audio else "missing",
+            "must be AAC-LC",
+        ),
+        (
+            audio is not None and audio.get("channels") == 2 and audio.get("channel_layout") == "stereo",
+            "audio channels",
+            f"{audio.get('channels', 0)} ({audio.get('channel_layout', 'unknown')})" if audio else "missing",
+            "must be two-channel stereo",
+        ),
+        (
+            audio is not None and audio.get("sample_rate") in {"44100", "48000"},
+            "audio sample rate",
+            f"{audio.get('sample_rate', 'missing')} Hz" if audio else "missing",
+            "must be 44.1 kHz or 48 kHz",
+        ),
+        (
+            230_400 <= audio_bit_rate <= 281_600,
+            "audio bit rate",
+            f"{audio_bit_rate / 1000:.0f} kbps",
+            "must target 256 kbps AAC",
         ),
         (size_bytes < 500_000_000, "size", f"{size_bytes / 1_000_000:.1f} MB", "must be under 500 MB"),
     ]
@@ -72,11 +106,18 @@ def validate(path: Path, config: dict[str, Any], *, emit: bool = True) -> dict[s
         "passed": not failures,
         "path": str(path),
         "duration": duration,
-        "width": stream["width"],
-        "height": stream["height"],
+        "width": video["width"],
+        "height": video["height"],
         "fps": fps,
-        "codec": stream["codec_name"],
-        "fieldOrder": stream.get("field_order"),
+        "codec": video["codec_name"],
+        "profile": video.get("profile"),
+        "level": video.get("level"),
+        "fieldOrder": video.get("field_order"),
+        "audioCodec": audio.get("codec_name") if audio else None,
+        "audioProfile": audio.get("profile") if audio else None,
+        "audioSampleRate": int(audio["sample_rate"]) if audio else None,
+        "audioChannels": audio.get("channels") if audio else None,
+        "audioBitRate": audio_bit_rate if audio else None,
         "sizeBytes": size_bytes,
         "checks": rendered_checks,
     }
