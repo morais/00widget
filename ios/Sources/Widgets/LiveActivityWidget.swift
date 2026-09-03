@@ -402,9 +402,18 @@ private struct LockScreenView: View {
     /// subtitles or progress bars — none of which this can measure and all of
     /// which the layout engine already knows. It takes the first candidate
     /// whose ideal height fits, so the ordering below is "most informative
-    /// first" and the last one is the floor that must always fit.
+    /// first" and the last one is the floor that must always fit. Every row
+    /// count the API accepts is offered: starting this ladder at three looked
+    /// adaptive but made three a hard ceiling, so a roomier banner could never
+    /// prove that a fourth, fifth, or sixth item fit.
     private var compositeLockScreenBody: some View {
         ViewThatFits(in: .vertical) {
+            composite(rows: 6, condensed: false)
+            composite(rows: 6, condensed: true)
+            composite(rows: 5, condensed: false)
+            composite(rows: 5, condensed: true)
+            composite(rows: 4, condensed: false)
+            composite(rows: 4, condensed: true)
             composite(rows: 3, condensed: false)
             // Rows before subtitles. Which parts a job has is the thing the
             // banner is for; a row's subtitle is a detail of one of them, and

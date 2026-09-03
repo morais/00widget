@@ -434,8 +434,9 @@ public enum SampleDataFactory {
                 LiveActivityItem(id: "ipad", title: "iPad", subtitle: "Queued", icon: "ipad"),
                 LiveActivityItem(id: "apple-tv", title: "Apple TV", subtitle: "Queued", icon: "appletv"),
             ],
-            // Four rows against a banner that draws three, so the "+1 more"
-            // line is part of what this demonstrates rather than an oversight.
+            // Four rows exercise the Lock Screen's measured row ladder: a
+            // roomier banner shows all four, while a tighter one falls back
+            // and says what it left out.
             endsAt: now.addingTimeInterval(37 * 60),
             countdownGranularity: .minute,
             startedAt: now,

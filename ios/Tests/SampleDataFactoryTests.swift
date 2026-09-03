@@ -75,8 +75,7 @@ struct SampleDataFactoryTests {
         let capture = SampleDataFactory.makeLiveActivitySession(.captureWorkflow)
         #expect(capture.chart == nil)
         #expect(capture.items?.count == 4)
-        // More rows than the banner draws, so the "+1 more" line is part of
-        // what this sample shows.
+        // Enough rows to exercise the Lock Screen's measured row ladder.
         #expect((capture.items ?? []).filter(\.isActive).count == 4)
 
         // Both, because they answer different questions and nothing derives
