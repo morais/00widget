@@ -900,7 +900,16 @@ public final class AppEnvironment: ObservableObject {
     }
 
     public var shouldShowWidgetSetupHint: Bool {
+        #if ZW_SCREENSHOTS
+        // Marketing captures already prove that widgets are installed on the
+        // adjacent Home Screen frames. The capture build starts from an empty
+        // dashboard and asks WidgetKit before XCUITest rebuilds that page, so
+        // its transient zero must not become contradictory onboarding copy in
+        // the populated dashboard screenshot.
+        return false
+        #else
         installedWidgetCount == 0 && !didDismissWidgetSetupHint
+        #endif
     }
 
     public func generateSampleCards() {
