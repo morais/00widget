@@ -145,210 +145,164 @@ public enum SampleDataFactory {
 
     public static func makeCards() -> [DashboardCard] {
         let now = Date()
-        let energySolar = [
-            11.8, 12.1, 13.4, 10.7, 9.9, 14.1, 15.0, 12.6, 11.2, 10.4,
-            8.9, 9.6, 13.7, 16.1, 14.8, 12.2, 10.5, 9.1, 7.8, 8.5,
-            11.3, 13.0, 12.1, 10.3, 9.0, 7.4, 6.9, 9.7, 10.1, 9.4,
-        ]
-        let energyGrid = [
-            10.0, 8.8, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
-            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
-            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
-        ]
-        let energyTotals = zip(energySolar, energyGrid).map { $0.0 + $0.1 }
-        let energyCategories = energyTotals.enumerated().map { index, total in
-            DashboardChartCategory(
-                id: "day-\(index + 1)",
-                label: String(index + 1),
-                signal: total > 24 ? .unfavorable : (total > 22 ? .caution : .favorable)
-            )
-        }
         return [
             DashboardCard(
-                id: sampleId("solar"),
-                template: .summary,
-                title: "Solar",
-                subtitle: "Exporting 0.8 kW",
-                value: "3.2",
-                unit: "kW",
-                status: .good,
-                icon: "sun.max",
-                updatedAt: now,
-                chart: DashboardChart(
-                    points: [1.1, 1.6, 2.0, 2.5, 2.2, 2.8, 3.2],
-                    min: 0,
-                    max: 4,
-                    semantic: MetricSemantic(
-                        role: .actual,
-                        flow: .outbound,
-                        signal: .favorable
-                    ),
-                    style: .line,
-                    labels: ["08", "09", "10", "11", "12", "13", "Now"]
-                )
-            ),
-            DashboardCard(
-                id: sampleId("services"),
-                template: .list,
-                title: "Services",
-                status: .warning,
-                icon: "server.rack",
-                updatedAt: now,
-                items: [
-                    DashboardItem(id: "api", title: "API", value: "142", unit: "ms", status: .good, amount: 142),
-                    DashboardItem(id: "database", title: "Database", value: "8", unit: "ms", status: .good, amount: 8),
-                    DashboardItem(id: "queue", title: "Queue", value: "1204", unit: "jobs", status: .warning, amount: 1204),
-                    DashboardItem(id: "webhooks", title: "Webhooks", value: "3", unit: "failed", status: .critical, amount: 3)
-                ]
-            ),
-            DashboardCard(
-                id: sampleId("boiler"),
-                template: .action,
-                title: "Boiler",
-                subtitle: "Manual mode",
-                value: "Ready",
-                status: .good,
-                icon: "flame",
-                statusIcon: "bolt.fill",
-                updatedAt: now,
-                actions: [
-                    ActionDefinition(id: "boiler-boost-1h", label: "Boost 1h")
-                ]
-            ),
-            DashboardCard(
-                id: sampleId("car-charge"),
-                template: .progress,
-                title: "Car",
-                subtitle: "Charging at 7.4 kW",
-                value: "62",
-                unit: "%",
-                status: .running,
-                icon: "car.fill",
-                statusIcon: "arrow.up",
-                progress: 0.62,
-                updatedAt: now
-            ),
-            DashboardCard(
-                id: sampleId("nightly-run"),
+                id: sampleId("launch"),
                 template: .briefing,
-                title: "Nightly run",
-                subtitle: "Step 3 of 5 · 2 need review",
-                value: "Migrating",
-                status: .running,
-                icon: "moon.stars.fill",
-                progress: 0.6,
+                title: "Launch",
+                subtitle: "Release Agent · final approval",
+                value: "4/5",
+                status: .warning,
+                icon: "shippingbox.fill",
+                producer: CardProducer(label: "Release Agent", icon: "sparkles"),
+                progress: 0.8,
                 updatedAt: now,
-                deadline: now.addingTimeInterval(45 * 60),
+                deadline: now.addingTimeInterval(8 * 60),
                 briefing: DashboardBriefing(sections: [
                     DashboardBriefingSection(
-                        id: "stage",
+                        id: "now",
                         label: "Now",
-                        text: "Migrating 12,400 records. Throughput is steady and nothing has been rejected."
+                        text: "Build and tests passed. Store uploaded; website live."
                     ),
                     DashboardBriefingSection(
                         id: "next",
                         label: "Next",
-                        text: "The verification suite runs once the migration drains, then the report is published."
+                        text: "Start the 10% rollout and publish the release notes after approval."
                     ),
                     DashboardBriefingSection(
-                        id: "attention",
-                        label: "Attention",
-                        text: "Two records have conflicting timestamps and are queued for review in the morning."
+                        id: "needs-you",
+                        label: "Needs you",
+                        text: "Approve the customer announcement."
                     ),
-                ])
+                ]),
+                actions: [ActionDefinition(id: "approve-launch", label: "Approve")]
             ),
             DashboardCard(
-                id: sampleId("energy-trend"),
-                template: .chart,
-                title: "Energy",
-                subtitle: "Last 30 days",
-                value: "18.4",
-                unit: "kWh",
+                id: sampleId("production"),
+                template: .list,
+                title: "Production",
+                subtitle: "Ops Agent · checked now",
                 status: .good,
-                icon: "chart.bar.xaxis",
+                icon: "server.rack",
+                producer: CardProducer(label: "Ops Agent", icon: "gearshape.2"),
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
+                    DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
+                    DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
+                ]
+            ),
+            DashboardCard(
+                id: sampleId("trials"),
+                template: .chart,
+                title: "Trials",
+                subtitle: "Growth Agent · up 18 this week",
+                value: "128",
+                unit: "today",
+                status: .good,
+                icon: "chart.line.uptrend.xyaxis",
+                producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
+                comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
                 updatedAt: now,
                 chart: DashboardChart(
-                    points: energyTotals,
-                    min: 0,
-                    max: 30,
-                    reference: 20,
+                    points: [110, 111, 114, 116, 119, 123, 128],
+                    min: 108,
+                    max: 130,
+                    reference: 110,
                     referenceMetadata: DashboardChartReferenceMetadata(
-                        label: "Daily target",
-                        semantic: MetricSemantic(role: .target)
+                        label: "Monday",
+                        semantic: MetricSemantic(role: .baseline)
                     ),
-                    semantic: MetricSemantic(role: .actual),
-                    style: .bar,
-                    categories: energyCategories,
-                    series: [
-                        DashboardChartSeries(
-                            id: "solar",
-                            label: "Solar",
-                            points: energySolar,
-                            semantic: MetricSemantic(
-                                flow: .inbound,
-                                signal: .favorable
-                            )
-                        ),
-                        DashboardChartSeries(
-                            id: "grid",
-                            label: "Grid",
-                            points: energyGrid,
-                            semantic: MetricSemantic(
-                                flow: .inbound,
-                                signal: .neutral
-                            )
-                        ),
-                    ],
-                    stacking: .stacked
+                    semantic: MetricSemantic(role: .actual, signal: .favorable),
+                    style: .line,
+                    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"]
                 )
             ),
             DashboardCard(
-                id: sampleId("deploys"),
-                template: .history,
-                title: "Deploys",
-                subtitle: "Last 20 runs",
-                value: "18/20",
+                id: sampleId("support"),
+                template: .breakdown,
+                title: "Support",
+                subtitle: "Support Agent · 1 needs you",
+                value: "24",
                 status: .warning,
-                icon: "arrow.triangle.2.circlepath",
+                icon: "person.2.wave.2",
+                producer: CardProducer(label: "Support Agent", icon: "sparkles"),
                 updatedAt: now,
                 items: [
-                    DashboardItem(id: "1", title: "#463", value: "3m 43s", status: .good),
-                    DashboardItem(id: "2", title: "#464", value: "4m 15s", status: .good),
-                    DashboardItem(id: "3", title: "#465", value: "3m 38s", status: .good),
-                    DashboardItem(id: "4", title: "#466", value: "4m 29s", status: .good),
-                    DashboardItem(id: "5", title: "#467", value: "3m 56s", status: .good),
-                    DashboardItem(id: "6", title: "#468", value: "4m 07s", status: .good),
-                    DashboardItem(id: "7", title: "#469", value: "Failed", status: .critical),
-                    DashboardItem(id: "8", title: "#470", value: "4m 34s", status: .good),
-                    DashboardItem(id: "9", title: "#471", value: "3m 27s", status: .good),
-                    DashboardItem(id: "10", title: "#472", value: "4m 08s", status: .good),
-                    DashboardItem(id: "11", title: "#473", value: "3m 51s", status: .good),
-                    DashboardItem(id: "12", title: "#474", value: "4m 02s", status: .good),
-                    DashboardItem(id: "13", title: "#475", value: "3m 12s", status: .good),
-                    DashboardItem(id: "14", title: "#476", value: "5m 18s", status: .good),
-                    DashboardItem(id: "15", title: "#477", value: "Failed", status: .critical),
-                    DashboardItem(id: "16", title: "#478", value: "4m 41s", status: .good),
-                    DashboardItem(id: "17", title: "#479", value: "3m 55s", status: .good),
-                    DashboardItem(id: "18", title: "#480", value: "4m 22s", status: .good),
-                    DashboardItem(id: "19", title: "#481", value: "2m 48s", status: .good),
-                    DashboardItem(id: "20", title: "#482", value: "4m 12s", status: .good),
+                    DashboardItem(id: "needs-you", title: "Needs you", value: "1", status: .warning, amount: 1),
+                    DashboardItem(id: "resolved", title: "Resolved", value: "18", status: .good, amount: 18),
+                    DashboardItem(id: "draft-ready", title: "Draft ready", value: "5", status: .running, amount: 5),
+                ],
+                actions: [ActionDefinition(id: "open-support", label: "Review")]
+            ),
+            DashboardCard(
+                id: sampleId("ai-spend"),
+                template: .progress,
+                title: "AI spend",
+                subtitle: "of $30 today · $11.60 left",
+                value: "$18.40",
+                status: .good,
+                icon: "dollarsign.circle",
+                producer: CardProducer(label: "Usage Agent", icon: "sparkles"),
+                progress: 0.613,
+                updatedAt: now
+            ),
+            DashboardCard(
+                id: sampleId("agent-runs"),
+                template: .history,
+                title: "Agent runs",
+                subtitle: "19 first-try · 1 recovered",
+                value: "20/20",
+                status: .good,
+                icon: "checkmark.circle",
+                producer: CardProducer(label: "Run Agent", icon: "sparkles"),
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "1", title: "Run 1", value: "Passed", status: .good),
+                    DashboardItem(id: "2", title: "Run 2", value: "Passed", status: .good),
+                    DashboardItem(id: "3", title: "Run 3", value: "Passed", status: .good),
+                    DashboardItem(id: "4", title: "Run 4", value: "Passed", status: .good),
+                    DashboardItem(id: "5", title: "Run 5", value: "Passed", status: .good),
+                    DashboardItem(id: "6", title: "Run 6", value: "Passed", status: .good),
+                    DashboardItem(id: "7", title: "Run 7", value: "Passed", status: .good),
+                    DashboardItem(id: "8", title: "Run 8", value: "Passed", status: .good),
+                    DashboardItem(id: "9", title: "Run 9", value: "Passed", status: .good),
+                    DashboardItem(id: "10", title: "Run 10", value: "Passed", status: .good),
+                    DashboardItem(id: "11", title: "Run 11", value: "Passed", status: .good),
+                    DashboardItem(id: "12", title: "Run 12", value: "Passed", status: .good),
+                    DashboardItem(id: "13", title: "Run 13", value: "Passed", status: .good),
+                    DashboardItem(id: "14", title: "Run 14", value: "Passed", status: .good),
+                    DashboardItem(id: "15", title: "Run 15", value: "Passed", status: .good),
+                    DashboardItem(id: "16", title: "Run 16", value: "Passed", status: .good),
+                    DashboardItem(id: "17", title: "Run 17", value: "Passed", status: .good),
+                    DashboardItem(id: "18", title: "Run 18", value: "Passed", status: .good),
+                    DashboardItem(id: "19", title: "Run 19", value: "Passed", status: .good),
+                    DashboardItem(id: "20", title: "Run 20", subtitle: "Recovered after retry", value: "Passed", status: .good),
                 ]
             ),
             DashboardCard(
-                id: sampleId("device-fleet"),
-                template: .breakdown,
-                title: "Device fleet",
-                subtitle: "Current status",
-                value: "24",
+                id: sampleId("launch-message"),
+                template: .action,
+                title: "Launch message",
+                subtitle: "Content Agent · approval needed",
+                value: "Ready",
                 status: .warning,
-                icon: "desktopcomputer",
+                icon: "megaphone.fill",
+                producer: CardProducer(label: "Content Agent", icon: "sparkles"),
                 updatedAt: now,
-                items: [
-                    DashboardItem(id: "healthy", title: "Healthy", value: "14", status: .good, amount: 14),
-                    DashboardItem(id: "updating", title: "Updating", value: "5", status: .running, amount: 5),
-                    DashboardItem(id: "attention", title: "Attention", value: "3", status: .warning, amount: 3),
-                    DashboardItem(id: "offline", title: "Offline", value: "2", status: .offline, amount: 2),
-                ]
+                actions: [ActionDefinition(id: "approve-announcement", label: "Approve")]
+            ),
+            DashboardCard(
+                id: sampleId("open-prs"),
+                template: .summary,
+                title: "Open PRs",
+                subtitle: "Code Agent · all reviewed",
+                value: "3",
+                status: .good,
+                icon: "arrow.triangle.branch",
+                producer: CardProducer(label: "Code Agent", icon: "chevron.left.forwardslash.chevron.right"),
+                updatedAt: now,
+                deadline: now.addingTimeInterval(8 * 60)
             )
         ]
     }
@@ -367,12 +321,12 @@ public enum SampleDataFactory {
     /// presentation that every other surface and every marketing capture
     /// depends on.
     public enum LiveActivitySample: String, CaseIterable, Sendable {
-        case homeBattery
+        case appLaunch
         case captureWorkflow
 
         public var title: String {
             switch self {
-            case .homeBattery: return "Home battery"
+            case .appLaunch: return "App launch"
             case .captureWorkflow: return "Screenshot capture"
             }
         }
@@ -382,15 +336,13 @@ public enum SampleDataFactory {
     /// badge it and offer to remove it without mistaking it for an activity an
     /// agent started.
     ///
-    /// The default is unchanged and deliberately so: the Apple TV dashboard,
-    /// the marketing capture and `SampleDataFactoryTests` all call this bare,
-    /// and the tvOS grid in particular is tuned to a height that one more row
-    /// would push the Widgets section past.
+    /// The product-launch job is the default so the app, widgets, Live
+    /// Activity, and Apple TV all tell one internally consistent story.
     public static func makeLiveActivitySession(
-        _ sample: LiveActivitySample = .homeBattery
+        _ sample: LiveActivitySample = .appLaunch
     ) -> LiveActivitySession {
         switch sample {
-        case .homeBattery: return homeBatterySession()
+        case .appLaunch: return appLaunchSession()
         case .captureWorkflow: return captureWorkflowSession()
         }
     }
@@ -448,41 +400,31 @@ public enum SampleDataFactory {
         )
     }
 
-    private static func homeBatterySession() -> LiveActivitySession {
-        LiveActivitySession(
-            externalActivityId: sampleId("home-battery"),
-            kind: .charging,
-            title: "Home battery",
-            subtitle: "Charging from solar",
-            state: "charging",
-            signal: .favorable,
-            icon: "battery.100percent.bolt",
-            statusIcon: "bolt.fill",
-            value: "95",
-            unit: "%",
-            progress: 0.95,
-            chart: DashboardChart(
-                // Recent state of charge. A simple historical line agrees
-                // with the 95% headline; uncertainty ranges belong to samples
-                // whose subject is explicitly a forecast.
-                points: [
-                    38, 45, 51, 57, 64, 69,
-                    74, 82, 87, 91, 93, 95,
-                ],
-                min: 30,
-                max: 100,
-                reference: 100,
-                referenceMetadata: DashboardChartReferenceMetadata(
-                    label: "Full charge",
-                    semantic: MetricSemantic(role: .capacity)
-                ),
-                semantic: MetricSemantic(role: .actual),
-                style: .line,
-                labels: ["−110m", "−100m", "−90m", "−80m", "−70m", "−60m", "−50m", "−40m", "−30m", "−20m", "−10m", "Now"]
-            ),
-            startedAt: Date(),
-            updatedAt: Date(),
-            staleAt: Date().addingTimeInterval(3600)
+    private static func appLaunchSession() -> LiveActivitySession {
+        let now = Date()
+        return LiveActivitySession(
+            externalActivityId: sampleId("app-launch"),
+            kind: .job,
+            title: "App launch",
+            subtitle: "Version 2.4 · five steps",
+            state: "Waiting for approval",
+            signal: .caution,
+            icon: "shippingbox.fill",
+            statusIcon: "person.crop.circle.badge.exclamationmark",
+            value: "4/5",
+            progress: 0.8,
+            items: [
+                LiveActivityItem(id: "announcement", title: "Announcement", value: "Needs approval", status: .warning),
+                LiveActivityItem(id: "store", title: "Store", value: "Uploaded", status: .finished),
+                LiveActivityItem(id: "website", title: "Website", value: "Live", status: .finished),
+                LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
+                LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
+            ],
+            endsAt: now.addingTimeInterval(8 * 60),
+            countdownGranularity: .minute,
+            startedAt: now.addingTimeInterval(-32 * 60),
+            updatedAt: now,
+            staleAt: now.addingTimeInterval(3600)
         )
     }
 }

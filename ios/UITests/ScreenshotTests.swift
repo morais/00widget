@@ -168,7 +168,7 @@ final class ScreenshotTests: XCTestCase {
         // The private screenshot build replaces any retained local sample when
         // this screen opens, so a previous capture cannot leave stale content.
         XCTAssertTrue(
-            app.staticTexts["Home battery"].waitForExistence(timeout: 15),
+            app.staticTexts["App launch"].waitForExistence(timeout: 15),
             "Sample Live Activity did not start."
         )
         capture(named: "screenshot-activities")
@@ -176,23 +176,23 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func captureInsights(in app: XCUIApplication) {
-        let energy = app.staticTexts["Energy"].firstMatch
-        XCTAssertTrue(scrollTo(energy, in: app, swipes: 10), "Energy sample card not found.")
+        let trials = app.staticTexts["Trials"].firstMatch
+        XCTAssertTrue(scrollTo(trials, in: app, swipes: 10), "Trials sample card not found.")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
             .press(
                 forDuration: 0.05,
                 thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
             )
-        XCTAssertTrue(app.staticTexts["Deploys"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Agent runs"].firstMatch.waitForExistence(timeout: 5))
         capture(named: "screenshot-insights")
     }
 
     private var classicWidgetNames: [String] {
-        ["Screenshot Solar", "Screenshot Nightly Run", "Screenshot Boiler", "Screenshot Energy Wide"]
+        ["Screenshot Production", "Screenshot Open PRs", "Screenshot Launch Message", "Screenshot Trials Wide"]
     }
 
     private var insightWidgetNames: [String] {
-        ["Screenshot Energy Large", "Screenshot Deploys", "Screenshot Device Fleet"]
+        ["Screenshot Trials Large", "Screenshot Agent Runs", "Screenshot Support"]
     }
 
     private var metricWidgetNames: [String] {
@@ -224,7 +224,7 @@ final class ScreenshotTests: XCTestCase {
 
         // A fresh iPhone simulator ships with Maps and Calendar widgets on its
         // widget page. Reuse that page, but clear those system widgets so the
-        // classic layout has room for three small cards and the wide Energy
+        // classic layout has room for three small cards and the wide Trials
         // chart. App icons are excluded by the widget-sized frame filter.
         if !isIPad(springboard) {
             for widget in homeScreenWidgets(in: springboard)
@@ -410,7 +410,7 @@ final class ScreenshotTests: XCTestCase {
         for _ in 0..<8 { springboard.swipeRight() }
         springboard.swipeLeft()
         enterHomeScreenEditing(in: springboard)
-        addWidget(named: "Screenshot Solar", in: springboard)
+        addWidget(named: "Screenshot Production", in: springboard)
 
         for _ in 0..<6 {
             guard let widget = marketingWidgets(in: springboard).first else {
@@ -507,7 +507,7 @@ final class ScreenshotTests: XCTestCase {
         )
         generate.tap()
         XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 15),
+            app.staticTexts["Launch"].waitForExistence(timeout: 15),
             "Sample cards did not render after generating them."
         )
     }
@@ -684,7 +684,7 @@ final class ScreenshotTests: XCTestCase {
                 && app.staticTexts["Publishing is paused"].isHittable,
             "Subscription notice did not appear on the populated dashboard."
         )
-        XCTAssertTrue(app.staticTexts["Solar"].exists, "Sample cards did not render.")
+        XCTAssertTrue(app.staticTexts["Launch"].exists, "Sample cards did not render.")
         capture(named: "screenshot-subscription-notice")
     }
 

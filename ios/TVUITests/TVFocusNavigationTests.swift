@@ -29,11 +29,11 @@ final class TVFocusNavigationTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Home battery"].waitForExistence(timeout: 30),
+            app.staticTexts["App launch"].waitForExistence(timeout: 30),
             "Sample Live Activity did not render on Apple TV."
         )
         XCTAssertTrue(
-            focusedLabel(in: app).contains("Home battery"),
+            focusedLabel(in: app).contains("App launch"),
             "Expected the Live Activity card to start focused, found: \(focusedLabel(in: app))"
         )
 
@@ -41,7 +41,7 @@ final class TVFocusNavigationTests: XCTestCase {
 
         let deadline = Date().addingTimeInterval(10)
         var label = focusedLabel(in: app)
-        while label.contains("Home battery") && Date() < deadline {
+        while label.contains("App launch") && Date() < deadline {
             label = focusedLabel(in: app)
         }
 
@@ -50,7 +50,7 @@ final class TVFocusNavigationTests: XCTestCase {
             "Pressing down left nothing focused at all."
         )
         XCTAssertFalse(
-            label.contains("Home battery"),
+            label.contains("App launch"),
             "Focus never left the Live Activity card, so the Widgets section "
                 + "below it cannot be reached."
         )
@@ -73,7 +73,7 @@ final class TVFocusNavigationTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 30),
+            app.staticTexts["Launch"].waitForExistence(timeout: 30),
             "Sample widgets did not render on Apple TV."
         )
         let settings = app.buttons["Settings"]
@@ -96,16 +96,16 @@ final class TVFocusNavigationTests: XCTestCase {
         app.launchArguments = ["--screenshot-section", "widgets"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Solar"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Launch"].waitForExistence(timeout: 30))
         XCUIRemote.shared.press(.down)
         XCTAssertTrue(
-            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Car"),
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Support"),
             "Expected the second row to take focus, found: \(focusedLabel(in: app))"
         )
 
         XCUIRemote.shared.press(.up)
         XCTAssertTrue(
-            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Solar"),
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Launch"),
             "Up from the second row skipped the first row, found: \(focusedLabel(in: app))"
         )
     }
@@ -122,7 +122,7 @@ final class TVFocusNavigationTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 30),
+            app.staticTexts["Launch"].waitForExistence(timeout: 30),
             "Sample widgets did not render on Apple TV."
         )
 
@@ -148,7 +148,7 @@ final class TVFocusNavigationTests: XCTestCase {
             "Menu did not dismiss the detail panel."
         )
         XCTAssertTrue(
-            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Solar"),
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Launch"),
             "Leaving the panel did not return focus to the card it was opened "
                 + "from, found: \(focusedLabel(in: app))"
         )
@@ -161,17 +161,15 @@ final class TVFocusNavigationTests: XCTestCase {
         app.launchArguments = ["--screenshot-section", "widgets"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Boiler"].waitForExistence(timeout: 30))
-        // Boiler is the third sample and the one carrying an action.
-        XCUIRemote.shared.press(.right)
-        XCUIRemote.shared.press(.right)
+        XCTAssertTrue(app.staticTexts["Launch"].waitForExistence(timeout: 30))
+        // Launch is the first sample and carries the approval action.
         XCTAssertTrue(
-            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Boiler"),
-            "Expected the Boiler card to take focus, found: \(focusedLabel(in: app))"
+            waitForFocus(app.buttons["Settings"], in: app, expected: false, containing: "Launch"),
+            "Expected the Launch card to take focus, found: \(focusedLabel(in: app))"
         )
 
         XCUIRemote.shared.press(.select)
-        let boost = app.buttons["Boost 1h"]
+        let boost = app.buttons["Approve"]
         XCTAssertTrue(
             boost.waitForExistence(timeout: 10),
             "The detail panel did not draw the card's action."

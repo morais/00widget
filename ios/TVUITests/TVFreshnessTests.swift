@@ -28,7 +28,7 @@ final class TVFreshnessTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Home battery"].waitForExistence(timeout: 30),
+            app.staticTexts["App launch"].waitForExistence(timeout: 30),
             "Sample Live Activity did not render on Apple TV."
         )
         // The detail panel, which is the surface the line is largest on. Its

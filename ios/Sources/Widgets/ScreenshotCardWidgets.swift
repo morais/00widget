@@ -56,7 +56,7 @@ private struct PreviewCardProvider: TimelineProvider {
 }
 
 private struct ScreenshotMetricsGridProvider: TimelineProvider {
-    private let sampleSuffixes = ["solar", "car-charge", "energy-trend", "deploys"]
+    private let sampleSuffixes = ["trials", "support", "agent-runs", "ai-spend"]
 
     func placeholder(in context: Context) -> CardGridEntry {
         entry()
@@ -154,76 +154,76 @@ struct PreviewWeekendWidget: Widget {
     }
 }
 
-struct ScreenshotSolarWidget: Widget {
+struct ScreenshotProductionWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.solar",
-            sampleSuffix: "solar",
-            displayName: "Screenshot Solar"
+            kind: "com.00widget.screenshot.production",
+            sampleSuffix: "production",
+            displayName: "Screenshot Production"
         )
     }
 }
 
-struct ScreenshotNightlyRunWidget: Widget {
+struct ScreenshotOpenPRsWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.nightly-run",
-            sampleSuffix: "nightly-run",
-            displayName: "Screenshot Nightly Run"
+            kind: "com.00widget.screenshot.open-prs",
+            sampleSuffix: "open-prs",
+            displayName: "Screenshot Open PRs"
         )
     }
 }
 
-struct ScreenshotBoilerWidget: Widget {
+struct ScreenshotLaunchMessageWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.boiler",
-            sampleSuffix: "boiler",
-            displayName: "Screenshot Boiler"
+            kind: "com.00widget.screenshot.launch-message",
+            sampleSuffix: "launch-message",
+            displayName: "Screenshot Launch Message"
         )
     }
 }
 
-struct ScreenshotEnergyLargeWidget: Widget {
+struct ScreenshotTrialsLargeWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.energy-large",
-            sampleSuffix: "energy-trend",
-            displayName: "Screenshot Energy Large",
+            kind: "com.00widget.screenshot.trials-large",
+            sampleSuffix: "trials",
+            displayName: "Screenshot Trials Large",
             density: .automatic,
             supportedFamilies: [.systemLarge]
         )
     }
 }
 
-struct ScreenshotEnergyWideWidget: Widget {
+struct ScreenshotTrialsWideWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.energy-wide",
-            sampleSuffix: "energy-trend",
-            displayName: "Screenshot Energy Wide",
+            kind: "com.00widget.screenshot.trials-wide",
+            sampleSuffix: "trials",
+            displayName: "Screenshot Trials Wide",
             density: .automatic,
             supportedFamilies: [.systemMedium]
         )
     }
 }
 
-struct ScreenshotDeploysWidget: Widget {
+struct ScreenshotAgentRunsWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.deploys",
-            sampleSuffix: "deploys",
-            displayName: "Screenshot Deploys"
+            kind: "com.00widget.screenshot.agent-runs",
+            sampleSuffix: "agent-runs",
+            displayName: "Screenshot Agent Runs"
         )
     }
 }
 
-struct ScreenshotDeviceFleetWidget: Widget {
+struct ScreenshotSupportWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.device-fleet",
-            sampleSuffix: "device-fleet",
-            displayName: "Screenshot Device Fleet"
+            kind: "com.00widget.screenshot.support",
+            sampleSuffix: "support",
+            displayName: "Screenshot Support"
         )
     }
 }

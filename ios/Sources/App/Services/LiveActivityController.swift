@@ -144,7 +144,7 @@ public final class LiveActivityController: ObservableObject {
     /// this is safe to offer again after `Fix remote Live Activity lifecycle`
     /// removed the previous local-start path.
     public func startSample(
-        _ sample: SampleDataFactory.LiveActivitySample = .homeBattery
+        _ sample: SampleDataFactory.LiveActivitySample = .appLaunch
     ) async throws {
         let session = SampleDataFactory.makeLiveActivitySession(sample)
         // Still one at a time. A second running activity — anyone's — replaces

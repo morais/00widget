@@ -24,22 +24,22 @@ final class TVLargeTextTests: XCTestCase {
         ]
         app.launch()
 
-        let energy = app.staticTexts["Energy"]
-        let deploys = app.staticTexts["Deploys"]
-        let fleet = app.staticTexts["Device fleet"]
-        XCTAssertTrue(energy.waitForExistence(timeout: 30))
-        XCTAssertTrue(deploys.exists)
-        XCTAssertTrue(fleet.exists)
+        let trials = app.staticTexts["Trials"]
+        let support = app.staticTexts["Support"]
+        let runs = app.staticTexts["Agent runs"]
+        XCTAssertTrue(trials.waitForExistence(timeout: 30))
+        XCTAssertTrue(support.exists)
+        XCTAssertTrue(runs.exists)
 
         // One row, unlike the accessibility case below, which drops to two
         // columns and pushes the third card down.
-        XCTAssertLessThan(fleet.frame.minY, deploys.frame.maxY)
+        XCTAssertLessThan(runs.frame.minY, support.frame.maxY)
 
         XCUIRemote.shared.press(.down)
         XCTAssertTrue(
-            waitForFocus(containing: "Energy", in: app)
-                || waitForFocus(containing: "Deploys", in: app)
-                || waitForFocus(containing: "Device fleet", in: app),
+            waitForFocus(containing: "Trials", in: app)
+                || waitForFocus(containing: "Support", in: app)
+                || waitForFocus(containing: "Agent runs", in: app),
             "Enlarged text left the widget row unreachable, found: \(focusedLabel(in: app))"
         )
 
@@ -57,25 +57,25 @@ final class TVLargeTextTests: XCTestCase {
         ]
         app.launch()
 
-        let energy = app.staticTexts["Energy"]
-        let deploys = app.staticTexts["Deploys"]
-        let fleet = app.staticTexts["Device fleet"]
-        XCTAssertTrue(energy.waitForExistence(timeout: 30))
-        XCTAssertTrue(deploys.exists)
-        XCTAssertTrue(fleet.exists)
+        let trials = app.staticTexts["Trials"]
+        let support = app.staticTexts["Support"]
+        let runs = app.staticTexts["Agent runs"]
+        XCTAssertTrue(trials.waitForExistence(timeout: 30))
+        XCTAssertTrue(support.exists)
+        XCTAssertTrue(runs.exists)
 
         // Standard tvOS shows these three cards in one row. Accessibility
         // sizes reduce the dashboard to two columns, putting the third card on
         // a new row with enough width for enlarged labels.
-        XCTAssertGreaterThan(fleet.frame.minY, deploys.frame.maxY)
+        XCTAssertGreaterThan(runs.frame.minY, support.frame.maxY)
 
         XCUIRemote.shared.press(.down)
-        for _ in 0..<3 where !focusedLabel(in: app).contains("Energy") {
+        for _ in 0..<3 where !focusedLabel(in: app).contains("Trials") {
             XCUIRemote.shared.press(.left)
         }
         XCTAssertTrue(
-            waitForFocus(containing: "Energy", in: app),
-            "Expected Energy to take focus, found: \(focusedLabel(in: app))"
+            waitForFocus(containing: "Trials", in: app),
+            "Expected Trials to take focus, found: \(focusedLabel(in: app))"
         )
 
         XCUIRemote.shared.press(.select)

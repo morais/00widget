@@ -11,7 +11,7 @@ final class TVScreenshotTests: XCTestCase {
         app.launchArguments = ["--screenshot-section", "widgets"]
         app.launch()
         XCTAssertTrue(
-            app.staticTexts["Solar"].waitForExistence(timeout: 30),
+            app.staticTexts["Launch"].waitForExistence(timeout: 30),
             "Sample widgets did not render on Apple TV."
         )
         capture(named: "screenshot-tv-widgets")
@@ -23,21 +23,21 @@ final class TVScreenshotTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Energy"].waitForExistence(timeout: 30),
+            app.staticTexts["Trials"].waitForExistence(timeout: 30),
             "Chart samples did not render on Apple TV."
         )
-        XCTAssertTrue(app.staticTexts["Device fleet"].exists)
-        XCTAssertTrue(app.staticTexts["Home battery"].exists)
+        XCTAssertTrue(app.staticTexts["Support"].exists)
+        XCTAssertTrue(app.staticTexts["App launch"].exists)
         capture(named: "screenshot-tv-insights")
     }
 
     /// The detail panel, which is the surface the dashboard grid is a summary
-    /// of. Energy is the chart sample, so the panel it opens is the one that
+    /// of. Trials is the chart sample, so the panel it opens is the one that
     /// most obviously shows what the extra room buys: a plot with a shape,
     /// rather than the 46-point trace a grid cell has space for.
     ///
     /// The insights section is used rather than the widgets one because it puts
-    /// Energy first in the grid, so the walk to it is a single press and cannot
+    /// Trials first in the grid, so the walk to it is a single press and cannot
     /// drift when the sample set is re-composed.
     func testCaptureCardDetailScreenshot() {
         let app = XCUIApplication()
@@ -45,7 +45,7 @@ final class TVScreenshotTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Energy"].waitForExistence(timeout: 30),
+            app.staticTexts["Trials"].waitForExistence(timeout: 30),
             "Chart samples did not render on Apple TV."
         )
         // Down leaves the Live Activity for the widget row, but it lands in the
@@ -55,19 +55,19 @@ final class TVScreenshotTests: XCTestCase {
         // and pressing left at the edge is a no-op, so the loop is safe to
         // overshoot.
         XCUIRemote.shared.press(.down)
-        for _ in 0..<3 where !focusedLabel(in: app).contains("Energy") {
+        for _ in 0..<3 where !focusedLabel(in: app).contains("Trials") {
             XCUIRemote.shared.press(.left)
-            _ = waitForFocus(containing: "Energy", in: app, timeout: 1)
+            _ = waitForFocus(containing: "Trials", in: app, timeout: 1)
         }
         XCTAssertTrue(
-            waitForFocus(containing: "Energy", in: app),
-            "Expected the Energy card to take focus, found: \(focusedLabel(in: app))"
+            waitForFocus(containing: "Trials", in: app),
+            "Expected the Trials card to take focus, found: \(focusedLabel(in: app))"
         )
 
         XCUIRemote.shared.press(.select)
         XCTAssertTrue(
             app.buttons["Close"].waitForExistence(timeout: 10),
-            "Pressing Select on the Energy card did not open its detail panel."
+            "Pressing Select on the Trials card did not open its detail panel."
         )
         // The panel animates in, and a capture taken mid-transition shows the
         // dashboard bleeding through a half-opaque cover. The interactive

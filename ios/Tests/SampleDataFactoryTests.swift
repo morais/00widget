@@ -3,87 +3,90 @@ import Testing
 
 @Suite("Sample data")
 struct SampleDataFactoryTests {
-    @Test("Detailed demo cards use the larger published data windows")
-    func detailedCardsUseLongWindows() throws {
+    @Test("Default cards form one internally consistent launch story")
+    func defaultCardsTellLaunchStory() throws {
         let cards = SampleDataFactory.makeCards()
-        let energy = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("energy-trend") }
+        #expect(cards.map(\.title) == [
+            "Launch", "Production", "Trials", "Support", "AI spend",
+            "Agent runs", "Launch message", "Open PRs",
+        ])
+
+        let launch = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("launch") }
         )
-        let deploys = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("deploys") }
+        let production = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("production") }
         )
-        let nightlyRun = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("nightly-run") }
+        let trials = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("trials") }
         )
-        let solar = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("solar") }
+        let support = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("support") }
         )
-        let car = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("car-charge") }
+        let spend = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("ai-spend") }
         )
-        let boiler = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("boiler") }
+        let runs = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("agent-runs") }
+        )
+        let message = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("launch-message") }
         )
 
-        let energyPoints = try #require(energy.chart?.points)
-        #expect(energyPoints.count == 30)
-        #expect(energyPoints.count <= DashboardChart.publishedPointLimit)
-        #expect(energy.chart?.style == .bar)
-        #expect(energy.chart?.min == 0)
-        #expect(energy.chart?.max == 30)
-        #expect(energy.chart?.reference == 20)
-        #expect(energy.chart?.referenceMetadata?.semantic?.role == .target)
-        #expect(energy.chart?.semantic?.role == .actual)
-        #expect(energy.chart?.series?.map(\.label) == ["Solar", "Grid"])
-        #expect(energy.chart?.series?.first?.semantic?.signal == .favorable)
-        #expect(energy.chart?.series?.first?.semantic?.flow == .inbound)
-        #expect(energy.chart?.stacking == .stacked)
-        #expect(energy.chart?.labels?.count == energyPoints.count)
-        #expect(energy.chart?.categories?.count == energyPoints.count)
-        #expect(energy.chart?.categories?.count { $0.signal == .caution } == 5)
-        #expect(energy.chart?.categories?.count { $0.signal == .unfavorable } == 1)
-        #expect(energyPoints.first == 21.8)
-        #expect(solar.chart?.style == .line)
-        #expect(solar.chart?.points.count == 7)
-        #expect(solar.chart?.points.last == 3.2)
-        #expect(solar.chart?.semantic?.signal == .favorable)
-        #expect(deploys.items?.count == 20)
-        #expect(deploys.items?.filter { $0.status == .critical }.map(\.value) == ["Failed", "Failed"])
-        #expect(nightlyRun.template == .briefing)
-        #expect(nightlyRun.progress == 0.6)
-        #expect(nightlyRun.deadline != nil)
-        #expect(nightlyRun.briefing?.sections.count == 3)
-        #expect(car.displayValue == "62%")
-        #expect(car.progress == 0.62)
-        #expect(boiler.subtitle == "Manual mode")
-        #expect(boiler.actions?.map(\.label) == ["Boost 1h"])
+        #expect(launch.template == .briefing)
+        #expect(launch.value == "4/5")
+        #expect(launch.progress == 0.8)
+        #expect(launch.briefing?.sections.map(\.label) == ["Now", "Next", "Needs you"])
+        #expect(launch.actions?.map(\.label) == ["Approve"])
+        #expect(launch.needsUserAttention)
+
+        #expect(production.items?.map(\.displayValue) == ["118 ms", "99.99%", "0 waiting"])
+        #expect(production.items?.allSatisfy { $0.status == .good } == true)
+
+        #expect(trials.chart?.points == [110, 111, 114, 116, 119, 123, 128])
+        #expect(trials.chart?.reference == 110)
+        #expect(trials.comparison == CardComparison(value: "+18", label: "vs Monday", signal: .favorable))
+
+        #expect(support.items?.map(\.title) == ["Needs you", "Resolved", "Draft ready"])
+        #expect(support.items?.map(\.amount) == [1, 18, 5])
+        #expect(support.actions?.map(\.label) == ["Review"])
+        #expect(support.needsUserAttention)
+
+        #expect(spend.value == "$18.40")
+        #expect(spend.progress == 0.613)
+        #expect(runs.value == "20/20")
+        #expect(runs.items?.count == 20)
+        #expect(runs.items?.allSatisfy { $0.status == .good } == true)
+        #expect(runs.items?.last?.subtitle == "Recovered after retry")
+        #expect(message.actions?.map(\.label) == ["Approve"])
+
+        #expect(cards.compactMap(\.producer?.label) == [
+            "Release Agent", "Ops Agent", "Growth Agent", "Support Agent",
+            "Usage Agent", "Run Agent", "Content Agent", "Code Agent",
+        ])
     }
 
-    @Test("The demo Live Activity shows a long charge-history line")
-    func liveActivityUsesLongWindow() throws {
+    @Test("The default Live Activity matches the launch card")
+    func defaultActivityMatchesLaunch() throws {
         let activity = SampleDataFactory.makeLiveActivitySession()
-        let chart = try #require(activity.chart)
-        #expect(activity.signal == .favorable)
-        let points = chart.points
-        #expect(points.count == 12)
-        #expect(points.count <= DashboardChart.publishedPointLimit)
-        #expect(chart.style == .line)
-        #expect(chart.ranges == nil)
-        #expect(chart.semantic?.role == .actual)
-        #expect(chart.referenceMetadata?.semantic?.role == .capacity)
-        #expect(chart.labels?.last == "Now")
-        #expect(points.last == 95)
+        #expect(activity.title == "App launch")
+        #expect(activity.subtitle == "Version 2.4 · five steps")
+        #expect(activity.value == "4/5")
+        #expect(activity.progress == 0.8)
+        #expect(activity.state == "Waiting for approval")
+        #expect(activity.signal == .caution)
+        #expect(activity.items?.map(\.title) == ["Announcement", "Store", "Website", "Tests", "Build"])
+        #expect(activity.items?.map(\.value) == ["Needs approval", "Uploaded", "Live", "412 passed", "Passed"])
+        #expect(activity.activeItems.count == 1)
+        #expect(activity.needsUserAttention)
+        #expect(activity.endsAt != nil)
     }
 
-    /// The two samples exist to show the two layouts, which is only true while
-    /// they stay on opposite sides of the rule that decides between them: item
-    /// rows fill the Lock Screen banner and suppress a chart entirely, so a
-    /// sample carrying both would silently demonstrate one of them twice.
-    @Test("The two Live Activity samples demonstrate different layouts")
-    func samplesCoverBothLayouts() throws {
-        let battery = SampleDataFactory.makeLiveActivitySession(.homeBattery)
-        #expect(battery.chart != nil)
-        #expect((battery.items ?? []).isEmpty)
+    @Test("Both Live Activity jobs carry bounded progress and freshness")
+    func activitySamplesAreBoundedAndFresh() throws {
+        let launch = SampleDataFactory.makeLiveActivitySession(.appLaunch)
+        #expect(launch.chart == nil)
+        #expect(launch.items?.count == 5)
 
         let capture = SampleDataFactory.makeLiveActivitySession(.captureWorkflow)
         #expect(capture.chart == nil)
