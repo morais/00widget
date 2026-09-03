@@ -307,6 +307,220 @@ public enum SampleDataFactory {
         ]
     }
 
+    /// The original household/operations samples retained for the dedicated
+    /// secondary campaign. They are intentionally not mixed into the default
+    /// product-launch story.
+    public static func makeHomeEnergyCards() -> [DashboardCard] {
+        let now = Date()
+        let energySolar = [
+            11.8, 12.1, 13.4, 10.7, 9.9, 14.1, 15.0, 12.6, 11.2, 10.4,
+            8.9, 9.6, 13.7, 16.1, 14.8, 12.2, 10.5, 9.1, 7.8, 8.5,
+            11.3, 13.0, 12.1, 10.3, 9.0, 7.4, 6.9, 9.7, 10.1, 9.4,
+        ]
+        let energyGrid = [
+            10.0, 8.8, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+            9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0,
+        ]
+        let energyTotals = zip(energySolar, energyGrid).map { $0.0 + $0.1 }
+        let energyCategories = energyTotals.enumerated().map { index, total in
+            DashboardChartCategory(
+                id: "day-\(index + 1)",
+                label: String(index + 1),
+                signal: total > 24 ? .unfavorable : (total > 22 ? .caution : .favorable)
+            )
+        }
+        return [
+            DashboardCard(
+                id: sampleId("solar"),
+                template: .summary,
+                title: "Solar",
+                subtitle: "Exporting 0.8 kW",
+                value: "3.2",
+                unit: "kW",
+                status: .good,
+                icon: "sun.max",
+                updatedAt: now,
+                chart: DashboardChart(
+                    points: [1.1, 1.6, 2.0, 2.5, 2.2, 2.8, 3.2],
+                    min: 0,
+                    max: 4,
+                    semantic: MetricSemantic(
+                        role: .actual,
+                        flow: .outbound,
+                        signal: .favorable
+                    ),
+                    style: .line,
+                    labels: ["08", "09", "10", "11", "12", "13", "Now"]
+                )
+            ),
+            DashboardCard(
+                id: sampleId("services"),
+                template: .list,
+                title: "Services",
+                status: .warning,
+                icon: "server.rack",
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "api", title: "API", value: "142", unit: "ms", status: .good, amount: 142),
+                    DashboardItem(id: "database", title: "Database", value: "8", unit: "ms", status: .good, amount: 8),
+                    DashboardItem(id: "queue", title: "Queue", value: "1204", unit: "jobs", status: .warning, amount: 1204),
+                    DashboardItem(id: "webhooks", title: "Webhooks", value: "3", unit: "failed", status: .critical, amount: 3)
+                ]
+            ),
+            DashboardCard(
+                id: sampleId("boiler"),
+                template: .action,
+                title: "Boiler",
+                subtitle: "Manual mode",
+                value: "Ready",
+                status: .good,
+                icon: "flame",
+                statusIcon: "bolt.fill",
+                updatedAt: now,
+                actions: [
+                    ActionDefinition(id: "boiler-boost-1h", label: "Boost 1h")
+                ]
+            ),
+            DashboardCard(
+                id: sampleId("car-charge"),
+                template: .progress,
+                title: "Car",
+                subtitle: "Charging at 7.4 kW",
+                value: "62",
+                unit: "%",
+                status: .running,
+                icon: "car.fill",
+                statusIcon: "arrow.up",
+                progress: 0.62,
+                updatedAt: now
+            ),
+            DashboardCard(
+                id: sampleId("nightly-run"),
+                template: .briefing,
+                title: "Nightly run",
+                subtitle: "Step 3 of 5 · 2 need review",
+                value: "Migrating",
+                status: .running,
+                icon: "moon.stars.fill",
+                progress: 0.6,
+                updatedAt: now,
+                deadline: now.addingTimeInterval(45 * 60),
+                briefing: DashboardBriefing(sections: [
+                    DashboardBriefingSection(
+                        id: "stage",
+                        label: "Now",
+                        text: "Migrating 12,400 records. Throughput is steady and nothing has been rejected."
+                    ),
+                    DashboardBriefingSection(
+                        id: "next",
+                        label: "Next",
+                        text: "The verification suite runs once the migration drains, then the report is published."
+                    ),
+                    DashboardBriefingSection(
+                        id: "attention",
+                        label: "Attention",
+                        text: "Two records have conflicting timestamps and are queued for review in the morning."
+                    ),
+                ])
+            ),
+            DashboardCard(
+                id: sampleId("energy-trend"),
+                template: .chart,
+                title: "Energy",
+                subtitle: "Last 30 days",
+                value: "18.4",
+                unit: "kWh",
+                status: .good,
+                icon: "chart.bar.xaxis",
+                updatedAt: now,
+                chart: DashboardChart(
+                    points: energyTotals,
+                    min: 0,
+                    max: 30,
+                    reference: 20,
+                    referenceMetadata: DashboardChartReferenceMetadata(
+                        label: "Daily target",
+                        semantic: MetricSemantic(role: .target)
+                    ),
+                    semantic: MetricSemantic(role: .actual),
+                    style: .bar,
+                    categories: energyCategories,
+                    series: [
+                        DashboardChartSeries(
+                            id: "solar",
+                            label: "Solar",
+                            points: energySolar,
+                            semantic: MetricSemantic(
+                                flow: .inbound,
+                                signal: .favorable
+                            )
+                        ),
+                        DashboardChartSeries(
+                            id: "grid",
+                            label: "Grid",
+                            points: energyGrid,
+                            semantic: MetricSemantic(
+                                flow: .inbound,
+                                signal: .neutral
+                            )
+                        ),
+                    ],
+                    stacking: .stacked
+                )
+            ),
+            DashboardCard(
+                id: sampleId("deploys"),
+                template: .history,
+                title: "Deploys",
+                subtitle: "Last 20 runs",
+                value: "18/20",
+                status: .warning,
+                icon: "arrow.triangle.2.circlepath",
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "1", title: "#463", value: "3m 43s", status: .good),
+                    DashboardItem(id: "2", title: "#464", value: "4m 15s", status: .good),
+                    DashboardItem(id: "3", title: "#465", value: "3m 38s", status: .good),
+                    DashboardItem(id: "4", title: "#466", value: "4m 29s", status: .good),
+                    DashboardItem(id: "5", title: "#467", value: "3m 56s", status: .good),
+                    DashboardItem(id: "6", title: "#468", value: "4m 07s", status: .good),
+                    DashboardItem(id: "7", title: "#469", value: "Failed", status: .critical),
+                    DashboardItem(id: "8", title: "#470", value: "4m 34s", status: .good),
+                    DashboardItem(id: "9", title: "#471", value: "3m 27s", status: .good),
+                    DashboardItem(id: "10", title: "#472", value: "4m 08s", status: .good),
+                    DashboardItem(id: "11", title: "#473", value: "3m 51s", status: .good),
+                    DashboardItem(id: "12", title: "#474", value: "4m 02s", status: .good),
+                    DashboardItem(id: "13", title: "#475", value: "3m 12s", status: .good),
+                    DashboardItem(id: "14", title: "#476", value: "5m 18s", status: .good),
+                    DashboardItem(id: "15", title: "#477", value: "Failed", status: .critical),
+                    DashboardItem(id: "16", title: "#478", value: "4m 41s", status: .good),
+                    DashboardItem(id: "17", title: "#479", value: "3m 55s", status: .good),
+                    DashboardItem(id: "18", title: "#480", value: "4m 22s", status: .good),
+                    DashboardItem(id: "19", title: "#481", value: "2m 48s", status: .good),
+                    DashboardItem(id: "20", title: "#482", value: "4m 12s", status: .good),
+                ]
+            ),
+            DashboardCard(
+                id: sampleId("device-fleet"),
+                template: .breakdown,
+                title: "Device fleet",
+                subtitle: "Current status",
+                value: "24",
+                status: .warning,
+                icon: "desktopcomputer",
+                updatedAt: now,
+                items: [
+                    DashboardItem(id: "healthy", title: "Healthy", value: "14", status: .good, amount: 14),
+                    DashboardItem(id: "updating", title: "Updating", value: "5", status: .running, amount: 5),
+                    DashboardItem(id: "attention", title: "Attention", value: "3", status: .warning, amount: 3),
+                    DashboardItem(id: "offline", title: "Offline", value: "2", status: .offline, amount: 2),
+                ]
+            )
+        ]
+    }
+
+
     /// Which demo a generated Live Activity shows.
     ///
     /// Two, because the two ways a Live Activity can be built look nothing

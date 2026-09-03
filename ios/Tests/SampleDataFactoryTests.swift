@@ -66,6 +66,28 @@ struct SampleDataFactoryTests {
         ])
     }
 
+    @Test("The secondary home-energy campaign retains its corrected fixtures")
+    func homeEnergyCardsStayAvailable() throws {
+        let cards = SampleDataFactory.makeHomeEnergyCards()
+        #expect(cards.map(\.title) == [
+            "Solar", "Services", "Boiler", "Car", "Nightly run",
+            "Energy", "Deploys", "Device fleet",
+        ])
+
+        let car = try #require(cards.first { $0.id == SampleDataFactory.sampleId("car-charge") })
+        let nightly = try #require(cards.first { $0.id == SampleDataFactory.sampleId("nightly-run") })
+        let deploys = try #require(cards.first { $0.id == SampleDataFactory.sampleId("deploys") })
+        let boiler = try #require(cards.first { $0.id == SampleDataFactory.sampleId("boiler") })
+
+        #expect(car.displayValue == "62%")
+        #expect(car.progress == 0.62)
+        #expect(nightly.progress == 0.6)
+        #expect(nightly.deadline != nil)
+        #expect(deploys.items?.count == 20)
+        #expect(deploys.items?.filter { $0.status == .critical }.map(\.value) == ["Failed", "Failed"])
+        #expect(boiler.subtitle == "Manual mode")
+    }
+
     @Test("The default Live Activity matches the launch card")
     func defaultActivityMatchesLaunch() throws {
         let activity = SampleDataFactory.makeLiveActivitySession()
