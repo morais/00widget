@@ -57,6 +57,58 @@ struct AccessibilitySummaryTests {
 
         #expect(LiveActivityAccessibilitySummary.summary(for: item) == "Rinse, 4 min, actual, inbound, 25% complete, Cold water")
     }
+
+    @Test("A four-of-five activity counts only its unfinished decision as active")
+    func fourOfFiveActivitySummary() {
+        let session = launchSession(
+            value: "4/5",
+            progress: 0.8,
+            items: [
+                LiveActivityItem(id: "announcement", title: "Announcement", status: .warning),
+                LiveActivityItem(id: "store", title: "Store", status: .finished),
+                LiveActivityItem(id: "website", title: "Website", status: .finished),
+                LiveActivityItem(id: "tests", title: "Tests", status: .finished),
+                LiveActivityItem(id: "build", title: "Build", status: .finished),
+            ]
+        )
+
+        #expect(
+            LiveActivityAccessibilitySummary.summary(for: session)
+                == "App launch, 4/5, 1 active, 80% complete"
+        )
+    }
+
+    @Test("An all-finished activity reports completion without an active-work count")
+    func allFinishedActivitySummary() {
+        let session = launchSession(
+            value: "5/5",
+            progress: 1,
+            items: (1...5).map {
+                LiveActivityItem(id: "step-\($0)", title: "Step \($0)", status: .finished)
+            }
+        )
+
+        let summary = LiveActivityAccessibilitySummary.summary(for: session)
+        #expect(summary == "App launch, 5/5, 100% complete")
+        #expect(!summary.contains("active"))
+    }
+
+    private func launchSession(
+        value: String,
+        progress: Double,
+        items: [LiveActivityItem]
+    ) -> LiveActivitySession {
+        LiveActivitySession(
+            externalActivityId: "launch",
+            kind: .job,
+            title: "App launch",
+            state: "running",
+            value: value,
+            progress: progress,
+            items: items,
+            updatedAt: Date()
+        )
+    }
 }
 
 @Suite("Card accessibility detail")

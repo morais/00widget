@@ -59,6 +59,67 @@ struct LiveActivityMinimalPresentationTests {
         #expect(state(value: "1/4", progress: 0.9).minimalProgress == 0.9)
     }
 
+    // MARK: Presentation rows
+
+    @Test("A four-of-five activity presents the active decision before finished proof")
+    func fourOfFivePresentation() {
+        let items = [
+            item(id: "store", status: .finished),
+            item(id: "announcement", status: .warning),
+            item(id: "website", status: .finished),
+            item(id: "tests", status: .finished),
+            item(id: "build", status: .finished),
+            item(id: "old-host", status: .offline),
+        ]
+        let contentState = state(value: "4/5", progress: 0.8, items: items)
+        let session = activity(value: "4/5", progress: 0.8, items: items)
+
+        #expect(contentState.activeItems.map(\.id) == ["announcement"])
+        #expect(
+            contentState.presentationItems.map(\.id)
+                == ["announcement", "store", "website", "tests", "build"]
+        )
+        #expect(
+            Array(contentState.presentationItems.prefix(3)).map(\.status)
+                == [.warning, .finished, .finished]
+        )
+        #expect(
+            session.budgetedPresentationItems(fillingTo: 3).map(\.id)
+                == ["announcement", "store", "website"]
+        )
+    }
+
+    @Test("An all-finished activity keeps proof visible without inventing active work")
+    func allFinishedPresentation() {
+        let items = (1...5).map { item(id: "step-\($0)", status: .finished) }
+        let contentState = state(value: "5/5", progress: 1, items: items)
+        let session = activity(value: "5/5", progress: 1, items: items)
+
+        #expect(contentState.activeItems.isEmpty)
+        #expect(contentState.presentationItems.map(\.id) == items.map(\.id))
+        #expect(session.activeItems.isEmpty)
+        #expect(
+            session.budgetedPresentationItems(fillingTo: 3).map(\.id)
+                == ["step-1", "step-2", "step-3"]
+        )
+    }
+
+    @Test("Television preserves every active row before adding finished proof")
+    func televisionBudgetPreservesActiveRows() {
+        let items = [
+            item(id: "done", status: .finished),
+            item(id: "one", status: .running),
+            item(id: "two", status: .warning),
+            item(id: "three", status: .good),
+            item(id: "four", status: .paused),
+        ]
+
+        #expect(
+            activity(items: items).budgetedPresentationItems(fillingTo: 3).map(\.id)
+                == ["one", "two", "three", "four"]
+        )
+    }
+
     // MARK: Value token
 
     @Test("Only a value that fits the circle becomes a token")
@@ -112,7 +173,27 @@ struct LiveActivityMinimalPresentationTests {
         )
     }
 
-    private func item(progress: Double? = nil, status: DashboardStatus? = nil) -> LiveActivityItem {
-        LiveActivityItem(id: UUID().uuidString, title: "Item", progress: progress, status: status)
+    private func activity(
+        value: String? = nil,
+        progress: Double? = nil,
+        items: [LiveActivityItem]? = nil
+    ) -> LiveActivitySession {
+        LiveActivitySession(
+            externalActivityId: "launch",
+            kind: .job,
+            title: "App launch",
+            state: "running",
+            value: value,
+            progress: progress,
+            items: items
+        )
+    }
+
+    private func item(
+        id: String = UUID().uuidString,
+        progress: Double? = nil,
+        status: DashboardStatus? = nil
+    ) -> LiveActivityItem {
+        LiveActivityItem(id: id, title: "Item", progress: progress, status: status)
     }
 }
