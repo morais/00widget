@@ -18,6 +18,12 @@ struct SampleDataFactoryTests {
         let solar = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("solar") }
         )
+        let car = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("car-charge") }
+        )
+        let boiler = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("boiler") }
+        )
 
         let energyPoints = try #require(energy.chart?.points)
         #expect(energyPoints.count == 30)
@@ -42,8 +48,15 @@ struct SampleDataFactoryTests {
         #expect(solar.chart?.points.last == 3.2)
         #expect(solar.chart?.semantic?.signal == .favorable)
         #expect(deploys.items?.count == 20)
+        #expect(deploys.items?.filter { $0.status == .critical }.map(\.value) == ["Failed", "Failed"])
         #expect(nightlyRun.template == .briefing)
+        #expect(nightlyRun.progress == 0.6)
+        #expect(nightlyRun.deadline != nil)
         #expect(nightlyRun.briefing?.sections.count == 3)
+        #expect(car.displayValue == "62%")
+        #expect(car.progress == 0.62)
+        #expect(boiler.subtitle == "Manual mode")
+        #expect(boiler.actions?.map(\.label) == ["Boost 1h"])
     }
 
     @Test("The demo Live Activity shows a long charge-history line")
