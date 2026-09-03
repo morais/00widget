@@ -673,13 +673,26 @@ private struct TVDashboardCardView: View {
                     .font(.title2)
                     .foregroundStyle(card.status.tint)
             }
-            Text(card.title)
-                .font(.title3.weight(.semibold))
-                .tvReadableText(
-                    standardLineLimit: 1,
-                    largeTextLineLimit: 2,
-                    standardMinimumScaleFactor: 0.75
-                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.title)
+                    .font(.title3.weight(.semibold))
+                    .tvReadableText(
+                        standardLineLimit: 1,
+                        largeTextLineLimit: 2,
+                        standardMinimumScaleFactor: 0.75
+                    )
+                if let producer = card.producer {
+                    HStack(spacing: 5) {
+                        if let icon = producer.icon {
+                            Image(systemName: icon).accessibilityHidden(true)
+                        }
+                        Text(producer.label)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .tvReadableText()
+                }
+            }
             Spacer(minLength: 8)
             if let statusIcon = card.statusIcon {
                 Image(systemName: statusIcon)

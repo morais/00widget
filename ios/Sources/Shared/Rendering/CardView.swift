@@ -138,10 +138,13 @@ public struct CardView: View {
                     .foregroundStyle(card.status.tint)
                     .accessibilityHidden(true)
             }
-            Text(card.title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(card.title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                producerLine(font: .caption2)
+            }
             if card.isFromGuestLink { guestBadge }
             if card.showsSampleBadge { sampleBadge }
             Spacer(minLength: 0)
@@ -157,6 +160,33 @@ public struct CardView: View {
             if card.status.needsAttention {
                 StatusBadge(status: card.status, compact: true)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func producerLine(font: Font) -> some View {
+        if showsProducer, let producer = card.producer {
+            HStack(spacing: 3) {
+                if let icon = producer.icon {
+                    Image(systemName: icon)
+                        .accessibilityHidden(true)
+                }
+                Text(producer.label)
+                    .lineLimit(1)
+            }
+            .font(font)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var showsProducer: Bool {
+        guard density != .compact, card.producer != nil else { return false }
+        switch context {
+        case .app, .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait:
+            return true
+        case .widgetSmall, .widgetMedium, .accessoryRectangular,
+             .accessoryCircular, .accessoryInline:
+            return false
         }
     }
 
@@ -767,10 +797,13 @@ public struct CardView: View {
             }
             .frame(width: 36, height: 36)
 
-            Text(card.title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                producerLine(font: .caption)
+            }
 
             if card.isFromGuestLink { guestBadge }
             if card.showsSampleBadge { sampleBadge }

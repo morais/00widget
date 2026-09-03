@@ -52,6 +52,16 @@ struct CardDecodingTests {
         #expect(card.items?.first?.semantic == MetricSemantic(role: .actual, flow: .inbound))
     }
 
+    @Test("Producer attribution survives decoding")
+    func producerAttribution() throws {
+        let card = try JSONDecoder().decode(
+            DashboardCard.self,
+            from: Data(#"{"id":"launch","template":"summary","title":"Launch","producer":{"label":"Release Agent","icon":"wand.and.stars"}}"#.utf8)
+        )
+
+        #expect(card.producer == CardProducer(label: "Release Agent", icon: "wand.and.stars"))
+    }
+
     /// Deep links arrive from producers, and a card is rendered by the widget
     /// extension, so the sanitising has to happen where the value enters the
     /// process rather than where it is tapped.

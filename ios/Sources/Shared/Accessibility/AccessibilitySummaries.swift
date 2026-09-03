@@ -30,6 +30,10 @@ enum CardAccessibilitySummary {
             sentences.append(sentence(subtitle))
         }
 
+        if let producer = trimmed(card.producer?.label) {
+            sentences.append("From \(producer).")
+        }
+
         if let deadline = card.deadline {
             sentences.append("Due \(relative(deadline, from: now)).")
         }

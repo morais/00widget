@@ -173,6 +173,17 @@ struct TVDetailView: View {
                         .accessibilityAddTraits(.isHeader)
                     statusChip(for: subject)
                 }
+                if case .card(let card) = subject, let producer = card.producer {
+                    HStack(spacing: 8) {
+                        if let icon = producer.icon {
+                            Image(systemName: icon).accessibilityHidden(true)
+                        }
+                        Text(producer.label)
+                    }
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .tvReadableText(standardLineLimit: 1, largeTextLineLimit: 2)
+                }
                 freshness(for: subject)
             }
 

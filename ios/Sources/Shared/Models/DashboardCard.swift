@@ -25,6 +25,21 @@ public struct SharedByInfo: Codable, Hashable, Sendable {
     }
 }
 
+/// The agent, automation, or service that published a card.
+///
+/// This is intentionally a label plus an optional SF Symbol, not a provider
+/// enum. 00Widget presents the operator's own agents rather than coupling the
+/// data model to a changing list of vendors.
+public struct CardProducer: Codable, Hashable, Sendable {
+    public var label: String
+    public var icon: String?
+
+    public init(label: String, icon: String? = nil) {
+        self.label = label
+        self.icon = icon
+    }
+}
+
 public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var template: DashboardTemplate
@@ -35,6 +50,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var status: DashboardStatus
     public var icon: String?
     public var statusIcon: String?
+    public var producer: CardProducer?
     /// Where this card sits among the others. Higher first, absent counts as 0,
     /// ties broken by `id`. The server returns cards already in this order; the
     /// app and the widgets render the order they are given.
@@ -68,6 +84,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status: DashboardStatus = .unknown,
         icon: String? = nil,
         statusIcon: String? = nil,
+        producer: CardProducer? = nil,
         priority: Int? = nil,
         progress: Double? = nil,
         updatedAt: Date = Date(),
@@ -89,6 +106,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.status = status
         self.icon = icon
         self.statusIcon = statusIcon
+        self.producer = producer
         self.priority = priority
         self.progress = progress
         self.updatedAt = updatedAt
@@ -118,6 +136,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         status = DashboardStatus(rawValue: rawStatus) ?? .unknown
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
+        producer = try c.decodeIfPresent(CardProducer.self, forKey: .producer)
         priority = try c.decodeIfPresent(Int.self, forKey: .priority)
         progress = try c.decodeIfPresent(Double.self, forKey: .progress)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
@@ -134,7 +153,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, template, title, subtitle, value, unit, status, icon, statusIcon
+        case id, template, title, subtitle, value, unit, status, icon, statusIcon, producer
         case priority, progress, updatedAt, staleAfter, deadline, deepLink, items, chart, briefing, actions, sharedBy
     }
 

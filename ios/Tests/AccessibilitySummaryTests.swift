@@ -22,6 +22,20 @@ struct AccessibilitySummaryTests {
         #expect(CardAccessibilitySummary.summary(for: card, now: now) == CardStatusReport.summary(for: card, now: now))
     }
 
+    @Test("Card attribution is included in the spoken summary")
+    func cardProducer() {
+        let card = DashboardCard(
+            id: "trials",
+            template: .summary,
+            title: "Trials",
+            value: "128",
+            status: .good,
+            producer: CardProducer(label: "Growth Agent", icon: "chart.line.uptrend.xyaxis")
+        )
+
+        #expect(CardAccessibilitySummary.summary(for: card).contains("From Growth Agent."))
+    }
+
     @Test("Live Activity summary leads with primary state")
     func liveActivitySummary() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)

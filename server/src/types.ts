@@ -626,6 +626,15 @@ export const SharedByInfoSchema = z.object({
   shareId: z.string().max(FieldLimits.id),
 });
 
+export const CardProducerSchema = z.object({
+  label: z.string().min(1).max(FieldLimits.subtitle).describe(
+    "Human-readable name of the agent, automation, or service that published the card.",
+  ),
+  icon: OptionalIconString.describe(
+    "Optional SF Symbol shown beside the producer on roomy Apple surfaces.",
+  ),
+});
+
 const DashboardCardFields = {
   id: CardIdString.describe(
     "Stable identity of the thing being shown, reused on every publish so the "
@@ -674,6 +683,10 @@ const DashboardCardFields = {
     "A second SF Symbol for a runtime state that changes independently of what "
     + "the card is — bolt.fill while boosting, arrow.up while charging. Drawn "
     + "at every widget size, including grid cells.",
+  ),
+  producer: CardProducerSchema.optional().describe(
+    "Who published this card. Use the operator's own agent or automation name, "
+    + "not a provider logo; compact surfaces omit this attribution to preserve space.",
   ),
   // Where the card sits in every list the API returns. Ordering used to be
   // `ORDER BY id` alone, which made the dedupe key double as the sort key: a
