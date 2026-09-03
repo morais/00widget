@@ -51,6 +51,17 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
         (items ?? []).filter(\.isActive)
     }
 
+    /// Rows that explain the activity on surfaces with room for its parts.
+    ///
+    /// Active work stays first so the current decision is never displaced by
+    /// history. Finished rows follow in producer order as recent proof, while
+    /// offline rows remain absent. This is deliberately separate from
+    /// `activeItems`: counts, badges, progress derivation, and the overall
+    /// accessibility summary must continue to describe unfinished work only.
+    var presentationItems: [LiveActivityItem] {
+        Self.presentationItems(from: items)
+    }
+
     var hasExplicitValue: Bool {
         !(value ?? "").isEmpty
     }
@@ -98,5 +109,33 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
         let mean = progresses.reduce(0, +) / Double(progresses.count)
         return max(0, min(mean, 1))
     }
+
+    private static func presentationItems(from items: [LiveActivityItem]?) -> [LiveActivityItem] {
+        let rows = items ?? []
+        return rows.filter(\.isActive) + rows.filter { $0.status == .finished }
+    }
 }
 #endif
+
+public extension LiveActivitySession {
+    var activeItems: [LiveActivityItem] {
+        (items ?? []).filter(\.isActive)
+    }
+
+    /// The full row collection used by scrollable and otherwise unconstrained
+    /// activity presentations. See the matching ContentState property above.
+    var presentationItems: [LiveActivityItem] {
+        let rows = items ?? []
+        return rows.filter(\.isActive) + rows.filter { $0.status == .finished }
+    }
+
+    /// Television cards and detail panels cannot scroll their activity rows.
+    /// Preserve every genuinely active row, then fill a sparse presentation
+    /// with only enough finished proof to reach the requested row count.
+    func budgetedPresentationItems(fillingTo minimumCount: Int) -> [LiveActivityItem] {
+        let active = activeItems
+        let finishedLimit = max(0, minimumCount - active.count)
+        let finished = (items ?? []).filter { $0.status == .finished }.prefix(finishedLimit)
+        return active + Array(finished)
+    }
+}

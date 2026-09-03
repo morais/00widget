@@ -70,9 +70,9 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                     EmptyView()
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if !context.state.activeItems.isEmpty {
+                    if !context.state.presentationItems.isEmpty {
                         VStack(spacing: 5) {
-                            ForEach(Array(context.state.activeItems.prefix(3))) { item in
+                            ForEach(Array(context.state.presentationItems.prefix(3))) { item in
                                 LiveActivityItemRow(item: item, condensed: true)
                             }
                         }
@@ -355,7 +355,7 @@ private struct LockScreenView: View {
 
     private var lockScreenBody: some View {
         Group {
-            if state.activeItems.isEmpty {
+            if state.presentationItems.isEmpty {
                 legacyLockScreenBody
             } else {
                 compositeLockScreenBody
@@ -427,8 +427,9 @@ private struct LockScreenView: View {
     }
 
     private func composite(rows: Int, condensed: Bool) -> some View {
-        let shown = Array(state.activeItems.prefix(rows))
-        let hidden = state.activeItems.count - shown.count
+        let presentationItems = state.presentationItems
+        let shown = Array(presentationItems.prefix(rows))
+        let hidden = presentationItems.count - shown.count
         return VStack(alignment: .leading, spacing: condensed ? 5 : 7) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)

@@ -703,9 +703,9 @@ private struct TVActivityDetailContent: View {
         VStack(alignment: .leading, spacing: 28) {
             headline
 
-            if !activeItems.isEmpty {
+            if !presentationItems.isEmpty {
                 VStack(spacing: 12) {
-                    ForEach(activeItems) { item in
+                    ForEach(presentationItems) { item in
                         TVLiveActivityItemRow(item: item)
                     }
                 }
@@ -717,9 +717,9 @@ private struct TVActivityDetailContent: View {
                     tint: activity.tint,
                     title: activity.title,
                     unit: activity.unit,
-                    plotHeight: activeItems.isEmpty ? 230 : 120,
+                    plotHeight: presentationItems.isEmpty ? 230 : 120,
                     lineWidth: 6,
-                    compact: !activeItems.isEmpty
+                    compact: !presentationItems.isEmpty
                 )
             } else if let progress = activity.progress, activity.endsAt == nil {
                 ProgressView(value: max(0, min(progress, 1)))
@@ -781,8 +781,8 @@ private struct TVActivityDetailContent: View {
         }
     }
 
-    private var activeItems: [LiveActivityItem] {
-        (activity.items ?? []).filter(\.isActive)
+    private var presentationItems: [LiveActivityItem] {
+        activity.budgetedPresentationItems(fillingTo: 3)
     }
 }
 

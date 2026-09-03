@@ -342,9 +342,9 @@ private struct TVLiveActivityCardView: View {
                 // A composite activity says what it is doing through its
                 // rows; dropping them left this card showing a title and a
                 // number where the phone showed four.
-                if !activeItems.isEmpty {
+                if !presentationItems.isEmpty {
                     LazyVGrid(columns: itemColumns, alignment: .leading, spacing: 16) {
-                        ForEach(activeItems) { item in
+                        ForEach(presentationItems) { item in
                             TVLiveActivityItemRow(item: item)
                         }
                     }
@@ -360,7 +360,7 @@ private struct TVLiveActivityCardView: View {
                           activity.endsAt == nil,
                           // Rows replace the progress bar, as they do on
                           // every other surface.
-                          activeItems.isEmpty {
+                          presentationItems.isEmpty {
                     ProgressView(value: max(0, min(progress, 1)))
                         .tint(activity.tint)
                 }
@@ -395,7 +395,7 @@ private struct TVLiveActivityCardView: View {
     /// content.
     private var accessibilitySummary: String {
         ([LiveActivityAccessibilitySummary.summary(for: activity)]
-            + activeItems.map(LiveActivityAccessibilitySummary.summary(for:)))
+            + presentationItems.map(LiveActivityAccessibilitySummary.summary(for:)))
             .joined(separator: ". ")
     }
 
@@ -478,7 +478,11 @@ private struct TVLiveActivityCardView: View {
     }
 
     private var activeItems: [LiveActivityItem] {
-        (activity.items ?? []).filter(\.isActive)
+        activity.activeItems
+    }
+
+    private var presentationItems: [LiveActivityItem] {
+        activity.budgetedPresentationItems(fillingTo: 3)
     }
 
 }
