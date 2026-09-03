@@ -212,7 +212,9 @@ private struct ActivityCard: View {
                         Text(session.title)
                             .font(.headline)
                             .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                        if activeItems.isEmpty {
+                        if session.needsUserAttention {
+                            AttentionBadge()
+                        } else if activeItems.isEmpty {
                             stateBadge
                         } else {
                             activeItemBadge

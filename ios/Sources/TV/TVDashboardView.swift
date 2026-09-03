@@ -418,7 +418,7 @@ private struct TVLiveActivityCardView: View {
                     standardMinimumScaleFactor: 0.75
                 )
             Spacer(minLength: 8)
-            Text(activity.state.capitalized)
+            Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
                 .font(.callout.weight(.semibold))
                 .tvReadableText(largeTextLineLimit: 2)
                 .padding(.horizontal, 10)
@@ -699,7 +699,16 @@ private struct TVDashboardCardView: View {
                     .font(.headline)
                     .foregroundStyle(card.status.tint)
             }
-            StatusBadge(status: card.status, compact: true)
+            if card.needsUserAttention {
+                Text("Needs you")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.orange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.orange.opacity(0.18)))
+            } else {
+                StatusBadge(status: card.status, compact: true)
+            }
         }
     }
 

@@ -118,10 +118,25 @@ public extension LiveActivityKind {
 public extension LiveActivitySession {
     var tint: Color { kind.tint(for: signal) }
     var semanticStatusIcon: String? { statusIcon ?? signal?.symbolName }
+    /// A warning row is the activity's explicit hand-off to its operator.
+    /// Other warning-like states can mean degraded machinery rather than a
+    /// human decision, so they do not silently become "needs you".
+    var needsUserAttention: Bool { activeItems.contains(where: \.needsUserAttention) }
 }
 
 public extension LiveActivityItem {
     func tint(base: Color = .secondary) -> Color {
         status?.tint ?? ChartSeriesPalette.tint(index: 0, base: base, semantic: semantic)
+    }
+
+    var needsUserAttention: Bool { status == .warning }
+}
+
+public extension DashboardCard {
+    /// A card only promises that the operator can step in when it has both an
+    /// attention state and an action to take. A warning without a button is an
+    /// observation, not an actionable hand-off.
+    var needsUserAttention: Bool {
+        status.needsAttention && !(actions?.isEmpty ?? true)
     }
 }

@@ -38,6 +38,10 @@ enum CardAccessibilitySummary {
             sentences.append(sentence("\(comparison.value) \(comparison.label), \(comparison.signal.rawValue)"))
         }
 
+        if card.needsUserAttention {
+            sentences.append("Needs your attention.")
+        }
+
         if let deadline = card.deadline {
             sentences.append("Due \(relative(deadline, from: now)).")
         }

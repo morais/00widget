@@ -211,11 +211,11 @@ struct TVDetailView: View {
                         .foregroundStyle(card.status.tint)
                         .accessibilityHidden(true)
                 }
-                Text(card.status.label)
+                Text(card.needsUserAttention ? "Needs you" : card.status.label)
             }
             .modifier(TVChip(tint: card.status.tint))
             .accessibilityLabel("Status")
-            .accessibilityValue(card.status.label)
+            .accessibilityValue(card.needsUserAttention ? "Needs you" : card.status.label)
         case .activity(let activity):
             HStack(spacing: 10) {
                 if let statusIcon = activity.semanticStatusIcon {
@@ -224,7 +224,7 @@ struct TVDetailView: View {
                         .foregroundStyle(activity.tint)
                         .accessibilityHidden(true)
                 }
-                Text(activity.state.capitalized)
+                Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
             }
             .modifier(TVChip(tint: activity.tint))
         }

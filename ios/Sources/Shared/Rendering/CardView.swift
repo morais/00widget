@@ -157,7 +157,9 @@ public struct CardView: View {
             // constrained widget canvas. Keep only states that ask for
             // attention; the combined accessibility summary still says the
             // status aloud.
-            if card.status.needsAttention {
+            if card.needsUserAttention {
+                AttentionBadge()
+            } else if card.status.needsAttention {
                 StatusBadge(status: card.status, compact: true)
             }
         }
@@ -838,7 +840,11 @@ public struct CardView: View {
                     .foregroundStyle(card.status.tint)
             }
 
-            StatusBadge(status: card.status, compact: true)
+            if card.needsUserAttention {
+                AttentionBadge()
+            } else {
+                StatusBadge(status: card.status, compact: true)
+            }
 
             if density == .compact {
                 Image(systemName: "chevron.right")

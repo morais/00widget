@@ -15,6 +15,53 @@ import Testing
 @Suite("Widget action safety gate")
 struct ActionSafetyTests {
 
+    @Test("Needs-you presentation requires both attention and an action")
+    func actionableAttention() {
+        let action = ActionDefinition(id: "approve", label: "Approve")
+        let actionable = DashboardCard(
+            id: "message",
+            template: .action,
+            title: "Launch message",
+            status: .warning,
+            actions: [action]
+        )
+        let informational = DashboardCard(
+            id: "support",
+            template: .summary,
+            title: "Support",
+            status: .warning
+        )
+        let healthyAction = DashboardCard(
+            id: "retry",
+            template: .action,
+            title: "Retry",
+            status: .good,
+            actions: [action]
+        )
+
+        #expect(actionable.needsUserAttention)
+        #expect(!informational.needsUserAttention)
+        #expect(!healthyAction.needsUserAttention)
+        #expect(CardAccessibilitySummary.summary(for: actionable).contains("Needs your attention."))
+    }
+
+    @Test("A warning Live Activity row is the operator hand-off")
+    func activityAttention() {
+        let warning = LiveActivityItem(id: "approval", title: "Announcement", status: .warning)
+        let finished = LiveActivityItem(id: "store", title: "Store", status: .finished)
+        let session = LiveActivitySession(
+            externalActivityId: "launch",
+            kind: .job,
+            title: "App launch",
+            state: "Waiting for approval",
+            items: [warning, finished]
+        )
+
+        #expect(warning.needsUserAttention)
+        #expect(!finished.needsUserAttention)
+        #expect(session.needsUserAttention)
+    }
+
     @Test("Only a normal action needing no confirmation runs from a widget")
     func gateAdmitsOnlyNormalUnconfirmed() {
         #expect(action(.normal, confirm: false).isSafeFromWidget)
