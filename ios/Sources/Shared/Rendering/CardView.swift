@@ -237,17 +237,37 @@ public struct CardView: View {
     }
 
     private func bigValue(font: Font = .title, unitFont: Font = .caption) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
-            Text(card.value ?? "—")
-                .font(font.weight(.semibold))
-                .fontDesign(.rounded)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-            if let unit = card.unit {
-                Text(unit)
-                    .font(unitFont)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(card.value ?? "—")
+                    .font(font.weight(.semibold))
+                    .fontDesign(.rounded)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                if let unit = card.unit {
+                    Text(unit)
+                        .font(unitFont)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            comparisonLine(font: .caption2)
+        }
+    }
+
+    @ViewBuilder
+    private func comparisonLine(font: Font) -> some View {
+        if let comparison = card.comparison {
+            HStack(spacing: 4) {
+                Image(systemName: comparison.signal.symbolName)
+                    .accessibilityHidden(true)
+                Text(comparison.value)
+                    .fontWeight(.semibold)
+                Text(comparison.label)
                     .foregroundStyle(.secondary)
             }
+            .font(font)
+            .foregroundStyle(comparison.signal.tint)
+            .lineLimit(1)
         }
     }
 
@@ -896,17 +916,20 @@ public struct CardView: View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 5))
-        return layout {
-            Text(card.value ?? "—")
-                .font(.largeTitle.weight(.semibold))
-                .fontDesign(.rounded)
-                .minimumScaleFactor(0.6)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-            if let unit = card.unit {
-                Text(unit)
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 4) {
+            layout {
+                Text(card.value ?? "—")
+                    .font(.largeTitle.weight(.semibold))
+                    .fontDesign(.rounded)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                if let unit = card.unit {
+                    Text(unit)
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
             }
+            comparisonLine(font: .subheadline)
         }
     }
 

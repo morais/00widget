@@ -36,6 +36,21 @@ struct AccessibilitySummaryTests {
         #expect(CardAccessibilitySummary.summary(for: card).contains("From Growth Agent."))
     }
 
+    @Test("Typed comparison carries its interpretation into the spoken summary")
+    func cardComparison() {
+        let card = DashboardCard(
+            id: "trials",
+            template: .chart,
+            title: "Trials",
+            value: "128",
+            unit: "today",
+            status: .good,
+            comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable)
+        )
+
+        #expect(CardAccessibilitySummary.summary(for: card).contains("+18 vs Monday, favorable."))
+    }
+
     @Test("Live Activity summary leads with primary state")
     func liveActivitySummary() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)

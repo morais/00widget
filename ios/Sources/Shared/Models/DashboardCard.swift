@@ -40,6 +40,21 @@ public struct CardProducer: Codable, Hashable, Sendable {
     }
 }
 
+/// A short, already-formatted comparison that gives the headline direction.
+/// The value remains presentation text because producers own its unit and
+/// locale; `signal` supplies meaning without granting control of a color.
+public struct CardComparison: Codable, Hashable, Sendable {
+    public var value: String
+    public var label: String
+    public var signal: MetricSignal
+
+    public init(value: String, label: String, signal: MetricSignal = .neutral) {
+        self.value = value
+        self.label = label
+        self.signal = signal
+    }
+}
+
 public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var template: DashboardTemplate
@@ -51,6 +66,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public var icon: String?
     public var statusIcon: String?
     public var producer: CardProducer?
+    public var comparison: CardComparison?
     /// Where this card sits among the others. Higher first, absent counts as 0,
     /// ties broken by `id`. The server returns cards already in this order; the
     /// app and the widgets render the order they are given.
@@ -85,6 +101,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         icon: String? = nil,
         statusIcon: String? = nil,
         producer: CardProducer? = nil,
+        comparison: CardComparison? = nil,
         priority: Int? = nil,
         progress: Double? = nil,
         updatedAt: Date = Date(),
@@ -107,6 +124,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.icon = icon
         self.statusIcon = statusIcon
         self.producer = producer
+        self.comparison = comparison
         self.priority = priority
         self.progress = progress
         self.updatedAt = updatedAt
@@ -137,6 +155,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon)
         statusIcon = try c.decodeIfPresent(String.self, forKey: .statusIcon)
         producer = try c.decodeIfPresent(CardProducer.self, forKey: .producer)
+        comparison = try c.decodeIfPresent(CardComparison.self, forKey: .comparison)
         priority = try c.decodeIfPresent(Int.self, forKey: .priority)
         progress = try c.decodeIfPresent(Double.self, forKey: .progress)
         updatedAt = try DashboardCard.decodeDate(c, forKey: .updatedAt) ?? Date()
@@ -153,7 +172,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, template, title, subtitle, value, unit, status, icon, statusIcon, producer
+        case id, template, title, subtitle, value, unit, status, icon, statusIcon, producer, comparison
         case priority, progress, updatedAt, staleAfter, deadline, deepLink, items, chart, briefing, actions, sharedBy
     }
 

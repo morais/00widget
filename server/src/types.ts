@@ -635,6 +635,18 @@ export const CardProducerSchema = z.object({
   ),
 });
 
+export const CardComparisonSchema = z.object({
+  value: z.string().min(1).max(FieldLimits.value).describe(
+    "Already-formatted change, such as +18 or -12%.",
+  ),
+  label: z.string().min(1).max(FieldLimits.subtitle).describe(
+    "What the change is compared with, such as vs Monday or from last week.",
+  ),
+  signal: MetricSignalSchema.default("neutral").describe(
+    "Whether this change is favorable, neutral, cautionary, or unfavorable in context.",
+  ),
+});
+
 const DashboardCardFields = {
   id: CardIdString.describe(
     "Stable identity of the thing being shown, reused on every publish so the "
@@ -687,6 +699,10 @@ const DashboardCardFields = {
   producer: CardProducerSchema.optional().describe(
     "Who published this card. Use the operator's own agent or automation name, "
     + "not a provider logo; compact surfaces omit this attribution to preserve space.",
+  ),
+  comparison: CardComparisonSchema.optional().describe(
+    "A concise interpretation beside the headline, for example +18 vs Monday. "
+    + "This is distinct from chart style `delta`, which controls bar geometry.",
   ),
   // Where the card sits in every list the API returns. Ordering used to be
   // `ORDER BY id` alone, which made the dedupe key double as the sort key: a

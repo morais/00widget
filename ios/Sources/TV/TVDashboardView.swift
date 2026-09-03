@@ -727,6 +727,21 @@ private struct TVDashboardCardView: View {
                         standardMinimumScaleFactor: 0.75
                     )
             }
+            comparisonLine
+        }
+    }
+
+    @ViewBuilder
+    private var comparisonLine: some View {
+        if let comparison = card.comparison {
+            HStack(spacing: 7) {
+                Image(systemName: comparison.signal.symbolName).accessibilityHidden(true)
+                Text(comparison.value).fontWeight(.semibold)
+                Text(comparison.label).foregroundStyle(.secondary)
+            }
+            .font(.callout)
+            .foregroundStyle(comparison.signal.tint)
+            .tvReadableText(largeTextLineLimit: 2)
         }
     }
 
@@ -763,6 +778,7 @@ private struct TVDashboardCardView: View {
                     .foregroundStyle(.secondary)
                     .tvReadableText(largeTextLineLimit: 2)
             }
+            comparisonLine
         }
         // One plot per card, and the template picks it. `history` and
         // `breakdown` have their own — pips and a segmented bar — and every

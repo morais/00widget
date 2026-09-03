@@ -62,6 +62,15 @@ struct CardDecodingTests {
         #expect(card.producer == CardProducer(label: "Release Agent", icon: "wand.and.stars"))
     }
 
+    @Test("Typed comparison survives decoding")
+    func comparisonDecodes() throws {
+        let card = try decode(
+            #"{"id":"trials","template":"chart","title":"Trials","comparison":{"value":"+18","label":"vs Monday","signal":"favorable"}}"#
+        )
+
+        #expect(card.comparison == CardComparison(value: "+18", label: "vs Monday", signal: .favorable))
+    }
+
     /// Deep links arrive from producers, and a card is rendered by the widget
     /// extension, so the sanitising has to happen where the value enters the
     /// process rather than where it is tapped.

@@ -442,6 +442,16 @@ private struct TVCardDetailContent: View {
                         )
                     )
             }
+            if let comparison = card.comparison {
+                HStack(spacing: 8) {
+                    Image(systemName: comparison.signal.symbolName).accessibilityHidden(true)
+                    Text(comparison.value).fontWeight(.semibold)
+                    Text(comparison.label).foregroundStyle(.secondary)
+                }
+                .font(.title3)
+                .foregroundStyle(comparison.signal.tint)
+                .tvReadableText(standardLineLimit: 1, largeTextLineLimit: 2)
+            }
             if let subtitle = card.subtitle {
                 Text(subtitle)
                     .font(.title3)
