@@ -202,7 +202,26 @@ artifacts/screenshots/
     └── tvos/
 ```
 
-After all four device sets pass visual QA, preview the replacement plan with:
+The canonical localized listing copy lives in `ios/appstore-metadata.json`.
+It covers the app-level `en-US` name and subtitle, and the iOS and tvOS
+promotional text, keywords, and description for the marketing version in
+`ios/project.yml`. That version must already exist for both platforms in App
+Store Connect; the scoped metadata command does not create a release version.
+Preview metadata drift without writing it with:
+
+```sh
+ios/scripts/sync-appstore-metadata.py --dry-run
+```
+
+Run the same command with `--apply` (or with no mode flag) to write only changed
+fields; every write is immediately read back and verified. Use `--verify-only`
+to fail on any remote drift. App Store Connect's API manages all five fields,
+so there are currently no manual exceptions for this metadata scope. If a
+future listing field cannot be managed by the API, document it here as a manual
+exception instead of adding it to the command's claimed scope.
+
+After all four device sets pass visual QA, preview the screenshot replacement
+plan with:
 
 ```sh
 ios/scripts/upload-appstore-screenshots.py --dry-run
@@ -227,8 +246,8 @@ This check is required before submission. In particular, it fails if the
 6.5-inch set lacks `screenshot-home-widgets.png`; do not use the App Store
 Connect website to assemble a screenshot set by hand.
 
-To sync or verify the screenshots and the default App Clip card together, use
-the single listing entry point. The App Clip invocation URL lives in the
+To sync or verify the metadata, screenshots, and default App Clip card together,
+use the single listing entry point. The App Clip invocation URL lives in the
 gitignored `ios/appstore.env`, whose committed template is
 `ios/appstore.env.sample`. Set `ZW_APPCLIP_INVOCATION_URL` only for a one-off
 override:
@@ -237,15 +256,16 @@ override:
 cp ios/appstore.env.sample ios/appstore.env
 # edit ios/appstore.env
 ios/scripts/sync-appstore-listing.sh --dry-run
-ios/scripts/sync-appstore-listing.sh
+ios/scripts/sync-appstore-listing.sh --apply
 ios/scripts/sync-appstore-listing.sh --verify-only
 ```
 
-The command manages the App Clip action, `en-US` subtitle, App Review invocation
-URL, and `docs/brand/app-clip-header.png`, plus every screenshot set above. The
-App Store Connect website is a visual inspection and emergency fallback, not a
+The command manages the app name, subtitle, promotional text, keywords, and
+description; the App Clip action, `en-US` subtitle, App Review invocation URL,
+and `docs/brand/app-clip-header.png`; and every screenshot set above. The App
+Store Connect website is a visual inspection and emergency fallback, not a
 listing-authoring step.
 
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. Marketing entry points live together as `marketing/screenshots/capture-ios.sh`, `marketing/screenshots/capture-tvos.sh`, `marketing/screenshots/capture-all.sh`, `marketing/screenshots/generate-promotional.py`, and `marketing/screenshots/copy.sh`. App Store distribution remains in `ios/scripts/upload-appstore-screenshots.py` and `ios/scripts/sync-appstore-listing.sh` because it is release tooling rather than asset creation.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. Marketing entry points live together as `marketing/screenshots/capture-ios.sh`, `marketing/screenshots/capture-tvos.sh`, `marketing/screenshots/capture-all.sh`, `marketing/screenshots/generate-promotional.py`, and `marketing/screenshots/copy.sh`. App Store distribution remains in `ios/appstore-metadata.json`, `ios/scripts/sync-appstore-metadata.py`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh` because it is release tooling rather than asset creation.

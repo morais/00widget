@@ -368,13 +368,16 @@ simulator builds and every shipping build do not compile these widget kinds.
 App Store Connect listing writes are command-line driven. The canonical HTTPS
 URL lives in gitignored `ios/appstore.env`, with `ios/appstore.env.sample` as the
 committed template; `ZW_APPCLIP_INVOCATION_URL` is an override. Use
-`ios/scripts/sync-appstore-listing.sh --dry-run`, then the same command without
-the flag, and finish with `--verify-only`. The entry point manages every
-canonical screenshot set plus the default App Clip action, subtitle, App Review
-URL, and `docs/brand/app-clip-header.png`. The final verification compares
-remote screenshot counts, checksums, and order and therefore catches a missing
-required Home Screen image. Screenshot uploads read the promotional tree, not
-the raw captures, and require its manifest to match the current raw checksums.
+`ios/scripts/sync-appstore-listing.sh --dry-run`, then the same command with
+`--apply`, and finish with `--verify-only`. The entry point manages the app
+name, subtitle, promotional text, keywords, and description from
+`ios/appstore-metadata.json`; every canonical screenshot set; and the default
+App Clip action, subtitle, App Review URL, and
+`docs/brand/app-clip-header.png`. The final verification compares metadata plus
+remote screenshot counts, checksums, and order and therefore catches both copy
+drift and a missing required Home Screen image. Screenshot uploads read the
+promotional tree, not the raw captures, and require its manifest to match the
+current raw checksums.
 Do not assemble or edit these resources manually in
 the App Store Connect website; use it only for visual inspection or when the API
 is unavailable and immediately verify the result from the command line.

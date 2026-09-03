@@ -1,0 +1,19 @@
+{
+  "locale": "en-US",
+  "appInfo": {
+    "name": "00Widget: Agent Status",
+    "subtitle": "Live AI work at a glance"
+  },
+  "versions": {
+    "IOS": {
+      "promotionalText": "Give every agent a native status surface: widgets, Live Activities, Dynamic Island, and Apple TV—all from one MCP connection or API.",
+      "keywords": "mcp,widget,activity,automation,workflow,lock screen,dynamic island,api,shortcuts,webhook",
+      "description": "00Widget keeps the work you delegate visible after you leave the chat.\n\nConnect a compatible AI assistant through MCP, or publish from any automation, script, or app through the API. 00Widget turns structured updates into native Apple experiences that stay useful as the work changes.\n\nWith 00Widget, you can:\n\n• Follow active work, progress, and ETAs with Live Activities\n• Keep important results and status on your Home Screen\n• See what is complete, what is running, and what needs you\n• Explore trends, run history, breakdowns, and agent briefings\n• Run supported actions from the exact card that needs attention\n• Share a read-only card or Live Activity with a revocable link\n• Put a shared agent dashboard on Apple TV\n• Keep compatible Live Activities glanceable in the Apple Watch Smart Stack and CarPlay Dashboard on supported OS versions\n\nPublishers send typed data, not custom interface code. 00Widget renders it through consistent native templates designed for Apple devices.\n\nUse it for releases, research, support, service health, automations, deliveries, energy, charging, or any changing work your agents can report.\n\n00Widget does not create or run agents. A compatible MCP host or configured API publisher is required. 00Widget is independent and is not affiliated with or endorsed by AI assistant providers."
+    },
+    "TV_OS": {
+      "promotionalText": "Give every agent a native status surface: widgets, Live Activities, Dynamic Island, and Apple TV—all from one MCP connection or API.",
+      "keywords": "mcp,widget,activity,automation,workflow,lock screen,dynamic island,api,shortcuts,webhook",
+      "description": "00Widget keeps the work you delegate visible after you leave the chat.\n\nConnect a compatible AI assistant through MCP, or publish from any automation, script, or app through the API. 00Widget turns structured updates into native Apple experiences that stay useful as the work changes.\n\nWith 00Widget, you can:\n\n• Follow active work, progress, and ETAs with Live Activities\n• Keep important results and status on your Home Screen\n• See what is complete, what is running, and what needs you\n• Explore trends, run history, breakdowns, and agent briefings\n• Run supported actions from the exact card that needs attention\n• Share a read-only card or Live Activity with a revocable link\n• Put a shared agent dashboard on Apple TV\n• Keep compatible Live Activities glanceable in the Apple Watch Smart Stack and CarPlay Dashboard on supported OS versions\n\nPublishers send typed data, not custom interface code. 00Widget renders it through consistent native templates designed for Apple devices.\n\nUse it for releases, research, support, service health, automations, deliveries, energy, charging, or any changing work your agents can report.\n\n00Widget does not create or run agents. A compatible MCP host or configured API publisher is required. 00Widget is independent and is not affiliated with or endorsed by AI assistant providers."
+    }
+  }
+}
