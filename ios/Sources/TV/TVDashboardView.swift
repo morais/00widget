@@ -587,10 +587,10 @@ private struct TVLiveActivityCardView: View {
             // the same fact arrived as two separate orange things at opposite
             // ends of a card, and read as two.
             HStack(spacing: 10) {
-                if let statusIcon = activity.semanticStatusIcon {
-                    Image(systemName: statusIcon).accessibilityHidden(true)
+                if let symbol = activity.statusChipSymbolName {
+                    Image(systemName: symbol).accessibilityHidden(true)
                 }
-                Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
+                Text(activity.statusChipLabel)
                     .tvReadableText(largeTextLineLimit: 2)
             }
             .modifier(

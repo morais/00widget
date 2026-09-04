@@ -211,26 +211,28 @@ struct TVDetailView: View {
         switch subject {
         case .card(let card):
             HStack(spacing: 10) {
-                if let statusIcon = card.statusIcon {
-                    Image(systemName: statusIcon)
+                if let symbol = card.statusChipSymbolName {
+                    Image(systemName: symbol)
                         .font(.title3)
                         .foregroundStyle(card.status.tint)
                         .accessibilityHidden(true)
                 }
-                Text(card.needsUserAttention ? "Needs you" : card.status.label)
+                Text(card.statusChipLabel)
             }
             .modifier(TVChip(tint: card.status.tint))
             .accessibilityLabel("Status")
-            .accessibilityValue(card.needsUserAttention ? "Needs you" : card.status.label)
+            // The same property the label above draws, not a second copy of
+            // the ternary: these two had to agree and nothing made them.
+            .accessibilityValue(card.statusChipLabel)
         case .activity(let activity):
             HStack(spacing: 10) {
-                if let statusIcon = activity.semanticStatusIcon {
-                    Image(systemName: statusIcon)
+                if let symbol = activity.statusChipSymbolName {
+                    Image(systemName: symbol)
                         .font(.title3)
                         .foregroundStyle(activity.tint)
                         .accessibilityHidden(true)
                 }
-                Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
+                Text(activity.statusChipLabel)
             }
             .modifier(TVChip(tint: activity.tint))
         }

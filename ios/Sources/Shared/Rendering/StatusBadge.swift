@@ -44,11 +44,12 @@ public struct AttentionBadge: View {
 
     public var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "person.crop.circle.badge.exclamationmark")
+            Image(systemName: AttentionPresentation.symbolName)
                 .font(font.weight(.semibold))
             if !compact {
-                Text("Needs you")
+                Text(AttentionPresentation.label)
                     .font(font.weight(.semibold))
+                    .lineLimit(1)
             }
         }
         .foregroundStyle(Color.orange)
@@ -59,6 +60,7 @@ public struct AttentionBadge: View {
                 Capsule().fill(Color.orange.opacity(0.14))
             }
         }
+        .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Needs your attention")
     }
