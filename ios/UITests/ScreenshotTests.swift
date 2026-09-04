@@ -161,6 +161,15 @@ final class ScreenshotTests: XCTestCase {
 
     @discardableResult
     private func captureActivities(in app: XCUIApplication) -> Bool {
+        guard stageSampleActivity(in: app) else { return false }
+        capture(named: "screenshot-activities")
+        return true
+    }
+
+    /// Stages the sample Live Activity without capturing anything in-process.
+    /// Shared by the in-app Activities shot and the host-driven Lock Screen
+    /// capture below, so both wait for the same presenting state.
+    private func stageSampleActivity(in app: XCUIApplication) -> Bool {
         let activitiesTab = navigationButton(named: "Activities", in: app)
         guard activitiesTab.waitForExistence(timeout: 5) else { return false }
         activitiesTab.tap()
@@ -171,8 +180,67 @@ final class ScreenshotTests: XCTestCase {
             app.staticTexts["App launch"].waitForExistence(timeout: 15),
             "Sample Live Activity did not start."
         )
-        capture(named: "screenshot-activities")
         return true
+    }
+
+    /// Stages the launch Live Activity and pauses on a host-visible marker so
+    /// the host-side lock adapter (`marketing/screenshots/sim-lock-capture.sh`)
+    /// can lock the simulator and capture the Lock Screen framebuffer — a
+    /// surface `XCUIScreen.main.screenshot()` can never show.
+    ///
+    /// Handshake (both ends run on the same Mac): the directory comes from
+    /// `ZW_LOCK_HANDSHAKE_DIR`. This test writes `ready` once the sample
+    /// activity is presenting, then polls for `done`, whose content is `ok`
+    /// or `error: …` on host failure. File polling needs no device
+    /// interaction, so it keeps working while the device is locked. Run via
+    /// `marketing/screenshots/capture-ios.sh --only lock`, not bare
+    /// `xcodebuild`, or no host will ever answer the marker.
+    func testCaptureLockScreenStaging() throws {
+        let handshake = URL(
+            fileURLWithPath: ProcessInfo.processInfo.environment["ZW_LOCK_HANDSHAKE_DIR"]
+                ?? "/tmp/zw-lock-capture",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: handshake, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: handshake.appendingPathComponent("ready"))
+        try? FileManager.default.removeItem(at: handshake.appendingPathComponent("done"))
+
+        let app = XCUIApplication()
+        app.launch()
+
+        let activitiesTab = navigationButton(named: "Activities", in: app)
+        XCTAssertTrue(
+            activitiesTab.waitForExistence(timeout: 30),
+            "Navigation never appeared — the app may have failed to launch."
+        )
+        hideSampleIndicators(in: app)
+        XCTAssertTrue(stageSampleActivity(in: app), "Activities tab did not appear.")
+        try "staged\n".write(
+            to: handshake.appendingPathComponent("ready"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let doneURL = handshake.appendingPathComponent("done")
+        let deadline = Date().addingTimeInterval(240)
+        var verdict: String?
+        while Date() < deadline {
+            if let text = try? String(contentsOf: doneURL, encoding: .utf8),
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                verdict = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        guard let verdict else {
+            XCTFail(
+                "The host lock adapter never answered the marker — run this through "
+                    + "marketing/screenshots/capture-ios.sh --only lock."
+            )
+            return
+        }
+        XCTAssertEqual(verdict, "ok", "The host lock adapter reported: \(verdict)")
     }
 
     private func captureInsights(in app: XCUIApplication) {

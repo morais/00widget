@@ -57,6 +57,11 @@ PROMOTIONS = (
         "ETAs and changing work on the Lock Screen and Dynamic Island.",
     ),
     Promotion(
+        "screenshot-lock-activity.png",
+        "Live work, on the Lock Screen.",
+        "Check progress at a glance — the update comes to you.",
+    ),
+    Promotion(
         "screenshot-widgets.png",
         "Step in at the right moment.",
         "Approve, retry, or open the exact task without hunting through chat.",
@@ -677,7 +682,7 @@ def verify_promotional_screenshots(
             print(f"  - {error}")
         raise SystemExit(1)
 
-    print("✓ all 21 promotional screenshots verified")
+    print("✓ all 24 promotional screenshots verified")
 
 
 def main() -> None:

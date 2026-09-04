@@ -55,6 +55,7 @@ ios_files = {
     "screenshot-home-metrics.png",
     "screenshot-home-widgets.png",
     "screenshot-insights.png",
+    "screenshot-lock-activity.png",
     "screenshot-widgets.png",
 }
 tv_files = {
@@ -149,4 +150,4 @@ else
   python3.12 "$SCRIPT_DIR/generate-promotional.py" --verify-only
 fi
 
-echo "✓ full marketing screenshot workflow complete: 21 raw captures + 21 promotional compositions"
+echo "✓ full marketing screenshot workflow complete: 24 raw captures + 24 promotional compositions"

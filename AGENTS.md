@@ -252,7 +252,7 @@ to ask the content.
 
 The phrase **full screenshot workflow** always means both stages for all four
 canonical device sets—iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV:
-first capture the 21 raw simulator screenshots, then generate the 21 framed
+first capture the 24 raw simulator screenshots, then generate the 24 framed
 promotional compositions with approved text. Run the single entry point below;
 do not substitute raw capture alone or one default iPhone capture plus the other
 two platforms:
@@ -299,6 +299,19 @@ For a quick Activities-only refresh, use
 `marketing/screenshots/capture-ios.sh --only activities` (and add `--device` for
 iPad). This skips Home Screen widget placement while producing the same
 `screenshot-activities.png` filename consumed by the copy helper.
+
+For a Lock Screen-only refresh, use
+`marketing/screenshots/capture-ios.sh --only lock`. XCUITest stages the launch
+Live Activity and pauses on a handshake marker while the host-side
+`marketing/screenshots/sim-lock-capture.sh` selects the intended Simulator
+UDID, locks it through Simulator → Device → Lock in the accessibility tree
+(never screen coordinates), waits for the presentation to settle, and captures
+the framebuffer with `simctl io screenshot`. It runs its accessibility
+preflight before the build so a missing macOS Accessibility grant fails fast
+with the fix, and it restores the unlocked state with `simctl launch`
+afterwards. The full run preflights the same way and folds the resulting
+`screenshot-lock-activity.png` into the manifest, checksum, and order
+validation with everything else.
 
 The iOS and tvOS capture scripts reuse incremental DerivedData under
 `ios/build/ScreenshotDerivedData-*`. Leave those gitignored caches in place
@@ -393,7 +406,10 @@ Car, Energy, and Deploys. That grid uses the large family on iPhone and the
 extra-large family on iPad. It removes any previous 00Widget layout, adds
 each set through SpringBoard's widget gallery, and asserts the expected sizes
 exist before capturing `screenshot-home-widgets.png`,
-`screenshot-home-insights.png`, and `screenshot-home-metrics.png`.
+`screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The Lock
+Screen surface (`screenshot-lock-activity.png`) is captured host-side after
+XCUITest stages the launch Live Activity — see the `--only lock` paragraph
+above — because no in-process screenshot can show the Lock Screen.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `artifacts/screenshots/raw/ipad/`. It produces native 2064×2752 images, uses the

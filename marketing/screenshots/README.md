@@ -22,15 +22,17 @@ The test captures these surfaces in order:
 | `screenshot-home-widgets.png` | The Home Screen with three small Solar, Nightly run, and Boiler widgets, a wide Energy chart, and the expanded Dynamic Island Live Activity. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Solar, Car, Energy, and Deploys. |
+| `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
 
 The canonical App Store set contains Home Screen widgets, Home Screen insights,
-Home Screen metrics, Widgets, Insights, and Activities, in that order:
+Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities,
+in that order:
 
 ```sh
 marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
 
-For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout.
+For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout. Use `--only lock` to refresh just the Lock Screen surface: it reuses the built products, stages the launch Live Activity through a marker test, and locks the simulator host-side, so it needs macOS Accessibility permission for the terminal running it.
 
 The subscription QA suite is separate from the public product-page set. Run
 `marketing/screenshots/capture-ios.sh --only subscriptions` to capture the free,
@@ -77,7 +79,7 @@ one. Copy the promotional set with `marketing/screenshots/copy.sh --set tvos --t
 
 ## iPhone without Dynamic Island
 
-The App Store 6.5-inch set follows the same six-image story as the 6.3-inch set.
+The App Store 6.5-inch set follows the same seven-image story as the 6.3-inch set.
 `screenshot-home-widgets.png` shows the classic Home Screen layout without a
 Dynamic Island, and `screenshot-home-metrics.png` uses the same large
 four-metric widget. Capture the full marketing suite with an explicit device;
@@ -90,7 +92,7 @@ marketing/screenshots/capture-ios.sh \
 ```
 
 The canonical published order is Home Screen widgets, Home Screen insights,
-Home Screen metrics, Widgets, Insights, and Activities.
+Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities.
 Relative `--out` paths are resolved from `ios/`; this canonical device already
 selects the correct default. Copy the promotional set with:
 
@@ -100,7 +102,7 @@ marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
 
 ## iPad
 
-iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Widgets, Insights, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad follows the same seven-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## Promotional compositions
 
@@ -125,17 +127,18 @@ whether SpringBoard already rendered a compact or expanded Live Activity before
 adding the empty state. Every 6.5-inch screen uses the exact smaller iPhone 14
 Plus notch silhouette from Xcode's bundled framebuffer mask.
 
-The six images tell one benefit-led story: see every agent, understand what is
-moving, step in when needed, and turn updates into decisions. Until there is a
-dedicated system-surface capture, the Activities image deliberately describes
-the in-app activity list instead of claiming to show the Lock Screen or Dynamic
-Island.
+The seven images tell one benefit-led story: see every agent, understand what is
+moving, step in when needed, and turn updates into decisions. The Activities
+image describes the in-app activity list; the Lock Screen image is the
+dedicated system-surface capture, taken host-side after XCUITest stages the
+launch activity.
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
 | `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
 | `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
 | `screenshot-home-metrics.png` | **Follow every step live.** | ETAs and changing work on the Lock Screen and Dynamic Island. |
+| `screenshot-lock-activity.png` | **Live work, on the Lock Screen.** | Check progress at a glance — the update comes to you. |
 | `screenshot-widgets.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
 | `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
@@ -151,14 +154,14 @@ frame. Its three-image copy is:
 | `screenshot-tv-widgets.png` | **Live work. Shared screen.** | Keep the whole room aligned without opening another dashboard. |
 | `screenshot-tv-card-detail.png` | **The detail is one click away.** | Open any card for the trend, briefing, or action behind it. |
 
-Generate all 21 promotional images from the current raw captures with:
+Generate all 24 promotional images from the current raw captures with:
 
 ```sh
 python3.12 marketing/screenshots/generate-promotional.py
 ```
 
 The canonical end-to-end workflow captures all four raw device sets and then
-generates and verifies all 21 promotional compositions:
+generates and verifies all 24 promotional compositions:
 
 ```sh
 marketing/screenshots/capture-all.sh
@@ -263,4 +266,4 @@ listing-authoring step.
 
 ## Implementation source
 
-The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. Marketing entry points live together as `marketing/screenshots/capture-ios.sh`, `marketing/screenshots/capture-tvos.sh`, `marketing/screenshots/capture-all.sh`, `marketing/screenshots/generate-promotional.py`, and `marketing/screenshots/copy.sh`. App Store distribution remains in `ios/appstore-metadata.json`, `ios/scripts/sync-appstore-metadata.py`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh` because it is release tooling rather than asset creation.
+The capture behavior and attachment names live in `ios/UITests/ScreenshotTests.swift` and `ios/TVUITests/TVScreenshotTests.swift`. The Lock Screen surface additionally uses `testCaptureLockScreenStaging` as a staging marker plus the host-side `marketing/screenshots/sim-lock-capture.sh` adapter, which locks the simulator through its accessibility menu and screenshots the framebuffer. Marketing entry points live together as `marketing/screenshots/capture-ios.sh`, `marketing/screenshots/capture-tvos.sh`, `marketing/screenshots/capture-all.sh`, `marketing/screenshots/generate-promotional.py`, and `marketing/screenshots/copy.sh`. App Store distribution remains in `ios/appstore-metadata.json`, `ios/scripts/sync-appstore-metadata.py`, `ios/scripts/upload-appstore-screenshots.py`, and `ios/scripts/sync-appstore-listing.sh` because it is release tooling rather than asset creation.
