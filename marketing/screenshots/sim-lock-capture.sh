@@ -140,7 +140,7 @@ preflight() {
 # item carries no accessibility name on some Xcode builds (it still carries the
 # ⌘L equivalent), so fall back to the ⌘L item when the named lookup misses.
 ax_lock() {
-  osascript "$DEVICE" <<'EOF' 2>&1
+  osascript - "$DEVICE" <<'EOF' 2>&1
 on run argv
   set deviceName to item 1 of argv
   tell application "Simulator" to activate
@@ -192,7 +192,7 @@ EOF
 # Wake a dark display back to the Lock Screen, again through accessibility:
 # raising the window plus Device → Home wakes without unlocking.
 ax_wake_to_lock() {
-  osascript "$DEVICE" <<'EOF' 2>&1
+  osascript - "$DEVICE" <<'EOF' 2>&1
 on run argv
   set deviceName to item 1 of argv
   tell application "Simulator" to activate
@@ -233,7 +233,7 @@ try:
     data = open(path, "rb").read()
     if data[:8] != b"\x89PNG\r\n\x1a\n":
         print(-1)
-        return
+        raise SystemExit  # module level: `return` would be a SyntaxError here
     width = height = ctype = depth = None
     raw = b""
     for kind, body in chunks(data):
@@ -243,7 +243,7 @@ try:
             raw += body
     if width is None or depth != 8 or ctype not in (0, 2, 4, 6):
         print(-1)
-        return
+        raise SystemExit  # module level: `return` would be a SyntaxError here
     channels = {0: 1, 2: 3, 4: 2, 6: 4}[ctype]
     stride = width * channels
     pixels = zlib.decompress(raw)
