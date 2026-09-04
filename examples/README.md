@@ -28,6 +28,9 @@ chmod +x *.sh
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.
 - `upsert-release-briefing.sh` — a text-first `briefing` whose ordered sections reveal progressively on larger surfaces.
+- `upsert-producer-attribution.sh` — `producer`, the name of the agent publishing the card, drawn under the title where there is room for it.
+- `upsert-comparison.sh` — `comparison`, the change under the headline (`+18 vs Monday`), whose `signal` is what the change means rather than which way it points.
+- `upsert-needs-you.sh` — the derived "Needs you" badge: an attention `status` plus an `actions` button. Neither half earns it alone.
 - `upsert-batch-snapshot.sh` — three related cards from one snapshot through `/v1/cards/upsert-batch`, which is the preferred integration whenever a producer run emits more than one card. It also shows `replacePrefix`, which lets the snapshot delete what it no longer contains inside one id namespace.
 
 Each call:
@@ -44,6 +47,12 @@ If one producer run emits multiple related cards, use `/v1/cards/upsert-batch` w
 - `start-solar-surplus.sh` — a composite activity with independently rendered sub-items.
 - `start-humidity-chart.sh` — starts a chart-first activity with a target reference and a progress fallback for the minimal Dynamic Island.
 - `update-queue-chart.sh` — an activity update carrying a `chart`, drawn as a sparkline on the Lock Screen.
+
+A Live Activity earns the same "Needs you" badge as a card, by a different
+route: any row in `items` with `"status": "warning"` that has not reached
+`finished` or `offline` marks the whole activity as waiting on its operator.
+Only `warning` does this — `critical` and `offline` rows usually mean the
+machinery is degraded rather than that a person has a decision to make.
 
 These also illustrate `relevanceScore`: the Smart Stack on iPhone Lock Screen and Apple Watch ranks Live Activities by it (higher wins). Send a low score for "started, plenty of time", ramp it up as urgency grows, and a high score on the finishing alert so it bubbles to the top of the wrist.
 

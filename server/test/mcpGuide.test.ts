@@ -17,9 +17,16 @@ describe("MCP integration guide", () => {
   /// so ordinary editing is free and a section-sized addition is a decision
   /// somebody makes on purpose rather than one that lands in every agent's
   /// context unnoticed.
+  ///
+  /// Raised once, deliberately: documenting `producer`, `comparison`, and the
+  /// derived "Needs you" badge added ~3.9k characters to `cards`, which
+  /// `essentials` and `everything` carry too. The alternative was leaving three
+  /// shipped fields undocumented, which is the failure this file exists to
+  /// prevent — an agent cannot publish what the guide never mentions, and
+  /// "Needs you" has no field to discover from the schema at all.
   const BUDGETS: Record<McpGuideSection, number> = {
-    essentials: 68_000,
-    cards: 36_000,
+    essentials: 70_000,
+    cards: 38_000,
     "live-activities": 34_000,
     actions: 9_000,
     everything: 105_000,
@@ -70,12 +77,21 @@ describe("MCP integration guide", () => {
     ["items suppressing a chart", "compete for the same space"],
     ["surface budgets", "How much room each surface actually has"],
     ["jobs with named parts", "A job with named parts"],
+    // Publishing an attention status with no `actions` succeeds and simply
+    // does not badge. There is no field to discover this from, so the guide
+    // is the only place an agent can learn it.
+    ["the derived Needs you badge", "Asking the operator to step in"],
+    ["who published a card", "**CardProducer**"],
+    ["the change beside the headline", "**CardComparison**"],
   ])("essentials keeps %s", (_name, needle) => {
     expect(render("essentials")).toContain(needle);
   });
 
   it("cards and live-activities each keep their own half's rules", () => {
     expect(render("cards")).toContain("First check you want a card at all");
+    expect(render("cards")).toContain("Asking the operator to step in");
+    expect(render("cards")).toContain("**CardProducer**");
+    expect(render("cards")).toContain("**CardComparison**");
     expect(render("live-activities")).toContain("frozen when the activity starts");
     expect(render("live-activities")).toContain("compete for the same space");
   });

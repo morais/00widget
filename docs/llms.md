@@ -52,6 +52,12 @@ On Home Screen widgets, iOS first launches the containing 00Widget app with the 
 - Pick one stable `id` per logical card.
 - If the project has a dashboard, consider setting `deepLink`.
 - Prefer common card fields: `id`, `template`, `title`, `status`, `icon`, `updatedAt`, `staleAfter`, `deepLink`.
+- **Set `producer` to your own name.** An operator's dashboard carries cards
+  from several agents, and the title alone does not say which one is claiming
+  this card.
+- If you need the operator to decide something, publish an attention `status`
+  *and* an `actions` button. That pair is what earns the "Needs you" badge —
+  [how it is derived](#asking-the-operator-to-step-in).
 - If the thing has a due time, set `deadline` rather than writing the remaining time into `value` — the device keeps a `deadline` current between reloads and a string goes stale.
 - Avoid secrets and private user data in card text; widgets can appear on the Lock Screen.
 
@@ -242,6 +248,8 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "status": "unknown | good | warning | critical | running | finished | paused | offline",
   "icon": "SF Symbol name? (e.g. sun.max, bolt.car, flame, washer, creditcard)",
   "statusIcon": "SF Symbol name? (secondary glyph for a runtime status — e.g. bolt.fill while boosting, arrow.up while charging; rendered on every widget size, including grid cells)",
+  "producer": "CardProducer? ({label, icon?} — which agent or automation publishes this card)",
+  "comparison": "CardComparison? ({value, label, signal?} — the change beside the headline, e.g. +18 vs Monday)",
   "priority": "integer? (higher sorts first; absent counts as 0)",
   "progress": "number? 0.0-1.0 (the bar on a progress card; also fills the circular Lock Screen gauge and a grid cell on any template)",
   "updatedAt": "ISO-8601 timestamp? (server fills in if omitted)",
@@ -267,6 +275,52 @@ the chart when its end is cut off.
 prefix such as a currency symbol belongs in the already-formatted `value`: send
 `"value": "$338.99"` with no `unit`. Do not send a bare `"338.99"` value with
 `"unit": "$"`, which renders as `338.99 $`.
+
+**CardProducer** (`producer` — who published the card):
+
+```json
+{
+  "label": "string (the agent or automation's own name, e.g. Release Agent)",
+  "icon": "SF Symbol name? (drawn beside the label)"
+}
+```
+
+An operator's dashboard fills up with cards from several agents, and a title
+like "Build" does not say which of them is claiming it. `producer` is that
+attribution, drawn on a second line under the title. Use **your own name** —
+the agent doing the publishing — not the vendor whose data you relay: "Release
+Agent", not "GitHub".
+
+Only surfaces with room for it draw it: the iOS app, Apple TV, and large and
+extra-large widgets. Small and medium widgets, Lock Screen accessories, and
+grid cells drop it, so never put anything the card needs in `producer`.
+
+Now that the name has somewhere structured to live, keep it out of `subtitle`.
+A subtitle shaped `"Growth Agent · up 18 this week"` next to a `producer` of
+"Growth Agent" spends two of a card's few lines saying one thing; send
+`"up 18 this week"` and let the attribution be the attribution.
+
+**CardComparison** (`comparison` — the change beside the headline):
+
+```json
+{
+  "value": "string (the already-formatted change, e.g. +18 or -12%)",
+  "label": "string (what it is compared with, e.g. vs Monday)",
+  "signal": "favorable | neutral | caution | unfavorable (default neutral)"
+}
+```
+
+The headline says where something is; `comparison` says which way it moved, on
+the line under it. Both halves are formatted by you — the device never computes
+a delta, so send the sign you want shown.
+
+`signal` is what the change *means*, not which way it points, and the two come
+apart constantly: `+18` trials is `favorable`, `+18` errors is `unfavorable`,
+`-12%` spend is `favorable` again. Pick it from the reading or the card draws a
+green arrow over bad news. Omitted, it draws `neutral`.
+
+Unrelated to a chart's `delta` style, which controls bar geometry; a card may
+carry both.
 
 **DashboardItem** (rows inside a `list` card):
 
@@ -520,6 +574,10 @@ Card field limits:
 | `unit` | 24 chars |
 | `icon` | 64 chars |
 | `statusIcon` | 64 chars |
+| `producer.label` | 240 chars |
+| `producer.icon` | 64 chars |
+| `comparison.value` | 80 chars |
+| `comparison.label` | 240 chars |
 | `priority` | integer |
 | `deadline` | ISO-8601 timestamp |
 | `deepLink` | HTTPS URL, 2048 chars |
@@ -999,6 +1057,42 @@ what the card shows. They are unrelated and a card may set either, both, or
 neither.
 
 `staleAfter` is a rendering hint. iOS keeps showing the card, but renders it in a stale/secondary state so the operator can tell the value is old; it does not hide or delete the card.
+
+### Asking the operator to step in
+
+An agent that has run out of things it can decide on its own needs to say so,
+and "Needs you" is the one label every surface uses for that hand-off. There is
+no `needsYou` field to send. It is **derived**, and you earn it by publishing
+both halves of the claim:
+
+- an attention `status` — `warning`, `critical`, `offline`, `paused`, or
+  `unknown`, and
+- at least one entry in `actions`.
+
+```json
+{
+  "id": "release-launch",
+  "template": "summary",
+  "title": "Launch",
+  "value": "4/5",
+  "status": "warning",
+  "actions": [{ "id": "approve-launch", "label": "Approve" }]
+}
+```
+
+Send both and the card is badged **Needs you** in place of its ordinary status
+pill. Send the status alone and it keeps a plain status badge, which is the
+honest result: a `warning` nobody can act on from the card is an observation,
+not a hand-off, and promising a decision the operator has no button for is worse
+than staying quiet. Send the action alone and it is a healthy card with a
+button. So the field to reach for is `actions` — see [Actions](#actions) for the
+button shape and the destructive-action rules.
+
+A **Live Activity** earns the same badge by a different route: any row in
+`items` with `"status": "warning"` that has not reached `finished` or `offline`
+marks the whole activity as waiting on its operator. Only `warning` does this —
+`critical` and `offline` rows usually mean the machinery is degraded rather than
+that a person has a decision to make.
 
 ### Ordering
 
@@ -1904,6 +1998,9 @@ struct WidgetClient {
 - **Don't** ship UI HTML, layouts, or markdown that you expect 00Widget to render. The server only stores typed state. Pick a template.
 - **Don't** create a new card id per publish. Re-use the same `id` to update.
 - **Don't** name cards to control their order — `a-solar`, `b-washer`. Ids are the dedupe key; set `priority` instead.
+- **Don't** write your own name into `title` or `subtitle` to get attribution. Send `producer`, which the surfaces with room for it draw on their own line and the smaller ones drop.
+- **Don't** pick a `comparison.signal` from the sign of the change. `+18` errors is `unfavorable`; the signal is what the change means, not which way it points.
+- **Don't** publish an attention `status` with no `actions` and expect "Needs you". The badge is derived from both, and a warning nobody can act on stays an ordinary status.
 - **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it.
 - **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
 - **Don't** send a `chart` series longer than 60 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
