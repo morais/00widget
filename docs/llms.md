@@ -291,9 +291,11 @@ attribution, drawn on a second line under the title. Use **your own name** —
 the agent doing the publishing — not the vendor whose data you relay: "Release
 Agent", not "GitHub".
 
-Only surfaces with room for it draw it: the iOS app, Apple TV, and large and
-extra-large widgets. Small and medium widgets, Lock Screen accessories, and
-grid cells drop it, so never put anything the card needs in `producer`.
+Only surfaces with room for it draw it: the iOS app, Apple TV, a shared link's
+web page, and large and extra-large widgets. Small and medium widgets, Lock
+Screen accessories, and grid cells drop it, so never put anything the card needs
+in `producer`. The web page shows the label alone — `icon` names an SF Symbol,
+which a browser cannot resolve.
 
 Now that the name has somewhere structured to live, keep it out of `subtitle`.
 A subtitle shaped `"Growth Agent · up 18 this week"` next to a `producer` of

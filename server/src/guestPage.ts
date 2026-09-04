@@ -20,9 +20,15 @@ main{width:100%;max-width:26rem}
 h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1.25rem;margin-bottom:1.25rem}
 .title{font-size:1.25rem;font-weight:600;margin:0 0 .25rem}
+.producer{color:var(--muted);font-size:.85rem;margin:-.15rem 0 .6rem}
 .sub{color:var(--muted);margin:0 0 1rem}
 .value{font-size:2.25rem;font-weight:700;letter-spacing:-.02em}
 .unit{font-size:1rem;color:var(--muted);margin-left:.25rem}
+.cmp{font-size:.9rem;font-weight:600;color:var(--muted);margin:.2rem 0 0}
+.cmp.sig-favorable{color:#34c759}
+.cmp.sig-caution{color:#ff9f0a}
+.cmp.sig-unfavorable{color:#ff3b30}
+.cmp-label{color:var(--muted);font-weight:400;margin-left:.35rem}
 .row{display:flex;justify-content:space-between;padding:.5rem 0;border-top:1px solid var(--line)}
 .row .k{color:var(--muted)}
 .spark{display:block;width:100%;height:64px;margin:.75rem 0}
@@ -318,6 +324,31 @@ const GUEST_SCRIPT = `
       +'<rect class="track" x="0" y="0" width="100" height="10"/>'
       +'<rect class="fill '+cls+'" x="0" y="0" width="'+(f*100).toFixed(2)+'" height="10"/></svg>';
   };
+  // Who published the card, on its own line under the title, as the app and
+  // Apple TV draw it. The producer's icon is dropped: it names an SF Symbol,
+  // which a browser has no way to resolve — the same reason this page already
+  // ignores a card's own icon and statusIcon. The label carries it alone.
+  var producerLine=function(p){
+    if(!p||!p.label){return ''}
+    return '<p class="producer">'+esc(p.label)+'</p>';
+  };
+  // The change under the headline. Coloured by what the producer said the
+  // change *means*, never by the sign of the number: "+18" is favorable for
+  // trials and unfavorable for errors, and only the signal tells them apart.
+  //
+  // The class comes from the fixed SEM_SIGNAL map rather than from the signal
+  // itself, because esc() escapes text and not attribute values — an
+  // interpolated signal would be an attribute-injection foothold on the one
+  // page that holds a guest token. An unrecognised signal simply gets no class
+  // and draws muted, which is also what neutral does.
+  var comparisonLine=function(cmp){
+    if(!cmp||!cmp.value){return ''}
+    var mark=SIGNAL_MARK[cmp.signal];
+    return '<p class="cmp '+(SEM_SIGNAL[cmp.signal]||'')+'">'
+      +(mark?esc(mark)+' ':'')+esc(cmp.value)
+      +(cmp.label?'<span class="cmp-label">'+esc(cmp.label)+'</span>':'')
+      +'</p>';
+  };
   // Text-node serialization escapes &, < and >, and NOT quotes — a text node
   // never needs them escaped. Every use of esc() below is text context except
   // the anchor's href, which is why that one is built through the DOM instead:
@@ -346,10 +377,18 @@ const GUEST_SCRIPT = `
   }).then(function(d){
     var h='';
     if(d.resourceKind==='card'){
+      // No "Needs you" badge here, deliberately, and it is not an omission to
+      // fix later. The badge is derived from an attention status *plus* an
+      // action, and getGuestResource strips actions from a shared card — so
+      // the second half is absent by design. It would be the wrong thing to
+      // draw regardless: a guest is not the operator the badge addresses and
+      // has nothing to press.
       var c=d.card;
       h+='<p class="title">'+esc(c.title)+'</p>';
+      h+=producerLine(c.producer);
       if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
+      h+=comparisonLine(c.comparison);
       var pf=fraction(c);
       if(pf!=null){h+=progressBar(pf,c.status)}
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
