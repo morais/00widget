@@ -152,4 +152,81 @@ struct SampleDataFactoryTests {
         #expect(cards.allSatisfy { $0.isSample })
         #expect(cards.allSatisfy { !$0.isStale })
     }
+
+    @Test("Preview launch phases move 3/5 through approval to 5/5")
+    func previewLaunchPhasesAreOrdered() throws {
+        let referenceDate = try #require(
+            ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")
+        )
+        let a = SampleDataFactory.makePreviewLiveActivitySession(phase: .a, referenceDate: referenceDate)
+        let b = SampleDataFactory.makePreviewLiveActivitySession(phase: .b, referenceDate: referenceDate)
+        let c = SampleDataFactory.makePreviewLiveActivitySession(phase: .c, referenceDate: referenceDate)
+
+        #expect(a.value == "3/5")
+        #expect(a.progress == 0.6)
+        #expect(b.value == "4/5")
+        #expect(b.progress == 0.8)
+        #expect(c.value == "5/5")
+        #expect(c.progress == 1.0)
+
+        // Announcement stays first so compact surfaces retain the decision.
+        for session in [a, b, c] {
+            #expect(session.items?.map(\.title) == ["Announcement", "Store", "Website", "Tests", "Build"])
+            #expect(session.title == "App launch")
+            #expect(session.isSample)
+        }
+
+        #expect(a.activeItems.count == 2)
+        #expect(b.activeItems.count == 1)
+        #expect(c.activeItems.isEmpty)
+
+        // Only the processing state may predict a time. A countdown beside
+        // "Waiting for approval" would claim to know when a person decides.
+        #expect(a.endsAt != nil)
+        #expect(b.endsAt == nil)
+        #expect(c.endsAt == nil)
+
+        #expect(b.needsUserAttention)
+        #expect(!c.needsUserAttention)
+
+        #expect(a.updatedAt == referenceDate)
+        #expect(b.updatedAt == referenceDate)
+        #expect(c.updatedAt == referenceDate)
+    }
+
+    @Test("Preview hero cards follow the launch phase")
+    func previewHeroCardsFollowPhase() throws {
+        let referenceDate = try #require(
+            ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")
+        )
+        let cards = SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate, phase: .b)
+        #expect(cards.map(\.title) == ["Launch", "Production", "Trials", "Open PRs"])
+
+        let launchB = try #require(cards.first { $0.title == "Launch" })
+        #expect(launchB.value == "4/5")
+        #expect(launchB.progress == 0.8)
+        #expect(launchB.actions?.map(\.label) == ["Approve"])
+        #expect(launchB.needsUserAttention)
+
+        let launchA = try #require(
+            SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate, phase: .a)
+                .first { $0.title == "Launch" }
+        )
+        #expect(launchA.value == "3/5")
+        #expect(launchA.actions == nil)
+
+        let launchC = try #require(
+            SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate, phase: .c)
+                .first { $0.title == "Launch" }
+        )
+        #expect(launchC.value == "5/5")
+        #expect(launchC.actions == nil)
+
+        let trials = try #require(cards.first { $0.title == "Trials" })
+        #expect(trials.value == "128")
+        #expect(trials.comparison == CardComparison(value: "+18", label: "vs Monday", signal: .favorable))
+
+        #expect(cards.allSatisfy { $0.isSample })
+        #expect(cards.allSatisfy { !$0.isStale })
+    }
 }

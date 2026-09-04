@@ -641,4 +641,226 @@ public enum SampleDataFactory {
             staleAt: now.addingTimeInterval(3600)
         )
     }
+
+    /// Deterministic A/B/C launch phases for the App Store Preview.
+    ///
+    /// The filmed change is a screenshot-only Live Activity `ContentState`
+    /// update, never a Home Screen widget reload: WidgetKit reloads are
+    /// budgeted and non-deterministic, ActivityKit updates are not. Phase A
+    /// shows store processing with an ETA; B waits on the person, so it
+    /// carries no countdown; C is the finished proof after approval.
+    public enum PreviewLaunchPhase: String, CaseIterable, Codable, Sendable {
+        case a
+        case b
+        case c
+    }
+
+    /// Screenshot-only launch job for the preview timeline. Uses its own
+    /// `preview-app-launch` id namespace so the preview driver can start and
+    /// update it without touching the screenshot sample activity.
+    public static func makePreviewLiveActivitySession(
+        phase: PreviewLaunchPhase = .b,
+        referenceDate: Date = Date()
+    ) -> LiveActivitySession {
+        let staleAt = referenceDate.addingTimeInterval(3600)
+        let startedAt = referenceDate.addingTimeInterval(-32 * 60)
+        switch phase {
+        case .a:
+            return LiveActivitySession(
+                externalActivityId: sampleId("preview-app-launch"),
+                kind: .job,
+                title: "App launch",
+                subtitle: "Version 2.4 · five steps",
+                state: "Uploading to store",
+                signal: .neutral,
+                icon: "shippingbox.fill",
+                statusIcon: "arrow.up.circle",
+                value: "3/5",
+                progress: 0.6,
+                items: [
+                    LiveActivityItem(id: "announcement", title: "Announcement", value: "Waiting for store", status: .running),
+                    LiveActivityItem(id: "store", title: "Store", value: "Uploading", status: .running),
+                    LiveActivityItem(id: "website", title: "Website", value: "Live", status: .finished),
+                    LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
+                    LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
+                ],
+                endsAt: referenceDate.addingTimeInterval(12 * 60),
+                countdownGranularity: .minute,
+                startedAt: startedAt,
+                updatedAt: referenceDate,
+                staleAt: staleAt
+            )
+        case .b:
+            return LiveActivitySession(
+                externalActivityId: sampleId("preview-app-launch"),
+                kind: .job,
+                title: "App launch",
+                subtitle: "Version 2.4 · five steps",
+                state: "Waiting for approval",
+                signal: .caution,
+                icon: "shippingbox.fill",
+                statusIcon: "person.crop.circle.badge.exclamationmark",
+                value: "4/5",
+                progress: 0.8,
+                items: [
+                    LiveActivityItem(id: "announcement", title: "Announcement", value: "Needs approval", status: .warning),
+                    LiveActivityItem(id: "store", title: "Store", value: "Uploaded", status: .finished),
+                    LiveActivityItem(id: "website", title: "Website", value: "Live", status: .finished),
+                    LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
+                    LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
+                ],
+                endsAt: nil,
+                countdownGranularity: nil,
+                startedAt: startedAt,
+                updatedAt: referenceDate,
+                staleAt: staleAt
+            )
+        case .c:
+            return LiveActivitySession(
+                externalActivityId: sampleId("preview-app-launch"),
+                kind: .job,
+                title: "App launch",
+                subtitle: "Version 2.4 · five steps",
+                state: "Launched",
+                signal: .favorable,
+                icon: "shippingbox.fill",
+                statusIcon: "checkmark.circle",
+                value: "5/5",
+                progress: 1.0,
+                items: [
+                    LiveActivityItem(id: "announcement", title: "Announcement", value: "Published", status: .finished),
+                    LiveActivityItem(id: "store", title: "Store", value: "Live", status: .finished),
+                    LiveActivityItem(id: "website", title: "Website", value: "Live", status: .finished),
+                    LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
+                    LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
+                ],
+                endsAt: nil,
+                countdownGranularity: nil,
+                startedAt: startedAt,
+                updatedAt: referenceDate,
+                staleAt: staleAt
+            )
+        }
+    }
+
+    /// Deterministic hero cards for the preview: small Launch, Production and
+    /// Open PRs plus the wide Trials chart. The Launch card follows the phase
+    /// so the dashboard opened mid-timeline agrees with the activity; the
+    /// other three are phase-independent. Only phase B carries the approval,
+    /// which is the single amber decision in the story.
+    public static func makePreviewLaunchCards(
+        referenceDate: Date,
+        phase: PreviewLaunchPhase = .b
+    ) -> [DashboardCard] {
+        let freshUntil = Date.distantFuture
+        let launchValue: String
+        let launchProgress: Double
+        let launchStatus: DashboardStatus
+        let launchActions: [ActionDefinition]?
+        switch phase {
+        case .a:
+            launchValue = "3/5"
+            launchProgress = 0.6
+            launchStatus = .running
+            launchActions = nil
+        case .b:
+            launchValue = "4/5"
+            launchProgress = 0.8
+            launchStatus = .warning
+            launchActions = [ActionDefinition(id: "approve-launch", label: "Approve")]
+        case .c:
+            launchValue = "5/5"
+            launchProgress = 1.0
+            launchStatus = .good
+            launchActions = nil
+        }
+        return [
+            DashboardCard(
+                id: sampleId("preview-launch"),
+                template: .briefing,
+                title: "Launch",
+                subtitle: "Release Agent · final approval",
+                value: launchValue,
+                status: launchStatus,
+                icon: "shippingbox.fill",
+                producer: CardProducer(label: "Release Agent", icon: "sparkles"),
+                progress: launchProgress,
+                updatedAt: referenceDate,
+                staleAfter: freshUntil,
+                briefing: DashboardBriefing(sections: [
+                    DashboardBriefingSection(
+                        id: "now",
+                        label: "Now",
+                        text: "Build and tests passed. Store uploaded; website live."
+                    ),
+                    DashboardBriefingSection(
+                        id: "next",
+                        label: "Next",
+                        text: "Start the 10% rollout and publish the release notes after approval."
+                    ),
+                    DashboardBriefingSection(
+                        id: "needs-you",
+                        label: "Needs you",
+                        text: "Approve the customer announcement."
+                    ),
+                ]),
+                actions: launchActions
+            ),
+            DashboardCard(
+                id: sampleId("preview-production"),
+                template: .list,
+                title: "Production",
+                subtitle: "Ops Agent · checked now",
+                status: .good,
+                icon: "server.rack",
+                producer: CardProducer(label: "Ops Agent", icon: "gearshape.2"),
+                updatedAt: referenceDate,
+                staleAfter: freshUntil,
+                items: [
+                    DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
+                    DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
+                    DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
+                ]
+            ),
+            DashboardCard(
+                id: sampleId("preview-trials"),
+                template: .chart,
+                title: "Trials",
+                subtitle: "Growth Agent · up 18 this week",
+                value: "128",
+                unit: "today",
+                status: .good,
+                icon: "chart.line.uptrend.xyaxis",
+                producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
+                comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
+                updatedAt: referenceDate,
+                staleAfter: freshUntil,
+                chart: DashboardChart(
+                    points: [110, 111, 114, 116, 119, 123, 128],
+                    min: 108,
+                    max: 130,
+                    reference: 110,
+                    referenceMetadata: DashboardChartReferenceMetadata(
+                        label: "Monday",
+                        semantic: MetricSemantic(role: .baseline)
+                    ),
+                    semantic: MetricSemantic(role: .actual, signal: .favorable),
+                    style: .line,
+                    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"]
+                )
+            ),
+            DashboardCard(
+                id: sampleId("preview-open-prs"),
+                template: .summary,
+                title: "Open PRs",
+                subtitle: "Code Agent · all reviewed",
+                value: "3",
+                status: .good,
+                icon: "arrow.triangle.branch",
+                producer: CardProducer(label: "Code Agent", icon: "chevron.left.forwardslash.chevron.right"),
+                updatedAt: referenceDate,
+                staleAfter: freshUntil
+            ),
+        ]
+    }
 }
