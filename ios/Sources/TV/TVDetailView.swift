@@ -888,15 +888,26 @@ private enum TVDetailTypography {
     static let headline: CGFloat = 96
 }
 
-private struct TVChip: ViewModifier {
+/// The pill that says what an activity or card is up to.
+///
+/// Shared with the dashboard, which drew its own until the two disagreed about
+/// where the "doing right now" glyph belongs: the panel put it inside the pill
+/// and the dashboard put it beside the title, so one state arrived on screen as
+/// two separate orange things at opposite ends of a row. The sizes still differ
+/// — the panel's type is a whole step larger — which is why they are arguments
+/// rather than a second copy of the modifier.
+struct TVChip: ViewModifier {
     let tint: Color
+    var font: Font = .title3.weight(.semibold)
+    var horizontalPadding: CGFloat = 18
+    var verticalPadding: CGFloat = 8
 
     func body(content: Content) -> some View {
         content
-            .font(.title3.weight(.semibold))
+            .font(font)
             .foregroundStyle(tint)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
             .background(Capsule().fill(tint.opacity(0.18)))
     }
 }

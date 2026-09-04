@@ -558,12 +558,6 @@ private struct TVLiveActivityCardView: View {
             Image(systemName: activity.detailIconName)
                 .font(.title2)
                 .foregroundStyle(activity.tint)
-            // What the activity is doing right now, beside what it is.
-            if let statusIcon = activity.semanticStatusIcon {
-                Image(systemName: statusIcon)
-                    .font(.headline)
-                    .foregroundStyle(activity.tint)
-            }
             Text(activity.title)
                 .font(.title3.weight(.semibold))
                 .tvReadableText(
@@ -586,14 +580,28 @@ private struct TVLiveActivityCardView: View {
                 freshness
             }
             Spacer(minLength: 8)
-            Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
-                .font(.callout.weight(.semibold))
-                .tvReadableText(largeTextLineLimit: 2)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(activity.tint.opacity(0.18)))
-                .foregroundStyle(activity.tint)
-                .fixedSize()
+            // One state, one place. What the activity *is* stays beside the
+            // title; what it is *doing* goes inside the pill with the words it
+            // qualifies, which is where the detail panel has always put it.
+            // Split across the row — glyph on the left, pill on the right —
+            // the same fact arrived as two separate orange things at opposite
+            // ends of a card, and read as two.
+            HStack(spacing: 10) {
+                if let statusIcon = activity.semanticStatusIcon {
+                    Image(systemName: statusIcon).accessibilityHidden(true)
+                }
+                Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
+                    .tvReadableText(largeTextLineLimit: 2)
+            }
+            .modifier(
+                TVChip(
+                    tint: activity.tint,
+                    font: .callout.weight(.semibold),
+                    horizontalPadding: 12,
+                    verticalPadding: 6
+                )
+            )
+            .fixedSize()
         }
     }
 
