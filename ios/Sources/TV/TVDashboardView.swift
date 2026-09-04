@@ -13,11 +13,13 @@ import SwiftUI
 /// whether or not a plot follows them.
 enum TVTypography {
     static let valueSize: CGFloat = 44
-    static let chartValueSize = valueSize
     /// Supporting context below a chart value. Keep this explicit: tvOS's
     /// semantic callout curve can make supporting text physically taller than
     /// a custom value even when its nominal point size is smaller.
     static let chartSubtitleSize: CGFloat = 26
+    /// The glyph beside a card's title. Deliberately *not* larger than the
+    /// title it sits next to — see the note in `TVCardMetrics`.
+    static let cardIcon: Font = .headline
     /// Caption 2, the smallest style tvOS defines.
     static let floor: CGFloat = 23
 
@@ -49,7 +51,41 @@ enum TVTypography {
 /// rather than the build, which cannot see an overflow.
 enum TVCardMetrics {
     static let verticalPadding: CGFloat = 28
-    static let height: CGFloat = 252
+    static let horizontalPadding: CGFloat = 28
+    /// Derived, and derived from the *trimmed* card rather than the card as a
+    /// producer sends it — which is the distinction that had this number wrong
+    /// twice. Measured, the tallest thing a cell draws is a `chart` card at
+    /// 228 points: a one-line header, the headline, a comparison and a
+    /// 46-point plot. It cannot go lower without giving up the comparison or
+    /// the plot, and neither is optional on a card whose whole subject is a
+    /// trend. 228 plus the inset on both sides is 284.
+    ///
+    /// Before trimming, the same measurement said 362 — which does not fit,
+    /// because two full rows have to sit on 1080 lines and that caps a card at
+    /// 304. So the order matters: decide what a cell draws, measure that, and
+    /// size the box to it. Sizing the box to an untrimmed card is not
+    /// available at this type scale.
+    static let height: CGFloat = 284
+
+    /// What the column inside a cell actually has to fit into.
+    static var contentHeight: CGFloat { height - verticalPadding * 2 }
+
+    /// One cell's width on a 1920-point screen, and the content width inside
+    /// it. Derived the same way the view lays out rather than measured off a
+    /// capture, so it stays true if a padding changes: the screen less the
+    /// television's 80-point horizontal safe area, the dashboard's own 80, and
+    /// the scrolling column's 20 leaves 1560 points for three columns and the
+    /// two 40-point gaps between them. Confirmed against
+    /// `screenshot-tv-widgets.png`, where a card background spans x=180..673.
+    static let gridSpacing: CGFloat = 40
+    static func width(columns: Int, in screenWidth: CGFloat = 1920) -> CGFloat {
+        let available = screenWidth - (80 + 80 + 20) * 2
+        return (available - gridSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+    }
+
+    static func contentWidth(columns: Int, in screenWidth: CGFloat = 1920) -> CGFloat {
+        width(columns: columns, in: screenWidth) - horizontalPadding * 2
+    }
     /// The same measurement at the top of the non-accessibility range.
     ///
     /// Derived from `height` rather than chosen beside it: the content is
@@ -564,75 +600,44 @@ struct TVLiveActivityItemRow: View {
     }
 }
 
-private struct TVDashboardCardView: View {
+/// The grid cell: a button, and the fixed box its content is drawn in.
+///
+/// The content is `TVDashboardCardContent` rather than an inline `VStack`
+/// because of what the fixed `.frame(height:)` below does to a measurement.
+/// Applied here it *is* the answer to "how tall is this card" — 252, always,
+/// whether or not the column inside needed more. Ask the content instead and
+/// you get the height it actually wanted, which is the only number an
+/// overflow shows up in. `TVCardFitTests` asks the content.
+struct TVDashboardCardView: View {
     let card: DashboardCard
     let open: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private var textScale: TVTextScale { TVTextScale(dynamicTypeSize) }
 
     var body: some View {
         Button(action: open) {
-            VStack(alignment: .leading, spacing: 14) {
-                header
-
-                switch card.template {
-                case .list:
-                    listContent
-                case .progress:
-                    valueContent
-                    if let progress = card.progressValue {
-                        ProgressView(value: progress)
-                            .tint(card.status.tint)
-                    }
-                case .chart:
-                    chartContent
-                case .history, .breakdown:
-                    chartContent
-                case .briefing:
-                    valueContent
-                    if let section = card.briefing?.sections.first {
-                        Text(section.text)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 4)
-                    }
-                case .summary, .action:
-                    valueContent
-                }
-
-                if let deadline = card.deadline {
-                    Label {
-                        Text(deadline, style: .relative)
-                    } icon: {
-                        Image(systemName: "clock")
-                    }
-                    // `.caption` is 25pt here. A countdown someone is meant
-                    // to read across a room is not caption material.
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .tvReadableText()
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, TVCardMetrics.verticalPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: textScale.cardHeight)
-            .frame(minHeight: textScale.cardMinimumHeight)
-            .contentShape(RoundedRectangle(cornerRadius: 24))
-            // Inside the label, not on the button. A button builds its own
-            // label out of its children, keeping each child's
-            // `accessibilityLabel` and dropping its `accessibilityValue` —
-            // which is how `StatusBadge` contributed the bare word "Status"
-            // and the status itself was never spoken. Collapsing the
-            // children to one labelled element is what the button then has
-            // to synthesize from; the same modifiers applied outside the
-            // button are ignored.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(accessibilitySummary))
+            TVDashboardCardContent(card: card)
+                // Top alignment is the box's business, not the column's. It
+                // used to be a `Spacer` inside the column, which is
+                // indistinguishable from content to anything measuring it.
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, TVCardMetrics.horizontalPadding)
+                .padding(.vertical, TVCardMetrics.verticalPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: textScale.cardHeight)
+                .frame(minHeight: textScale.cardMinimumHeight)
+                .contentShape(RoundedRectangle(cornerRadius: 24))
+                // Inside the label, not on the button. A button builds its own
+                // label out of its children, keeping each child's
+                // `accessibilityLabel` and dropping its `accessibilityValue` —
+                // which is how `StatusBadge` contributed the bare word "Status"
+                // and the status itself was never spoken. Collapsing the
+                // children to one labelled element is what the button then has
+                // to synthesize from; the same modifiers applied outside the
+                // button are ignored.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(accessibilitySummary))
         }
         .buttonStyle(.card)
         .accessibilityHint(hint)
@@ -653,24 +658,104 @@ private struct TVDashboardCardView: View {
             : "Opens the full card with " + extras.joined(separator: " and ")
     }
 
-    /// The card is one focus stop and there is no detail screen behind it, so
-    /// the plot has to be read here or nowhere. `listContent` draws three rows
-    /// and `StatusStripView` fourteen pips; the label says what is on screen.
+    /// The label says what is on screen: `listContent` draws
+    /// `TVDashboardCardContent.listRowLimit` rows and `StatusStripView`
+    /// fourteen pips. Pressing Select opens the panel, which has the rest —
+    /// so this deliberately does not read out what the cell chose to defer.
     private var accessibilitySummary: String {
         let detail = CardAccessibilitySummary.detail(
             for: card,
-            rowLimit: card.template == .history ? 14 : 3
+            rowLimit: card.template == .history
+                ? 14
+                : TVDashboardCardContent.listRowLimit
         )
         return detail.isEmpty
             ? CardAccessibilitySummary.summary(for: card)
             : CardAccessibilitySummary.summary(for: card) + " " + detail
     }
+}
 
-    private var header: some View {
+/// The column a cell draws, separated from the box it is drawn in so that its
+/// natural height can be measured. See `TVDashboardCardView`.
+struct TVDashboardCardContent: View {
+    let card: DashboardCard
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    /// What a cell holds, which is less than a card has.
+    ///
+    /// The cell is a *medium widget* — 493x252, against an iOS medium's
+    /// 364x170 — and tvOS type is about twice iOS type while the box is only
+    /// 1.35x wider. So it holds roughly four lines, and a card routinely has
+    /// six or seven. Everything omitted here is on `TVDetailView`, which one
+    /// press of Select away has the whole subtitle, the whole briefing, every
+    /// row and the deadline; nothing below is *lost*, it is deferred.
+    ///
+    /// The rule is: identity, then the headline, then at most two supporting
+    /// things, and the subtitle yields first — it is the line most likely to
+    /// restate the value or the producer, and every template that drops it has
+    /// something more specific in its place.
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+
+            switch card.template {
+            case .list:
+                listContent
+            case .progress:
+                valueContent
+                if let progress = card.progressValue {
+                    ProgressView(value: progress)
+                        .tint(card.status.tint)
+                }
+            case .chart:
+                chartContent
+            case .history, .breakdown:
+                chartContent
+            case .briefing:
+                valueContent
+                if let section = card.briefing?.sections.first {
+                    Text(section.text)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .tvReadableText(standardLineLimit: 1, largeTextLineLimit: 3)
+                }
+            case .summary, .action:
+                valueContent
+            }
+
+        }
+    }
+
+    /// How many rows a `list` cell draws.
+    ///
+    /// Two, not three. A row is 46 points and the cell has 196 for everything,
+    /// so three rows plus a header is already past the box before the card has
+    /// said anything else — which is what a `list` card was doing. The whole
+    /// list, up to six rows, is on the detail panel; `TVCardDetailContent`
+    /// budgets that separately and by the same reasoning.
+    static let listRowLimit = 2
+
+    /// Whether the card draws its subtitle at all. A `list` card does not —
+    /// its column is rows — so its header is the only place its producer can
+    /// appear, and the attribution below is kept whatever the subtitle says.
+    /// Shared with the iOS renderer, which lays a card out the same way.
+    private var drawsSubtitle: Bool { card.template.drawsCardSubtitle }
+
+    /// The attribution goes in the header only when the subtitle is not
+    /// already carrying it. See `DashboardCard.producerRepeatsSubtitle`.
+    private var producerLine: CardProducer? {
+        guard let producer = card.producer else { return nil }
+        return drawsSubtitle && card.producerRepeatsSubtitle ? nil : producer
+    }
+
+    /// Internal rather than private so `TVCardFitTests` can ask what width
+    /// it wants: the header is the row that runs out of horizontal room.
+    var header: some View {
         HStack(spacing: 12) {
             if let icon = card.icon {
                 Image(systemName: icon)
-                    .font(.title2)
+                    .font(TVTypography.cardIcon)
                     .foregroundStyle(card.status.tint)
             }
             VStack(alignment: .leading, spacing: 2) {
@@ -681,7 +766,7 @@ private struct TVDashboardCardView: View {
                         largeTextLineLimit: 2,
                         standardMinimumScaleFactor: 0.75
                     )
-                if let producer = card.producer {
+                if let producer = producerLine {
                     HStack(spacing: 5) {
                         if let icon = producer.icon {
                             Image(systemName: icon).accessibilityHidden(true)
@@ -694,26 +779,52 @@ private struct TVDashboardCardView: View {
                 }
             }
             Spacer(minLength: 8)
+            trailingBadge
+                // The row has four things in it and only ever had one rule for
+                // dividing the width: none. An `HStack` whose children want
+                // more than it has shrinks *every* flexible one, so a header a
+                // little too wide truncated the title, the attribution and the
+                // badge all at once — the badge read "Needs y…", which is the
+                // one string on the card that had to survive. Sizing the badge
+                // first and letting the title column take what is left states
+                // which of them yields.
+                .layoutPriority(1)
+                .fixedSize()
+        }
+    }
+
+    /// The same two slots iOS draws — a semantic status glyph, then the
+    /// attention or status badge — kept as two so the platforms stay
+    /// symmetric.
+    private var trailingBadge: some View {
+        HStack(spacing: 8) {
             if let statusIcon = card.statusIcon {
                 Image(systemName: statusIcon)
                     .font(.headline)
                     .foregroundStyle(card.status.tint)
             }
             if card.needsUserAttention {
-                Text("Needs you")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(Color.orange)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.orange.opacity(0.18)))
+                // The shared badge rather than the look-alike capsule this
+                // used to hand-roll. Its compact form is a glyph, which is
+                // what the slot beside a title has room for; the words are on
+                // the detail panel the card opens, and VoiceOver reads
+                // "Needs your attention" from the badge either way.
+                AttentionBadge(compact: true, font: .headline)
             } else {
                 StatusBadge(status: card.status, compact: true)
             }
         }
     }
 
-    private var valueContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// The headline, with the countdown beside it rather than under it.
+    ///
+    /// A deadline on its own row cost a row — 37 points plus the 14 above it,
+    /// which is a fifth of everything a cell has — to say something six
+    /// characters long. Beside the value it is free, and it reads better: the
+    /// number and the time it is measured against belong together. The Live
+    /// Activity card above already puts its own "~8 min" on a shared row.
+    private var headline: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(card.displayValue ?? "—")
                 .tvScaledSystemFont(
                     size: TVTypography.valueSize,
@@ -727,7 +838,28 @@ private struct TVDashboardCardView: View {
                         for: TVTypography.valueSize
                     )
                 )
-            if let subtitle = card.subtitle {
+            if let deadline = card.deadline {
+                Spacer(minLength: 8)
+                Label {
+                    Text(deadline, style: .relative)
+                } icon: {
+                    Image(systemName: "clock")
+                }
+                // `.caption` is 25pt here. A countdown someone is meant to
+                // read across a room is not caption material.
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .tvReadableText()
+                .layoutPriority(1)
+                .fixedSize()
+            }
+        }
+    }
+
+    private var valueContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            headline
+            if let subtitle = card.subtitle, card.template != .briefing {
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -754,35 +886,30 @@ private struct TVDashboardCardView: View {
         }
     }
 
-    /// Value and subtitle above a plot — a sparkline for `chart`, status pips
-    /// for `history`, a segmented bar for `breakdown`. The primary value keeps
-    /// the same size as a non-chart card; the contextual subtitle is what steps
-    /// down, preserving hierarchy without sacrificing the plot.
+    /// Headline and one supporting line above a plot — a sparkline for
+    /// `chart`, status pips for `history`, a segmented bar for `breakdown`.
+    /// The headline is the shared one, so a plot card's number is the same
+    /// size as any other card's; the supporting line is what steps down,
+    /// preserving hierarchy without sacrificing the plot.
     @ViewBuilder
     private var chartContent: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(card.displayValue ?? "—")
-                .tvScaledSystemFont(
-                    size: TVTypography.chartValueSize,
-                    relativeTo: .title2,
-                    weight: .semibold,
-                    design: .rounded
-                )
-                .tvReadableText(
-                    standardMinimumScaleFactor: TVTypography.scale(
-                        0.65,
-                        for: TVTypography.chartValueSize
-                    )
-                )
-            if let subtitle = card.subtitle {
+            headline
+            // A plot card spends its supporting row on the comparison rather
+            // than the subtitle. The comparison is the same statement made
+            // precisely — "+18 vs Monday" against "up 18 this week" — and the
+            // plot behind it is the trend the subtitle was describing, so the
+            // subtitle is the one line here that says nothing the card is not
+            // already showing. It is on the panel.
+            if let subtitle = card.subtitle, card.comparison == nil {
                 Text(subtitle)
                     .tvScaledSystemFont(
                         size: TVTypography.chartSubtitleSize,
-                        // Use the value's scaling curve. On tvOS, mixing the
-                        // `.title2` curve above with `.caption` here makes a
-                        // nominal 26pt caption physically taller than the
-                        // nominal 34pt value at the standard setting.
-                        relativeTo: .title2
+                        // Use the headline's scaling curve, which is now the
+                        // shared one. On tvOS, mixing curves makes a nominal
+                        // 26pt caption physically taller than the nominal 34pt
+                        // value at the standard setting.
+                        relativeTo: .title
                     )
                     .foregroundStyle(.secondary)
                     .tvReadableText(largeTextLineLimit: 2)
@@ -817,7 +944,7 @@ private struct TVDashboardCardView: View {
         if let items = card.items, !items.isEmpty {
             let fractions = RankedRows.fractions(for: items)
             VStack(spacing: 8) {
-                ForEach(items.prefix(3)) { item in
+                ForEach(items.prefix(TVDashboardCardContent.listRowLimit)) { item in
                     HStack {
                         SemanticFlowIcon(item.semantic, font: .callout)
                         Text(item.title)

@@ -139,4 +139,51 @@ public extension DashboardCard {
     var needsUserAttention: Bool {
         status.needsAttention && !(actions?.isEmpty ?? true)
     }
+
+    /// Whether the typed attribution would only repeat what the subtitle
+    /// already says.
+    ///
+    /// `producer` arrived long after the convention it duplicates. Every
+    /// integration guide taught a subtitle shaped `"<Agent> · <context>"`, and
+    /// producers kept writing them after gaining somewhere structured to put
+    /// the name — so a card commonly carries "Growth Agent" twice, once in
+    /// each. On a phone that is redundant; in a tvOS grid cell it costs a
+    /// whole line of the few a card has, and the line it costs was being spent
+    /// truncating one of the two copies.
+    ///
+    /// The label has to be the whole of the subtitle's first clause, not
+    /// merely its first characters. "Growth" against "Growth Agent · up 18" is
+    /// a *different* producer, whose attribution says something the subtitle
+    /// does not — dropping it would lose information rather than save a line.
+    /// So what follows the label must be the end of the string or the
+    /// separator the convention puts there, and a space alone is not enough.
+    var producerRepeatsSubtitle: Bool {
+        guard let label = producer?.label.trimmingCharacters(in: .whitespaces),
+              !label.isEmpty,
+              let subtitle
+        else { return false }
+        guard subtitle.lowercased().hasPrefix(label.lowercased()) else { return false }
+        let rest = subtitle.dropFirst(label.count).drop(while: \.isWhitespace)
+        guard let next = rest.first else { return true }
+        return Self.subtitleSeparators.contains(next)
+    }
+
+    /// What producers put between a name and the context after it.
+    private static let subtitleSeparators: Set<Character> = ["·", "•", "—", "–", "-", "|", ":", ","]
+}
+
+public extension DashboardTemplate {
+    /// Whether a card body spends one of its lines on the card's own
+    /// `subtitle`.
+    ///
+    /// `list` does not — its column is rows — so on a surface laid out that
+    /// way the header is the only place the producer can appear, and the
+    /// attribution is kept whatever the subtitle happens to say. Every other
+    /// template draws the subtitle under the headline, which is where the
+    /// duplicate `producerRepeatsSubtitle` describes shows up.
+    ///
+    /// This is the *card body's* question. A detail panel that draws
+    /// everything, and the spoken summary, both present the subtitle whatever
+    /// the template is, so they ask `producerRepeatsSubtitle` on its own.
+    var drawsCardSubtitle: Bool { self != .list }
 }

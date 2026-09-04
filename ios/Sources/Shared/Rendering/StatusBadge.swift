@@ -30,18 +30,25 @@ public struct StatusBadge: View {
 /// a decision that belongs to its operator.
 public struct AttentionBadge: View {
     public let compact: Bool
+    /// Caption 2 is the right size in a widget and far too small on a
+    /// television, where the same style is 23 points and meant to be read
+    /// across a room. The size is the call site's to state so that every
+    /// surface can share the one badge — before this, tvOS drew its own
+    /// look-alike capsule rather than shrink its text to a widget's.
+    public let font: Font
 
-    public init(compact: Bool = false) {
+    public init(compact: Bool = false, font: Font = .caption2) {
         self.compact = compact
+        self.font = font
     }
 
     public var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "person.crop.circle.badge.exclamationmark")
-                .font(.caption2.weight(.semibold))
+                .font(font.weight(.semibold))
             if !compact {
                 Text("Needs you")
-                    .font(.caption2.weight(.semibold))
+                    .font(font.weight(.semibold))
             }
         }
         .foregroundStyle(Color.orange)

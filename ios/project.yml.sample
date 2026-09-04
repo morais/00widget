@@ -302,6 +302,28 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tests
         GENERATE_INFOPLIST_FILE: YES
 
+  # Logic and layout tests for Sources/TV. Hosted by the tvOS app for the same
+  # reason ZeroZeroWidgetTests is hosted by the iOS one: a host gives the tests
+  # the whole of SwiftUI, which is what lets them *measure* a view with
+  # `UIHostingController.sizeThatFits` and render one with `ImageRenderer`.
+  #
+  # That measurement is the point of the target. A television's layout is the
+  # one thing in this repo nothing else can see — the compiler cannot see a
+  # `VStack` overflowing a fixed cell, a green suite says nothing about it, and
+  # the marketing capture that would show it is a 10-minute run. Sources/TV was
+  # unreachable from ZeroZeroWidgetTests, which is an iOS target.
+  ZeroZeroWidgetTVTests:
+    type: bundle.unit-test
+    platform: tvOS
+    sources:
+      - path: TVTests
+    dependencies:
+      - target: ZeroZeroWidgetTV
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tvtests
+        GENERATE_INFOPLIST_FILE: YES
+
   ZeroZeroWidgetTV:
     type: application
     platform: tvOS
@@ -397,6 +419,18 @@ schemes:
       config: Debug
       targets:
         - ZeroZeroWidgetTests
+
+  # tvOS unit tests. Separate from ZeroZeroWidgetTV for the reason above: that
+  # scheme is what upload-testflight.sh archives with.
+  ZeroZeroWidgetTVTests:
+    build:
+      targets:
+        ZeroZeroWidgetTV: all
+        ZeroZeroWidgetTVTests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetTVTests
 
   # XCTest accessibility audits only. The runner executes this scheme at
   # standard and AX5 text sizes on a disposable simulator.

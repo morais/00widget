@@ -199,6 +199,47 @@ should survive is the arithmetic it helped you get right, extracted somewhere a
 unit test can reach it — `ListRowFill` and `BriefingFill` are the worked
 examples, both of which came out of exactly this loop.
 
+## Looking at a tvOS layout without a television
+
+The iOS loop above needs a tvOS counterpart, because `Sources/TV` is not in the
+iOS unit test target and cannot be. `ZeroZeroWidgetTVTests` is the tvOS
+equivalent — a unit test bundle hosted by the tvOS app, so it has the whole of
+SwiftUI — and `TVRenderProbe` in it offers the two cheap questions:
+
+```
+TVRenderProbe.height(of: view, width: 437)      // what a view wants
+TVRenderProbe.inkBounds(of: view, canvas: size) // where it actually drew
+TVRenderProbe.write(view, size: size, named: "x") // a PNG to look at
+```
+
+A run is a fraction of a second, against ten to fifteen minutes for the capture
+that would otherwise be the only way to see a television's layout.
+
+**The two numbers mean different things, and only the second is a bug.**
+`TVCardMetrics.height` is a constant, so a cell whose content wants more than
+it offers is first *squeezed*: `minimumScaleFactor` shrinks the text until it
+fits, silently, and the card looks fine at type smaller than it was designed
+for. Every card on this dashboard is already in that state — ideal heights run
+220-290 points against the 196 a cell offers. Past what shrinking can absorb
+the column overflows, and SwiftUI does not clip it: the excess is drawn outside
+the card's own background onto the page behind it, which is what a viewer sees
+as a title cut off at the top or a plot running out of the bottom.
+
+So assert on ink, not on ideal height. `TVCardFitTests` renders each sample
+card into a canvas larger than a cell and checks that nothing landed outside —
+that is exactly the failure that reached TestFlight, and it caught both cards
+that had it. An "ideal height fits" assertion would fail on a dashboard that
+has never satisfied it and would say nothing about what anyone sees.
+
+Two caveats. The UIKit-backed warning from the iOS loop applies unchanged — a
+linear `ProgressView` renders as a full-width bar with a stray marker whatever
+its value, so a `progress` card's bar proves nothing here. And a fixed
+`.frame(height:)` *destroys* the measurement: applied to a view, it becomes the
+answer to "how tall is this", whatever the content wanted. That is why the cell
+is split into `TVDashboardCardView` (the button and the box) and
+`TVDashboardCardContent` (the column); anything asking whether content fits has
+to ask the content.
+
 ## Marketing screenshots
 
 The phrase **full screenshot workflow** always means both stages for all four
@@ -385,7 +426,8 @@ is unavailable and immediately verify the result from the command line.
 ### Schemes are declared explicitly
 
 `project.yml` declares `ZeroZeroWidgetApp`, `ZeroZeroWidgetTV`,
-`ZeroZeroWidgetTests`, `ZeroZeroWidgetAccessibility`, `ZeroZeroWidgetScreenshots`, and
+`ZeroZeroWidgetTests`, `ZeroZeroWidgetTVTests`,
+`ZeroZeroWidgetAccessibility`, `ZeroZeroWidgetScreenshots`, and
 `ZeroZeroWidgetTVScreenshots`. This is
 load-bearing: adding *any* `schemes:` entry
 turns off Xcode's scheme autocreation for every target, which silently removed
@@ -576,7 +618,19 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 - **A relative timestamp on Apple TV has to be driven by a clock, because nothing else redraws it.** `Text(updatedAt.formatted(.relative(...)))` is a string computed once, at whatever moment something else provoked a redraw. A phone hides this — scrolling and returning to a screen redraw constantly — but a television left running on a wall redraws when a fetch returns and hardly ever otherwise, so "Updated 18 seconds ago" stood still for a whole refresh interval and then jumped to "38 seconds ago". `TVTickingClock` wraps each such line in a `TimelineView` whose schedule widens as the timestamp ages: a second while the wording is in seconds, thirty while it is in minutes, five minutes past an hour, because waking a view more often than its own text can change is work nobody sees. The second effect is the more valuable one — `isStale` also reads `Date()` at render time, so an activity whose producer stopped now says so on its own instead of waiting for something else to redraw it. `TVFreshnessTests` pins this, and can only do so because a `ZW_SCREENSHOTS` build never syncs: `startupSync` returns immediately, so the clock is the one thing left that can move the text. The three iOS surfaces with the same pattern are unfixed and, so far, unreported.
 
+- **A card commonly says its producer twice, and a tvOS cell cannot afford it.** `producer` arrived long after the convention it duplicates: every integration guide taught a subtitle shaped `"<Agent> · <context>"`, and producers kept writing them after gaining somewhere structured to put the name. On a phone that is redundant; in a grid cell it costs a whole line of the four or five a card has — and the line it cost was being spent *truncating* one of the two copies, so a card read "Release A…" above "Release Agent · final approval". `DashboardCard.producerRepeatsSubtitle` is the rule, and the tvOS header drops its attribution line when it fires. Two things about it are load-bearing. The match must end at a separator, not merely at a non-letter: "Growth" against "Growth Agent · up 18" is a *different* producer whose attribution says something the subtitle does not, and a bare `hasPrefix` silently drops it. And the drop is suppressed for `list` cards, which never draw a subtitle at all — their header is the only place the producer can appear. The sample deck deliberately keeps the duplicated form on six of its eight cards, because that is what a real producer sends and therefore what the App Store captures should show being handled; the other two keep the attribution visible. `ProducerAttributionTests` pins both halves. The rule is shared: `DashboardTemplate.drawsCardSubtitle` carries the `list` exception for the two *card body* renderers (`CardView`, the tvOS cell), while the surfaces that draw the subtitle on every template — the tvOS detail panel, the guest page, the spoken summary — ask `producerRepeatsSubtitle` on its own. The guest page reimplements it in the inline script because it cannot call Swift; its separator set has to move with the Swift one.
+
 - **The Apple TV widget card's height is measured, not chosen, and a fixed frame hides the mistake.** A `VStack` handed less height than it needs does not compress — it overflows, centred, straight through the padding around it, and nothing about that shows up in a build, a warning, or the suite. At 220 points a `chart` card's four stacked elements (header, headline, subtitle, a 46-point plot ≈ 188 points) came to more than the box held, so the plot sat flush against the card's bottom edge with no inset at all on a real television. `TVCardMetrics` now holds the height and the inset together, derived from that measurement plus a little slack; the Live Activity card had already hit the same wall and answered it with a `minHeight`, which a grid row cannot use without going ragged. Re-measure if the type sizes or the plot height change, and check a screenshot — the compiler cannot see an overflow. A consequence worth knowing before trimming it back: a dashboard of eight cards no longer fits one screen and scrolls, which is fine here because the grid is focusable and non-lazy.
+
+  **Decide what a cell draws, then size the box to that — not the reverse.** The height is derived from the *trimmed* card. Measured, the tallest thing a cell now draws is a `chart` card at 228 points, and 228 plus both insets is the 284 the constant holds. Before trimming, the same measurement said 362, which does not fit under the ceiling below. So a card that will not fit is asking for a row the cell has not got: take the row away, and only then re-derive. `TVDashboardCardContent.body` documents what each template defers, and `TVCardFitTests` asserts that nothing has to shrink — that assertion and the constant move together, so changing one without the other fails loudly.
+
+  **The height has a ceiling, and it is not a matter of taste.** Two full rows have to fit a 1080-line screen for the capture not to slice one: the first row's top is at 371, the safe area ends at 1020, the gap is 40, so `371 + 2H + 40 <= 1020` gives **H <= 304**, or 248 points of content. Measure before proposing a number — the worst card (`briefing`) wants 306 points of content, so no height that keeps two rows can remove its shrinking entirely; that one is closed by trimming what the template draws, not by growing the box.
+
+  **The glyph beside the title is a vertical cost, not just a look.** At `.title2` a card icon renders 71 points tall against a 58-point title line, so the *icon* set the header's height and the title did not. `TVTypography.cardIcon` is `.headline` (48) for that reason as much as for the proportion: it gives back 13 points on every card whose header has no attribution line under the title. Any change to it moves every card's budget.
+
+  **What a cell gives up, and why it is not a loss.** The rule is identity, headline, then at most two supporting things, with the subtitle yielding first — it is the line most likely to restate the value or the producer. So a plot card drops its subtitle when it has a comparison (the comparison is the same statement made precisely, and the plot is the trend the subtitle described), a `briefing` cell draws one line of prose rather than two and no subtitle, and a `list` cell draws two rows rather than three. The deadline moved *onto* the headline row instead of costing one of its own, which was 51 points to say something six characters long. Every one of those is on `TVDetailView` one press of Select away, which is the precondition: check the panel actually carries it before deferring anything else to it.
+
+  It has now been outgrown twice, both times the same way: a field was added to the card and nothing re-measured the box it goes in. `producer`, `comparison` and the needs-you badge each landed inside an unchanged 252, which is what put a title through the top edge of a `Trials` card and its sparkline through the bottom. Adding a row to a cell means re-running `ZeroZeroWidgetTVTests` — it measures this in a fraction of a second and says which card broke and by how much. Note also that the column is pinned to the top of its box rather than centred in it; the difference matters, because a centred overrun loses the header as well as the plot, which is the worse half to lose.
 
 - **A tvOS screen with nothing focusable on it cannot scroll, so its content has to be bounded rather than scrolled.** The same fact behind the non-lazy dashboard grid decides the layout of `TVDetailView`, which is where a card's whole list, whole history, action buttons and QR code now live: tvOS scrolls a `ScrollView` by moving focus into it, and the panel's data column is plain text and shapes. A row past the bottom of the screen would therefore be unreachable rather than merely below the fold — and SwiftUI does not even clip it honestly, because a `VStack` taller than the space it is given is *centred* in it, which cut the header off the top of a `history` panel as well as the last rows off the bottom. So `TVCardDetailContent` caps each template's rows at what the 1080-line screen holds once the panel's chrome and headline are paid for (six list rows, four history rows beneath the strip, five breakdown legend rows), and those numbers are tuned against real captures rather than rounded. A `history` card that also carries a chart spends the rows' room on the plot. Nothing in the build or the suite sees an overflow; take a screenshot before changing a count or adding a row to that column.
 
@@ -648,6 +702,8 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
   the gate toggles with a temporary `#error` under both Xcodes. See the
   two-SDK bullet in "Things to watch".
 - **New Siri shortcut:** add the intent alongside the two in `ios/Sources/App/Intents/DashboardShortcuts.swift` and an `AppShortcut` to `ZeroZeroWidgetShortcuts`. Every phrase must interpolate `\(.applicationName)`; a phrase taking a card needs `parameterPresentation` and a query conforming to `EntityStringQuery`, or Siri has no way to bind what it heard to an id. Keep the wording itself in a pure function next to `CardStatusReport` so it is testable without the AppIntents runtime, and confirm the shortcut reached the build by reading `autoShortcuts` out of the app bundle's `Metadata.appintents/extract.actionsdata`.
+- **New badge or pill on a card:** use `AttentionBadge`/`StatusBadge` from `Sources/Shared/Rendering/StatusBadge.swift` rather than drawing a look-alike. `AttentionBadge` takes a `font` because caption 2 is right in a widget and far too small on a television, and a `compact` form that is a glyph alone — which is what the slot beside a title has room for, measured: the full badge is 244 points against a 437-point content width, so it and a title cannot both fit in a tvOS cell. tvOS drew its own capsule for a while and that copy was the one that shipped reading "Needs y…". `TVDetailView` and the Live Activity card still hand-roll theirs; they are on full-width surfaces where the words fit, so they are duplication rather than a bug.
+
 - **New Live Activity kind:** extend `LiveActivityKind` in both languages, and update the icon mapping inside `LiveActivityWidget.swift`.
 
 ## Quality bar
@@ -683,5 +739,6 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 | `docs/llms.md` | `cd server && npm run sync-docs`, then commit `server/src/generated/llmsDoc.ts`. Required even for an otherwise iOS-only change — CI fails if the generated bundle has drifted |
 | iOS      | `cd ios && xcodegen && xcodebuild -scheme ZeroZeroWidgetApp -destination 'generic/platform=iOS Simulator'` (requires full Xcode, not just CLT) |
 | iOS unit tests | `cd ios && xcodebuild test -scheme ZeroZeroWidgetTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro'` — Swift Testing, hosted by the app, covering `Sources/Shared`. Needs a *named* simulator, not `generic/platform` |
+| tvOS unit tests | `cd ios && xcodebuild test -scheme ZeroZeroWidgetTVTests -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation) (at 1080p)' CODE_SIGNING_ALLOWED=NO` — Swift Testing, hosted by the tvOS app, covering `Sources/TV`. Includes the card-fit measurements below; a fraction of a second, so run it after any change to a tvOS layout |
 | tvOS focus | `cd ios && xcodebuild test -scheme ZeroZeroWidgetTVScreenshots -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation) (at 1080p)' -only-testing:ZeroZeroWidgetTVUITests/TVFocusNavigationTests CODE_SIGNING_ALLOWED=NO SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS"` — run after any change to `TVDashboardView` layout |
 | End-to-end (push) | requires a real Apple Developer account, an APNs `.p8`, and a physical device — flag this in the PR description if it wasn't tested |
