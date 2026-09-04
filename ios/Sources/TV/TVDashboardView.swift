@@ -662,9 +662,7 @@ private struct TVLiveActivityCardView: View {
         activity.activeItems
     }
 
-    private var presentationItems: [LiveActivityItem] {
-        activity.budgetedPresentationItems(fillingTo: 3)
-    }
+    private var presentationItems: [LiveActivityItem] { activity.tvPresentationItems }
 
 }
 

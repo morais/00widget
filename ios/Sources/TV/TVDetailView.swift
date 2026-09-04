@@ -810,9 +810,7 @@ private struct TVActivityDetailContent: View {
         }
     }
 
-    private var presentationItems: [LiveActivityItem] {
-        activity.budgetedPresentationItems(fillingTo: 3)
-    }
+    private var presentationItems: [LiveActivityItem] { activity.tvPresentationItems }
 }
 
 // MARK: - QR
@@ -915,6 +913,18 @@ struct TVChip: ViewModifier {
 }
 
 extension LiveActivitySession {
+    /// The rows a television draws for this activity.
+    ///
+    /// Here for the same reason `detailIconName` is: the dashboard card and
+    /// the detail panel both drew this, byte for byte, including the count.
+    /// The *rule* was shared — `budgetedPresentationItems` is in Sources/Shared
+    /// — but the number was not, so the two screens each decided independently
+    /// how much of one activity to show and would have disagreed the moment
+    /// either changed.
+    var tvPresentationItems: [LiveActivityItem] {
+        budgetedPresentationItems(fillingTo: 3)
+    }
+
     /// The icon the producer sent, or the one its kind implies. Shared by the
     /// dashboard card and the detail panel so the same activity cannot be
     /// drawn with two different glyphs on the two screens.
