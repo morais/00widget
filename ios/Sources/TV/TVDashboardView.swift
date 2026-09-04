@@ -75,16 +75,27 @@ enum TVCardMetrics {
     /// clips the near edge of the outermost column.
     static let pageInset: CGFloat = 20
 
-    /// The top edge of the scrolling column, which is a fade rather than a
-    /// cut. A television app that slices a row of cards in half against an
-    /// invisible line looks broken; every Apple TV app fades its content out
-    /// as it passes under the title instead.
+    /// Both edges of the scrolling column, which are fades rather than cuts.
+    /// A television app that slices a row of cards in half against an
+    /// invisible line looks broken; Apple TV apps dissolve their content into
+    /// the edge instead.
     ///
-    /// The scroll column carries the same measurement as its top inset, so at
-    /// rest the first thing in it — the section label — begins where the fade
-    /// has finished and is drawn at full strength. The fade is only ever seen
-    /// by content moving under it.
-    static let topFade: CGFloat = 56
+    /// The column's insets are set so that at rest nothing is under either
+    /// fade: the section label begins where the top fade has finished, and the
+    /// last row ends above the bottom one. A fade is only ever seen by content
+    /// moving through it.
+    static let edgeFade: CGFloat = 56
+
+    /// The television's title-safe area vertically, which tvOS applies for us
+    /// and which the scrolling column deliberately ignores at the bottom.
+    ///
+    /// Respecting it there put a hard cut 60 points above the physical edge:
+    /// a scrolling card stopped dead against an invisible line with an empty
+    /// band beneath it, which is the one place on this screen that looked
+    /// unfinished. The column now runs to the glass and pays the inset back as
+    /// bottom padding instead, so the resting layout is unchanged and only
+    /// scrolled content crosses into it.
+    static let titleSafeVertical: CGFloat = 60
 
     /// The television's title-safe area, which tvOS applies for us. Named here
     /// only so the width below can be derived rather than measured.
@@ -287,8 +298,10 @@ struct TVDashboardView: View {
                 }
                 // Room for a focused card's scale-up, and nothing more.
                 .padding(.horizontal, TVCardMetrics.pageInset)
-                .padding(.top, TVCardMetrics.topFade)
-                .padding(.bottom, TVCardMetrics.pageInset)
+                .padding(.top, TVCardMetrics.edgeFade)
+                // The safe area the column below is ignoring, paid back so the
+                // last row rests exactly where it did before.
+                .padding(.bottom, TVCardMetrics.pageInset + TVCardMetrics.titleSafeVertical)
                 // At least a screenful, so a dashboard with fewer rows than
                 // the screen holds has slack to give its cards rather than
                 // leaving a band of dead background under the last row. A
@@ -315,11 +328,23 @@ struct TVDashboardView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: TVCardMetrics.topFade)
+                    .frame(height: TVCardMetrics.edgeFade)
                     Color.black
+                    LinearGradient(
+                        colors: [.black, .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: TVCardMetrics.edgeFade)
                 }
             }
             }
+            // Down to the glass, and on the reader rather than the scroll view
+            // so `proxy.size.height` reports the taller box. Applied inside,
+            // the column drew past the safe area while the fill still divided
+            // the old height, and every row lost half the inset paid back
+            // below. Everything else on screen keeps the title-safe area.
+            .ignoresSafeArea(.container, edges: .bottom)
         }
     }
 
