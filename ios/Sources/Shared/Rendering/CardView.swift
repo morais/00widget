@@ -158,7 +158,7 @@ public struct CardView: View {
             // attention; the combined accessibility summary still says the
             // status aloud.
             if card.needsUserAttention {
-                AttentionBadge()
+                AttentionBadge(compact: context == .widgetSmall)
             } else if card.status.needsAttention {
                 StatusBadge(status: card.status, compact: true)
             }
