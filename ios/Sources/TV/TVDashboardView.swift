@@ -20,6 +20,24 @@ enum TVTypography {
     /// The glyph beside a card's title. Deliberately *not* larger than the
     /// title it sits next to — see the note in `TVCardMetrics`.
     static let cardIcon: Font = .headline
+
+    /// The status glyph that opens a Live Activity's item row, and the column
+    /// it is aligned in.
+    ///
+    /// The column has to be at least as wide as the glyph. A `.frame(width:)`
+    /// narrower than its content does not shrink or clip it — the glyph is
+    /// centred and spills out of both sides — so a 57-point `.title3` dot in a
+    /// 32-point column overhung by about 12 points at each end, which is more
+    /// than the row's entire 12-point spacing. The dot sat against the word
+    /// beside it and the row read as though the spacing had been forgotten.
+    ///
+    /// Measured: the widest symbol these rows draw is 47 points at
+    /// `.headline`, which is also the size of the title beside it — the same
+    /// rule `cardIcon` follows, and for the same reason. Re-measure with
+    /// `TVRenderProbe.width(of:)` before changing either number, and change
+    /// them together.
+    static let rowIcon: Font = .headline
+    static let rowIconColumn: CGFloat = 48
     /// Caption 2, the smallest style tvOS defines.
     static let floor: CGFloat = 23
 
@@ -653,9 +671,9 @@ struct TVLiveActivityItemRow: View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
                 Image(systemName: item.icon ?? "circle.fill")
-                    .font(.title3)
+                    .font(TVTypography.rowIcon)
                     .foregroundStyle(item.tint())
-                    .frame(width: 32)
+                    .frame(width: TVTypography.rowIconColumn)
                 if let statusIcon = item.statusIcon {
                     Image(systemName: statusIcon)
                         .font(.callout)
