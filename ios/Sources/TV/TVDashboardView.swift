@@ -438,7 +438,9 @@ private struct TVLiveActivityCardView: View {
                                 .foregroundStyle(.secondary)
                                 .tvReadableText(standardLineLimit: 2)
                         }
-                        freshness
+                        // Only where the header has no room for it. See the
+                        // note beside the header's copy.
+                        if dynamicTypeSize.usesTVLargeTextLayout { freshness }
                     }
                     Spacer(minLength: 12)
                     trailingValue
@@ -526,6 +528,20 @@ private struct TVLiveActivityCardView: View {
                     largeTextLineLimit: 2,
                     standardMinimumScaleFactor: 0.75
                 )
+                // A title is the card's own name and yields last; the line
+                // beside it is metadata and can truncate.
+                .layoutPriority(1)
+            // Beside the title rather than under it. This card is full width
+            // by design — it is one row of a grid the widgets get three of —
+            // so its title line has most of a screen of empty space in it,
+            // while a line of its own cost a row out of a card that needs the
+            // room for its items. Smaller too: when the last update arrived is
+            // the card's least urgent fact right up until it stops arriving,
+            // and `FreshnessLine` turns itself orange behind a warning glyph
+            // when that happens, so the size is not carrying the signal.
+            if !dynamicTypeSize.usesTVLargeTextLayout {
+                freshness
+            }
             Spacer(minLength: 8)
             Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
                 .font(.callout.weight(.semibold))
@@ -534,11 +550,16 @@ private struct TVLiveActivityCardView: View {
                 .padding(.vertical, 5)
                 .background(Capsule().fill(activity.tint.opacity(0.18)))
                 .foregroundStyle(activity.tint)
+                .fixedSize()
         }
     }
 
     private var freshness: some View {
-        TVFreshness(updatedAt: activity.updatedAt, isStale: { activity.isStale }, font: .callout)
+        TVFreshness(
+            updatedAt: activity.updatedAt,
+            isStale: { activity.isStale },
+            font: dynamicTypeSize.usesTVLargeTextLayout ? .callout : .caption
+        )
     }
 
     @ViewBuilder
