@@ -2,6 +2,14 @@
 
 Operational notes for agents (and humans) working on this repo.
 
+## Track long-running work with a 00Widget Live Activity
+
+If the 00Widget MCP integration is available, track long-running tasks
+(screenshot captures, archives, multi-step builds, test runs) with a
+00Widget Live Activity: start one at the beginning, update it at each
+step, set `staleAt` on every push, and always end it. Call
+`get_integration_guide` with `section: "live-activities"` for the rules.
+
 ## What this is
 
 A reusable iOS companion app and Cloudflare Worker backend that lets any agent publish structured state (cards + Live Activities + actions) to iOS widgets, the Lock Screen, and the Dynamic Island.
