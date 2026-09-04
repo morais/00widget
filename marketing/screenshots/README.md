@@ -125,25 +125,20 @@ whether SpringBoard already rendered a compact or expanded Live Activity before
 adding the empty state. Every 6.5-inch screen uses the exact smaller iPhone 14
 Plus notch silhouette from Xcode's bundled framebuffer mask.
 
-The six images tell two integration stories before moving into product
-benefits:
-
-- ChatGPT, Claude, and another MCP host can connect directly and publish
-  without integration code.
-- Codex or Claude Code can work inside an existing project and add a small
-  00Widget publishing path to an app, script, or automation.
-
-Do not collapse those into one claim. MCP is the direct-host connection;
-Codex/Claude Code is the coding-agent path for existing software.
+The six images tell one benefit-led story: see every agent, understand what is
+moving, step in when needed, and turn updates into decisions. Until there is a
+dedicated system-surface capture, the Activities image deliberately describes
+the in-app activity list instead of claiming to show the Lock Screen or Dynamic
+Island.
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
-| `screenshot-home-widgets.png` | **Widgets for all your agents.** | Connect ChatGPT, Claude or any MCP host and create widgets and live activities |
-| `screenshot-home-insights.png` | **From conversation to Home Screen.** | Publish through MCP—no integration code required. |
-| `screenshot-home-metrics.png` | **Connect what you've already built.** | Ask Codex or Claude Code to add widgets and live activities to any app, script, automation |
-| `screenshot-insights.png` | **See the whole picture.** | Turn agent output into clear, useful insights. |
-| `screenshot-widgets.png` | **Every agent. One dashboard.** | Follow status, progress, and actions in one place. |
-| `screenshot-activities.png` | **Live Activities that keep up.** | Follow changing work on the Lock Screen and Dynamic Island. |
+| `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
+| `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
+| `screenshot-home-metrics.png` | **Follow every step live.** | ETAs and changing work on the Lock Screen and Dynamic Island. |
+| `screenshot-insights.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
+| `screenshot-widgets.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
+| `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
 
 Apple TV follows the same physical-device treatment with a landscape television
 frame that extends past the right and bottom edges. The television uses square
@@ -152,9 +147,9 @@ frame. Its three-image copy is:
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
-| `screenshot-tv-insights.png` | **See the whole picture.** | Publish directly from ChatGPT and Claude. |
-| `screenshot-tv-widgets.png` | **Every agent. One big-screen dashboard.** | Ask Codex or Claude Code to add widgets to any app, script, automation. |
-| `screenshot-tv-card-detail.png` | **More detail when you need it.** | Open any card for a closer look. |
+| `screenshot-tv-insights.png` | **Your agent control room.** | See every launch task, metric, and exception at a glance. |
+| `screenshot-tv-widgets.png` | **Live work. Shared screen.** | Keep the whole room aligned without opening another dashboard. |
+| `screenshot-tv-card-detail.png` | **The detail is one click away.** | Open any card for the trend, briefing, or action behind it. |
 
 Generate all 21 promotional images from the current raw captures with:
 

@@ -43,51 +43,51 @@ class Promotion:
 PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
-        "Widgets for all your agents.",
-        "Connect ChatGPT, Claude or any MCP host and create widgets and live activities",
+        "Know what every agent is doing.",
+        "Live progress, results, and approvals—right on your Home Screen.",
     ),
     Promotion(
         "screenshot-home-insights.png",
-        "From conversation to Home Screen.",
-        "Publish through MCP—no integration code required.",
+        "One dashboard. Every agent.",
+        "See the work that’s done, in motion, and waiting on you.",
     ),
     Promotion(
         "screenshot-home-metrics.png",
-        "Connect what you've already built.",
-        "Ask Codex or Claude Code to add widgets and live activities to any app, script, automation",
+        "Follow every step live.",
+        "ETAs and changing work on the Lock Screen and Dynamic Island.",
     ),
     Promotion(
         "screenshot-insights.png",
-        "See the whole picture.",
-        "Turn agent output into clear, useful insights.",
+        "Step in at the right moment.",
+        "Approve, retry, or open the exact task without hunting through chat.",
     ),
     Promotion(
         "screenshot-widgets.png",
-        "Every agent. One dashboard.",
-        "Follow status, progress, and actions in one place.",
+        "Updates become decisions.",
+        "Trends, run history, breakdowns, and concise agent briefings.",
     ),
     Promotion(
         "screenshot-activities.png",
-        "Live Activities that keep up.",
-        "Follow changing work on the Lock Screen and Dynamic Island.",
+        "Every active job. One place.",
+        "See what is running, current, and complete.",
     ),
 )
 
 TV_PROMOTIONS = (
     Promotion(
         "screenshot-tv-insights.png",
-        "See the whole picture.",
-        "Publish directly from ChatGPT and Claude.",
+        "Your agent control room.",
+        "See every launch task, metric, and exception at a glance.",
     ),
     Promotion(
         "screenshot-tv-widgets.png",
-        "Every agent. One big-screen dashboard.",
-        "Ask Codex or Claude Code to add widgets to any app, script, automation.",
+        "Live work. Shared screen.",
+        "Keep the whole room aligned without opening another dashboard.",
     ),
     Promotion(
         "screenshot-tv-card-detail.png",
-        "More detail when you need it.",
-        "Open any card for a closer look.",
+        "The detail is one click away.",
+        "Open any card for the trend, briefing, or action behind it.",
     ),
 )
 
