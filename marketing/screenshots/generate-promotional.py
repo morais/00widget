@@ -57,12 +57,12 @@ PROMOTIONS = (
         "ETAs and changing work on the Lock Screen and Dynamic Island.",
     ),
     Promotion(
-        "screenshot-insights.png",
+        "screenshot-widgets.png",
         "Step in at the right moment.",
         "Approve, retry, or open the exact task without hunting through chat.",
     ),
     Promotion(
-        "screenshot-widgets.png",
+        "screenshot-insights.png",
         "Updates become decisions.",
         "Trends, run history, breakdowns, and concise agent briefings.",
     ),

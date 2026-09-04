@@ -58,8 +58,8 @@ else
     screenshot-home-widgets.png
     screenshot-home-insights.png
     screenshot-home-metrics.png
-    screenshot-insights.png
     screenshot-widgets.png
+    screenshot-insights.png
     screenshot-activities.png
   )
 fi

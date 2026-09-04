@@ -24,7 +24,7 @@ The test captures these surfaces in order:
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Solar, Car, Energy, and Deploys. |
 
 The canonical App Store set contains Home Screen widgets, Home Screen insights,
-Home Screen metrics, Insights, Widgets, and Activities, in that order:
+Home Screen metrics, Widgets, Insights, and Activities, in that order:
 
 ```sh
 marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
@@ -90,7 +90,7 @@ marketing/screenshots/capture-ios.sh \
 ```
 
 The canonical published order is Home Screen widgets, Home Screen insights,
-Home Screen metrics, Insights, Widgets, and Activities.
+Home Screen metrics, Widgets, Insights, and Activities.
 Relative `--out` paths are resolved from `ios/`; this canonical device already
 selects the correct default. Copy the promotional set with:
 
@@ -100,7 +100,7 @@ marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
 
 ## iPad
 
-iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Insights, Widgets, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad follows the same six-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Widgets, Insights, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
 
 ## Promotional compositions
 
@@ -136,8 +136,8 @@ Island.
 | `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
 | `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
 | `screenshot-home-metrics.png` | **Follow every step live.** | ETAs and changing work on the Lock Screen and Dynamic Island. |
-| `screenshot-insights.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
-| `screenshot-widgets.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
+| `screenshot-widgets.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
+| `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
 
 Apple TV follows the same physical-device treatment with a landscape television
