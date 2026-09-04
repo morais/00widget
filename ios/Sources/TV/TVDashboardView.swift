@@ -75,6 +75,17 @@ enum TVCardMetrics {
     /// clips the near edge of the outermost column.
     static let pageInset: CGFloat = 20
 
+    /// The top edge of the scrolling column, which is a fade rather than a
+    /// cut. A television app that slices a row of cards in half against an
+    /// invisible line looks broken; every Apple TV app fades its content out
+    /// as it passes under the title instead.
+    ///
+    /// The scroll column carries the same measurement as its top inset, so at
+    /// rest the first thing in it — the section label — begins where the fade
+    /// has finished and is drawn at full strength. The fade is only ever seen
+    /// by content moving under it.
+    static let topFade: CGFloat = 56
+
     /// The television's title-safe area, which tvOS applies for us. Named here
     /// only so the width below can be derived rather than measured.
     static let titleSafeHorizontal: CGFloat = 80
@@ -222,11 +233,14 @@ struct TVDashboardView: View {
             Text("Loading dashboard…")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-        } else {
-            Text("Your agent widgets")
-                .font(.callout)
-                .foregroundStyle(.secondary)
         }
+        // and otherwise nothing. The other branches each say something a
+        // viewer cannot get anywhere else — that a sync failed, that one has
+        // not finished, or how long ago the last one was, which on a
+        // television left running on a wall is the difference between a
+        // dashboard with nothing new to say and one that stopped talking.
+        // "Your agent widgets" said none of that; it was a caption under a
+        // title that already reads "Dashboard".
     }
 
     @ViewBuilder
@@ -273,7 +287,8 @@ struct TVDashboardView: View {
                 }
                 // Room for a focused card's scale-up, and nothing more.
                 .padding(.horizontal, TVCardMetrics.pageInset)
-                .padding(.vertical, TVCardMetrics.pageInset)
+                .padding(.top, TVCardMetrics.topFade)
+                .padding(.bottom, TVCardMetrics.pageInset)
                 // At least a screenful, so a dashboard with fewer rows than
                 // the screen holds has slack to give its cards rather than
                 // leaving a band of dead background under the last row. A
@@ -288,6 +303,21 @@ struct TVDashboardView: View {
                     minHeight: env.liveActivities.isEmpty ? proxy.size.height : nil,
                     alignment: .top
                 )
+            }
+            // Render-only, so it costs the focus engine nothing: a masked
+            // view is still hit-testable and still focusable, which is what
+            // makes this safe on a screen navigated by moving focus rather
+            // than by pointing at it.
+            .mask(alignment: .top) {
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [.clear, .black],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: TVCardMetrics.topFade)
+                    Color.black
+                }
             }
             }
         }
