@@ -70,22 +70,37 @@ enum TVCardMetrics {
     /// What the column inside a cell actually has to fit into.
     static var contentHeight: CGFloat { height - verticalPadding * 2 }
 
+    /// The one inset the app adds to the television's own. A focused card
+    /// scales up and paints outside its frame; without this the scroll view
+    /// clips the near edge of the outermost column.
+    static let pageInset: CGFloat = 20
+
+    /// The television's title-safe area, which tvOS applies for us. Named here
+    /// only so the width below can be derived rather than measured.
+    static let titleSafeHorizontal: CGFloat = 80
+
     /// One cell's width on a 1920-point screen, and the content width inside
-    /// it. Derived the same way the view lays out rather than measured off a
-    /// capture, so it stays true if a padding changes: the screen less the
-    /// television's 80-point horizontal safe area, the dashboard's own 80, and
-    /// the scrolling column's 20 leaves 1560 points for three columns and the
-    /// two 40-point gaps between them. Confirmed against
-    /// `screenshot-tv-widgets.png`, where a card background spans x=180..673.
+    /// it. Derived the way the view lays out rather than measured off a
+    /// capture, so it stays true when a padding changes: the screen less the
+    /// safe area and `pageInset` on each side leaves 1720 points for three
+    /// columns and the two 40-point gaps between them.
     static let gridSpacing: CGFloat = 40
     static func width(columns: Int, in screenWidth: CGFloat = 1920) -> CGFloat {
-        let available = screenWidth - (80 + 80 + 20) * 2
+        let available = screenWidth - (titleSafeHorizontal + pageInset) * 2
         return (available - gridSpacing * CGFloat(columns - 1)) / CGFloat(columns)
     }
 
     static func contentWidth(columns: Int, in screenWidth: CGFloat = 1920) -> CGFloat {
         width(columns: columns, in: screenWidth) - horizontalPadding * 2
     }
+    /// The most a row may grow into spare screen. `height` is a floor — what
+    /// the tallest card needs — and a dashboard with fewer rows than the
+    /// screen holds spends the difference rather than leaving a band of dead
+    /// background under the last row. The ceiling is what stops one row of
+    /// three cards from becoming three very strange ones: about a third again,
+    /// the same allowance `ListRowFill.maxSlotUnits` makes for the same reason.
+    static let maxHeight: CGFloat = 380
+
     /// The same measurement at the top of the non-accessibility range.
     ///
     /// Derived from `height` rather than chosen beside it: the content is
@@ -118,8 +133,13 @@ struct TVDashboardView: View {
             header
             content
         }
-        .padding(.horizontal, 80)
-        .padding(.vertical, 48)
+        // No page padding of its own. tvOS already insets everything by the
+        // title-safe area — 80 points horizontally, 60 vertically — and the
+        // 80 and 48 that used to be here were spent *again* on top of it, so a
+        // 1920-point screen showed 1560 points of dashboard between 180-point
+        // margins. The scrolling column below keeps a small inset, which is
+        // not decoration: a focused card scales up and draws about 20 points
+        // outside its own frame, and the scroll view would clip that.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             LinearGradient(
@@ -216,6 +236,10 @@ struct TVDashboardView: View {
         } else if env.cards.isEmpty && env.liveActivities.isEmpty {
             emptyState
         } else {
+            // The viewport height, so a dashboard with fewer rows than the
+            // screen holds can spend the difference rather than leaving a
+            // band of background under the last row. See `rowHeight(in:)`.
+            GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 42) {
                     if !env.liveActivities.isEmpty {
@@ -241,16 +265,35 @@ struct TVDashboardView: View {
                         ) { card in
                             TVDashboardCardView(
                                 card: card,
+                                fills: env.liveActivities.isEmpty,
                                 open: { selectedDetail = .card(card) }
                             )
                         }
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                // Room for a focused card's scale-up, and nothing more.
+                .padding(.horizontal, TVCardMetrics.pageInset)
+                .padding(.vertical, TVCardMetrics.pageInset)
+                // At least a screenful, so a dashboard with fewer rows than
+                // the screen holds has slack to give its cards rather than
+                // leaving a band of dead background under the last row. A
+                // minimum, so a grid that genuinely overflows still scrolls.
+                //
+                // Only when the grid is the whole page. With a Live Activity
+                // above it there are two sections competing for the slack and
+                // the taller one takes most of it, which pushed the widget row
+                // off the bottom of the insights capture — a screen that was
+                // already full has nothing to redistribute anyway.
+                .frame(
+                    minHeight: env.liveActivities.isEmpty ? proxy.size.height : nil,
+                    alignment: .top
+                )
+            }
             }
         }
     }
+
+
 
     private func dashboardSection<Item: Identifiable, Content: View>(
         title: String,
@@ -610,10 +653,16 @@ struct TVLiveActivityItemRow: View {
 /// overflow shows up in. `TVCardFitTests` asks the content.
 struct TVDashboardCardView: View {
     let card: DashboardCard
+    /// Whether this card's grid is filling the screen, and may therefore grow
+    /// past the height its content needs.
+    var fills: Bool = false
     let open: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var textScale: TVTextScale { TVTextScale(dynamicTypeSize) }
+
+    /// The floor a card is measured against — what its content needs.
+    private var cardHeight: CGFloat? { textScale.cardHeight }
 
     var body: some View {
         Button(action: open) {
@@ -625,8 +674,17 @@ struct TVDashboardCardView: View {
                 .padding(.horizontal, TVCardMetrics.horizontalPadding)
                 .padding(.vertical, TVCardMetrics.verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: textScale.cardHeight)
-                .frame(minHeight: textScale.cardMinimumHeight)
+                // A range only where the grid has slack to hand out. The
+                // floor is what the tallest card needs and is what
+                // `TVCardFitTests` asserts against; the ceiling stops one row
+                // of three cards growing to the height of the screen. Where
+                // nothing is filling, the height stays exact — a frame that is
+                // merely *allowed* to grow resolves its ideal ambiguously, and
+                // cards grew on a screen that had nothing spare.
+                .frame(
+                    minHeight: cardHeight ?? textScale.cardMinimumHeight,
+                    maxHeight: fills ? TVCardMetrics.maxHeight : cardHeight
+                )
                 .contentShape(RoundedRectangle(cornerRadius: 24))
                 // Inside the label, not on the button. A button builds its own
                 // label out of its children, keeping each child's
@@ -659,7 +717,7 @@ struct TVDashboardCardView: View {
     }
 
     /// The label says what is on screen: `listContent` draws
-    /// `TVDashboardCardContent.listRowLimit` rows and `StatusStripView`
+    /// `TVDashboardCardContent.listRowLimit(for:)` rows and `StatusStripView`
     /// fourteen pips. Pressing Select opens the panel, which has the rest —
     /// so this deliberately does not read out what the cell chose to defer.
     private var accessibilitySummary: String {
@@ -667,7 +725,7 @@ struct TVDashboardCardView: View {
             for: card,
             rowLimit: card.template == .history
                 ? 14
-                : TVDashboardCardContent.listRowLimit
+                : TVDashboardCardContent.listRowLimit(for: card)
         )
         return detail.isEmpty
             ? CardAccessibilitySummary.summary(for: card)
@@ -727,32 +785,57 @@ struct TVDashboardCardContent: View {
         }
     }
 
-    /// How many rows a `list` cell draws.
+    /// A measured row, and the header above it with and without the
+    /// attribution line under the title. Both are what the probe reports at
+    /// standard type; re-measure if either changes.
+    private static let listRowHeight: CGFloat = 46
+    private static let listRowSpacing: CGFloat = 8
+    private static let headerHeight: CGFloat = 58
+    private static let headerHeightWithProducer: CGFloat = 91
+
+    /// How many rows a `list` cell draws — taken from the room, not chosen.
     ///
-    /// Two, not three. A row is 46 points and the cell has 196 for everything,
-    /// so three rows plus a header is already past the box before the card has
-    /// said anything else — which is what a `list` card was doing. The whole
-    /// list, up to six rows, is on the detail panel; `TVCardDetailContent`
-    /// budgets that separately and by the same reasoning.
-    static let listRowLimit = 2
+    /// A constant is a guess about a canvas whose height depends on what else
+    /// the card drew, and this guess was wrong in both directions: three rows
+    /// overflowed a cell carrying an attribution line, and two left a third of
+    /// a card blank when it was not. Same arithmetic a widget's list uses, for
+    /// the same reason — see `ListRowFill`, including why a constant survives
+    /// only as a ceiling.
+    static func listRowLimit(for card: DashboardCard) -> Int {
+        let header = showsProducer(card) ? headerHeightWithProducer : headerHeight
+        let available = TVCardMetrics.contentHeight - header - 14
+        return min(
+            6,
+            ListRowFill.capacity(
+                height: available + listRowSpacing,
+                unit: listRowHeight + listRowSpacing
+            )
+        )
+    }
 
-    /// Whether the card draws its subtitle at all. A `list` card does not —
-    /// its column is rows — so its header is the only place its producer can
-    /// appear, and the attribution below is kept whatever the subtitle says.
-    /// Shared with the iOS renderer, which lays a card out the same way.
-    private var drawsSubtitle: Bool { card.template.drawsCardSubtitle }
+    /// Whether the header carries the attribution under the title.
+    ///
+    /// A `list` card never draws its subtitle — its column is rows — so its
+    /// header is the only place its producer can appear, and the attribution
+    /// is kept whatever the subtitle says. `drawsCardSubtitle` is shared with
+    /// the iOS renderer, which lays a card out the same way.
+    static func showsProducer(_ card: DashboardCard) -> Bool {
+        guard card.producer != nil else { return false }
+        return !(card.template.drawsCardSubtitle && card.producerRepeatsSubtitle)
+    }
 
-    /// The attribution goes in the header only when the subtitle is not
-    /// already carrying it. See `DashboardCard.producerRepeatsSubtitle`.
     private var producerLine: CardProducer? {
-        guard let producer = card.producer else { return nil }
-        return drawsSubtitle && card.producerRepeatsSubtitle ? nil : producer
+        Self.showsProducer(card) ? card.producer : nil
     }
 
     /// Internal rather than private so `TVCardFitTests` can ask what width
     /// it wants: the header is the row that runs out of horizontal room.
     var header: some View {
-        HStack(spacing: 12) {
+        // 18 rather than 12. The gap was set when the glyph was `.title2` and
+        // 71 points wide; at `.headline` it is 48, and the same 12 points read
+        // tight against the title because the symbol's own bounding box came
+        // in with it.
+        HStack(spacing: 18) {
             if let icon = card.icon {
                 Image(systemName: icon)
                     .font(TVTypography.cardIcon)
@@ -944,7 +1027,7 @@ struct TVDashboardCardContent: View {
         if let items = card.items, !items.isEmpty {
             let fractions = RankedRows.fractions(for: items)
             VStack(spacing: 8) {
-                ForEach(items.prefix(TVDashboardCardContent.listRowLimit)) { item in
+                ForEach(items.prefix(Self.listRowLimit(for: card))) { item in
                     HStack {
                         SemanticFlowIcon(item.semantic, font: .callout)
                         Text(item.title)
