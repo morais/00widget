@@ -62,7 +62,7 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
     scenes = config["scenes"]
     if not isinstance(scenes, list) or not scenes:
         raise ConfigError(f"{label}: scenes must be a non-empty array")
-    supported = {"hold", "go_home", "swipe_left", "swipe_right", "open_app"}
+    supported = {"hold", "go_home", "swipe_left", "swipe_right", "open_app", "tap", "preview_phase"}
     last_start = -1.0
     duration = float(output["duration"])
     for index, scene in enumerate(scenes):
@@ -83,6 +83,14 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
                 else ""
             )
             raise ConfigError(f"{label}: unsupported action '{action}'.{suffix}")
+        if action == "tap" and not str(scene.get("target", "")).strip():
+            raise ConfigError(
+                f"{label}: scenes[{index}] action 'tap' needs a 'target' accessibility identifier"
+            )
+        if action == "preview_phase" and scene.get("phase") not in {"a", "b", "c"}:
+            raise ConfigError(
+                f"{label}: scenes[{index}] action 'preview_phase' needs phase 'a', 'b' or 'c'"
+            )
         last_start = float(start)
         overlay = scene.get("overlay")
         if overlay:

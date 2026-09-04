@@ -161,6 +161,42 @@ public final class LiveActivityController: ObservableObject {
         refreshActiveActivities()
     }
 
+    /// Starts the screenshot-only preview activity or moves it to the next
+    /// filmed phase. Same `pushType: nil` separation as `startSample`: the
+    /// preview never enters the remote lifecycle.
+    ///
+    /// Retained samples from a previous run are ended first. ActivityKit
+    /// outlives a reinstall, and `startSample`'s one-sample guard would
+    /// otherwise leave yesterday's activity on screen under today's island.
+    public func startOrUpdatePreviewSample(
+        phase: SampleDataFactory.PreviewLaunchPhase,
+        referenceDate: Date
+    ) async {
+        let session = SampleDataFactory.makePreviewLiveActivitySession(
+            phase: phase,
+            referenceDate: referenceDate
+        )
+        let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
+        if let existing = Activity<ZeroZeroWidgetActivityAttributes>.activities.first(where: {
+            $0.attributes.externalActivityId == session.externalActivityId
+        }) {
+            await existing.update(ActivityContent(state: state, staleDate: session.staleAt))
+        } else {
+            for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
+            where activity.attributes.activityInstanceId == nil
+                && activity.attributes.externalActivityId
+                    .hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix) {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            _ = try? Activity.request(
+                attributes: attributes,
+                content: ActivityContent(state: state, staleDate: session.staleAt),
+                pushType: nil
+            )
+        }
+        refreshActiveActivities()
+    }
+
     /// Starts a Live Activity for something followed through a guest link.
     ///
     /// Requested with `pushType: .token`, unlike a sample: the whole point is

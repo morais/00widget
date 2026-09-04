@@ -66,7 +66,12 @@ FFmpeg. Font files are referenced in place and never copied.
 
 Scene actions run against one `systemUptime` baseline in XCUITest, rather than
 sleeping relative to the previous scene. Supported actions are `hold`,
-`go_home`, `swipe_left`, `swipe_right`, and `open_app`.
+`go_home`, `swipe_left`, `swipe_right`, `open_app`, `tap` (by stable
+accessibility identifier, never coordinates), and `preview_phase` (`a`/`b`/`c`,
+a screenshot-only Live Activity `ContentState` update posted to the app over
+the Darwin notification center so the island can change mid-timeline while the
+recording stays on SpringBoard; the app holds a screenshot-only background
+task so it is still alive to apply it).
 
 `stage.initialPage` counts ordinary Home Screen pages from zero. The driver
 first leaves iOS's far-left Today/widgets view, so `0` is the first page of apps

@@ -315,6 +315,9 @@ def prepare_simulator(
         ]
         if fixtures.get("referenceDate"):
             launch.extend(["--marketing-reference-date", str(fixtures["referenceDate"])])
+        preview_phase = config.get("preview", {}).get("initialPhase")
+        if preview_phase:
+            launch.extend(["--preview-launch-phase", str(preview_phase)])
         logger.info("Launching 00Widget in offline marketing mode")
         run(launch, logger)
         return {"udid": udid, "runtime": runtime, "bundleId": bundle_id}

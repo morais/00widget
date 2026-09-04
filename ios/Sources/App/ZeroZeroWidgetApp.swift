@@ -20,6 +20,11 @@ struct ZeroZeroWidgetApp: App {
                     handleIncomingURL(url)
                 }
                 .onChange(of: scenePhase) { _, phase in
+                    #if ZW_SCREENSHOTS
+                    if MarketingDemo.usesPreviewLaunchStory, phase == .active {
+                        PreviewPhaseListener.shared.noteForegrounded()
+                    }
+                    #endif
                     guard phase == .active, !MarketingDemo.isEnabled else { return }
                     Task { await env.syncAfterForeground() }
                     #if ZW_SUBSCRIPTIONS_ENABLED
@@ -38,10 +43,20 @@ struct ZeroZeroWidgetApp: App {
                 IntentLanding.attach(env)
                 #if ZW_SCREENSHOTS
                 if MarketingDemo.isEnabled {
-                    env.generateMarketingPreviewCards(
-                        referenceDate: MarketingDemo.referenceDate,
-                        fixtures: MarketingDemo.fixtures
-                    )
+                    if MarketingDemo.usesPreviewLaunchStory {
+                        env.generatePreviewLaunchCards(
+                            referenceDate: MarketingDemo.referenceDate,
+                            phase: MarketingDemo.initialPreviewPhase
+                        )
+                        PreviewPhaseListener.shared.start(
+                            initialPhase: MarketingDemo.initialPreviewPhase
+                        )
+                    } else {
+                        env.generateMarketingPreviewCards(
+                            referenceDate: MarketingDemo.referenceDate,
+                            fixtures: MarketingDemo.fixtures
+                        )
+                    }
                 } else {
                     // Start every capture run from the empty dashboard. The App
                     // Group cache outlives a reinstall, so a retained sample set

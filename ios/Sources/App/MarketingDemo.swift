@@ -38,4 +38,28 @@ enum MarketingDemo {
         }
         return decoded
     }
+
+    /// The preview timeline films the launch story instead of the legacy
+    /// countdown/Mars/weekend fixtures. Present only when the capture host
+    /// passes `--preview-launch-phase`; the old yaml path keeps working
+    /// until it is rewritten.
+    static var usesPreviewLaunchStory: Bool {
+        #if ZW_SCREENSHOTS
+        ProcessInfo.processInfo.arguments.contains("--preview-launch-phase")
+        #else
+        false
+        #endif
+    }
+
+    static var initialPreviewPhase: SampleDataFactory.PreviewLaunchPhase {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard
+            let flag = arguments.firstIndex(of: "--preview-launch-phase"),
+            arguments.indices.contains(flag + 1),
+            let phase = SampleDataFactory.PreviewLaunchPhase(rawValue: arguments[flag + 1])
+        else {
+            return .a
+        }
+        return phase
+    }
 }

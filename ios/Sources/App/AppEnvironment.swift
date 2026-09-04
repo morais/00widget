@@ -941,6 +941,24 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
+    /// Seeds the deterministic launch-story cards filmed by the App Store
+    /// Preview timeline. Reached only through `--preview-launch-phase` in a
+    /// screenshot build, and never performs a network request.
+    public func generatePreviewLaunchCards(
+        referenceDate: Date,
+        phase: SampleDataFactory.PreviewLaunchPhase = .b
+    ) {
+        let samples = SampleDataFactory.makePreviewLaunchCards(
+            referenceDate: referenceDate,
+            phase: phase
+        )
+        try? CardCache.save(samples)
+        cards = samples
+        SharedSettings.setHideSampleIndicators(true)
+        SpotlightIndex.donate(samples)
+        reloadWidgetTimelines()
+    }
+
     public var hasSampleCards: Bool {
         cards.contains { $0.isSample }
     }

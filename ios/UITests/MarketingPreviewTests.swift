@@ -11,6 +11,8 @@ final class MarketingPreviewTests: XCTestCase {
             let start: Double
             let action: String
             let label: String?
+            let target: String?
+            let phase: String?
         }
         struct Fixtures: Codable {
             struct Countdown: Codable { let title: String; let date: String }
@@ -32,6 +34,9 @@ final class MarketingPreviewTests: XCTestCase {
         let stage: Stage
         let scenes: [Scene]
         let fixtures: Fixtures?
+        let preview: Preview?
+
+        struct Preview: Decodable { let initialPhase: String? }
     }
 
     override func setUp() {
@@ -60,12 +65,22 @@ final class MarketingPreviewTests: XCTestCase {
             let encoded = try JSONEncoder().encode(fixtures).base64EncodedString()
             app.launchArguments += ["--marketing-fixtures", encoded]
         }
+        if let initialPhase = config.preview?.initialPhase {
+            app.launchArguments += ["--preview-launch-phase", initialPhase]
+        }
         app.launch()
-        let countdownTitle = config.fixtures?.countdown.title ?? "Julia turns 12"
-        XCTAssertTrue(
-            app.staticTexts[countdownTitle].firstMatch.waitForExistence(timeout: 30),
-            "Marketing demo cards did not load; use a ZW_SCREENSHOTS build."
-        )
+        if config.preview?.initialPhase != nil {
+            XCTAssertTrue(
+                app.staticTexts["Launch"].firstMatch.waitForExistence(timeout: 30),
+                "Preview launch cards did not load; use a ZW_SCREENSHOTS build."
+            )
+        } else {
+            let countdownTitle = config.fixtures?.countdown.title ?? "Julia turns 12"
+            XCTAssertTrue(
+                app.staticTexts[countdownTitle].firstMatch.waitForExistence(timeout: 30),
+                "Marketing demo cards did not load; use a ZW_SCREENSHOTS build."
+            )
+        }
         // Give WidgetCenter's explicit reload time to update the prepared
         // static widgets before they enter the framebuffer recording.
         Thread.sleep(forTimeInterval: 2)
@@ -96,7 +111,7 @@ final class MarketingPreviewTests: XCTestCase {
         for scene in config.scenes {
             wait(until: baseline + scene.start)
             let actual = ProcessInfo.processInfo.systemUptime - baseline
-            perform(scene.action, app: app, springboard: springboard)
+            perform(scene, app: app, springboard: springboard)
             let completedAt = ProcessInfo.processInfo.systemUptime - baseline
             try appendEvent(
                 time: actual,
@@ -114,11 +129,11 @@ final class MarketingPreviewTests: XCTestCase {
     }
 
     private func perform(
-        _ action: String,
+        _ scene: PreviewConfig.Scene,
         app: XCUIApplication,
         springboard: XCUIApplication
     ) {
-        switch action {
+        switch scene.action {
         case "hold":
             break
         case "go_home":
@@ -129,9 +144,45 @@ final class MarketingPreviewTests: XCTestCase {
             swipePage(left: false, in: springboard)
         case "open_app":
             app.activate()
+        case "tap":
+            guard let target = scene.target, !target.isEmpty else {
+                XCTFail("Preview action 'tap' needs a 'target' accessibility identifier.")
+                return
+            }
+            tap(accessibilityIdentifier: target, in: app)
+        case "preview_phase":
+            guard let phase = scene.phase, ["a", "b", "c"].contains(phase) else {
+                XCTFail("Preview action 'preview_phase' needs phase 'a', 'b' or 'c'.")
+                return
+            }
+            // A Darwin notification crosses to the app with no entitlements
+            // and nothing visible on screen, so the island can change
+            // mid-timeline while the recording stays on SpringBoard.
+            CFNotificationCenterPostNotification(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                CFNotificationName("com.00widget.preview.phase.\(phase)" as CFString),
+                nil,
+                nil,
+                true
+            )
+            // Let ActivityKit apply the ContentState update before the next
+            // scene samples the framebuffer.
+            Thread.sleep(forTimeInterval: 1.0)
         default:
-            XCTFail("Unsupported preview action: \(action)")
+            XCTFail("Unsupported preview action: \(scene.action)")
         }
+    }
+
+    /// Resolves a stable accessibility identifier without screen coordinates.
+    /// Coordinates would couple the timeline to one device size; identifiers
+    /// survive every simulator the capture runs on.
+    private func tap(accessibilityIdentifier id: String, in app: XCUIApplication) {
+        let element = app.descendants(matching: .any).matching(identifier: id).firstMatch
+        XCTAssertTrue(
+            element.waitForExistence(timeout: 10),
+            "Preview tap target never appeared: \(id)"
+        )
+        element.tap()
     }
 
     private func swipePage(left: Bool, in springboard: XCUIApplication) {
