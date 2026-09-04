@@ -25,9 +25,9 @@ final class MarketingPreviewTests: XCTestCase {
             }
 
             let referenceDate: String?
-            let countdown: Countdown
-            let mars: Mars
-            let weekend: Weekend
+            let countdown: Countdown?
+            let mars: Mars?
+            let weekend: Weekend?
         }
 
         let output: Output
@@ -75,7 +75,7 @@ final class MarketingPreviewTests: XCTestCase {
                 "Preview launch cards did not load; use a ZW_SCREENSHOTS build."
             )
         } else {
-            let countdownTitle = config.fixtures?.countdown.title ?? "Julia turns 12"
+            let countdownTitle = config.fixtures?.countdown?.title ?? "Julia turns 12"
             XCTAssertTrue(
                 app.staticTexts[countdownTitle].firstMatch.waitForExistence(timeout: 30),
                 "Marketing demo cards did not load; use a ZW_SCREENSHOTS build."
@@ -173,16 +173,26 @@ final class MarketingPreviewTests: XCTestCase {
         }
     }
 
-    /// Resolves a stable accessibility identifier without screen coordinates.
-    /// Coordinates would couple the timeline to one device size; identifiers
-    /// survive every simulator the capture runs on.
+    /// Resolves a stable accessibility identifier or label without screen
+    /// coordinates. Coordinates would couple the timeline to one device size;
+    /// identifiers survive every simulator the capture runs on. An exact
+    /// identifier-or-label match wins; a label-substring fallback lets the
+    /// timeline name the card ("Launch") instead of pinning the whole
+    /// VoiceOver sentence the renderer composes around it.
     private func tap(accessibilityIdentifier id: String, in app: XCUIApplication) {
-        let element = app.descendants(matching: .any).matching(identifier: id).firstMatch
+        let exact = app.descendants(matching: .any)[id]
+        if exact.exists {
+            exact.tap()
+            return
+        }
+        let fuzzy = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", id)
+        ).firstMatch
         XCTAssertTrue(
-            element.waitForExistence(timeout: 10),
+            fuzzy.waitForExistence(timeout: 10),
             "Preview tap target never appeared: \(id)"
         )
-        element.tap()
+        fuzzy.tap()
     }
 
     private func swipePage(left: Bool, in springboard: XCUIApplication) {

@@ -8,13 +8,13 @@
     "width": 886,
     "height": 1920,
     "fps": 30,
-    "duration": 22,
+    "duration": 24,
     "bitrate": "11M",
     "maxrate": "12M",
     "bufsize": "24M",
     "overlayWidth": 760,
-    "overlayY": 1280,
-    "overlayHeightScale": 2,
+    "overlayY": 1450,
+    "overlayHeightScale": 1,
     "overlayFade": 0.2
   },
   "statusBar": {
@@ -29,21 +29,10 @@
     "swiftConditions": "ZW_SHARING_ENABLED ZW_SCREENSHOTS"
   },
   "fixtures": {
-    "referenceDate": "2026-09-01T09:41:00Z",
-    "countdown": {
-      "title": "Julia turns 12",
-      "date": "2026-10-16"
-    },
-    "mars": {
-      "distanceKm": 225000000,
-      "lightMinutes": 12.5
-    },
-    "weekend": {
-      "title": "Beach this weekend?",
-      "status": "YES",
-      "temperature": 27,
-      "wind": 11
-    }
+    "referenceDate": "2026-09-01T09:41:00Z"
+  },
+  "preview": {
+    "initialPhase": "a"
   },
   "stage": {
     "initialPage": 0
@@ -51,49 +40,82 @@
   "scenes": [
     {
       "start": 0.0,
-      "end": 5.5,
+      "end": 3.0,
       "action": "hold",
-      "label": "Countdown widget",
+      "label": "Hero",
       "overlay": {
         "start": 0.5,
-        "end": 5.1,
-        "text": "“Hey ChatGPT, my daughter turns 12 soon. Count down the days, hours and weekends.”",
-        "style": "prompt"
+        "end": 2.9,
+        "text": "Your agents. Still in sight.",
+        "style": "headline"
       }
     },
     {
-      "start": 5.5,
-      "end": 11.0,
-      "action": "swipe_left",
-      "label": "Mars widget",
+      "start": 3.0,
+      "end": 6.5,
+      "action": "hold",
+      "label": "Prompt",
       "overlay": {
-        "start": 6.1,
-        "end": 10.6,
-        "text": "“Claude, how far away is Mars right now? Show the distance and light travel time.”",
+        "start": 3.2,
+        "end": 6.3,
+        "text": "Ask your agent once: “Track this launch on my iPhone.”",
         "style": "prompt"
       }
     },
     {
-      "start": 11.0,
+      "start": 6.5,
+      "end": 12.0,
+      "action": "preview_phase",
+      "phase": "b",
+      "label": "Live Activity 3/5 to 4/5",
+      "overlay": {
+        "start": 6.7,
+        "end": 11.8,
+        "text": "Follow the work as it changes.",
+        "style": "caption"
+      }
+    },
+    {
+      "start": 12.0,
       "end": 17.0,
-      "action": "swipe_left",
-      "label": "Weekend widget",
+      "action": "open_app",
+      "label": "Dashboard",
       "overlay": {
-        "start": 11.6,
-        "end": 16.1,
-        "text": "“Will this weekend be good for the beach?”",
-        "style": "prompt"
+        "start": 12.2,
+        "end": 16.8,
+        "text": "Results, trends, and the next decision.",
+        "style": "caption"
       }
     },
     {
       "start": 17.0,
-      "end": 22.0,
-      "action": "swipe_left",
-      "label": "Final widget page",
+      "end": 19.0,
+      "action": "tap",
+      "target": "Launch",
+      "label": "Open Launch briefing",
       "overlay": {
-        "start": 17.6,
-        "end": 21.8,
-        "text": "Whatever you want to know. Put it on your Home Screen.",
+        "start": 17.2,
+        "end": 18.8,
+        "text": "Step in when you're needed.",
+        "style": "caption"
+      }
+    },
+    {
+      "start": 19.0,
+      "end": 21.0,
+      "action": "preview_phase",
+      "phase": "c",
+      "label": "Live Activity 4/5 to 5/5"
+    },
+    {
+      "start": 21.0,
+      "end": 24.0,
+      "action": "go_home",
+      "label": "End frame",
+      "overlay": {
+        "start": 21.2,
+        "end": 23.8,
+        "text": "Widgets for all your agents.",
         "style": "headline"
       }
     }

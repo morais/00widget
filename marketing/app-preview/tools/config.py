@@ -85,7 +85,7 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
             raise ConfigError(f"{label}: unsupported action '{action}'.{suffix}")
         if action == "tap" and not str(scene.get("target", "")).strip():
             raise ConfigError(
-                f"{label}: scenes[{index}] action 'tap' needs a 'target' accessibility identifier"
+                f"{label}: scenes[{index}] action 'tap' needs a 'target' accessibility identifier or label"
             )
         if action == "preview_phase" and scene.get("phase") not in {"a", "b", "c"}:
             raise ConfigError(

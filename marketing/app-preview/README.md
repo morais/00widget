@@ -1,7 +1,7 @@
 # App Store Preview capture
 
 `marketing/app-preview/run.sh` turns the prepared `00Widget Marketing` iPhone
-Simulator into a deterministic 22-second App Store Preview. It builds the
+Simulator into a deterministic 24-second App Store Preview. It builds the
 private screenshot scheme, seeds offline fixtures, records the Simulator
 framebuffer, runs a monotonic XCUITest timeline, renders prompt cards with
 FFmpeg, and validates the MP4 with ffprobe.
@@ -67,7 +67,7 @@ FFmpeg. Font files are referenced in place and never copied.
 Scene actions run against one `systemUptime` baseline in XCUITest, rather than
 sleeping relative to the previous scene. Supported actions are `hold`,
 `go_home`, `swipe_left`, `swipe_right`, `open_app`, `tap` (by stable
-accessibility identifier, never coordinates), and `preview_phase` (`a`/`b`/`c`,
+accessibility identifier or label, never coordinates), and `preview_phase` (`a`/`b`/`c`,
 a screenshot-only Live Activity `ContentState` update posted to the app over
 the Darwin notification center so the island can change mid-timeline while the
 recording stays on SpringBoard; the app holds a screenshot-only background
