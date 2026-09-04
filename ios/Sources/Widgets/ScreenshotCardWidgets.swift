@@ -32,8 +32,12 @@ private struct ScreenshotCardProvider: TimelineProvider {
     }
 }
 
+/// Static preview widgets for the App Store Preview timeline. They render the
+/// deterministic launch-story hero -- small Launch, Production and Open PRs
+/// plus the wide Trials chart -- through the production card renderer.
 private struct PreviewCardProvider: TimelineProvider {
     let sampleSuffix: String
+    let density: CardRenderDensity
 
     func placeholder(in context: Context) -> CardTimelineEntry { entry() }
 
@@ -47,11 +51,11 @@ private struct PreviewCardProvider: TimelineProvider {
 
     private func entry() -> CardTimelineEntry {
         let id = SampleDataFactory.sampleId(sampleSuffix)
+        let referenceDate = ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")!
         let card = CardCache.load().cards.first(where: { $0.id == id })
-            ?? SampleDataFactory.makeMarketingPreviewCards(
-                referenceDate: ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")!
-            ).first(where: { $0.id == id })
-        return CardTimelineEntry(date: Date(), card: card, density: .compact)
+            ?? SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate)
+                .first(where: { $0.id == id })
+        return CardTimelineEntry(date: Date(), card: card, density: density)
     }
 }
 
@@ -111,9 +115,13 @@ private func previewCardConfiguration(
     kind: String,
     sampleSuffix: String,
     displayName: String,
+    density: CardRenderDensity = .compact,
     supportedFamilies: [WidgetFamily] = [.systemSmall]
 ) -> some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: PreviewCardProvider(sampleSuffix: sampleSuffix)) { entry in
+    StaticConfiguration(
+        kind: kind,
+        provider: PreviewCardProvider(sampleSuffix: sampleSuffix, density: density)
+    ) { entry in
         CardWidgetView(entry: entry)
             .containerBackground(.fill.tertiary, for: .widget)
     }
@@ -122,34 +130,44 @@ private func previewCardConfiguration(
     .supportedFamilies(supportedFamilies)
 }
 
-struct PreviewCountdownWidget: Widget {
+struct PreviewLaunchWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.countdown",
-            sampleSuffix: "preview-countdown",
-            displayName: "Preview Countdown"
+            kind: "com.00widget.preview.launch",
+            sampleSuffix: "preview-launch",
+            displayName: "Preview Launch"
         )
     }
 }
 
-struct PreviewMarsWidget: Widget {
+struct PreviewProductionWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.mars",
-            sampleSuffix: "preview-mars",
-            displayName: "Preview Mars",
-            supportedFamilies: [.systemSmall, .systemMedium]
+            kind: "com.00widget.preview.production",
+            sampleSuffix: "preview-production",
+            displayName: "Preview Production"
         )
     }
 }
 
-struct PreviewWeekendWidget: Widget {
+struct PreviewOpenPRsWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.weekend",
-            sampleSuffix: "preview-weekend",
-            displayName: "Preview Weekend",
-            supportedFamilies: [.systemSmall, .systemMedium]
+            kind: "com.00widget.preview.open-prs",
+            sampleSuffix: "preview-open-prs",
+            displayName: "Preview Open PRs"
+        )
+    }
+}
+
+struct PreviewTrialsWideWidget: Widget {
+    var body: some WidgetConfiguration {
+        previewCardConfiguration(
+            kind: "com.00widget.preview.trials-wide",
+            sampleSuffix: "preview-trials",
+            displayName: "Preview Trials Wide",
+            density: .automatic,
+            supportedFamilies: [.systemMedium]
         )
     }
 }

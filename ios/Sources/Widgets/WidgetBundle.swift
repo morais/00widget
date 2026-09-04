@@ -16,9 +16,10 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotSupportWidget()
         ScreenshotMetricsLargeWidget()
         ScreenshotMetricsExtraLargeWidget()
-        PreviewCountdownWidget()
-        PreviewMarsWidget()
-        PreviewWeekendWidget()
+        PreviewLaunchWidget()
+        PreviewProductionWidget()
+        PreviewOpenPRsWidget()
+        PreviewTrialsWideWidget()
 #endif
         CardWidget()
         CardGridWidget()
