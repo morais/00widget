@@ -328,8 +328,27 @@ const GUEST_SCRIPT = `
   // Apple TV draw it. The producer's icon is dropped: it names an SF Symbol,
   // which a browser has no way to resolve — the same reason this page already
   // ignores a card's own icon and statusIcon. The label carries it alone.
-  var producerLine=function(p){
-    if(!p||!p.label){return ''}
+  //
+  // Suppressed when the subtitle already opens with the same name. This page
+  // draws the subtitle on every template, so there is no list-card exception
+  // like the one the card *body* renderers make. Mirrors
+  // DashboardCard.producerRepeatsSubtitle in Swift, separators included —
+  // the two must move together.
+  var SUBTITLE_SEPARATORS='\u00b7\u2022\u2014\u2013-|:,';
+  // trim() rather than a regex: a backslash escape written here would be
+  // consumed by the TypeScript template literal this script lives in, and
+  // /^\s+/ would reach the browser as /^s+/.
+  var repeatsSubtitle=function(p,subtitle){
+    if(!p||!p.label||!subtitle){return false}
+    var label=p.label.trim();
+    if(!label){return false}
+    if(subtitle.toLowerCase().indexOf(label.toLowerCase())!==0){return false}
+    var rest=subtitle.slice(label.length).trim();
+    if(!rest){return true}
+    return SUBTITLE_SEPARATORS.indexOf(rest.charAt(0))!==-1;
+  };
+  var producerLine=function(p,subtitle){
+    if(!p||!p.label||repeatsSubtitle(p,subtitle)){return ''}
     return '<p class="producer">'+esc(p.label)+'</p>';
   };
   // The change under the headline. Coloured by what the producer said the
@@ -385,7 +404,7 @@ const GUEST_SCRIPT = `
       // has nothing to press.
       var c=d.card;
       h+='<p class="title">'+esc(c.title)+'</p>';
-      h+=producerLine(c.producer);
+      h+=producerLine(c.producer,c.subtitle);
       if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
       if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
       h+=comparisonLine(c.comparison);

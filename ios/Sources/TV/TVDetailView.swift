@@ -173,7 +173,13 @@ struct TVDetailView: View {
                         .accessibilityAddTraits(.isHeader)
                     statusChip(for: subject)
                 }
-                if case .card(let card) = subject, let producer = card.producer {
+                // Unlike a grid cell, this panel draws the subtitle on every
+                // template, so the attribution is dropped whenever the
+                // subtitle already opens with it — no `drawsCardSubtitle`
+                // exception to make here.
+                if case .card(let card) = subject,
+                   let producer = card.producer,
+                   !card.producerRepeatsSubtitle {
                     HStack(spacing: 8) {
                         if let icon = producer.icon {
                             Image(systemName: icon).accessibilityHidden(true)

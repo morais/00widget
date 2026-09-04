@@ -30,7 +30,12 @@ enum CardAccessibilitySummary {
             sentences.append(sentence(subtitle))
         }
 
-        if let producer = trimmed(card.producer?.label) {
+        // Dropped when the subtitle just read out above already opened with
+        // the same name. Speech is linear and unskimmable, so hearing "Growth
+        // Agent · up 18 this week. From Growth Agent." is a worse repetition
+        // than seeing it twice. The subtitle is spoken on every template here,
+        // so there is no `drawsCardSubtitle` exception.
+        if let producer = trimmed(card.producer?.label), !card.producerRepeatsSubtitle {
             sentences.append("From \(producer).")
         }
 

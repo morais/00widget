@@ -81,6 +81,40 @@ describe("guest page — card fields it must not silently drop", () => {
     expect(h).not.toContain("sparkles");
   });
 
+  /// Mirrors DashboardCard.producerRepeatsSubtitle. This page draws the
+  /// subtitle on every template, so unlike a card body there is no list-card
+  /// exception to make here.
+  it("drops the producer when the subtitle already opens with it", async () => {
+    const h = await renderGuestCard(
+      card({ subtitle: "Growth Agent · up 18 this week", producer: { label: "Growth Agent" } }),
+    );
+    expect(h).not.toContain('class="producer"');
+    expect(h).toContain("Growth Agent · up 18 this week");
+  });
+
+  it("keeps a producer whose name is only a prefix of the subtitle's first word", async () => {
+    // "Growth" is a different producer from "Growth Agent", and its
+    // attribution says something the subtitle does not.
+    const h = await renderGuestCard(
+      card({ subtitle: "Growth Agent · up 18", producer: { label: "Growth" } }),
+    );
+    expect(h).toContain('<p class="producer">Growth</p>');
+  });
+
+  it("drops the producer when it is the whole subtitle", async () => {
+    const h = await renderGuestCard(
+      card({ subtitle: "Growth Agent", producer: { label: "Growth Agent" } }),
+    );
+    expect(h).not.toContain('class="producer"');
+  });
+
+  it("keeps a producer the subtitle does not open with", async () => {
+    const h = await renderGuestCard(
+      card({ subtitle: "of $30 today · $11.60 left", producer: { label: "Usage Agent" } }),
+    );
+    expect(h).toContain('<p class="producer">Usage Agent</p>');
+  });
+
   it("renders a comparison with its signal class and mark", async () => {
     const h = await renderGuestCard(
       card({ value: "128", comparison: { value: "+18", label: "vs Monday", signal: "favorable" } }),

@@ -36,6 +36,39 @@ struct AccessibilitySummaryTests {
         #expect(CardAccessibilitySummary.summary(for: card).contains("From Growth Agent."))
     }
 
+    @Test("Attribution is not spoken twice when the subtitle already opens with it")
+    func cardProducerRepeatingSubtitle() {
+        let card = DashboardCard(
+            id: "trials",
+            template: .summary,
+            title: "Trials",
+            subtitle: "Growth Agent · up 18 this week",
+            value: "128",
+            status: .good,
+            producer: CardProducer(label: "Growth Agent")
+        )
+
+        let spoken = CardAccessibilitySummary.summary(for: card)
+        // The subtitle still carries the name; only the second copy goes.
+        #expect(spoken.contains("Growth Agent · up 18 this week."))
+        #expect(!spoken.contains("From Growth Agent."))
+    }
+
+    @Test("A producer the subtitle does not open with is still spoken")
+    func cardProducerDistinctFromSubtitle() {
+        let card = DashboardCard(
+            id: "spend",
+            template: .summary,
+            title: "Spend",
+            subtitle: "of $30 today · $11.60 left",
+            value: "$18.40",
+            status: .good,
+            producer: CardProducer(label: "Usage Agent")
+        )
+
+        #expect(CardAccessibilitySummary.summary(for: card).contains("From Usage Agent."))
+    }
+
     @Test("Typed comparison carries its interpretation into the spoken summary")
     func cardComparison() {
         let card = DashboardCard(

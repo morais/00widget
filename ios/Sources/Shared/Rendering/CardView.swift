@@ -183,6 +183,12 @@ public struct CardView: View {
 
     private var showsProducer: Bool {
         guard density != .compact, card.producer != nil else { return false }
+        // A card whose subtitle already opens with the producer's name would
+        // otherwise print it twice, one line above the other. The body only
+        // draws that subtitle on templates other than `list`, so a `list`
+        // card keeps its header attribution regardless — see
+        // `DashboardTemplate.drawsCardSubtitle`.
+        if card.template.drawsCardSubtitle, card.producerRepeatsSubtitle { return false }
         switch context {
         case .app, .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait:
             return true
