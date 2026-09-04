@@ -560,9 +560,12 @@ private struct LockScreenView: View {
 
     private func smallContent(_ metrics: SmallActivityMetrics) -> some View {
         HStack(spacing: metrics.spacing) {
-            Image(systemName: iconName)
-                .font(metrics.icon)
-                .foregroundStyle(.secondary)
+            SmallActivityIdentity(
+                glyph: iconName,
+                progress: smallProgress,
+                tint: tint,
+                metrics: metrics
+            )
             statusGlyph(metrics.statusGlyph)
             VStack(alignment: .leading, spacing: 1) {
                 Text(attributes.title)
@@ -591,14 +594,25 @@ private struct LockScreenView: View {
                 Text("\(state.activeItems.count)")
                     .font(metrics.value)
                     .monospacedDigit()
-            } else if let p = state.activeItems.first?.progress ?? state.progress {
-                Gauge(value: max(0, min(p, 1))) { EmptyView() }
-                    .gaugeStyle(.accessoryCircularCapacity)
-                    .scaleEffect(metrics.gaugeScale)
             }
         }
         .padding(.horizontal, metrics.horizontalPadding)
         .padding(.vertical, metrics.verticalPadding)
+    }
+
+    /// The fraction the identity ring draws, or `nil` for a bare glyph.
+    ///
+    /// The first active item's own progress still wins, because a composite
+    /// activity's current part is the thing being watched. Below that this now
+    /// reads `minimalProgress` rather than `progress` alone: the ladder there
+    /// derives a fraction from finished items or from a counter written into
+    /// `value`, and refuses to invent a zero. A `.small` card is seven times
+    /// the area of the Dynamic Island's minimal circle and was showing strictly
+    /// less completion than it — nothing at all wherever the producer counted
+    /// in items or in prose.
+    private var smallProgress: Double? {
+        if let p = state.activeItems.first?.progress { return max(0, min(p, 1)) }
+        return state.minimalProgress
     }
 
     @ViewBuilder
@@ -685,6 +699,57 @@ enum LiveActivityBackground {
     }
 }
 
+/// The `.small` family's leading element: identity and completion in one
+/// circle, or the bare glyph when there is no honest fraction to draw.
+///
+/// These were two views side by side, and on a watch card that is most of the
+/// width. `Gauge(.accessoryCircularCapacity)` reports a **fixed 58×58**
+/// whatever it is proposed and whatever the Dynamic Type size — measured, not
+/// assumed — and the old `.scaleEffect(0.8)` beside it did not change that,
+/// because `scaleEffect` is a draw-time transform with no effect on layout. So
+/// the row spent 58 points on a ring drawn at 46, plus 29 on a `.title3` glyph
+/// and a spacing between them, and on the narrowest watch card that left the
+/// title and value column about 21 points: "Configure release" rendered as
+/// "Confi…" over "Push…". Composing them recovers all of it, and the glyph
+/// inside the ring is the arrangement `MinimalIslandView` already uses.
+///
+/// `scaleEffect` *and* `frame` together, therefore: the frame is what the row
+/// budgets, the scale is what makes the drawing match it. Either alone is
+/// wrong in a different direction — frame alone lays out 34 points and draws
+/// 58 through its neighbours, scale alone draws 34 and reserves 58.
+private struct SmallActivityIdentity: View {
+    let glyph: String
+    let progress: Double?
+    let tint: Color
+    let metrics: SmallActivityMetrics
+
+    /// The intrinsic size of `.accessoryCircularCapacity`, which honours no
+    /// proposal. Verified stable from `.large` through `.accessibility5`.
+    private static let gaugeIntrinsicSize: CGFloat = 58
+
+    var body: some View {
+        if let progress {
+            Gauge(value: max(0, min(progress, 1))) {
+                // Fitted into a square for the reason `IslandGlyph` documents:
+                // a producer may send any symbol, and a wide one laid out at a
+                // font size overruns a circle sized for a square.
+                IslandGlyph(systemName: glyph, size: metrics.ringSize * 0.36)
+            }
+            .gaugeStyle(.accessoryCircularCapacity)
+            // The ring carried no tint at all, which is why it drew grey on a
+            // card where everything else took `kind.tint`. `MinimalIslandView`
+            // has always tinted its gauge; this is the same ring.
+            .tint(tint)
+            .scaleEffect(metrics.ringSize / Self.gaugeIntrinsicSize)
+            .frame(width: metrics.ringSize, height: metrics.ringSize)
+        } else {
+            Image(systemName: glyph)
+                .font(metrics.icon)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// Type, spacing, and padding for the `.small` activity family.
 ///
 /// Two presets rather than a continuous scale: the family renders on a small
@@ -699,7 +764,9 @@ private struct SmallActivityMetrics {
     var spacing: CGFloat
     var horizontalPadding: CGFloat
     var verticalPadding: CGFloat
-    var gaugeScale: CGFloat
+    /// The identity ring's laid-out diameter. See `SmallActivityIdentity` for
+    /// why this is a size rather than the scale factor it replaced.
+    var ringSize: CGFloat
 
     /// Comfortably above the widest Apple Watch Smart Stack card and below the
     /// narrowest CarPlay Dashboard cell. A container that reports no width yet
@@ -719,11 +786,11 @@ private struct SmallActivityMetrics {
         spacing: 8,
         horizontalPadding: 10,
         verticalPadding: 6,
-        gaugeScale: 0.8
+        ringSize: 34
     )
 
-    /// Everything a step up, and the gauge at full size: this is read from a
-    /// driving position rather than a raised wrist.
+    /// Everything a step up, and a larger ring: this is read from a driving
+    /// position rather than a raised wrist.
     static let roomy = SmallActivityMetrics(
         icon: .title2,
         statusGlyph: .subheadline,
@@ -733,7 +800,7 @@ private struct SmallActivityMetrics {
         spacing: 12,
         horizontalPadding: 16,
         verticalPadding: 10,
-        gaugeScale: 1.0
+        ringSize: 48
     )
 }
 
