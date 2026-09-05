@@ -95,8 +95,38 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
     /// glyphs is the budget — "1/4", "78%", "20°" fit; "Capture 1/4" does not,
     /// and clipping it to "Cap" would read as a word rather than as truncation.
     var minimalValueToken: String? {
-        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 3 else { return nil }
+        Self.token(in: value, budget: 3)
+    }
+
+    /// A string short enough for the Dynamic Island's *compact* trailing
+    /// region, which is wider than the minimal circle and still small.
+    ///
+    /// The region neither wraps nor scales what it is given: it clips, and
+    /// from the leading edge, so "Announcement 4/5" arrives as
+    /// "ouncement 4/5" — which reads as a word rather than as truncation.
+    /// `fixedSize()` is needed as well and is not sufficient on its own: it
+    /// makes the region negotiate a width instead of accepting a clipped one,
+    /// which is what lets even "4/5" render at all, but with a long string it
+    /// grows the island across most of the screen *and* clips it anyway. So
+    /// the budget is what keeps it honest, and six glyphs is it — measured
+    /// against the countdown this replaced, which sat comfortably at "~8 min".
+    ///
+    /// Nothing is shown rather than something clipped. The leading glyph still
+    /// says which activity this is, and the Lock Screen, the expanded island
+    /// and every widget surface have room for the value in full.
+    var compactValueToken: String? {
+        Self.token(in: value, budget: 6)
+    }
+
+    /// The same budget applied to any other string a compact region might
+    /// fall back to, so a new branch cannot reintroduce the clipping.
+    static func compactToken(_ raw: String?) -> String? {
+        token(in: raw, budget: 6)
+    }
+
+    private static func token(in raw: String?, budget: Int) -> String? {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= budget else { return nil }
         return trimmed
     }
 

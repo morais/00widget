@@ -207,6 +207,54 @@ should survive is the arithmetic it helped you get right, extracted somewhere a
 unit test can reach it — `ListRowFill` and `BriefingFill` are the worked
 examples, both of which came out of exactly this loop.
 
+## Looking at the Dynamic Island without a full capture run
+
+The Island is drawn by the system, above the app. `ImageRenderer` cannot draw
+it, so the two loops above are blind to it, and until recently the only way to
+see one was the full marketing run — ten minutes of Home Screen widget
+placement to answer a question about a 24-point strip. A defect in it therefore
+cost a capture cycle per attempt, and one shipped.
+
+```
+marketing/screenshots/capture-ios.sh --only island
+```
+
+**37 seconds**, against about ten minutes. It stages the same launch Live
+Activity, backgrounds the app, and captures the compact and expanded
+presentations with nothing in between, writing them plus 2x zoomed crops to
+`artifacts/screenshots/probe/<device>/` — outside the canonical raw tree,
+because they are a diagnostic and never an App Store asset.
+
+It answers whether a region clips or scales, how a glyph sits against the text
+beside it, and what a value looks like at the width the system actually gives
+it. It cannot show the Lock Screen (that needs the host-side adapter) or the
+minimal circle (that needs a second activity on the device to collapse
+against).
+
+**What it found, and the rule that came out of it.** A compact region neither
+wraps nor scales what it is given: it clips, and from the *leading* edge, so
+`4/5` arrives as `/5` and reads as a real value rather than as truncation.
+`minimumScaleFactor` does not help, because the text is never offered a bounded
+width to shrink into. Two things are needed together, and neither alone is
+enough:
+
+- `.fixedSize()` on the region's content, so it negotiates a width instead of
+  accepting a proposal too small for it. Without this even three glyphs are
+  cut — and the *leading* glyph is cut with them, because the whole compact
+  presentation is laid out against that proposal, which is what makes this look
+  like two unrelated bugs.
+- A length budget (`compactValueToken`, six glyphs), because a region free to
+  demand its ideal width grows the island across most of the screen and clips
+  anyway. Over budget, the trailing region falls back to the progress
+  percentage; nothing is shown rather than something clipped, since the leading
+  glyph still says which activity this is and every roomier surface has the
+  value in full.
+
+The countdown hides all of this: `Text(timerInterval:)` is special-cased by the
+system, so an activity with an `endsAt` renders correctly and one with a plain
+value does not. That is exactly how it reached TestFlight — the sample activity
+had a countdown until the marketing pass removed it.
+
 ## Looking at a tvOS layout without a television
 
 The iOS loop above needs a tvOS counterpart, because `Sources/TV` is not in the

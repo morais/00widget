@@ -33,7 +33,13 @@ in that order:
 marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
 
-For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout. Use `--only lock` to refresh just the Lock Screen surface: it reuses the built products, stages the launch Live Activity through a marker test, and locks the simulator host-side, so it needs macOS Accessibility permission for the terminal running it.
+For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout. Use `--only island` for a 37-second look at the Dynamic Island — it stages the
+launch activity, backgrounds the app, and captures the compact and expanded
+presentations plus 2x zoomed crops to `artifacts/screenshots/probe/<device>/`.
+Those are a diagnostic, never an App Store asset, which is why they live
+outside the raw tree. The Island is system-drawn, so nothing cheaper can see
+it; see the AGENTS.md section for what it can and cannot answer. Use `--only
+lock` to refresh just the Lock Screen surface: it reuses the built products, stages the launch Live Activity through a marker test, and locks the simulator host-side, so it needs macOS Accessibility permission for the terminal running it.
 
 The subscription QA suite is separate from the public product-page set. Run
 `marketing/screenshots/capture-ios.sh --only subscriptions` to capture the free,

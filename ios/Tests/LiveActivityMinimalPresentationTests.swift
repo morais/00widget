@@ -131,6 +131,32 @@ struct LiveActivityMinimalPresentationTests {
         #expect(state().minimalValueToken == nil)
     }
 
+    /// The compact region is wider than the circle and still bounded. It
+    /// clips from the *leading* edge and never scales, so "Announcement 4/5"
+    /// arrives as "ouncement 4/5" — a phrase, not a visible truncation.
+    /// Verified on a device through `capture-ios.sh --only island`; nothing
+    /// in this suite can see the Island itself.
+    @Test("Only a value that fits the compact region becomes a token")
+    func compactValueTokenFits() {
+        #expect(state(value: "4/5").compactValueToken == "4/5")
+        #expect(state(value: "~8 min").compactValueToken == "~8 min")
+        #expect(state(value: " 12/15 ").compactValueToken == "12/15")
+        #expect(state(value: "Announcement 4/5").compactValueToken == nil)
+        #expect(state(value: "").compactValueToken == nil)
+        #expect(state().compactValueToken == nil)
+
+        // The circle's budget stays tighter than the region's, or a value
+        // that only fits the compact one would be drawn in both.
+        #expect(state(value: "~8 min").minimalValueToken == nil)
+
+        // The same rule guards any other string a compact branch falls back
+        // to, so a new branch cannot reintroduce the clipping.
+        typealias State = ZeroZeroWidgetActivityAttributes.ContentState
+        #expect(State.compactToken("Paused") == "Paused")
+        #expect(State.compactToken("Waiting for approval") == nil)
+        #expect(State.compactToken(nil) == nil)
+    }
+
     // MARK: Countdown token
 
     @Test("A countdown reads as one unit, rounded so it never overstates")

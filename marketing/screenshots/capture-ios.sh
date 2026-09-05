@@ -12,6 +12,7 @@
 #   marketing/screenshots/capture-ios.sh --only activities
 #   marketing/screenshots/capture-ios.sh --only app
 #   marketing/screenshots/capture-ios.sh --only lock
+#   marketing/screenshots/capture-ios.sh --only island
 #   marketing/screenshots/capture-ios.sh --only subscriptions
 #   marketing/screenshots/capture-ios.sh --device "iPhone 17 Pro" --out /tmp/shots
 #   marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"
@@ -137,8 +138,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "lock" && "$ONLY" != "subscriptions" ]]; then
-  echo "--only must be 'all', 'activities', 'app', 'lock', or 'subscriptions'" >&2
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "lock" && "$ONLY" != "island" && "$ONLY" != "subscriptions" ]]; then
+  echo "--only must be 'all', 'activities', 'app', 'lock', 'island', or 'subscriptions'" >&2
   exit 2
 fi
 
@@ -158,6 +159,11 @@ if [[ -z "$OUT" ]]; then
   OUT="$REPO_ROOT/artifacts/screenshots/raw/$DEVICE_FOLDER"
   if [[ "$ONLY" == "subscriptions" ]]; then
     OUT="$OUT/subscriptions"
+  fi
+  # The Island probe is a diagnostic, never an App Store asset, so it stays
+  # out of the canonical raw tree that the manifests and the compositor read.
+  if [[ "$ONLY" == "island" ]]; then
+    OUT="$REPO_ROOT/artifacts/screenshots/probe/$DEVICE_FOLDER"
   fi
 fi
 
@@ -280,6 +286,10 @@ elif [[ "$ONLY" == "app" ]]; then
   )
 elif [[ "$ONLY" == "lock" ]]; then
   TEST_FILTERS=()
+elif [[ "$ONLY" == "island" ]]; then
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureIslandProbe
+  )
 elif [[ "$ONLY" == "subscriptions" ]]; then
   TEST_FILTERS=(
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionScreenshots
@@ -336,6 +346,8 @@ if count == 0:
 required = set()
 if mode == "activities":
     required = {"screenshot-activities.png"}
+elif mode == "island":
+    required = {"probe-island-compact.png", "probe-island-expanded.png"}
 elif mode == "app":
     required = {
         "screenshot-widgets.png",
@@ -393,6 +405,29 @@ if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
   if [[ "$ONLY" == "lock" ]]; then
     echo "  note: --only lock refreshes $LOCK_PNG in place; run the full capture to re-baseline the manifest"
   fi
+fi
+
+if [[ "$ONLY" == "island" ]]; then
+  python3 - "$OUT" <<'CROP'
+import sys
+from pathlib import Path
+
+try:
+    from PIL import Image
+except ImportError:  # the crop is a convenience, not the capture
+    raise SystemExit(0)
+
+out = Path(sys.argv[1])
+for name, depth in (("probe-island-compact", 0.09), ("probe-island-expanded", 0.22)):
+    source = out / f"{name}.png"
+    if not source.is_file():
+        continue
+    with Image.open(source) as image:
+        crop = image.crop((0, 0, image.width, round(image.height * depth)))
+        crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+        crop.save(out / f"{name}-zoom.png")
+    print(f"  {name}-zoom.png")
+CROP
 fi
 
 echo "→ restoring status bar"

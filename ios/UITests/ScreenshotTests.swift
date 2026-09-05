@@ -192,6 +192,48 @@ final class ScreenshotTests: XCTestCase {
         return true
     }
 
+    /// A one-shot look at the Dynamic Island, in about a minute.
+    ///
+    /// The Island is drawn by the system, above the app: `ImageRenderer` cannot
+    /// draw it, and no exact-size render can show what it does with content
+    /// that does not fit. Before this existed the only way to see it was the
+    /// full marketing run — ten minutes of Home Screen widget placement to
+    /// answer a question about one 24-point-tall strip — so a defect in it cost
+    /// a capture cycle per attempt and shipped twice.
+    ///
+    /// This stages the same launch activity, backgrounds the app, and captures
+    /// the compact and expanded presentations with nothing else in between.
+    /// Run it with `marketing/screenshots/capture-ios.sh --only island`, which
+    /// writes the pair outside the canonical raw tree — they are a diagnostic,
+    /// never an App Store asset.
+    ///
+    /// What it can answer: whether a region clips or scales its content, how a
+    /// glyph sits against the text beside it, what a value looks like at the
+    /// width the system actually gives it. What it cannot: anything about the
+    /// Lock Screen, or the minimal circle, which needs a second activity on the
+    /// device to collapse against.
+    func testCaptureIslandProbe() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(
+            stageSampleActivity(in: app),
+            "Sample Live Activity did not start, so there is no Island to look at."
+        )
+
+        // The Island only draws while the app is in the background.
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 3)
+        capture(named: "probe-island-compact")
+
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        springboard
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022))
+            .press(forDuration: 1.2)
+        Thread.sleep(forTimeInterval: 2)
+        capture(named: "probe-island-expanded")
+    }
+
     /// Stages the launch Live Activity and pauses on a host-visible marker so
     /// the host-side lock adapter (`marketing/screenshots/sim-lock-capture.sh`)
     /// can lock the simulator and capture the Lock Screen framebuffer — a
