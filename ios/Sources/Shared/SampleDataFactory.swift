@@ -157,7 +157,8 @@ public enum SampleDataFactory {
                 producer: CardProducer(label: "Release Agent", icon: "sparkles"),
                 progress: 0.8,
                 updatedAt: now,
-                deadline: now.addingTimeInterval(8 * 60),
+                // No countdown while a person is the thing being waited on: a
+                // clock cannot predict when someone decides.
                 briefing: DashboardBriefing(sections: [
                     DashboardBriefingSection(
                         id: "now",
@@ -175,7 +176,10 @@ public enum SampleDataFactory {
                         text: "Approve the customer announcement."
                     ),
                 ]),
-                actions: [ActionDefinition(id: "approve-launch", label: "Approve")]
+                // A customer announcement is consequential enough that the
+                // widget must route to the app's confirmation step rather than
+                // approving on one tap.
+                actions: [ActionDefinition(id: "approve-launch", label: "Approve", confirm: true)]
             ),
             DashboardCard(
                 id: sampleId("production"),
@@ -196,7 +200,7 @@ public enum SampleDataFactory {
                 id: sampleId("trials"),
                 template: .chart,
                 title: "Trials",
-                subtitle: "Growth Agent · up 18 this week",
+                subtitle: "Growth Agent · this week",
                 value: "128",
                 unit: "today",
                 status: .good,
@@ -222,14 +226,17 @@ public enum SampleDataFactory {
                 id: sampleId("support"),
                 template: .breakdown,
                 title: "Support",
-                subtitle: "Support Agent · 1 needs you",
+                subtitle: "Support Agent · 1 waiting",
                 value: "24",
-                status: .warning,
+                // Healthy overall: the single amber segment inside the
+                // breakdown is what makes the distribution credible, and the
+                // launch approval stays the deck's only decision.
+                status: .good,
                 icon: "person.2.wave.2",
                 producer: CardProducer(label: "Support Agent", icon: "sparkles"),
                 updatedAt: now,
                 items: [
-                    DashboardItem(id: "needs-you", title: "Needs you", value: "1", status: .warning, amount: 1),
+                    DashboardItem(id: "waiting", title: "Waiting", value: "1", status: .warning, amount: 1),
                     DashboardItem(id: "resolved", title: "Resolved", value: "18", status: .good, amount: 18),
                     DashboardItem(id: "draft-ready", title: "Draft ready", value: "5", status: .running, amount: 5),
                 ],
@@ -251,7 +258,7 @@ public enum SampleDataFactory {
                 id: sampleId("agent-runs"),
                 template: .history,
                 title: "Agent runs",
-                subtitle: "19 first-try · 1 recovered",
+                subtitle: "19 clean · 1 retried",
                 value: "20/20",
                 status: .good,
                 icon: "checkmark.circle",
@@ -281,28 +288,15 @@ public enum SampleDataFactory {
                 ]
             ),
             DashboardCard(
-                id: sampleId("launch-message"),
-                template: .action,
-                title: "Launch message",
-                subtitle: "Content Agent · approval needed",
-                value: "Ready",
-                status: .warning,
-                icon: "megaphone.fill",
-                producer: CardProducer(label: "Content Agent", icon: "sparkles"),
-                updatedAt: now,
-                actions: [ActionDefinition(id: "approve-announcement", label: "Approve")]
-            ),
-            DashboardCard(
                 id: sampleId("open-prs"),
                 template: .summary,
                 title: "Open PRs",
-                subtitle: "Code Agent · all reviewed",
+                subtitle: "Code Agent · reviewed",
                 value: "3",
                 status: .good,
                 icon: "arrow.triangle.branch",
                 producer: CardProducer(label: "Code Agent", icon: "chevron.left.forwardslash.chevron.right"),
-                updatedAt: now,
-                deadline: now.addingTimeInterval(8 * 60)
+                updatedAt: now
             )
         ]
     }
@@ -634,8 +628,9 @@ public enum SampleDataFactory {
                 LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
                 LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
             ],
-            endsAt: now.addingTimeInterval(8 * 60),
-            countdownGranularity: .minute,
+            // Deliberately no endsAt: the job is blocked on a person, and an
+            // ETA beside "Waiting for approval" claims a clock can predict
+            // when they decide. Earlier processing states may carry one.
             startedAt: now.addingTimeInterval(-32 * 60),
             updatedAt: now,
             staleAt: now.addingTimeInterval(3600)

@@ -49,7 +49,7 @@ struct ProducerAttributionTests {
     }
 
     /// The sample deck is what the App Store screenshots show, and it is
-    /// deliberately written the way a real producer writes: six of its eight
+    /// deliberately written the way a real producer writes: five of its seven
     /// cards repeat their producer in the subtitle, so the renderer's handling
     /// of that is what a screenshot captures. Two do not, which is what keeps
     /// the attribution itself visible in those captures.
@@ -58,7 +58,7 @@ struct ProducerAttributionTests {
         let cards = SampleDataFactory.makeCards()
         let repeated = cards.filter(\.producerRepeatsSubtitle).map(\.title)
         let distinct = cards.filter { $0.producer != nil && !$0.producerRepeatsSubtitle }.map(\.title)
-        #expect(repeated == ["Launch", "Production", "Trials", "Support", "Launch message", "Open PRs"])
+        #expect(repeated == ["Launch", "Production", "Trials", "Support", "Open PRs"])
         #expect(distinct == ["AI spend", "Agent runs"])
     }
 }

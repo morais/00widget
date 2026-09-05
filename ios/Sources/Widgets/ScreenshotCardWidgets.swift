@@ -174,12 +174,12 @@ struct ScreenshotOpenPRsWidget: Widget {
     }
 }
 
-struct ScreenshotLaunchMessageWidget: Widget {
+struct ScreenshotLaunchWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.launch-message",
-            sampleSuffix: "launch-message",
-            displayName: "Screenshot Launch Message"
+            kind: "com.00widget.screenshot.launch",
+            sampleSuffix: "launch",
+            displayName: "Screenshot Launch"
         )
     }
 }

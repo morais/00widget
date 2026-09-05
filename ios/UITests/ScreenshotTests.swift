@@ -256,7 +256,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private var classicWidgetNames: [String] {
-        ["Screenshot Production", "Screenshot Open PRs", "Screenshot Launch Message", "Screenshot Trials Wide"]
+        ["Screenshot Production", "Screenshot Open PRs", "Screenshot Launch", "Screenshot Trials Wide"]
     }
 
     private var insightWidgetNames: [String] {
