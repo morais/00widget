@@ -73,12 +73,17 @@ struct SampleDataFactoryTests {
         #expect(spend.subtitle == "of $30 today · $11.60 left")
         #expect(runs.subtitle == "19 clean · 1 retried")
 
-        // The small widget gives a summary's subtitle one line, and a
-        // countdown to nothing was costing this one its attribution.
+        // A summary's subtitle gets one line in a small widget — a briefing's
+        // wraps to two — and that line is 126pt on the 158pt canvas this deck
+        // is captured on. "Code Agent · reviewed" measured 21 characters into
+        // "Code Agent · revie…" there, so the producer gives up the line and
+        // the state keeps it; the attribution still draws on every surface
+        // with room, which it would not if the subtitle led with the name.
         let prs = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("open-prs") }
         )
-        #expect(prs.subtitle == "Code Agent · reviewed")
+        #expect(prs.subtitle == "All reviewed")
+        #expect(!prs.producerRepeatsSubtitle)
         #expect(prs.deadline == nil)
 
         #expect(cards.compactMap(\.producer?.label) == [

@@ -302,7 +302,7 @@ public enum SampleDataFactory {
                 id: sampleId("open-prs"),
                 template: .summary,
                 title: "Open PRs",
-                subtitle: "Code Agent · reviewed",
+                subtitle: "All reviewed",
                 value: "3",
                 status: .good,
                 icon: "arrow.triangle.branch",

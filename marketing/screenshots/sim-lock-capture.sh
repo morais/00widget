@@ -107,9 +107,63 @@ ax_probe_error_hint() {
 EOF
 }
 
+# Brings up the device window for $DEVICE when Simulator.app is running without
+# one. Closing a device window (Cmd-W) leaves the app running and the device
+# booted, and `open -a Simulator` will not bring the window back — but the
+# Window menu still lists the device, so clicking that entry restores it.
+summon_device_window() {
+  osascript - "$DEVICE" <<'EOF' >/dev/null 2>&1
+on run argv
+  set deviceName to item 1 of argv
+  tell application "Simulator" to activate
+  tell application "System Events"
+    tell process "Simulator"
+      tell menu 1 of menu bar item "Window" of menu bar 1
+        repeat with idx from 1 to (count of menu items)
+          try
+            if name of menu item idx starts with deviceName then
+              click menu item idx
+              return "ok"
+            end if
+          end try
+        end repeat
+      end tell
+    end tell
+  end tell
+  error "no Window-menu entry for " & deviceName
+end run
+EOF
+}
+
+device_window_count() {
+  osascript - "$DEVICE" <<'EOF' 2>/dev/null || echo 0
+on run argv
+  set deviceName to item 1 of argv
+  tell application "System Events"
+    tell process "Simulator"
+      set found to 0
+      repeat with w in (every window)
+        try
+          if name of w starts with deviceName then set found to found + 1
+        end try
+      end repeat
+      return found as text
+    end tell
+  end tell
+end run
+EOF
+}
+
 # Preflight: Simulator.app reachable AND scriptable through accessibility. The
 # probe reads Simulator's Device menu — the same surface the lock step clicks —
 # so a pass means the lock step can run, and a failure names the fix.
+#
+# The menu bar is not the whole precondition, though: `ax_lock` raises the
+# device *window* before clicking Device → Lock, and a Simulator running with
+# no window has a full menu bar and zero windows. That combination passed
+# preflight and failed the lock with a message telling the operator to re-run
+# the preflight — which passed again. So the window is checked here too, and
+# restored when it can be.
 preflight() {
   if ! pgrep -x Simulator >/dev/null; then
     echo "→ opening Simulator.app for preflight"
@@ -125,6 +179,26 @@ preflight() {
   fi
   local probe_err
   if probe_err="$(osascript -e 'tell application "System Events" to tell process "Simulator" to get count of menu items of menu 1 of menu bar item "Device" of menu bar 1' 2>&1)"; then
+    if [[ "$(device_window_count)" == "0" ]]; then
+      echo "→ no window for $DEVICE; restoring it from the Window menu"
+      summon_device_window || true
+      for _ in {1..20}; do
+        [[ "$(device_window_count)" != "0" ]] && break
+        sleep 0.5
+      done
+    fi
+    if [[ "$(device_window_count)" == "0" ]]; then
+      cat >&2 <<EOF
+✗ Simulator.app is running but has no window for $DEVICE, and the Window menu
+  did not restore one. The lock step raises that window before clicking
+  Device → Lock, so it cannot proceed.
+
+  Fix: bring the simulator window up by hand — Simulator → Window → $DEVICE,
+  or quit Simulator.app and re-run. A Mac whose screen is locked also hides
+  windows from the accessibility tree; unlock it first.
+EOF
+      exit 1
+    fi
     echo "✓ Simulator accessibility preflight passed"
   else
     if printf '%s' "$probe_err" | grep -qiE "assistive access|accessib|not allowed|-25211|-1719|operation not permitted"; then
