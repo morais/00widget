@@ -143,6 +143,17 @@ public enum SampleDataFactory {
         ]
     }
 
+    /// The four cards the App Store's four-cell metrics image shows, in the
+    /// order it shows them.
+    ///
+    /// Named here rather than inside the screenshot-only widget that draws
+    /// them because `CardGridFitTests` has to assert against the same list:
+    /// the rule it enforces — that no approved promotional image contains an
+    /// ellipsis — is about these four cards in a grid cell, not about the deck
+    /// in general. A card outside this list may legitimately carry a subtitle
+    /// too long for one, since every other surface gives it more room.
+    public static let marketingGridCardSuffixes = ["trials", "support", "agent-runs", "ai-spend"]
+
     public static func makeCards() -> [DashboardCard] {
         let now = Date()
         return [

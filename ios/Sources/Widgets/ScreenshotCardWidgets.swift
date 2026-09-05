@@ -56,7 +56,7 @@ private struct PreviewCardProvider: TimelineProvider {
 }
 
 private struct ScreenshotMetricsGridProvider: TimelineProvider {
-    private let sampleSuffixes = ["trials", "support", "agent-runs", "ai-spend"]
+    private let sampleSuffixes = SampleDataFactory.marketingGridCardSuffixes
 
     func placeholder(in context: Context) -> CardGridEntry {
         entry()
