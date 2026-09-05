@@ -44,19 +44,27 @@ Configure the device once:
 - do not erase this Simulator after the layout is ready.
 
 Place one hero Home Screen page, starting at the first ordinary page
-after iOS's far-left Today/widgets view:
+after iOS's far-left Today/widgets view, holding `Preview Launch`,
+`Preview Production`, `Preview Open PRs`, and `Preview Trials Wide` and
+nothing else. SpringBoard lays the wide Trials chart out itself (in
+practice a full-width top row with the three smalls beneath); the test
+asserts the set, not the arrangement.
 
-1. `Preview Launch`, `Preview Production`, and `Preview Open PRs` as three
-   small widgets in the top row, with `Preview Trials Wide` directly below
-   them — the same three-small-plus-wide composition as the classic
-   marketing screenshot page.
+Prefer the automated staging, which sweeps the device clean, births the
+page by dragging, and places the set through the gallery with a proof
+screenshot:
+
+```sh
+./marketing/app-preview/run.sh ios-main --stage-device
+```
 
 The names above are private static widget configurations compiled only into the
 screenshot scheme. They use the production card renderer but do not depend on
 AppIntent entity restoration, which is unreliable in the Simulator. Keep this
 page at `stage.initialPage`; the timeline holds it for the opening beats,
 updates the `App launch` Live Activity over it, and returns to it for the
-brand end frame.
+brand end frame. Only `--stage-device` (or deliberate hand work) may touch
+this page; captures and preparations never rearrange it.
 
 Launch 00Widget once with the marketing build before judging the widget data.
 The capture test does this on every run and explicitly asks WidgetCenter to

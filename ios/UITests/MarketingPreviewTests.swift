@@ -57,6 +57,12 @@ final class MarketingPreviewTests: XCTestCase {
         let config = try JSONDecoder().decode(PreviewConfig.self, from: Data(contentsOf: configURL))
 
         let app = XCUIApplication()
+        // A previous run can leave the app suspended; activating it would
+        // resume without launch arguments and miss the demo fixtures.
+        // Terminate first so this launch carries its args, and let the old
+        // process finish dying before launching.
+        app.terminate()
+        Thread.sleep(forTimeInterval: 2)
         app.launchArguments = ["--marketing-demo"]
         if let referenceDate = config.fixtures?.referenceDate {
             app.launchArguments += ["--marketing-reference-date", referenceDate]
@@ -69,9 +75,17 @@ final class MarketingPreviewTests: XCTestCase {
             app.launchArguments += ["--preview-launch-phase", initialPhase]
         }
         app.launch()
+        let demoReady: Bool
         if config.preview?.initialPhase != nil {
+            if !app.staticTexts["Launch"].firstMatch.waitForExistence(timeout: 60) {
+                print("PREVIEW first launch missed the demo cards; relaunching once")
+                app.terminate()
+                Thread.sleep(forTimeInterval: 2)
+                app.launch()
+            }
+            demoReady = app.staticTexts["Launch"].firstMatch.waitForExistence(timeout: 60)
             XCTAssertTrue(
-                app.staticTexts["Launch"].firstMatch.waitForExistence(timeout: 30),
+                demoReady,
                 "Preview launch cards did not load; use a ZW_SCREENSHOTS build."
             )
         } else {
@@ -102,6 +116,10 @@ final class MarketingPreviewTests: XCTestCase {
         let startURL = directory.appendingPathComponent("start")
         XCTAssertTrue(waitForFile(startURL, timeout: 180), "The capture host never started recording.")
 
+        // Scene actions run against the moment recording was observed to
+        // start. The host gates the marker on the movie file itself rather
+        // than a flushed log line, so the residual offset stays inside the
+        // overlays' fade margins.
         let baseline = ProcessInfo.processInfo.systemUptime
         let eventsURL = directory.appendingPathComponent("events.jsonl")
         FileManager.default.createFile(atPath: eventsURL.path, contents: nil)

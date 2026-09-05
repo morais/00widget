@@ -69,6 +69,14 @@ def boot(udid: str, log: Log) -> None:
     run(["open", "-a", "Simulator", "--args", "-CurrentDeviceUDID", udid])
 
 
+def reboot(udid: str, log: Log) -> None:
+    """Cold-boot for UI-driven flows. SpringBoard's accessibility server flaps
+    after repeated install/test cycles until gestures stop dispatching; a
+    shutdown followed by a boot restores it."""
+    run(["xcrun", "simctl", "shutdown", udid], check=False, capture=True)
+    boot(udid, log)
+
+
 def configure_visual_state(udid: str, config: dict[str, Any]) -> None:
     set_appearance(udid, str(config.get("appearance", "light")))
 

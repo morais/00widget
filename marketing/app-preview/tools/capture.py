@@ -26,6 +26,7 @@ from simulator import (
     clear_status_bar,
     configure_visual_state,
     create_device,
+    reboot,
     require_tool,
     resolve_device,
     set_appearance,
@@ -84,6 +85,7 @@ def build_products(
     temp_dir: Path,
     supplied_app: Path | None,
     logger: Logger,
+    udid: str,
 ) -> tuple[Path, Path, str, Path]:
     root = repository_root()
     ios_root = root / "ios"
@@ -114,8 +116,10 @@ def build_products(
         str(project),
         "-scheme",
         str(config.get("build", {}).get("scheme", "ZeroZeroWidgetScreenshots")),
+        # By UDID, not by name: a name implies OS:latest, which misses a
+        # device pinned to an older runtime like the marketing Simulator.
         "-destination",
-        f"platform=iOS Simulator,name={device_name}",
+        f"platform=iOS Simulator,id={udid}",
         "-derivedDataPath",
         str(derived),
         'CODE_SIGN_IDENTITY=-',
@@ -266,7 +270,7 @@ def capture(
 ) -> dict[str, Any]:
     udid, runtime = resolve_device(device_name, config["device"].get("runtime"))
     logger.info(f"Using {device_name} ({runtime}, {udid})")
-    boot(udid, logger.info)
+    reboot(udid, logger.info)
     try:
         configure_visual_state(udid, {**config["device"], "statusBar": config["statusBar"]})
         return capture_with_configured_simulator(
@@ -296,7 +300,7 @@ def prepare_simulator(
     boot(udid, logger.info)
     try:
         configure_visual_state(udid, {**config["device"], "statusBar": config["statusBar"]})
-        selected_app, _, _, _ = build_products(config, device_name, temp_dir, supplied_app, logger)
+        selected_app, _, _, _ = build_products(config, device_name, temp_dir, supplied_app, logger, udid)
         with (selected_app / "Info.plist").open("rb") as handle:
             bundle_id = plistlib.load(handle)["CFBundleIdentifier"]
         logger.info("Installing the private preview build without clearing its data")
@@ -339,7 +343,7 @@ def capture_with_configured_simulator(
     runtime: str,
 ) -> dict[str, Any]:
     selected_app, xctestrun, runner_bundle_id, products = build_products(
-        config, device_name, temp_dir, supplied_app, logger
+        config, device_name, temp_dir, supplied_app, logger, udid
     )
     run_id = uuid.uuid4().hex
     private_xctestrun = temp_dir / xctestrun.name
@@ -423,14 +427,19 @@ def capture_with_configured_simulator(
         ]
         logger.command(record_command)
         recorder = subprocess.Popen(record_command, stdout=recorder_handle, stderr=subprocess.STDOUT)
+        # Gate on the movie file itself, not on a log line: simctl's stdio is
+        # block-buffered to a file, so "Recording started" can sit in the
+        # buffer for a second or two while the movie is already running —
+        # enough to shift every filmed action later than its overlay.
         wait_for(
-            lambda: recorder_log.is_file() and "Recording started" in recorder_log.read_text(errors="replace"),
+            lambda: raw_path.is_file(),
             20,
             "Simulator framebuffer recording to initialize",
             process=recorder,
             process_log=recorder_log,
         )
-        logger.capture_started = time.monotonic()
+        record_started = time.monotonic()
+        logger.capture_started = record_started
         logger.info("Recording started")
         (handshake_dir / "start").write_text("start\n", encoding="utf-8")
         wait_for(
@@ -446,12 +455,20 @@ def capture_with_configured_simulator(
         if not raw_path.is_file() or raw_path.stat().st_size == 0:
             raise PreviewError(f"recording produced no movie: {raw_path}")
 
+        # The timeline is verifiably done once `finished` lands: every scene
+        # ran and the events file is flushed. xcodebuild can still hang
+        # afterwards collecting simulator diagnostics; that must not fail a
+        # complete recording, so an unexiting runner is killed and noted.
+        test_exit = "ok"
         try:
             test_process.wait(timeout=90)
-        except subprocess.TimeoutExpired as exc:
-            raise PreviewError("UI test did not exit after its timeline finished") from exc
-        if test_process.returncode:
-            raise PreviewError(f"preview UI test failed:\n{tail(test_log)}")
+            if test_process.returncode:
+                test_exit = f"nonzero ({test_process.returncode}) after finished"
+        except subprocess.TimeoutExpired:
+            test_exit = "killed after finished (diagnostics hang)"
+            stop_process(test_process, signal.SIGTERM, timeout=10)
+        if test_exit != "ok":
+            logger.info(f"Continuing to render despite test exit: {test_exit}")
         events = []
         event_path = handshake_dir / "events.jsonl"
         if event_path.is_file():
@@ -467,6 +484,7 @@ def capture_with_configured_simulator(
             "rawPath": str(raw_path),
             "rawSizeBytes": raw_path.stat().st_size,
             "events": events,
+            "testExit": test_exit,
             "config": str(config_path),
         }
     finally:
@@ -475,6 +493,114 @@ def capture_with_configured_simulator(
         test_handle.close()
         if recorder_handle:
             recorder_handle.close()
+
+
+def export_attachments(result_bundle: Path, out_dir: Path, logger: Logger) -> list[str]:
+    """Copy XCTAttachment files out of an xcresult bundle by attachment name."""
+    exported = out_dir / "attachments"
+    if exported.exists():
+        # A previous run's files would otherwise masquerade as this run's
+        # proof in exactly the failure case the proof exists for.
+        shutil.rmtree(exported)
+    exported.mkdir(parents=True, exist_ok=True)
+    # The bundle can still be settling when xcodebuild exits; a failed export
+    # retries rather than discarding the proof the failure needs.
+    last_error = ""
+    for _ in range(3):
+        try:
+            run([
+                "xcrun", "xcresulttool", "export", "attachments",
+                "--path", str(result_bundle), "--output-path", str(exported),
+            ], logger)
+            break
+        except subprocess.CalledProcessError as exc:
+            last_error = str(exc)
+            time.sleep(5)
+    else:
+        raise PreviewError(f"could not export test attachments: {last_error}")
+    manifest = json.loads((exported / "manifest.json").read_text(encoding="utf-8"))
+
+    def entries(node: Any) -> Any:
+        if isinstance(node, dict):
+            if "exportedFileName" in node and "suggestedHumanReadableName" in node:
+                yield node
+            for value in node.values():
+                yield from entries(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from entries(value)
+
+    import re
+
+    saved = []
+    for entry in entries(manifest):
+        # XCTest appends _<index>_<UUID> to the attachment name.
+        name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", entry["suggestedHumanReadableName"])
+        shutil.copy2(str(exported / entry["exportedFileName"]), str(out_dir / name))
+        saved.append(name)
+    return sorted(saved)
+
+
+def stage_device(
+    config: dict[str, Any],
+    device_name: str,
+    supplied_app: Path | None,
+    stage_dir: Path,
+    temp_dir: Path,
+    logger: Logger,
+) -> dict[str, Any]:
+    udid, runtime = resolve_device(device_name, config["device"].get("runtime"))
+    logger.info(f"Using {device_name} ({runtime}, {udid})")
+    reboot(udid, logger.info)
+    try:
+        configure_visual_state(udid, {**config["device"], "statusBar": config["statusBar"]})
+        selected_app, xctestrun, _, products = build_products(
+            config, device_name, temp_dir, supplied_app, logger, udid
+        )
+
+        # SpringBoard's accessibility server flaps under load and each gallery
+        # run can die somewhere different; the staging test is idempotent, so
+        # retry whole attempts from whatever state the last one left behind.
+        failures = 0
+        for attempt in (1, 2, 3):
+            run_id = uuid.uuid4().hex
+            private_xctestrun = temp_dir / xctestrun.name
+            prepare_xctestrun(xctestrun, private_xctestrun, run_id, selected_app, products)
+
+            result = temp_dir / f"stage-{attempt}.xcresult"
+            test_log = temp_dir / f"xcodebuild-stage-{attempt}.log"
+            command = [
+                "xcodebuild",
+                "test-without-building",
+                "-xctestrun",
+                str(private_xctestrun),
+                "-destination",
+                f"platform=iOS Simulator,id={udid}",
+                "-only-testing:ZeroZeroWidgetUITests/PreviewStageTests/testStagePreviewHero",
+                "-resultBundlePath",
+                str(result),
+            ]
+            logger.info(
+                "Staging the preview hero page through the SpringBoard widget gallery"
+                + (f" (attempt {attempt})" if attempt > 1 else "")
+            )
+            logger.command(command)
+            with test_log.open("wb") as handle:
+                completed = subprocess.run(
+                    command, cwd=repository_root() / "ios",
+                    stdout=handle, stderr=subprocess.STDOUT,
+                )
+            # Export before checking the result: on failure the proof shot is
+            # the diagnosis, and the result bundle is deleted with temp
+            # otherwise.
+            saved = export_attachments(result, stage_dir, logger) if result.exists() else []
+            if completed.returncode == 0 and saved:
+                return {"udid": udid, "runtime": runtime, "device": device_name, "proof": saved}
+            failures += 1
+            logger.info(f"Staging attempt {attempt} failed; retrying from current device state")
+        raise PreviewError(f"preview staging failed after {failures} attempts (proof: {stage_dir}):\n{tail(test_log)}")
+    finally:
+        clear_status_bar(udid)
 
 
 def write_report(path: Path, report: dict[str, Any]) -> None:
@@ -501,6 +627,11 @@ def parse_args() -> argparse.Namespace:
         "--prepare-only",
         action="store_true",
         help="build, install, and open the Simulator for one-time manual stage setup",
+    )
+    mode.add_argument(
+        "--stage-device",
+        action="store_true",
+        help="place the preview hero widgets via the SpringBoard gallery and exit (never runs as part of a capture)",
     )
     parser.add_argument(
         "--replace",
@@ -566,6 +697,21 @@ def main() -> int:
             )
             print(f"✓ {args.device or config['device']['name']} is open and ready to configure")
             print(f"  UDID: {prepared['udid']}")
+            print("  (Prefer --stage-device: it places the hero widgets through the gallery.)")
+            return 0
+
+        if args.stage_device:
+            staged = stage_device(
+                config,
+                args.device or config["device"]["name"],
+                args.app.resolve() if args.app else None,
+                artifact_directory(config) / "stage",
+                temp_dir,
+                logger,
+            )
+            print(f"✓ hero page staged on {staged['device']} ({staged['udid']})")
+            print(f"  proof: {artifact_directory(config) / 'stage'}")
+            print(f"  Then capture: ./marketing/app-preview/run.sh {args.profile}")
             return 0
 
         if not args.render_only:

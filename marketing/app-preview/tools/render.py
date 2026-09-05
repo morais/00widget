@@ -14,17 +14,8 @@ from overlay import render_overlay
 Log = Callable[[str], None]
 
 
-def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
-    """Return the first frame of each visually distinct page swipe.
-
-    CoreSimulator's recorder can collapse a static interval instead of giving
-    the preceding frame its full wall-clock duration. The UI test still fires
-    on time, but the following swipe then appears early in the movie. Detecting
-    the large scene changes lets normalization restore those configured holds
-    without modifying the raw diagnostic capture.
-    """
-    if expected == 0:
-        return []
+def scene_hits(raw_path: Path, threshold: float) -> list[float]:
+    """First frame times of every scene change above `threshold`, merged."""
     result = subprocess.run(
         [
             "ffmpeg",
@@ -32,7 +23,7 @@ def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
             "-i",
             str(raw_path),
             "-vf",
-            "select='gt(scene,0.08)',showinfo",
+            f"select='gt(scene,{threshold})',showinfo",
             "-an",
             "-f",
             "null",
@@ -46,10 +37,25 @@ def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
         float(match.group(1))
         for match in re.finditer(r"pts_time:([0-9]+(?:\.[0-9]+)?)", result.stderr)
     ]
-    transitions: list[float] = []
+    hits: list[float] = []
     for candidate in candidates:
-        if not transitions or candidate - transitions[-1] >= 1.0:
-            transitions.append(candidate)
+        if not hits or candidate - hits[-1] >= 1.0:
+            hits.append(candidate)
+    return hits
+
+
+def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
+    """Return the first frame of each visually distinct page swipe.
+
+    CoreSimulator's recorder can collapse a static interval instead of giving
+    the preceding frame its full wall-clock duration. The UI test still fires
+    on time, but the following swipe then appears early in the movie. Detecting
+    the large scene changes lets normalization restore those configured holds
+    without modifying the raw diagnostic capture.
+    """
+    if expected == 0:
+        return []
+    transitions = scene_hits(raw_path, 0.08)
     return transitions if len(transitions) == expected else []
 
 
