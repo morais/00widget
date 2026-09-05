@@ -458,12 +458,26 @@ def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
     # column: a Home Screen wallpaper can be near-black at the edges of the
     # same rows, and a scan that merely looks for dark pixels then reports the
     # whole width. The Island is one contiguous run through the middle.
-    middle = (top + bottom) // 2
+    # A column belongs to the Island only if it is dark down the *whole* band,
+    # not merely at one row. Walking out along a single row runs straight into
+    # a dark wallpaper — the 6.3-inch capture's is navy — and the crop then
+    # carries a slab of it either side, which the rounded mask leaves as a pale
+    # halo along two edges.
+    # Sample just inside the band's top and bottom edges: those rows are inside
+    # the pill but clear of its text, so they are black right across it, while
+    # the wallpaper either side is only *sometimes* dark. Sampling every row
+    # instead would reject every column the white text passes through.
+    inset = max(2, (bottom - top) // 12)
+    probes = (top + inset, bottom - inset)
+
+    def is_island_column(x: int) -> bool:
+        return all(pixels[x, y] < 24 for y in probes)
+
     centre = width // 2
     left, right = centre, centre
-    while left > 0 and pixels[left - 1, middle] < 24:
+    while left > 0 and is_island_column(left - 1):
         left -= 1
-    while right < width - 1 and pixels[right + 1, middle] < 24:
+    while right < width - 1 and is_island_column(right + 1):
         right += 1
     if right - left < width * 0.6 or bottom - top < height * 0.05:
         raise SystemExit(
@@ -474,25 +488,20 @@ def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
 
 
 def draw_island_inset(canvas: Image.Image, source_path: Path) -> None:
-    """Inset the expanded Island over the lower half of the device.
+    """Inset the expanded Island into the empty band above the activity.
 
-    The Lock Screen is the frame's subject and stays dominant; this sits below
-    it at about half the width, close enough to read as the same activity in
-    the other place the system draws it. It is deliberately not a second
-    device: a phone drawn twice in one frame reads as two phones.
+    The Lock Screen is the frame's subject and stays dominant; this sits above
+    it at about two thirds of the width, close enough to read as the same
+    activity in the other place the system draws it. It is deliberately not a
+    second device: a phone drawn twice in one frame reads as two phones.
     """
     with Image.open(source_path) as raw:
         source = raw.convert("RGB")
-    left, top, right, bottom = island_bounds(source)
-    margin = round((right - left) * 0.02)
-    island = source.crop(
-        (
-            max(0, left - margin),
-            max(0, top - margin),
-            min(source.width, right + margin),
-            min(source.height, bottom + margin),
-        )
-    )
+    # Crop to the measured bounds exactly. A margin around them, however
+    # small, brings the wallpaper the Island was drawn over into the crop, and
+    # the rounded mask then leaves it as a pale halo along two edges — which
+    # reads as a badly cut-out sticker rather than as a system presentation.
+    island = source.crop(island_bounds(source))
 
     width, height = canvas.size
     target_width = round(width * 0.62)
@@ -504,7 +513,13 @@ def draw_island_inset(canvas: Image.Image, source_path: Path) -> None:
     island = rounded_image(island, radius)
 
     x = (width - island.width) // 2
-    y = round(height * 0.795)
+    # Above the activity, not over it. The Lock Screen draws its activity low
+    # on the screen, so the obvious placement — down near the bottom, where an
+    # inset usually sits — lands squarely on the card this frame exists to
+    # show. The band under the clock is empty on every one of these captures
+    # and is where the Island's own presentation reads as a second surface
+    # rather than as something covering the first.
+    y = round(height * 0.520)
 
     shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     ImageDraw.Draw(shadow_layer).rounded_rectangle(

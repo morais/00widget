@@ -59,6 +59,9 @@ if [[ "$PREFLIGHT_ONLY" == false ]]; then
   if [[ -z "$HANDSHAKE_DIR" ]]; then echo "--handshake-dir is required" >&2; exit 2; fi
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IOS_BUILD_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)/ios/build"
+
 # Resolve the UDID for a simulator display name. Prefers the booted match so a
 # second runtime holding the same name cannot steal the capture.
 resolve_udid() {
@@ -152,6 +155,113 @@ on run argv
   end tell
 end run
 EOF
+}
+
+# The device screen's position and size in Mac screen points, so a point in
+# the captured framebuffer can be turned into a point to click. The AXGroup
+# inside the device window is the screen itself; the scale follows from the
+# capture's own width, which keeps 2x devices (iPad) and 3x ones (iPhone) on
+# the same code path.
+device_screen_frame() {
+  osascript - "$DEVICE" <<'EOF' 2>/dev/null
+on run argv
+  set deviceName to item 1 of argv
+  tell application "System Events"
+    tell process "Simulator"
+      repeat with w in (every window)
+        try
+          if name of w starts with deviceName then
+            set g to (first UI element of w whose role is "AXGroup")
+            set p to position of g
+            set z to size of g
+            return ((item 1 of p) as text) & " " & ((item 2 of p) as text) & " " & ((item 1 of z) as text) & " " & ((item 2 of z) as text)
+          end if
+        end try
+      end repeat
+    end tell
+  end tell
+  error "no window for " & deviceName
+end run
+EOF
+}
+
+# Answers the Live Activities consent prompt if this capture caught one.
+#
+# iOS raises it the first time an app's activity is presented on a Lock
+# Screen, and periodically afterwards, drawn inside the activity's own
+# presentation — so it lands in the capture, and an App Store screenshot may
+# not contain a system permission prompt. It cannot be pre-granted, is never
+# presented while the device is unlocked, and a locked device takes no
+# XCUITest input, so the only way past it is to click it like a person. See
+# lock_consent.py for how the button is found.
+answer_consent_prompt() {
+  local capture="$1"
+  local point
+  point="$(python3 "$SCRIPT_DIR/lock_consent.py" "$capture" 2>/dev/null || echo none)"
+  if [[ "$point" == "none" || -z "$point" ]]; then
+    return 1
+  fi
+
+  local frame
+  if ! frame="$(device_screen_frame)"; then
+    echo "  consent prompt found but the device window vanished" >&2
+    return 1
+  fi
+
+  local tap="$IOS_BUILD_DIR/sim-tap"
+  if [[ ! -x "$tap" || "$SCRIPT_DIR/sim-tap.swift" -nt "$tap" ]]; then
+    mkdir -p "$IOS_BUILD_DIR"
+    if ! swiftc -O -o "$tap" "$SCRIPT_DIR/sim-tap.swift"; then
+      echo "  could not build the tap helper" >&2
+      return 1
+    fi
+  fi
+
+  local screen
+  if ! screen="$(python3 - "$capture" "$point" "$frame" <<'EOF'
+import sys
+from PIL import Image
+
+capture, point, frame = sys.argv[1], sys.argv[2], sys.argv[3]
+px, py = (int(v) for v in point.split())
+ox, oy, gw, gh = (float(v) for v in frame.split())
+with Image.open(capture) as image:
+    scale = image.width / gw
+print(f"{ox + px / scale:.0f} {oy + py / scale:.0f}")
+EOF
+)"; then
+    return 1
+  fi
+
+  # Raise the target window first. A synthesised click goes to whatever is
+  # on top at that screen point, and a machine that has captured several
+  # device sets has several overlapping Simulator windows: the first attempt
+  # answered the 6.3 prompt, whose window happened to be frontmost, and
+  # silently missed on the two behind it.
+  osascript - "$DEVICE" <<'EOF' >/dev/null 2>&1 || true
+on run argv
+  set deviceName to item 1 of argv
+  tell application "Simulator" to activate
+  tell application "System Events"
+    tell process "Simulator"
+      repeat with w in (every window)
+        try
+          if name of w starts with deviceName then
+            perform action "AXRaise" of w
+            exit repeat
+          end if
+        end try
+      end repeat
+    end tell
+  end tell
+end run
+EOF
+  sleep 1
+
+  echo "  answering the Live Activities consent prompt (device $point)"
+  "$tap" $screen || return 1
+  sleep 3
+  return 0
 }
 
 # Preflight: Simulator.app reachable AND scriptable through accessibility. The
@@ -439,15 +549,58 @@ while true; do
   sleep 2
 done
 
+# Capture to a staging file and only move it into place once it has passed
+# every check. Writing $OUT directly means a run that fails afterwards leaves
+# its failure in the canonical tree — a mis-aimed click produced a screenshot
+# of the *app* under the Lock Screen capture's name, which the manifest would
+# then have happily checksummed.
+STAGED="$PROBE_DIR/capture.png"
 echo "→ capturing $OUT"
-xcrun simctl io "$UDID" screenshot --type=png "$OUT"
+xcrun simctl io "$UDID" screenshot --type=png "$STAGED"
+
+# A capture holding a system permission prompt is not an asset, and the
+# manifest would pass one happily — it checks filenames, checksums and
+# dimensions, not what is in the picture. So answer the prompt and shoot
+# again.
+#
+# Success is proved by *change*, not by re-running the detector on the result.
+# The detector is good enough to aim a click — it found the button on three
+# devices and both wording variants — but it also fires on a clean capture,
+# where an activity's own rows are two bright clusters in a dark band just as
+# the buttons are. Asking it whether the prompt is gone therefore fails a
+# capture that is perfectly good, which is what it did to the 6.5-inch set
+# after correctly dismissing its prompt.
+#
+# The brightness guard is the safety catch. A dismissed prompt barely moves
+# the frame; a click that lands on the activity instead opens the app, and an
+# app is far brighter than a Lock Screen. Refusing a large change keeps a
+# mis-aimed click from being mistaken for success.
+if answer_consent_prompt "$STAGED"; then
+  before_brightness="$(mean_brightness "$STAGED")"
+  before_hash="$(md5 -q "$STAGED" 2>/dev/null || md5sum "$STAGED" | cut -d' ' -f1)"
+  echo "  re-capturing without the prompt"
+  xcrun simctl io "$UDID" screenshot --type=png "$STAGED"
+  after_brightness="$(mean_brightness "$STAGED")"
+  after_hash="$(md5 -q "$STAGED" 2>/dev/null || md5sum "$STAGED" | cut -d' ' -f1)"
+  if [[ "$before_hash" == "$after_hash" ]]; then
+    fail_done "the consent prompt did not respond to the click at the button it was found at"
+  fi
+  if ! python3 -c "
+import sys
+before, after = float('$before_brightness'), float('$after_brightness')
+sys.exit(0 if before <= 0 or abs(after - before) / before <= 0.35 else 1)
+"; then
+    fail_done "the screen changed too much after the click — it probably opened the app rather than answering the prompt"
+  fi
+fi
 if ! python3 -c "
 import sys
-data = open('$OUT','rb').read()
+data = open('$STAGED','rb').read()
 sys.exit(0 if data[:8] == b'\x89PNG\r\n\x1a\n' and len(data) > 50000 else 1)
 "; then
-  fail_done "capture produced an invalid or empty PNG at $OUT"
+  fail_done "capture produced an invalid or empty PNG"
 fi
+mv "$STAGED" "$OUT"
 printf 'ok\n' > "$HANDSHAKE_DIR/done"
 
 if [[ "$NO_RESTORE" == false ]]; then

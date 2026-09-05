@@ -361,6 +361,42 @@ afterwards. The full run preflights the same way and folds the resulting
 `screenshot-lock-activity.png` into the manifest, checksum, and order
 validation with everything else.
 
+**iOS asks for Live Activities consent on the Lock Screen, and the capture has
+to answer it.** The first activity an app presents there raises "Allow Live
+Activities from 00Widget?", and a later one raises "Do you want to continue to
+allow…". Both are drawn *inside* the activity's own presentation, so both land
+in the framebuffer — every one of the first full run's three Lock Screen
+captures had one, and the manifest passed them, because it checks filenames,
+checksums and dimensions rather than what is in the picture.
+
+There is no clean way round it: `simctl privacy` has no ActivityKit service
+and granting `all` changes nothing, the prompt is never presented while the
+device is unlocked so XCUITest never sees it, and a locked device takes no
+XCUITest input. `simctl io` has no tap verb either. What works is a
+synthesised click: `sim-tap.swift` posts a `CGEvent` at a screen point, and
+the device screen's frame comes from the `AXGroup` inside the Simulator
+window, so `screen = origin + pixel / scale`. Raise that window first — a
+machine that has captured several sets has several overlapping Simulator
+windows, and a click goes to whichever is on top.
+
+Three things about this are load-bearing:
+
+- **The capture is staged, not written.** A run that fails after capturing
+  used to leave its failure in the canonical tree under the right filename; a
+  mis-aimed click once left a screenshot of the *app* there.
+- **Success is proved by change, not by re-detecting.** `lock_consent.py`
+  finds the button well enough to aim a click, but it also fires on a clean
+  capture, where an activity's own rows are two bright clusters in a dark band
+  exactly as the buttons are. Asking it whether the prompt is *gone* failed a
+  capture that was perfectly good. So the adapter compares before and after,
+  and a mean-brightness guard rejects a change too large to be a dismissed
+  prompt — which is what a click that opened the app looks like.
+- **The detector is deliberately strict.** It requires the dark band's lower
+  half to hold exactly one line of text in two clusters. Relaxing that to two
+  lines, to tolerate a two-line question, immediately reintroduced false
+  positives on clean captures. A false negative costs a re-run; a false
+  positive clicks something.
+
 **A capture run holds the display awake, and needs to.** All three capture
 scripts assert `caffeinate -dimsu -w $$` for their own lifetime. A locked Mac
 hides every window from the accessibility tree, and the Lock Screen step drives
