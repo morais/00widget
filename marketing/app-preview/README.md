@@ -61,9 +61,16 @@ App Group.
 
 `--render-only` reads the existing `raw.mov`, making copy, timing, style, size,
 bitrate and duration changes cheap. The three overlay styles are `prompt`,
-`headline`, and `caption`. Each prompt is first rendered as a transparent,
+`headline`, and `caption`, and any overlay may carry a caption-sized `subtext`
+— the App Store login/purchase disclosure on the end frame. Each prompt is first rendered as a transparent,
 rounded PNG with the installed SF system font, then faded and composited by
 FFmpeg. Font files are referenced in place and never copied.
+
+`output.posterTime` nominates the poster moment (currently the bare hero at
+0.2s, inside the plan's first-three-seconds window with the launch story and
+the live island and no overlay text). There is no upload automation for
+previews or poster frames yet; both are selected by hand in App Store
+Connect.
 
 ## Timeline behavior
 

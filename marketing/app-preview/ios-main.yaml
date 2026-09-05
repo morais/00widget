@@ -17,7 +17,8 @@
     "overlayWidth": 760,
     "overlayY": 1450,
     "overlayHeightScale": 1,
-    "overlayFade": 0.2
+    "overlayFade": 0.2,
+    "posterTime": 0.2
   },
   "statusBar": {
     "time": "9:41",
@@ -118,7 +119,8 @@
         "start": 21.2,
         "end": 23.8,
         "text": "Widgets for all your agents.",
-        "style": "headline"
+        "style": "headline",
+        "subtext": "Requires a compatible MCP host or API publisher. Subscription may be required."
       }
     }
   ]

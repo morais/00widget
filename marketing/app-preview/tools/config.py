@@ -61,6 +61,10 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
         raise ConfigError(f"{label}: output.fps must not exceed 30")
     if not 15 <= output["duration"] <= 30:
         raise ConfigError(f"{label}: output.duration must be between 15 and 30 seconds")
+    if "posterTime" in output:
+        poster = output["posterTime"]
+        if not isinstance(poster, (int, float)) or not 0 <= poster < float(output["duration"]):
+            raise ConfigError(f"{label}: output.posterTime must lie within the movie")
 
     scenes = config["scenes"]
     if not isinstance(scenes, list) or not scenes:
@@ -101,6 +105,8 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
                 raise ConfigError(f"{label}: scenes[{index}] has an unknown overlay style")
             if not str(overlay.get("text", "")).strip():
                 raise ConfigError(f"{label}: scenes[{index}] overlay text is empty")
+            if "subtext" in overlay and not str(overlay["subtext"]).strip():
+                raise ConfigError(f"{label}: scenes[{index}] overlay subtext is empty")
             overlay_start = float(overlay.get("start", start))
             overlay_end = float(overlay.get("end", end))
             if not 0 <= overlay_start < overlay_end <= duration:

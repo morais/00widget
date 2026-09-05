@@ -74,6 +74,24 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
     base_text_height, _, _ = _text_metrics(base_font, base_lines)
     base_card_height = base_text_height + 2 * base_padding_y
 
+    # Small-print disclosure under the main copy (the App Store preview's
+    # login/purchase notice). Caption-sized, at most two lines, part of the
+    # same card so the brand beat and the disclosure share one beat.
+    subtext = str(spec.get("subtext", "")).strip()
+    sub_lines: list[str] = []
+    sub_font = None
+    sub_height = 0
+    sub_gap = 0
+    if subtext:
+        sub_style = STYLE["caption"]
+        sub_font = ImageFont.truetype(_font_path("caption"), int(sub_style["fontSize"]))
+        sub_lines = _wrap(
+            subtext, sub_font, requested_width - 2 * padding_x, 2
+        )
+        sub_height, _, sub_box = _text_metrics(sub_font, sub_lines)
+        sub_gap = max(10, int(base_text_height * 0.28))
+        base_card_height += sub_height + sub_gap
+
     height_scale = float(spec.get("heightScale", 1))
     card_height = round(base_card_height * height_scale)
     padding_y = round(base_padding_y * height_scale)
@@ -82,7 +100,8 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
     font = base_font
     lines = base_lines
     text_height, line_spacing, sample_box = _text_metrics(font, lines)
-    for font_size in range(round(base_font_size * height_scale), base_font_size - 1, -1):
+    fitted = text_height + sub_height <= available_text_height
+    for font_size in range(round(base_font_size * height_scale), int(base_font_size * 0.6) - 1, -1):
         candidate_font = ImageFont.truetype(font_path, font_size)
         try:
             candidate_lines = _wrap(
@@ -96,13 +115,16 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
         candidate_height, candidate_spacing, candidate_box = _text_metrics(
             candidate_font, candidate_lines
         )
-        if candidate_height <= available_text_height:
+        if candidate_height + sub_height <= available_text_height:
             font = candidate_font
             lines = candidate_lines
             text_height = candidate_height
             line_spacing = candidate_spacing
             sample_box = candidate_box
+            fitted = True
             break
+    if not fitted:
+        raise OverlayError("overlay copy with subtext does not fit; shorten the copy")
 
     line_height = sample_box[3] - sample_box[1]
     shadow_margin = 24
@@ -132,11 +154,23 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
         width=1,
     )
     y = shadow_margin + (card_height - text_height) / 2 - sample_box[1]
+    if sub_lines:
+        # The disclosure joins the block: recenter on main text plus gap
+        # plus subtext so neither half drifts off-center.
+        block = text_height + sub_gap + sub_height
+        y = shadow_margin + (card_height - block) / 2 - sample_box[1]
     for line in lines:
         line_width = font.getlength(line)
         x = shadow_margin + (requested_width - line_width) / 2
         draw.text((x, y), line, font=font, fill=(24, 24, 26, 255))
         y += line_height + line_spacing
+    if sub_lines:
+        y += sub_gap - line_spacing
+        for line in sub_lines:
+            line_width = sub_font.getlength(line)
+            x = shadow_margin + (requested_width - line_width) / 2
+            draw.text((x, y), line, font=sub_font, fill=(110, 110, 115, 255))
+            y += sub_box[3] - sub_box[1] + max(6, int((sub_box[3] - sub_box[1]) * 0.28))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(destination)
@@ -146,4 +180,5 @@ def render_overlay(spec: dict[str, Any], width: int, destination: Path) -> dict[
         "baseHeight": base_card_height + shadow_margin * 2,
         "fontSize": font.size,
         "lines": len(lines),
+        "sublines": len(sub_lines),
     }
