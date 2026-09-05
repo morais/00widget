@@ -15,9 +15,23 @@ final class GuestActivityLauncher: ObservableObject {
     enum State: Equatable {
         case idle
         case loading
-        case running(title: String)
-        case card(title: String, value: String?)
+        /// The whole session, not just its title: the clip draws a preview of
+        /// what it started, because the activity itself is on a Lock Screen
+        /// this person may not look at for a while.
+        case running(LiveActivitySession)
+        /// The whole card, so the clip can render it through the production
+        /// `CardView` rather than paraphrasing it. A shared link that shows a
+        /// title and a number is a worse demonstration of the product than the
+        /// card the sender was actually looking at.
+        case card(DashboardCard)
         case failed(String)
+
+        var isSuccess: Bool {
+            switch self {
+            case .running, .card: return true
+            case .idle, .loading, .failed: return false
+            }
+        }
     }
 
     @Published private(set) var state: State = .idle
@@ -65,8 +79,8 @@ final class GuestActivityLauncher: ObservableObject {
             await start(activity, client: client)
         } else if let card = resource.card {
             // A clip cannot put a card on the Home Screen — that is the full
-            // app's job — so it shows the current value and offers the app.
-            state = .card(title: card.title, value: card.value)
+            // app's job — so it renders the card itself and offers the app.
+            state = .card(card)
         } else {
             state = .failed("That link has nothing to show.")
         }
@@ -84,7 +98,7 @@ final class GuestActivityLauncher: ObservableObject {
                 content: ActivityContent(state: content, staleDate: session.staleAt),
                 pushType: .token
             )
-            state = .running(title: session.title)
+            state = .running(session)
             observePushToken(of: activity, client: client)
         } catch {
             Self.log.error("clip activity start failed: \(error.localizedDescription, privacy: .public)")

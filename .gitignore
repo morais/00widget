@@ -78,3 +78,6 @@ ios/Resources/*/*.entitlements
 # Generated raw and promotional App Store screenshots
 /artifacts/screenshots/*
 !/artifacts/screenshots/README.md
+
+# Python bytecode from the marketing tooling
+__pycache__/

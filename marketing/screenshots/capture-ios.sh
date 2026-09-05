@@ -11,9 +11,17 @@
 #   marketing/screenshots/capture-ios.sh
 #   marketing/screenshots/capture-ios.sh --only activities
 #   marketing/screenshots/capture-ios.sh --only app
+#   marketing/screenshots/capture-ios.sh --only lock
+#   marketing/screenshots/capture-ios.sh --only island
 #   marketing/screenshots/capture-ios.sh --only subscriptions
 #   marketing/screenshots/capture-ios.sh --device "iPhone 17 Pro" --out /tmp/shots
 #   marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"
+#
+# The Lock Screen surface (`--only lock`, also part of the full run) is captured
+# differently: XCUITest stages the launch Live Activity and pauses on a marker
+# while the host-side sim-lock-capture.sh locks the simulator through its
+# accessibility menu and screenshots the framebuffer with `simctl io`. An
+# in-process screenshot could never show that surface.
 #
 # Output is PNGs named after the XCTAttachment names in UITests/ScreenshotTests.swift.
 set -euo pipefail
@@ -44,6 +52,82 @@ run_with_heartbeat() {
   return "$status"
 }
 
+# Drives the Lock Screen surface: the marker UI test stages the launch Live
+# Activity and pauses on $WORK/lock-handshake/ready while sim-lock-capture.sh
+# locks the simulator through accessibility and screenshots the framebuffer.
+# The adapter answers $WORK/lock-handshake/done, which unblocks the test.
+run_lock_surface() {
+  local handshake="$WORK/lock-handshake"
+  mkdir -p "$OUT" "$handshake"
+  /usr/libexec/PlistBuddy \
+    -c "Delete :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_LOCK_HANDSHAKE_DIR" \
+    "$XCTESTRUN" 2>/dev/null || true
+  /usr/libexec/PlistBuddy \
+    -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_LOCK_HANDSHAKE_DIR string $handshake" \
+    "$XCTESTRUN"
+
+  echo "→ staging the Live Activity for the Lock Screen capture"
+  xcodebuild test-without-building \
+    -xctestrun "$XCTESTRUN" \
+    -destination "platform=iOS Simulator,name=$DEVICE" \
+    -resultBundlePath "$WORK/lock.xcresult" \
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureLockScreenStaging \
+    > "$WORK/lock-xcodebuild.log" 2>&1 &
+  local test_pid=$!
+
+  local adapter_status=0
+  local app_bundle
+  app_bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+  "$SCRIPT_DIR/sim-lock-capture.sh" \
+    --device "$DEVICE" \
+    --bundle-id "$app_bundle" \
+    --handshake-dir "$handshake" \
+    --out "$OUT/$LOCK_PNG" || adapter_status=$?
+
+  local test_status=0
+  wait "$test_pid" || test_status=$?
+
+  if ((adapter_status != 0)); then
+    echo "✗ lock-screen adapter failed — tail of the staging log:" >&2
+    tail -40 "$WORK/lock-xcodebuild.log" >&2
+    kill "$test_pid" 2>/dev/null || true
+    return 1
+  fi
+  if ((test_status != 0)); then
+    echo "✗ lock staging test failed — tail of log:" >&2
+    tail -40 "$WORK/lock-xcodebuild.log" >&2
+    return 1
+  fi
+
+  python3 - "$OUT" "$DEVICE" <<'PY'
+import datetime, hashlib, json, os, sys
+
+dest, device = sys.argv[1:]
+name = "screenshot-lock-activity.png"
+path = os.path.join(dest, name)
+with open(path, "rb") as handle:
+    digest = hashlib.md5(handle.read()).hexdigest()
+manifest_path = os.path.join(dest, ".capture-manifest.json")
+try:
+    with open(manifest_path, encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    if manifest.get("device") != device:
+        raise ValueError("existing manifest is for a different device")
+except (OSError, ValueError):
+    manifest = {
+        "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "device": device,
+        "mode": "lock",
+        "files": {},
+    }
+manifest.setdefault("files", {})[name] = digest
+with open(manifest_path, "w") as handle:
+    json.dump(manifest, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+print(f"  {name} {digest}")
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
@@ -54,12 +138,26 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "subscriptions" ]]; then
-  echo "--only must be 'all', 'activities', 'app', or 'subscriptions'" >&2
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "lock" && "$ONLY" != "island" && "$ONLY" != "subscriptions" ]]; then
+  echo "--only must be 'all', 'activities', 'app', 'lock', 'island', or 'subscriptions'" >&2
   exit 2
 fi
 
+# Hold the display awake for the whole run.
+#
+# Not a convenience: a locked Mac hides every window from the accessibility
+# tree, and the Lock Screen capture drives Simulator.app through it. A run
+# started before lunch reached the lock step with Simulator running, the device
+# booted, and zero windows visible to `System Events` — ten minutes of capture
+# thrown away for a screen saver. `-w $$` ties the assertion to this script, so
+# it lifts when the run ends however it ends, with no trap to forget.
+if command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -dimsu -w $$ &
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+LOCK_PNG="screenshot-lock-activity.png"
 IOS_ROOT="$REPO_ROOT/ios"
 case "$DEVICE" in
   "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
@@ -73,6 +171,11 @@ if [[ -z "$OUT" ]]; then
   OUT="$REPO_ROOT/artifacts/screenshots/raw/$DEVICE_FOLDER"
   if [[ "$ONLY" == "subscriptions" ]]; then
     OUT="$OUT/subscriptions"
+  fi
+  # The Island probe is a diagnostic, never an App Store asset, so it stays
+  # out of the canonical raw tree that the manifests and the compositor read.
+  if [[ "$ONLY" == "island" ]]; then
+    OUT="$REPO_ROOT/artifacts/screenshots/probe/$DEVICE_FOLDER"
   fi
 fi
 
@@ -105,6 +208,16 @@ done
 if ! pgrep -x Simulator >/dev/null; then
   echo "✗ Simulator.app did not launch" >&2
   exit 1
+fi
+
+# The Lock Screen step drives Simulator.app through the accessibility tree,
+# which needs macOS Accessibility permission for this terminal. Fail fast here
+# — before the build — so a missing grant does not waste a full capture run.
+if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
+  echo "→ lock-capture preflight (Simulator accessibility)"
+  if ! "$SCRIPT_DIR/sim-lock-capture.sh" --preflight-only --device "$DEVICE"; then
+    exit 3
+  fi
 fi
 
 # Marketing shots should not leak a real clock or a half-empty battery.
@@ -183,6 +296,12 @@ elif [[ "$ONLY" == "app" ]]; then
   TEST_FILTERS=(
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureAppScreenshots
   )
+elif [[ "$ONLY" == "lock" ]]; then
+  TEST_FILTERS=()
+elif [[ "$ONLY" == "island" ]]; then
+  TEST_FILTERS=(
+    -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureIslandProbe
+  )
 elif [[ "$ONLY" == "subscriptions" ]]; then
   TEST_FILTERS=(
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureSubscriptionScreenshots
@@ -193,6 +312,7 @@ else
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots
   )
 fi
+if [[ "$ONLY" != "lock" ]]; then
 if ! run_with_heartbeat "iOS ScreenshotTests on $DEVICE" "$WORK/xcodebuild.log" xcodebuild test-without-building \
   -xctestrun "$XCTESTRUN" \
   -destination "platform=iOS Simulator,name=$DEVICE" \
@@ -207,10 +327,10 @@ echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null
 
 mkdir -p "$OUT"
-python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" <<'PY'
+python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" "$DEVICE_FOLDER" <<'PY'
 import datetime, hashlib, json, os, re, shutil, sys
 
-src, dest, mode, device = sys.argv[1:]
+src, dest, mode, device, device_class = sys.argv[1:]
 manifest = json.load(open(os.path.join(src, "manifest.json")))
 
 def entries(node):
@@ -238,6 +358,8 @@ if count == 0:
 required = set()
 if mode == "activities":
     required = {"screenshot-activities.png"}
+elif mode == "island":
+    required = {"probe-island-compact.png", "probe-island-expanded.png"}
 elif mode == "app":
     required = {
         "screenshot-widgets.png",
@@ -253,6 +375,12 @@ elif mode == "all":
         "screenshot-insights.png",
         "screenshot-activities.png",
     }
+    # Only one capture device has a Dynamic Island, so only one set carries
+    # the expanded presentation. It is a source rather than a promotional
+    # image: the compositor insets it into the Lock Screen frame, which is
+    # where the sequence now makes its system-surface claim.
+    if device_class == "iphone-6.3":
+        required.add("screenshot-island-expanded.png")
 
 missing = sorted(required - produced)
 if missing:
@@ -281,6 +409,38 @@ if mode == "all":
         json.dump(provenance, handle, indent=2, sort_keys=True)
         handle.write("\n")
 PY
+fi
+
+if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
+  echo "→ capturing the Lock Screen surface"
+  run_lock_surface
+  if [[ "$ONLY" == "lock" ]]; then
+    echo "  note: --only lock refreshes $LOCK_PNG in place; run the full capture to re-baseline the manifest"
+  fi
+fi
+
+if [[ "$ONLY" == "island" ]]; then
+  python3 - "$OUT" <<'CROP'
+import sys
+from pathlib import Path
+
+try:
+    from PIL import Image
+except ImportError:  # the crop is a convenience, not the capture
+    raise SystemExit(0)
+
+out = Path(sys.argv[1])
+for name, depth in (("probe-island-compact", 0.09), ("probe-island-expanded", 0.22)):
+    source = out / f"{name}.png"
+    if not source.is_file():
+        continue
+    with Image.open(source) as image:
+        crop = image.crop((0, 0, image.width, round(image.height * depth)))
+        crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+        crop.save(out / f"{name}-zoom.png")
+    print(f"  {name}-zoom.png")
+CROP
+fi
 
 echo "→ restoring status bar"
 xcrun simctl status_bar "$DEVICE" clear 2>/dev/null || true

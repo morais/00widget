@@ -115,9 +115,35 @@ public extension LiveActivityKind {
     }
 }
 
+/// The one name and the one glyph for the state where a person has to act.
+///
+/// Both were written out at each site that drew them — five copies of the
+/// words and, worse, two different symbols: every iOS surface and the tvOS
+/// widget cell used `AttentionBadge`'s person-and-exclamation, while the tvOS
+/// status chips drew whatever `statusIcon` the *producer* had sent. That field
+/// means "what this activity is doing right now", so a chip could read
+/// hammer + "Needs you" — a glyph saying `building` beside words saying a human
+/// must intervene, describing different things in one capsule.
+public enum AttentionPresentation {
+    public static let label = "Needs you"
+    public static let symbolName = "person.crop.circle.badge.exclamationmark"
+}
+
 public extension LiveActivitySession {
     var tint: Color { kind.tint(for: signal) }
     var semanticStatusIcon: String? { statusIcon ?? signal?.symbolName }
+
+    /// The words for the pill that names the current state, and the glyph that
+    /// goes in it. One property each, derived from the same condition, so the
+    /// two halves of one badge cannot come to disagree — which is exactly what
+    /// they had done.
+    var statusChipLabel: String {
+        needsUserAttention ? AttentionPresentation.label : state.capitalized
+    }
+
+    var statusChipSymbolName: String? {
+        needsUserAttention ? AttentionPresentation.symbolName : semanticStatusIcon
+    }
     /// A warning row is the activity's explicit hand-off to its operator.
     /// Other warning-like states can mean degraded machinery rather than a
     /// human decision, so they do not silently become "needs you".
@@ -138,6 +164,16 @@ public extension DashboardCard {
     /// observation, not an actionable hand-off.
     var needsUserAttention: Bool {
         status.needsAttention && !(actions?.isEmpty ?? true)
+    }
+
+    /// See `LiveActivitySession.statusChipLabel`. A card's fallbacks are its
+    /// own: the status's name, and the semantic glyph a producer sent with it.
+    var statusChipLabel: String {
+        needsUserAttention ? AttentionPresentation.label : status.label
+    }
+
+    var statusChipSymbolName: String? {
+        needsUserAttention ? AttentionPresentation.symbolName : statusIcon
     }
 
     /// Whether the typed attribution would only repeat what the subtitle

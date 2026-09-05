@@ -207,6 +207,54 @@ should survive is the arithmetic it helped you get right, extracted somewhere a
 unit test can reach it — `ListRowFill` and `BriefingFill` are the worked
 examples, both of which came out of exactly this loop.
 
+## Looking at the Dynamic Island without a full capture run
+
+The Island is drawn by the system, above the app. `ImageRenderer` cannot draw
+it, so the two loops above are blind to it, and until recently the only way to
+see one was the full marketing run — ten minutes of Home Screen widget
+placement to answer a question about a 24-point strip. A defect in it therefore
+cost a capture cycle per attempt, and one shipped.
+
+```
+marketing/screenshots/capture-ios.sh --only island
+```
+
+**37 seconds**, against about ten minutes. It stages the same launch Live
+Activity, backgrounds the app, and captures the compact and expanded
+presentations with nothing in between, writing them plus 2x zoomed crops to
+`artifacts/screenshots/probe/<device>/` — outside the canonical raw tree,
+because they are a diagnostic and never an App Store asset.
+
+It answers whether a region clips or scales, how a glyph sits against the text
+beside it, and what a value looks like at the width the system actually gives
+it. It cannot show the Lock Screen (that needs the host-side adapter) or the
+minimal circle (that needs a second activity on the device to collapse
+against).
+
+**What it found, and the rule that came out of it.** A compact region neither
+wraps nor scales what it is given: it clips, and from the *leading* edge, so
+`4/5` arrives as `/5` and reads as a real value rather than as truncation.
+`minimumScaleFactor` does not help, because the text is never offered a bounded
+width to shrink into. Two things are needed together, and neither alone is
+enough:
+
+- `.fixedSize()` on the region's content, so it negotiates a width instead of
+  accepting a proposal too small for it. Without this even three glyphs are
+  cut — and the *leading* glyph is cut with them, because the whole compact
+  presentation is laid out against that proposal, which is what makes this look
+  like two unrelated bugs.
+- A length budget (`compactValueToken`, six glyphs), because a region free to
+  demand its ideal width grows the island across most of the screen and clips
+  anyway. Over budget, the trailing region falls back to the progress
+  percentage; nothing is shown rather than something clipped, since the leading
+  glyph still says which activity this is and every roomier surface has the
+  value in full.
+
+The countdown hides all of this: `Text(timerInterval:)` is special-cased by the
+system, so an activity with an `endsAt` renders correctly and one with a plain
+value does not. That is exactly how it reached TestFlight — the sample activity
+had a countdown until the marketing pass removed it.
+
 ## Looking at a tvOS layout without a television
 
 The iOS loop above needs a tvOS counterpart, because `Sources/TV` is not in the
@@ -252,7 +300,7 @@ to ask the content.
 
 The phrase **full screenshot workflow** always means both stages for all four
 canonical device sets—iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV:
-first capture the 21 raw simulator screenshots, then generate the 21 framed
+first capture the 24 raw simulator screenshots, then generate the 24 framed
 promotional compositions with approved text. Run the single entry point below;
 do not substitute raw capture alone or one default iPhone capture plus the other
 two platforms:
@@ -299,6 +347,66 @@ For a quick Activities-only refresh, use
 `marketing/screenshots/capture-ios.sh --only activities` (and add `--device` for
 iPad). This skips Home Screen widget placement while producing the same
 `screenshot-activities.png` filename consumed by the copy helper.
+
+For a Lock Screen-only refresh, use
+`marketing/screenshots/capture-ios.sh --only lock`. XCUITest stages the launch
+Live Activity and pauses on a handshake marker while the host-side
+`marketing/screenshots/sim-lock-capture.sh` selects the intended Simulator
+UDID, locks it through Simulator → Device → Lock in the accessibility tree
+(never screen coordinates), waits for the presentation to settle, and captures
+the framebuffer with `simctl io screenshot`. It runs its accessibility
+preflight before the build so a missing macOS Accessibility grant fails fast
+with the fix, and it restores the unlocked state with `simctl launch`
+afterwards. The full run preflights the same way and folds the resulting
+`screenshot-lock-activity.png` into the manifest, checksum, and order
+validation with everything else.
+
+**iOS asks for Live Activities consent on the Lock Screen, and the capture has
+to answer it.** The first activity an app presents there raises "Allow Live
+Activities from 00Widget?", and a later one raises "Do you want to continue to
+allow…". Both are drawn *inside* the activity's own presentation, so both land
+in the framebuffer — every one of the first full run's three Lock Screen
+captures had one, and the manifest passed them, because it checks filenames,
+checksums and dimensions rather than what is in the picture.
+
+There is no clean way round it: `simctl privacy` has no ActivityKit service
+and granting `all` changes nothing, the prompt is never presented while the
+device is unlocked so XCUITest never sees it, and a locked device takes no
+XCUITest input. `simctl io` has no tap verb either. What works is a
+synthesised click: `sim-tap.swift` posts a `CGEvent` at a screen point, and
+the device screen's frame comes from the `AXGroup` inside the Simulator
+window, so `screen = origin + pixel / scale`. Raise that window first — a
+machine that has captured several sets has several overlapping Simulator
+windows, and a click goes to whichever is on top.
+
+Three things about this are load-bearing:
+
+- **The capture is staged, not written.** A run that fails after capturing
+  used to leave its failure in the canonical tree under the right filename; a
+  mis-aimed click once left a screenshot of the *app* there.
+- **Success is proved by change, not by re-detecting.** `lock_consent.py`
+  finds the button well enough to aim a click, but it also fires on a clean
+  capture, where an activity's own rows are two bright clusters in a dark band
+  exactly as the buttons are. Asking it whether the prompt is *gone* failed a
+  capture that was perfectly good. So the adapter compares before and after,
+  and a mean-brightness guard rejects a change too large to be a dismissed
+  prompt — which is what a click that opened the app looks like.
+- **The detector is deliberately strict.** It requires the dark band's lower
+  half to hold exactly one line of text in two clusters. Relaxing that to two
+  lines, to tolerate a two-line question, immediately reintroduced false
+  positives on clean captures. A false negative costs a re-run; a false
+  positive clicks something.
+
+**A capture run holds the display awake, and needs to.** All three capture
+scripts assert `caffeinate -dimsu -w $$` for their own lifetime. A locked Mac
+hides every window from the accessibility tree, and the Lock Screen step drives
+Simulator.app through exactly that tree — so a run left alone long enough to
+lock reaches the lock step with Simulator running, the device booted, and zero
+windows, and throws away everything it captured. The assertion is tied to the
+script's own pid so it lifts however the run ends. If a run does fail there,
+the message names the window rather than the permission: the preflight probes
+the device window as well as the Device menu, because the menu bar is present
+in exactly the state that fails.
 
 The iOS and tvOS capture scripts reuse incremental DerivedData under
 `ios/build/ScreenshotDerivedData-*`. Leave those gitignored caches in place
@@ -386,14 +494,34 @@ XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 captured — a long-press on the island after backgrounding the app. The same test
 also rebuilds the dedicated marketing Home Screen page three times on every
 full run. The
-classic capture has three small Solar, Nightly run, and Boiler widgets plus a wide
-Energy chart; the insights capture uses a large 30-day Energy widget plus small
-Deploys and Device fleet widgets; the metrics capture uses one grid with Solar,
-Car, Energy, and Deploys. That grid uses the large family on iPhone and the
-extra-large family on iPad. It removes any previous 00Widget layout, adds
+classic capture has small Production, Open PRs and Launch widgets plus a wide
+Trials chart; the insights capture uses a large Trials widget plus small Agent
+runs and Support widgets; the metrics capture uses one grid with Trials,
+Support, Agent runs and AI spend. That grid uses the large family on iPhone and
+the extra-large family on iPad. It removes any previous 00Widget layout, adds
 each set through SpringBoard's widget gallery, and asserts the expected sizes
 exist before capturing `screenshot-home-widgets.png`,
-`screenshot-home-insights.png`, and `screenshot-home-metrics.png`.
+`screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The Lock
+Screen surface (`screenshot-lock-activity.png`) is captured host-side after
+XCUITest stages the launch Live Activity — see the `--only lock` paragraph
+above — because no in-process screenshot can show the Lock Screen.
+
+**The expanded Island is a separate capture, and the hero keeps the compact
+one.** Drawn expanded, the system overlay sits on top of the first row of Home
+Screen widgets and covers their titles — the renderers contain them, so nothing
+short of a real capture shows it, and no exact-size `ImageRenderer` check can:
+this is a system layer above the app. So `screenshot-home-widgets.png` is taken
+before the long-press and `screenshot-island-expanded.png` after it, and the
+promotional compositor insets the second into the Lock Screen frame, which is
+where the sequence makes its Lock-Screen-and-Dynamic-Island claim. The two
+halves are one change: compacting the hero alone would drop the strongest
+system surface out of the sequence entirely. Only the 6.3-inch device has an
+Island, so that set carries eight raw files where the other two carry seven,
+and all three still produce seven promotional compositions — the required-file
+sets in `capture-ios.sh` and `capture-all.sh` are per device class for exactly
+this reason. `generate-promotional.py` crops the Island by *measuring* the
+near-black band rather than by a fixed rectangle, because its height follows
+the number of rows the activity draws.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `artifacts/screenshots/raw/ipad/`. It produces native 2064×2752 images, uses the
@@ -718,7 +846,7 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
   the gate toggles with a temporary `#error` under both Xcodes. See the
   two-SDK bullet in "Things to watch".
 - **New Siri shortcut:** add the intent alongside the two in `ios/Sources/App/Intents/DashboardShortcuts.swift` and an `AppShortcut` to `ZeroZeroWidgetShortcuts`. Every phrase must interpolate `\(.applicationName)`; a phrase taking a card needs `parameterPresentation` and a query conforming to `EntityStringQuery`, or Siri has no way to bind what it heard to an id. Keep the wording itself in a pure function next to `CardStatusReport` so it is testable without the AppIntents runtime, and confirm the shortcut reached the build by reading `autoShortcuts` out of the app bundle's `Metadata.appintents/extract.actionsdata`.
-- **New badge or pill on a card:** use `AttentionBadge`/`StatusBadge` from `Sources/Shared/Rendering/StatusBadge.swift` rather than drawing a look-alike. `AttentionBadge` takes a `font` because caption 2 is right in a widget and far too small on a television, and a `compact` form that is a glyph alone — which is what the slot beside a title has room for, measured: the full badge is 244 points against a 437-point content width, so it and a title cannot both fit in a tvOS cell. tvOS drew its own capsule for a while and that copy was the one that shipped reading "Needs y…". The tvOS pill is `TVChip`, shared by the detail panel and the dashboard's Live Activity card — it took an argument for its type size rather than a second copy, because the two surfaces disagreeing is what let them drift: the panel put the "doing right now" glyph *inside* the pill and the dashboard put it beside the title, so one state reached the screen as two separate tinted things at opposite ends of a row and read as two. What an activity **is** goes beside the title; what it is **doing** goes in the pill, with the words it qualifies.
+- **New badge or pill on a card:** use `AttentionBadge`/`StatusBadge` from `Sources/Shared/Rendering/StatusBadge.swift` rather than drawing a look-alike. `AttentionBadge` takes a `font` because caption 2 is right in a widget and far too small on a television, and a `compact` form that is a glyph alone — which is what the slot beside a title has room for, measured: the full badge is 244 points against a 437-point content width, so it and a title cannot both fit in a tvOS cell. tvOS drew its own capsule for a while and that copy was the one that shipped reading "Needs y…". The tvOS pill is `TVChip`, shared by the detail panel and the dashboard's Live Activity card — it took an argument for its type size rather than a second copy, because the two surfaces disagreeing is what let them drift: the panel put the "doing right now" glyph *inside* the pill and the dashboard put it beside the title, so one state reached the screen as two separate tinted things at opposite ends of a row and read as two. What an activity **is** goes beside the title; what it is **doing** goes in the pill, with the words it qualifies. And what goes in the pill when a person has to act is neither: `AttentionPresentation` holds the one label and the one glyph, and `statusChipLabel`/`statusChipSymbolName` derive both from `needsUserAttention` so the two halves of one badge cannot disagree. They already had — every iOS surface and the tvOS widget cell drew the person-and-exclamation, while the tvOS chips drew whatever `statusIcon` the *producer* sent, which means "what this is doing right now". A chip could therefore read hammer + "Needs you": a glyph saying `building` beside words saying a human must intervene. `AttentionPresentationTests` pins it.
 
 - **New Live Activity kind:** extend `LiveActivityKind` in both languages, and update the icon mapping inside `LiveActivityWidget.swift`.
 

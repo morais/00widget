@@ -9,7 +9,7 @@ struct SampleDataFactoryTests {
         let cards = SampleDataFactory.makeCards()
         #expect(cards.map(\.title) == [
             "Launch", "Production", "Trials", "Support", "AI spend",
-            "Agent runs", "Launch message", "Open PRs",
+            "Agent runs", "Open PRs",
         ])
 
         let launch = try #require(
@@ -30,16 +30,18 @@ struct SampleDataFactoryTests {
         let runs = try #require(
             cards.first { $0.id == SampleDataFactory.sampleId("agent-runs") }
         )
-        let message = try #require(
-            cards.first { $0.id == SampleDataFactory.sampleId("launch-message") }
-        )
-
         #expect(launch.template == .briefing)
         #expect(launch.value == "4/5")
         #expect(launch.progress == 0.8)
         #expect(launch.briefing?.sections.map(\.label) == ["Now", "Next", "Needs you"])
         #expect(launch.actions?.map(\.label) == ["Approve"])
+        // The deck's only approval, and it must route through the app's
+        // confirmation step rather than approving from a widget.
+        #expect(launch.actions?.first?.confirm == true)
+        #expect(launch.actions?.first?.isSafeFromWidget == false)
         #expect(launch.needsUserAttention)
+        // A person is the thing being waited on, so nothing may draw a clock.
+        #expect(launch.deadline == nil)
 
         #expect(production.items?.map(\.displayValue) == ["118 ms", "99.99%", "0 waiting"])
         #expect(production.items?.allSatisfy { $0.status == .good } == true)
@@ -48,10 +50,14 @@ struct SampleDataFactoryTests {
         #expect(trials.chart?.reference == 110)
         #expect(trials.comparison == CardComparison(value: "+18", label: "vs Monday", signal: .favorable))
 
-        #expect(support.items?.map(\.title) == ["Needs you", "Resolved", "Draft ready"])
+        #expect(support.items?.map(\.title) == ["Waiting", "Resolved", "Draft ready"])
         #expect(support.items?.map(\.amount) == [1, 18, 5])
         #expect(support.actions?.map(\.label) == ["Review"])
-        #expect(support.needsUserAttention)
+        // Healthy overall, so the launch approval stays the deck's single
+        // decision: one amber segment inside a good card, not a second badge.
+        #expect(support.status == .good)
+        #expect(!support.needsUserAttention)
+        #expect(support.items?.map(\.status) == [.warning, .good, .running])
 
         #expect(spend.value == "$18.40")
         #expect(spend.progress == 0.613)
@@ -59,12 +65,42 @@ struct SampleDataFactoryTests {
         #expect(runs.items?.count == 20)
         #expect(runs.items?.allSatisfy { $0.status == .good } == true)
         #expect(runs.items?.last?.subtitle == "Recovered after retry")
-        #expect(message.actions?.map(\.label) == ["Approve"])
+
+        // No marketing screenshot may contain an ellipsis. Measured at
+        // caption2 against the 146pt a roomy grid cell gives a subtitle on a
+        // 6.3-inch large widget, these are 131.0, 131.7, 131.3 and 96.3.
+        #expect(trials.subtitle == "Growth Agent · this week")
+        // The producer gives up the line and the state keeps it, as on Open
+        // PRs: the small widget in frame 2 rendered "Support Agent · 1 w…",
+        // and a broken name is worth less than a complete state. `producer`
+        // still carries "Support Agent" for the surfaces with room.
+        #expect(support.subtitle == "1 waiting")
+        #expect(!support.producerRepeatsSubtitle)
+        #expect(support.producer?.label == "Support Agent")
+        #expect(spend.subtitle == "of $30 today · $11.60 left")
+        #expect(runs.subtitle == "19 clean · 1 retried")
+
+        // A summary's subtitle gets one line in a small widget — a briefing's
+        // wraps to two — and that line is 126pt on the 158pt canvas this deck
+        // is captured on. "Code Agent · reviewed" measured 21 characters into
+        // "Code Agent · revie…" there, so the producer gives up the line and
+        // the state keeps it; the attribution still draws on every surface
+        // with room, which it would not if the subtitle led with the name.
+        let prs = try #require(
+            cards.first { $0.id == SampleDataFactory.sampleId("open-prs") }
+        )
+        #expect(prs.subtitle == "All reviewed")
+        #expect(!prs.producerRepeatsSubtitle)
+        #expect(prs.deadline == nil)
 
         #expect(cards.compactMap(\.producer?.label) == [
             "Release Agent", "Ops Agent", "Growth Agent", "Support Agent",
-            "Usage Agent", "Run Agent", "Content Agent", "Code Agent",
+            "Usage Agent", "Run Agent", "Code Agent",
         ])
+
+        // Exactly one card asks for a decision. A second apparent incident is
+        // what the separate Launch message card used to add.
+        #expect(cards.filter(\.needsUserAttention).map(\.title) == ["Launch"])
     }
 
     @Test("The secondary home-energy campaign retains its corrected fixtures")
@@ -102,7 +138,9 @@ struct SampleDataFactoryTests {
         #expect(activity.items?.map(\.value) == ["Needs approval", "Uploaded", "Live", "412 passed", "Passed"])
         #expect(activity.activeItems.count == 1)
         #expect(activity.needsUserAttention)
-        #expect(activity.endsAt != nil)
+        // The launch card drops its deadline for the same reason: nothing may
+        // draw a countdown to a decision only a person can make.
+        #expect(activity.endsAt == nil)
     }
 
     @Test("Both Live Activity jobs carry bounded progress and freshness")

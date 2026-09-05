@@ -60,7 +60,7 @@ private struct PreviewCardProvider: TimelineProvider {
 }
 
 private struct ScreenshotMetricsGridProvider: TimelineProvider {
-    private let sampleSuffixes = ["trials", "support", "agent-runs", "ai-spend"]
+    private let sampleSuffixes = SampleDataFactory.marketingGridCardSuffixes
 
     func placeholder(in context: Context) -> CardGridEntry {
         entry()
@@ -192,12 +192,12 @@ struct ScreenshotOpenPRsWidget: Widget {
     }
 }
 
-struct ScreenshotLaunchMessageWidget: Widget {
+struct ScreenshotLaunchWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.launch-message",
-            sampleSuffix: "launch-message",
-            displayName: "Screenshot Launch Message"
+            kind: "com.00widget.screenshot.launch",
+            sampleSuffix: "launch",
+            displayName: "Screenshot Launch"
         )
     }
 }

@@ -5,6 +5,18 @@
 #   marketing/screenshots/capture-all.sh --verify-only
 set -euo pipefail
 
+# Hold the display awake for the whole run.
+#
+# Not a convenience: a locked Mac hides every window from the accessibility
+# tree, and the Lock Screen capture drives Simulator.app through it. A run
+# started before lunch reached the lock step with Simulator running, the device
+# booted, and zero windows visible to `System Events` — ten minutes of capture
+# thrown away for a screen saver. `-w $$` ties the assertion to this script, so
+# it lifts when the run ends however it ends, with no trap to forget.
+if command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -dimsu -w $$ &
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RAW_ROOT="$REPO_ROOT/artifacts/screenshots/raw"
@@ -55,15 +67,22 @@ ios_files = {
     "screenshot-home-metrics.png",
     "screenshot-home-widgets.png",
     "screenshot-insights.png",
+    "screenshot-lock-activity.png",
     "screenshot-widgets.png",
 }
+# The expanded Dynamic Island is a *source* for the Lock Screen frame's
+# inset rather than a promotional image of its own, and only one capture
+# device has an island to expand. So the 6.3 set carries eight raw files
+# against the other two sets' seven, and all three still yield seven
+# promotional compositions.
+island_files = ios_files | {"screenshot-island-expanded.png"}
 tv_files = {
     "screenshot-tv-card-detail.png",
     "screenshot-tv-insights.png",
     "screenshot-tv-widgets.png",
 }
 sets = {
-    "iphone-6.3": ("iPhone 17 Pro", (1206, 2622), ios_files),
+    "iphone-6.3": ("iPhone 17 Pro", (1206, 2622), island_files),
     "iphone-6.5": ("iPhone 14 Plus – App Store 6.5", (1284, 2778), ios_files),
     "ipad": ("iPad Pro 13-inch (M4)", (2064, 2752), ios_files),
     "tvos": ("Apple TV 4K (3rd generation) (at 1080p)", (1920, 1080), tv_files),
@@ -149,4 +168,4 @@ else
   python3.12 "$SCRIPT_DIR/generate-promotional.py" --verify-only
 fi
 
-echo "✓ full marketing screenshot workflow complete: 21 raw captures + 21 promotional compositions"
+echo "✓ full marketing screenshot workflow complete: 25 raw captures + 25 promotional compositions"

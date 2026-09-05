@@ -211,26 +211,28 @@ struct TVDetailView: View {
         switch subject {
         case .card(let card):
             HStack(spacing: 10) {
-                if let statusIcon = card.statusIcon {
-                    Image(systemName: statusIcon)
+                if let symbol = card.statusChipSymbolName {
+                    Image(systemName: symbol)
                         .font(.title3)
                         .foregroundStyle(card.status.tint)
                         .accessibilityHidden(true)
                 }
-                Text(card.needsUserAttention ? "Needs you" : card.status.label)
+                Text(card.statusChipLabel)
             }
             .modifier(TVChip(tint: card.status.tint))
             .accessibilityLabel("Status")
-            .accessibilityValue(card.needsUserAttention ? "Needs you" : card.status.label)
+            // The same property the label above draws, not a second copy of
+            // the ternary: these two had to agree and nothing made them.
+            .accessibilityValue(card.statusChipLabel)
         case .activity(let activity):
             HStack(spacing: 10) {
-                if let statusIcon = activity.semanticStatusIcon {
-                    Image(systemName: statusIcon)
+                if let symbol = activity.statusChipSymbolName {
+                    Image(systemName: symbol)
                         .font(.title3)
                         .foregroundStyle(activity.tint)
                         .accessibilityHidden(true)
                 }
-                Text(activity.needsUserAttention ? "Needs you" : activity.state.capitalized)
+                Text(activity.statusChipLabel)
             }
             .modifier(TVChip(tint: activity.tint))
         }
@@ -808,9 +810,7 @@ private struct TVActivityDetailContent: View {
         }
     }
 
-    private var presentationItems: [LiveActivityItem] {
-        activity.budgetedPresentationItems(fillingTo: 3)
-    }
+    private var presentationItems: [LiveActivityItem] { activity.tvPresentationItems }
 }
 
 // MARK: - QR
@@ -913,6 +913,18 @@ struct TVChip: ViewModifier {
 }
 
 extension LiveActivitySession {
+    /// The rows a television draws for this activity.
+    ///
+    /// Here for the same reason `detailIconName` is: the dashboard card and
+    /// the detail panel both drew this, byte for byte, including the count.
+    /// The *rule* was shared — `budgetedPresentationItems` is in Sources/Shared
+    /// — but the number was not, so the two screens each decided independently
+    /// how much of one activity to show and would have disagreed the moment
+    /// either changed.
+    var tvPresentationItems: [LiveActivityItem] {
+        budgetedPresentationItems(fillingTo: 3)
+    }
+
     /// The icon the producer sent, or the one its kind implies. Shared by the
     /// dashboard card and the detail panel so the same activity cannot be
     /// drawn with two different glyphs on the two screens.

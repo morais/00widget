@@ -9,7 +9,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         // carousel for every placement, so this halves the required swipes.
         ScreenshotProductionWidget()
         ScreenshotOpenPRsWidget()
-        ScreenshotLaunchMessageWidget()
+        ScreenshotLaunchWidget()
         ScreenshotTrialsLargeWidget()
         ScreenshotTrialsWideWidget()
         ScreenshotAgentRunsWidget()

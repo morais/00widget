@@ -40,6 +40,20 @@ class Promotion:
     supporting: str
 
 
+# The sequence Apple shows first is the sequence that has to carry the
+# product, so the order here is the argument: what the agents are doing, all
+# of them at once, then the surfaces that bring it to you without opening
+# anything. The hero shows the *compact* Island, because expanded it is drawn
+# over the first row of widgets and covers their titles.
+#
+# The expanded presentation was then inset into the Lock Screen frame to keep
+# it in the sequence, and that is now gone: composed against a real Lock Screen
+# capture it showed the same four lines as the card beneath it, which reads as
+# one thing printed twice rather than as two surfaces. The Island is still in
+# the sequence — frame 1 shows it doing its job at the size a person sees it.
+# `screenshot-island-expanded.png` is still captured: it costs one shot, it is
+# the only record of that presentation, and the App Preview is where showing it
+# in motion will earn its place.
 PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
@@ -52,9 +66,20 @@ PROMOTIONS = (
         "See the work that’s done, in motion, and waiting on you.",
     ),
     Promotion(
-        "screenshot-home-metrics.png",
+        "screenshot-lock-activity.png",
         "Follow every step live.",
-        "ETAs and changing work on the Lock Screen and Dynamic Island.",
+        "Progress, completed steps, and the next decision—right on your "
+        "Lock Screen.",
+    ),
+    Promotion(
+        "screenshot-island-expanded.png",
+        "Keep live work in sight.",
+        "Progress and approvals stay visible in the Dynamic Island.",
+    ),
+    Promotion(
+        "screenshot-home-metrics.png",
+        "Four agents. One widget.",
+        "Trends, budgets, and run history—without opening anything.",
     ),
     Promotion(
         "screenshot-widgets.png",
@@ -92,8 +117,18 @@ TV_PROMOTIONS = (
 )
 
 
+#: The Island frame is a close-up of a presentation only one capture device
+#: has. The other sets omit it rather than fake it, which is why the promotional
+#: counts differ per device — eight on 6.3, seven elsewhere.
+ISLAND_FRAME = "screenshot-island-expanded.png"
+
+
 def promotions_for(device_set: str) -> tuple[Promotion, ...]:
-    return TV_PROMOTIONS if device_set == "tvos" else PROMOTIONS
+    if device_set == "tvos":
+        return TV_PROMOTIONS
+    if device_set == "iphone-6.3":
+        return PROMOTIONS
+    return tuple(p for p in PROMOTIONS if p.filename != ISLAND_FRAME)
 
 
 def file_hash(path: Path) -> str:
@@ -392,6 +427,117 @@ def draw_device(
     )
 
 
+
+def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
+    """Where SpringBoard drew the expanded Island in a raw capture.
+
+    Measured rather than hardcoded, because the presentation's height follows
+    the number of rows the activity draws — a fixed crop would silently slice
+    a row off the moment the fixture gains or loses one. The Island is the
+    only thing at the top of a Home Screen that is both near-black and most of
+    the width, so a row is part of it when it is mostly black.
+    """
+    grey = screen.convert("L")
+    width, height = grey.size
+    pixels = grey.load()
+    band = range(0, round(height * 0.4))
+    rows = [
+        y
+        for y in band
+        if sum(1 for x in range(0, width, 4) if pixels[x, y] < 24)
+        > (width // 4) * 0.55
+    ]
+    if not rows:
+        raise SystemExit(
+            "no expanded Dynamic Island found in the inset source: the capture "
+            "did not reach the expanded presentation"
+        )
+    top, bottom = rows[0], rows[-1]
+    # Walk out from the centre of the band rather than collecting every dark
+    # column: a Home Screen wallpaper can be near-black at the edges of the
+    # same rows, and a scan that merely looks for dark pixels then reports the
+    # whole width. The Island is one contiguous run through the middle.
+    # A column belongs to the Island only if it is dark down the *whole* band,
+    # not merely at one row. Walking out along a single row runs straight into
+    # a dark wallpaper — the 6.3-inch capture's is navy — and the crop then
+    # carries a slab of it either side, which the rounded mask leaves as a pale
+    # halo along two edges.
+    # Sample just inside the band's top and bottom edges: those rows are inside
+    # the pill but clear of its text, so they are black right across it, while
+    # the wallpaper either side is only *sometimes* dark. Sampling every row
+    # instead would reject every column the white text passes through.
+    inset = max(2, (bottom - top) // 12)
+    probes = (top + inset, bottom - inset)
+
+    def is_island_column(x: int) -> bool:
+        return all(pixels[x, y] < 24 for y in probes)
+
+    centre = width // 2
+    left, right = centre, centre
+    while left > 0 and is_island_column(left - 1):
+        left -= 1
+    while right < width - 1 and is_island_column(right + 1):
+        right += 1
+    if right - left < width * 0.6 or bottom - top < height * 0.05:
+        raise SystemExit(
+            "the inset source's dark region is too small to be an expanded "
+            f"Dynamic Island: {right - left}x{bottom - top}"
+        )
+    return left, top, right, bottom
+
+
+def draw_island_closeup(canvas: Image.Image, source: Image.Image) -> None:
+    """Draw the expanded Island large, alone, and with nothing behind it.
+
+    An earlier version pasted this over the Lock Screen frame as an inset, and
+    it was rejected on sight: an expanded Island floating inside a locked phone
+    above a banner repeating the same title, progress and rows reads as a
+    compositing mistake rather than as proof of two surfaces. So it gets its
+    own frame, cropped out of a real Home Screen capture, and it is the only
+    thing in it — no second system surface underneath, and the same activity
+    never shown twice in one phone.
+
+    There is no device outline for the same reason. The Island *is* hardware
+    and screen at once; drawing a phone around a close-up of it would either
+    repeat the bezel at the wrong scale or shrink the subject back to the size
+    the hero already shows it at.
+    """
+    width, height = canvas.size
+    island = source.crop(island_bounds(source))
+
+    # Large, because the subject is a 3.25:1 pill in a 1:2.17 canvas and
+    # anything smaller reads as an object lost in a page rather than as the
+    # thing the frame is about. The space around it is then deliberate.
+    target_width = round(width * 0.92)
+    scale = target_width / island.width
+    island = island.resize(
+        (target_width, round(island.height * scale)), Image.Resampling.LANCZOS
+    )
+    radius = round(island.height * 0.20)
+    island = rounded_image(island, radius)
+
+    x = (width - island.width) // 2
+    # Centred in the room below the copy block rather than in the canvas, so
+    # the space above and below the subject is even.
+    y = round(height * 0.58) - island.height // 2
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow_layer).rounded_rectangle(
+        (
+            x,
+            y + round(height * 0.008),
+            x + island.width,
+            y + island.height + round(height * 0.008),
+        ),
+        radius=radius,
+        fill=(6, 21, 42, 150),
+    )
+    canvas.alpha_composite(
+        shadow_layer.filter(ImageFilter.GaussianBlur(radius=max(16, round(width * 0.020))))
+    )
+    canvas.alpha_composite(island, (x, y))
+
+
 def compose(
     source_path: Path,
     output_path: Path,
@@ -439,18 +585,23 @@ def compose(
         round(height * 0.003),
     )
 
-    draw_device(canvas, source, device_set, device_top)
+    if promotion.filename == ISLAND_FRAME:
+        draw_island_closeup(canvas, source)
+    else:
+        draw_device(canvas, source, device_set, device_top)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
-    return {
+    record: dict[str, object] = {
         "filename": promotion.filename,
         "headline": promotion.headline,
         "supporting": promotion.supporting,
         "sourceSha256": file_hash(source_path),
-        "outputSha256": file_hash(output_path),
         "dimensions": [width, height],
     }
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
+    record["outputSha256"] = file_hash(output_path)
+    return record
 
 
 def draw_tv(canvas: Image.Image, source: Image.Image) -> None:
@@ -677,7 +828,8 @@ def verify_promotional_screenshots(
             print(f"  - {error}")
         raise SystemExit(1)
 
-    print("✓ all 21 promotional screenshots verified")
+    total = sum(len(promotions_for(device_set)) for device_set in selected_sets)
+    print(f"✓ all {total} promotional screenshots verified")
 
 
 def main() -> None:

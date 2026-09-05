@@ -114,11 +114,19 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             } compactLeading: {
                 IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
                     .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
+                    .fixedSize()
             } compactTrailing: {
-                // The compact trailing region is a few points wide. Without a
-                // scale factor the text is clipped rather than shrunk, and it
-                // clips from the leading edge — "20%" renders as "0%", which
-                // reads as a real value and not as truncation.
+                // The compact trailing region is narrow, and it neither wraps
+                // nor scales: it clips, from the *leading* edge, so "4/5"
+                // arrives as "/5" and reads as a real value rather than as
+                // truncation. Two things are needed together. `fixedSize()`
+                // makes the region negotiate a width instead of accepting a
+                // proposal too small for its content — without it even three
+                // glyphs are cut, and the leading glyph is cut with them,
+                // because the whole compact presentation is laid out against
+                // that proposal. And `compactValueToken` bounds what may ask,
+                // since a region free to demand its ideal width grows the
+                // island across most of the screen and clips anyway.
                 Group {
                     if context.state.showsItemCount {
                         Text("\(context.state.activeItems.count)")
@@ -130,19 +138,21 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                                 ticking: .systemText
                         )
                         .monospacedDigit()
-                    } else if let value = context.state.value {
-                        Text(value)
+                    } else if let token = context.state.compactValueToken {
+                        Text(token)
                             .font(.caption2)
                             .monospacedDigit()
                     } else if let p = context.state.progress {
                         Text("\(Int((max(0, min(p, 1)) * 100).rounded()))%")
                             .monospacedDigit()
-                    } else {
-                        Text(context.state.state)
+                    } else if let token = ZeroZeroWidgetActivityAttributes.ContentState
+                        .compactToken(context.state.state) {
+                        Text(token)
                     }
                 }
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .fixedSize()
             } minimal: {
                 MinimalIslandView(
                     state: context.state,

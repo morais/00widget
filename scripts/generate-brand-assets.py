@@ -15,6 +15,9 @@ BRAND_DIR = REPO_ROOT / "docs" / "brand"
 SOURCE = BRAND_DIR / "branding-sheet.png"
 MARK_MASTER = BRAND_DIR / "mark-transparent-master.png"
 APP_ICON_MASTER = BRAND_DIR / "app-icon-master.png"
+# A render of the shipping `GuestActivityPreview`, committed so the App Clip
+# card's header shows the product rather than a picture of it.
+ACTIVITY_PANEL = BRAND_DIR / "sources" / "app-clip-activity.png"
 
 NAVY = "#06152A"
 # The two stops of `dark_background`, and the only place they are written down.
@@ -283,9 +286,31 @@ def launch(mark: Image.Image) -> Image.Image:
 
 
 def app_clip_header(mark: Image.Image) -> Image.Image:
-    """Build the 1800 × 1200 RGB image used by the default App Clip card."""
+    """Build the 1800 × 1200 RGB image used by the default App Clip card.
+
+    Product first, mascot second. This image answers "what am I about to
+    open?" for someone who has just tapped a link from a colleague, and a
+    mascot alone answers it with a brand rather than with a thing: the card
+    now shows the launch activity as the App Clip will actually draw it,
+    with the mark as a signature in the corner.
+
+    The panel is a *render of the shipping renderer* rather than a drawing of
+    one, so it cannot drift away from what the Clip shows. `ACTIVITY_PANEL` is
+    produced by the recipe in docs/brand/README.md and committed beside this
+    script; regenerate it whenever the sample activity or the preview's layout
+    changes. Edges stay quiet — App Clip cards are masked and overlaid, so the
+    corners cannot be load-bearing.
+    """
     image = Image.new("RGBA", (1800, 1200), NAVY)
-    image.alpha_composite(contain(mark, (900, 900)), (450, 150))
+    if ACTIVITY_PANEL.exists():
+        panel = Image.open(ACTIVITY_PANEL).convert("RGBA")
+        panel = ImageOps.contain(panel, (1080, 720), Image.Resampling.LANCZOS)
+        image.alpha_composite(panel, (170, (1200 - panel.height) // 2))
+        image.alpha_composite(contain(mark, (300, 300)), (1370, 450))
+    else:
+        # The mascot-only fallback, so a checkout without the committed panel
+        # still produces a valid asset rather than failing the whole run.
+        image.alpha_composite(contain(mark, (900, 900)), (450, 150))
     return image
 
 

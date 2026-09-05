@@ -57,6 +57,8 @@ else
   FILES=(
     screenshot-home-widgets.png
     screenshot-home-insights.png
+    screenshot-lock-activity.png
+    screenshot-island-expanded.png
     screenshot-home-metrics.png
     screenshot-widgets.png
     screenshot-insights.png
@@ -65,6 +67,10 @@ else
 fi
 
 for file in "${FILES[@]}"; do
+  # The Island frame exists only for the one capture device that has one.
+  if [[ "$file" == "screenshot-island-expanded.png" && ! -f "$SOURCE/$file" ]]; then
+    continue
+  fi
   if [[ ! -f "$SOURCE/$file" ]]; then
     echo "missing $SOURCE/$file; run marketing/screenshots/capture-all.sh first" >&2
     exit 1
@@ -73,6 +79,7 @@ done
 
 mkdir -p "$DESTINATION"
 for file in "${FILES[@]}"; do
+  [[ -f "$SOURCE/$file" ]] || continue
   cp "$SOURCE/$file" "$DESTINATION/$file"
   echo "  $DESTINATION/$file"
 done

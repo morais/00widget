@@ -58,13 +58,47 @@ byte-for-byte, which is the check to run after changing the pin.
 | `plugin-composer-icon.png`            | 88×88      | Opaque dark navy | Plugin composer icon (`interface.composerIcon`), exported at 2× its 44×44 display size.       |
 | `wordmark-horizontal.png`             | 2400×840   | Opaque light     | Pixel-exact approved horizontal lockup for light surfaces. |
 | `wordmark-horizontal-transparent.png` | 2400×840   | Transparent      | Clean dark-surface lockup using the approved typography and tagline. |
-| `app-clip-header.png`                 | 1800×1200  | Opaque dark navy | Default App Clip card header in App Store Connect. |
+| `app-clip-header.png`                 | 1800×1200  | Opaque dark navy | Default App Clip card header in App Store Connect. Product first: the launch activity as the Clip draws it, with the mark as a signature. Composed from `sources/app-clip-activity.png`. |
 | `branding-sheet.png`                  | 1536×1024  | Opaque light     | Authoritative approved U2 identity sheet, and the generator's source image.                   |
 | `mark-transparent-master.png`          | 1254×1254  | Transparent      | Generated cut-out of the approved master. Source for every transparent export and for the tvOS layered icon's front layer. |
 | `app-icon-master.png`                  | 1254×1254  | Opaque navy      | Exact approved playful master; do not redraw or reinterpret.                                  |
 
 This identity is raster-first so production assets remain faithful to the
 approved U2 artwork. Do not substitute an approximate vector redraw.
+
+## Regenerating the App Clip header's product panel
+
+`sources/app-clip-activity.png` is a render of the shipping
+`GuestActivityPreview` — the view the App Clip itself draws for a shared Live
+Activity — rather than a picture of one, so the card someone sees before
+opening a link cannot drift away from the one they get. Regenerate it whenever
+the sample activity or that view's layout changes, using the `ImageRenderer`
+recipe from `AGENTS.md` in the app-hosted unit test target:
+
+```swift
+var session = SampleDataFactory.makeLiveActivitySession()
+session.progress = nil          // see below
+let renderer = ImageRenderer(
+    content: GuestActivityPreview(session: session)
+        .frame(width: 380)
+        .environment(\.colorScheme, .dark)
+)
+renderer.scale = 3
+renderer.isOpaque = false
+```
+
+Two things about that are deliberate. **Dark**, because the card sits on the
+navy background and a light panel on it reads as a screenshot pasted onto a
+brand colour. And **no progress**, because a linear `ProgressView` is
+UIKit-backed and `ImageRenderer` draws it full-width whatever its value — under
+a `4/5` headline that would claim the launch had finished. The item rows carry
+the state instead, which is the more specific statement anyway.
+
+Then run the generator; it composes the panel, the navy field and the mark:
+
+```sh
+python3.12 scripts/generate-brand-assets.py
+```
 
 ## Color palette
 

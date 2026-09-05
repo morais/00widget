@@ -27,7 +27,16 @@ struct TVSettingsView: View {
                     row("Server", value: env.serverBaseURL)
                     row("Version", value: appVersionString)
                     if let last = env.lastSyncAt {
-                        row("Last sync", value: last.formatted(.relative(presentation: .named)))
+                        // The clock goes *inside* the cell, not around the row:
+                        // `Grid` aligns columns only for `GridRow`s that are
+                        // its own children, and wrapping one in the
+                        // `TimelineView` would leave this line as a single
+                        // cell, out of step with every row above it.
+                        row("Last sync") {
+                            RelativeTimeClock(since: last) {
+                                Text(last.formatted(.relative(presentation: .named)))
+                            }
+                        }
                     }
                     if let error = env.lastSyncError {
                         row("Last error", value: error, valueColor: .red)
@@ -160,6 +169,16 @@ struct TVSettingsView: View {
     #endif
 
     private func row(_ key: String, value: String, valueColor: Color = .primary) -> some View {
+        row(key, valueColor: valueColor) { Text(value) }
+    }
+
+    /// The same row, for a value that is a view rather than a string — a
+    /// relative time that has to be driven by a clock, so far.
+    private func row<Value: View>(
+        _ key: String,
+        valueColor: Color = .primary,
+        @ViewBuilder value: () -> Value
+    ) -> some View {
         GridRow {
             Text(key)
                 .font(.title3)
@@ -170,7 +189,7 @@ struct TVSettingsView: View {
                     vertical: dynamicTypeSize.usesTVLargeTextLayout
                 )
                 .gridColumnAlignment(.leading)
-            Text(value)
+            value()
                 .font(.title3)
                 .foregroundStyle(valueColor)
                 .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 4)

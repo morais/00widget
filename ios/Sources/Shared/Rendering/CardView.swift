@@ -158,7 +158,7 @@ public struct CardView: View {
             // attention; the combined accessibility summary still says the
             // status aloud.
             if card.needsUserAttention {
-                AttentionBadge()
+                AttentionBadge(compact: context == .widgetSmall)
             } else if card.status.needsAttention {
                 StatusBadge(status: card.status, compact: true)
             }
@@ -754,17 +754,42 @@ public struct CardView: View {
         }
     }
 
+    /// The Lock Screen's circular accessory: a ring about 58 points across.
+    ///
+    /// **A ring is only drawn for a card that has a fraction.** Gauging
+    /// `progressValue ?? 0` drew an empty ring around a real number for every
+    /// card that has no progress — a count, a status, a currency total — which
+    /// reads as nought per cent rather than as a number with no fraction to
+    /// show. This product had already reasoned that out in the other place it
+    /// draws a ring: `minimalProgress` returns `nil` rather than zero for the
+    /// Dynamic Island's minimal circle, because a ring stuck at zero says
+    /// "nothing has happened" about something that may be well under way. The
+    /// guard never reached here, so it reached users.
     @ViewBuilder
     private var circularView: some View {
         #if os(tvOS)
         EmptyView()
         #else
-        Gauge(value: card.progressValue ?? 0) {
-            if let icon = card.icon { Image(systemName: icon) }
-        } currentValueLabel: {
-            Text(card.value ?? "—").font(.caption).lineLimit(1)
+        if let progress = card.progressValue {
+            Gauge(value: progress) {
+                if let icon = card.icon { Image(systemName: icon) }
+            } currentValueLabel: {
+                Text(card.value ?? "—").font(.caption).lineLimit(1)
+            }
+            .gaugeStyle(.accessoryCircular)
+        } else {
+            // No ring rather than an empty one. The glyph keeps the card
+            // identifiable at this size, where the title does not fit.
+            VStack(spacing: 0) {
+                if let icon = card.icon {
+                    Image(systemName: icon).font(.caption2)
+                }
+                Text(card.value ?? card.status.label)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
         }
-        .gaugeStyle(.accessoryCircular)
         #endif
     }
 
