@@ -69,6 +69,19 @@ public enum ZeroZeroWidgetConstants {
         public static let all: [String] = [card, cardGrid]
     }
 
+    /// Screenshot-only static widget kinds for the App Store Preview hero.
+    /// Deliberately outside `WidgetKinds.all`: the shared reload loop must
+    /// keep rationing production timelines, while preview seeding reloads
+    /// these explicitly so a placed hero follows the filmed phase.
+    public enum PreviewWidgetKinds {
+        public static let launch = "com.00widget.preview.launch"
+        public static let production = "com.00widget.preview.production"
+        public static let openPRs = "com.00widget.preview.open-prs"
+        public static let trialsWide = "com.00widget.preview.trials-wide"
+
+        public static let all: [String] = [launch, production, openPRs, trialsWide]
+    }
+
     /// The public pages the app links to.
     ///
     /// One definition because they are shown in two places that answer

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ZeroZeroWidgetApp
 
@@ -155,12 +156,9 @@ struct SampleDataFactoryTests {
 
     @Test("Preview launch phases move 3/5 through approval to 5/5")
     func previewLaunchPhasesAreOrdered() throws {
-        let referenceDate = try #require(
-            ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")
-        )
-        let a = SampleDataFactory.makePreviewLiveActivitySession(phase: .a, referenceDate: referenceDate)
-        let b = SampleDataFactory.makePreviewLiveActivitySession(phase: .b, referenceDate: referenceDate)
-        let c = SampleDataFactory.makePreviewLiveActivitySession(phase: .c, referenceDate: referenceDate)
+        let a = SampleDataFactory.makePreviewLiveActivitySession(phase: .a)
+        let b = SampleDataFactory.makePreviewLiveActivitySession(phase: .b)
+        let c = SampleDataFactory.makePreviewLiveActivitySession(phase: .c)
 
         #expect(a.value == "3/5")
         #expect(a.progress == 0.6)
@@ -189,9 +187,14 @@ struct SampleDataFactoryTests {
         #expect(b.needsUserAttention)
         #expect(!c.needsUserAttention)
 
-        #expect(a.updatedAt == referenceDate)
-        #expect(b.updatedAt == referenceDate)
-        #expect(c.updatedAt == referenceDate)
+        // Anchored to now: a past endsAt makes ActivityKit reject the request
+        // or end the activity the moment it starts.
+        let now = Date()
+        for session in [a, b, c] {
+            #expect(session.updatedAt <= now)
+            #expect(now.timeIntervalSince(session.updatedAt) < 60)
+            #expect((session.staleAt ?? .distantPast) > now)
+        }
     }
 
     @Test("Preview hero cards follow the launch phase")

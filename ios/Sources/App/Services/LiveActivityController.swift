@@ -169,18 +169,15 @@ public final class LiveActivityController: ObservableObject {
     /// outlives a reinstall, and `startSample`'s one-sample guard would
     /// otherwise leave yesterday's activity on screen under today's island.
     public func startOrUpdatePreviewSample(
-        phase: SampleDataFactory.PreviewLaunchPhase,
-        referenceDate: Date
+        phase: SampleDataFactory.PreviewLaunchPhase
     ) async {
-        let session = SampleDataFactory.makePreviewLiveActivitySession(
-            phase: phase,
-            referenceDate: referenceDate
-        )
+        let session = SampleDataFactory.makePreviewLiveActivitySession(phase: phase)
         let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
         if let existing = Activity<ZeroZeroWidgetActivityAttributes>.activities.first(where: {
             $0.attributes.externalActivityId == session.externalActivityId
         }) {
             await existing.update(ActivityContent(state: state, staleDate: session.staleAt))
+            log.info("Updated preview Live Activity to phase \(String(describing: phase), privacy: .public)")
         } else {
             for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
             where activity.attributes.activityInstanceId == nil
@@ -188,11 +185,20 @@ public final class LiveActivityController: ObservableObject {
                     .hasPrefix(ZeroZeroWidgetConstants.sampleCardIdPrefix) {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
-            _ = try? Activity.request(
-                attributes: attributes,
-                content: ActivityContent(state: state, staleDate: session.staleAt),
-                pushType: nil
-            )
+            do {
+                _ = try Activity.request(
+                    attributes: attributes,
+                    content: ActivityContent(state: state, staleDate: session.staleAt),
+                    pushType: nil
+                )
+                log.info("Started preview Live Activity phase \(String(describing: phase), privacy: .public)")
+            } catch {
+                // Swallowed by design like every other sample path, but said
+                // out loud: a silent request failure films an empty island.
+                log.error(
+                    "Could not start preview Live Activity: \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
         refreshActiveActivities()
     }

@@ -946,7 +946,7 @@ public final class AppEnvironment: ObservableObject {
     /// screenshot build, and never performs a network request.
     public func generatePreviewLaunchCards(
         referenceDate: Date,
-        phase: SampleDataFactory.PreviewLaunchPhase = .b
+        phase: SampleDataFactory.PreviewLaunchPhase = .a
     ) {
         let samples = SampleDataFactory.makePreviewLaunchCards(
             referenceDate: referenceDate,
@@ -957,6 +957,13 @@ public final class AppEnvironment: ObservableObject {
         SharedSettings.setHideSampleIndicators(true)
         SpotlightIndex.donate(samples)
         reloadWidgetTimelines()
+        // Preview widgets are static screenshot-only kinds outside
+        // WidgetKinds.all, so the shared reload above never reaches them.
+        // Without this a placed hero keeps whatever it rendered first while
+        // the island moves on, and the opening frame contradicts itself.
+        for kind in ZeroZeroWidgetConstants.PreviewWidgetKinds.all {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
     }
 
     public var hasSampleCards: Bool {

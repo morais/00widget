@@ -658,12 +658,18 @@ public enum SampleDataFactory {
     /// Screenshot-only launch job for the preview timeline. Uses its own
     /// `preview-app-launch` id namespace so the preview driver can start and
     /// update it without touching the screenshot sample activity.
+    ///
+    /// Times anchor to now, not to any fixture reference date: an `endsAt`
+    /// or `staleAt` in the past makes ActivityKit reject the request or end
+    /// the activity immediately, and a countdown to a September date films
+    /// nonsense. The filmed card content stays deterministic; the clock does
+    /// not need to be.
     public static func makePreviewLiveActivitySession(
-        phase: PreviewLaunchPhase = .b,
-        referenceDate: Date = Date()
+        phase: PreviewLaunchPhase = .b
     ) -> LiveActivitySession {
-        let staleAt = referenceDate.addingTimeInterval(3600)
-        let startedAt = referenceDate.addingTimeInterval(-32 * 60)
+        let now = Date()
+        let staleAt = now.addingTimeInterval(3600)
+        let startedAt = now.addingTimeInterval(-32 * 60)
         switch phase {
         case .a:
             return LiveActivitySession(
@@ -684,10 +690,10 @@ public enum SampleDataFactory {
                     LiveActivityItem(id: "tests", title: "Tests", value: "412 passed", status: .finished),
                     LiveActivityItem(id: "build", title: "Build", value: "Passed", status: .finished),
                 ],
-                endsAt: referenceDate.addingTimeInterval(12 * 60),
+                endsAt: now.addingTimeInterval(12 * 60),
                 countdownGranularity: .minute,
                 startedAt: startedAt,
-                updatedAt: referenceDate,
+                updatedAt: now,
                 staleAt: staleAt
             )
         case .b:
@@ -712,7 +718,7 @@ public enum SampleDataFactory {
                 endsAt: nil,
                 countdownGranularity: nil,
                 startedAt: startedAt,
-                updatedAt: referenceDate,
+                updatedAt: now,
                 staleAt: staleAt
             )
         case .c:
@@ -737,7 +743,7 @@ public enum SampleDataFactory {
                 endsAt: nil,
                 countdownGranularity: nil,
                 startedAt: startedAt,
-                updatedAt: referenceDate,
+                updatedAt: now,
                 staleAt: staleAt
             )
         }
@@ -748,9 +754,12 @@ public enum SampleDataFactory {
     /// so the dashboard opened mid-timeline agrees with the activity; the
     /// other three are phase-independent. Only phase B carries the approval,
     /// which is the single amber decision in the story.
+    ///
+    /// The default is the opening phase, not the approval state: a widget
+    /// showing a future the activity has not reached yet reads as broken.
     public static func makePreviewLaunchCards(
         referenceDate: Date,
-        phase: PreviewLaunchPhase = .b
+        phase: PreviewLaunchPhase = .a
     ) -> [DashboardCard] {
         let freshUntil = Date.distantFuture
         let launchValue: String

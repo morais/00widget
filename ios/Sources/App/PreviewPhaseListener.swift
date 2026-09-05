@@ -56,10 +56,7 @@ final class PreviewPhaseListener {
     }
 
     fileprivate func advance(to phase: SampleDataFactory.PreviewLaunchPhase) async {
-        await LiveActivityController.shared.startOrUpdatePreviewSample(
-            phase: phase,
-            referenceDate: MarketingDemo.referenceDate
-        )
+        await LiveActivityController.shared.startOrUpdatePreviewSample(phase: phase)
     }
 }
 

@@ -133,7 +133,7 @@ private func previewCardConfiguration(
 struct PreviewLaunchWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.launch",
+            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.launch,
             sampleSuffix: "preview-launch",
             displayName: "Preview Launch"
         )
@@ -143,7 +143,7 @@ struct PreviewLaunchWidget: Widget {
 struct PreviewProductionWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.production",
+            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.production,
             sampleSuffix: "preview-production",
             displayName: "Preview Production"
         )
@@ -153,7 +153,7 @@ struct PreviewProductionWidget: Widget {
 struct PreviewOpenPRsWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.open-prs",
+            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.openPRs,
             sampleSuffix: "preview-open-prs",
             displayName: "Preview Open PRs"
         )
@@ -163,7 +163,7 @@ struct PreviewOpenPRsWidget: Widget {
 struct PreviewTrialsWideWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: "com.00widget.preview.trials-wide",
+            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.trialsWide,
             sampleSuffix: "preview-trials",
             displayName: "Preview Trials Wide",
             density: .automatic,
