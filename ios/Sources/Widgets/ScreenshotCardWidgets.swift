@@ -202,52 +202,41 @@ struct ScreenshotLaunchWidget: Widget {
     }
 }
 
-// The Lock Screen's accessory slots: four widths below the clock, where a
-// rectangular takes two, and one inline row above it. Only cards that suit the
-// renderer go here — a circular is a gauge, so it gets the two cards with a
-// real fraction, and `circularView` draws no ring at all for a card without
-// one rather than an empty one.
-struct ScreenshotLaunchCircularWidget: Widget {
-    var body: some WidgetConfiguration {
-        screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.launch-circular",
-            sampleSuffix: "launch",
-            displayName: "Screenshot Launch Circular",
-            supportedFamilies: [.accessoryCircular]
-        )
-    }
-}
-
-struct ScreenshotSpendCircularWidget: Widget {
-    var body: some WidgetConfiguration {
-        screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.spend-circular",
-            sampleSuffix: "ai-spend",
-            displayName: "Screenshot Spend Circular",
-            supportedFamilies: [.accessoryCircular]
-        )
-    }
-}
-
+// The Lock Screen's accessory row, as the campaign defines it: two
+// rectangular widgets below the clock and nothing else.
+//
+// Two, not four. A rectangular takes two of the four slot-widths, so this
+// fills the row exactly — and the row is deliberately not a demonstration of
+// every renderer. Launch is *not* here: its Live Activity sits directly below,
+// and putting the same task in both recreates the repetition that got the
+// expanded-Island composite rejected. The inline slot above the clock keeps
+// the date, because replacing a familiar system element is a bigger ask of the
+// viewer than the campaign needs.
+//
+// Rectangular is also the accessory that earns its space here: it draws the
+// title, the value and then a sparkline or status strip, so Trials shows a
+// trend and Agent runs shows twenty outcomes, where a circular would show one
+// number in a ring.
 struct ScreenshotTrialsRectangularWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
             kind: "com.00widget.screenshot.trials-rectangular",
             sampleSuffix: "trials",
-            displayName: "Screenshot Trials Rectangular",
+            displayName: "Screenshot Trials Lock",
             density: .automatic,
             supportedFamilies: [.accessoryRectangular]
         )
     }
 }
 
-struct ScreenshotOpenPRsInlineWidget: Widget {
+struct ScreenshotAgentRunsRectangularWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
-            kind: "com.00widget.screenshot.open-prs-inline",
-            sampleSuffix: "open-prs",
-            displayName: "Screenshot Open PRs Inline",
-            supportedFamilies: [.accessoryInline]
+            kind: "com.00widget.screenshot.agent-runs-rectangular",
+            sampleSuffix: "agent-runs",
+            displayName: "Screenshot Agent Runs Lock",
+            density: .automatic,
+            supportedFamilies: [.accessoryRectangular]
         )
     }
 }

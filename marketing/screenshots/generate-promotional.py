@@ -68,7 +68,11 @@ PROMOTIONS = (
     Promotion(
         "screenshot-lock-activity.png",
         "Follow every step live.",
-        "Progress, completed steps, and the next decision—right on your "
+        # Names both halves of the frame — the two persistent cards under the
+        # clock and the changing work beneath them — without explaining the
+        # layout. Approved 5 September, and correct only once the accessory row
+        # is actually in the capture.
+        "See agent status, live progress, and approvals—right on your "
         "Lock Screen.",
     ),
     Promotion(
