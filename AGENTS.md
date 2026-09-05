@@ -399,17 +399,34 @@ XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
 captured — a long-press on the island after backgrounding the app. The same test
 also rebuilds the dedicated marketing Home Screen page three times on every
 full run. The
-classic capture has three small Solar, Nightly run, and Boiler widgets plus a wide
-Energy chart; the insights capture uses a large 30-day Energy widget plus small
-Deploys and Device fleet widgets; the metrics capture uses one grid with Solar,
-Car, Energy, and Deploys. That grid uses the large family on iPhone and the
-extra-large family on iPad. It removes any previous 00Widget layout, adds
+classic capture has small Production, Open PRs and Launch widgets plus a wide
+Trials chart; the insights capture uses a large Trials widget plus small Agent
+runs and Support widgets; the metrics capture uses one grid with Trials,
+Support, Agent runs and AI spend. That grid uses the large family on iPhone and
+the extra-large family on iPad. It removes any previous 00Widget layout, adds
 each set through SpringBoard's widget gallery, and asserts the expected sizes
 exist before capturing `screenshot-home-widgets.png`,
 `screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The Lock
 Screen surface (`screenshot-lock-activity.png`) is captured host-side after
 XCUITest stages the launch Live Activity — see the `--only lock` paragraph
 above — because no in-process screenshot can show the Lock Screen.
+
+**The expanded Island is a separate capture, and the hero keeps the compact
+one.** Drawn expanded, the system overlay sits on top of the first row of Home
+Screen widgets and covers their titles — the renderers contain them, so nothing
+short of a real capture shows it, and no exact-size `ImageRenderer` check can:
+this is a system layer above the app. So `screenshot-home-widgets.png` is taken
+before the long-press and `screenshot-island-expanded.png` after it, and the
+promotional compositor insets the second into the Lock Screen frame, which is
+where the sequence makes its Lock-Screen-and-Dynamic-Island claim. The two
+halves are one change: compacting the hero alone would drop the strongest
+system surface out of the sequence entirely. Only the 6.3-inch device has an
+Island, so that set carries eight raw files where the other two carry seven,
+and all three still produce seven promotional compositions — the required-file
+sets in `capture-ios.sh` and `capture-all.sh` are per device class for exactly
+this reason. `generate-promotional.py` crops the Island by *measuring* the
+near-black band rather than by a fixed rectangle, because its height follows
+the number of rows the activity draws.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `artifacts/screenshots/raw/ipad/`. It produces native 2064×2752 images, uses the

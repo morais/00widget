@@ -38,8 +38,19 @@ class Promotion:
     filename: str
     headline: str
     supporting: str
+    #: A second raw capture, inset into the composition over the device. Used
+    #: by the Lock Screen frame to carry the expanded Dynamic Island, which is
+    #: the same activity in the other place the system draws it.
+    inset: str | None = None
 
 
+# The sequence Apple shows first is the sequence that has to carry the
+# product, so the order here is the argument: what the agents are doing, all
+# of them at once, then the surfaces that bring it to you without opening
+# anything. Frames 3 and 1 are a pair — the hero gives up the expanded Island
+# so it stops covering the widgets beneath it, and the Lock Screen frame picks
+# that presentation back up as an inset. Shipping either half alone either
+# loses the differentiator or keeps the defect.
 PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
@@ -52,14 +63,16 @@ PROMOTIONS = (
         "See the work that’s done, in motion, and waiting on you.",
     ),
     Promotion(
-        "screenshot-home-metrics.png",
+        "screenshot-lock-activity.png",
         "Follow every step live.",
-        "ETAs and changing work on the Lock Screen and Dynamic Island.",
+        "Progress, completed steps, and the next decision—on your Lock Screen "
+        "and Dynamic Island.",
+        inset="screenshot-island-expanded.png",
     ),
     Promotion(
-        "screenshot-lock-activity.png",
-        "Live work, on the Lock Screen.",
-        "Check progress at a glance — the update comes to you.",
+        "screenshot-home-metrics.png",
+        "Four agents. One widget.",
+        "Trends, budgets, and run history—without opening anything.",
     ),
     Promotion(
         "screenshot-widgets.png",
@@ -76,6 +89,22 @@ PROMOTIONS = (
         "Every active job. One place.",
         "See what is running, current, and complete.",
     ),
+)
+
+# One capture device has a Dynamic Island; the other two have a notch and a
+# tablet. Their Lock Screen frame therefore claims the Lock Screen alone and
+# carries no inset — a promise the image cannot keep is the defect this whole
+# pass exists to remove.
+NO_ISLAND_PROMOTIONS = tuple(
+    Promotion(
+        promotion.filename,
+        promotion.headline,
+        "Progress, completed steps, and the next decision—right on your "
+        "Lock Screen.",
+    )
+    if promotion.filename == "screenshot-lock-activity.png"
+    else promotion
+    for promotion in PROMOTIONS
 )
 
 TV_PROMOTIONS = (
@@ -98,7 +127,9 @@ TV_PROMOTIONS = (
 
 
 def promotions_for(device_set: str) -> tuple[Promotion, ...]:
-    return TV_PROMOTIONS if device_set == "tvos" else PROMOTIONS
+    if device_set == "tvos":
+        return TV_PROMOTIONS
+    return PROMOTIONS if device_set == "iphone-6.3" else NO_ISLAND_PROMOTIONS
 
 
 def file_hash(path: Path) -> str:
@@ -397,6 +428,96 @@ def draw_device(
     )
 
 
+
+def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
+    """Where SpringBoard drew the expanded Island in a raw capture.
+
+    Measured rather than hardcoded, because the presentation's height follows
+    the number of rows the activity draws — a fixed crop would silently slice
+    a row off the moment the fixture gains or loses one. The Island is the
+    only thing at the top of a Home Screen that is both near-black and most of
+    the width, so a row is part of it when it is mostly black.
+    """
+    grey = screen.convert("L")
+    width, height = grey.size
+    pixels = grey.load()
+    band = range(0, round(height * 0.4))
+    rows = [
+        y
+        for y in band
+        if sum(1 for x in range(0, width, 4) if pixels[x, y] < 24)
+        > (width // 4) * 0.55
+    ]
+    if not rows:
+        raise SystemExit(
+            "no expanded Dynamic Island found in the inset source: the capture "
+            "did not reach the expanded presentation"
+        )
+    top, bottom = rows[0], rows[-1]
+    # Walk out from the centre of the band rather than collecting every dark
+    # column: a Home Screen wallpaper can be near-black at the edges of the
+    # same rows, and a scan that merely looks for dark pixels then reports the
+    # whole width. The Island is one contiguous run through the middle.
+    middle = (top + bottom) // 2
+    centre = width // 2
+    left, right = centre, centre
+    while left > 0 and pixels[left - 1, middle] < 24:
+        left -= 1
+    while right < width - 1 and pixels[right + 1, middle] < 24:
+        right += 1
+    if right - left < width * 0.6 or bottom - top < height * 0.05:
+        raise SystemExit(
+            "the inset source's dark region is too small to be an expanded "
+            f"Dynamic Island: {right - left}x{bottom - top}"
+        )
+    return left, top, right, bottom
+
+
+def draw_island_inset(canvas: Image.Image, source_path: Path) -> None:
+    """Inset the expanded Island over the lower half of the device.
+
+    The Lock Screen is the frame's subject and stays dominant; this sits below
+    it at about half the width, close enough to read as the same activity in
+    the other place the system draws it. It is deliberately not a second
+    device: a phone drawn twice in one frame reads as two phones.
+    """
+    with Image.open(source_path) as raw:
+        source = raw.convert("RGB")
+    left, top, right, bottom = island_bounds(source)
+    margin = round((right - left) * 0.02)
+    island = source.crop(
+        (
+            max(0, left - margin),
+            max(0, top - margin),
+            min(source.width, right + margin),
+            min(source.height, bottom + margin),
+        )
+    )
+
+    width, height = canvas.size
+    target_width = round(width * 0.62)
+    scale = target_width / island.width
+    island = island.resize(
+        (target_width, round(island.height * scale)), Image.Resampling.LANCZOS
+    )
+    radius = round(island.height * 0.22)
+    island = rounded_image(island, radius)
+
+    x = (width - island.width) // 2
+    y = round(height * 0.795)
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow_layer).rounded_rectangle(
+        (x, y + round(height * 0.006), x + island.width, y + island.height + round(height * 0.006)),
+        radius=radius,
+        fill=(6, 21, 42, 150),
+    )
+    canvas.alpha_composite(
+        shadow_layer.filter(ImageFilter.GaussianBlur(radius=max(12, round(width * 0.016))))
+    )
+    canvas.alpha_composite(island, (x, y))
+
+
 def compose(
     source_path: Path,
     output_path: Path,
@@ -446,16 +567,26 @@ def compose(
 
     draw_device(canvas, source, device_set, device_top)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
-    return {
+    record: dict[str, object] = {
         "filename": promotion.filename,
         "headline": promotion.headline,
         "supporting": promotion.supporting,
         "sourceSha256": file_hash(source_path),
-        "outputSha256": file_hash(output_path),
         "dimensions": [width, height],
     }
+    if promotion.inset is not None:
+        inset_path = source_path.parent / promotion.inset
+        if not inset_path.is_file():
+            raise SystemExit(f"missing inset source: {inset_path}")
+        draw_island_inset(canvas, inset_path)
+        # The composition depends on two raw captures, so verification has to
+        # check both or a re-captured Island leaves a stale image behind.
+        record["insetSourceSha256"] = file_hash(inset_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
+    record["outputSha256"] = file_hash(output_path)
+    return record
 
 
 def draw_tv(canvas: Image.Image, source: Image.Image) -> None:
@@ -662,6 +793,16 @@ def verify_promotional_screenshots(
                 errors.append(f"{device_set}/{filename}: manifest dimensions are incorrect")
             if entry.get("sourceSha256") != file_hash(source_path):
                 errors.append(f"{device_set}/{filename}: composition is stale for its raw capture")
+            if promotion.inset is not None:
+                inset_path = source_root / device_set / promotion.inset
+                if not inset_path.is_file():
+                    errors.append(f"{device_set}/{filename}: missing inset source {promotion.inset}")
+                elif entry.get("insetSourceSha256") != file_hash(inset_path):
+                    errors.append(
+                        f"{device_set}/{filename}: composition is stale for its inset capture"
+                    )
+            elif entry.get("insetSourceSha256") is not None:
+                errors.append(f"{device_set}/{filename}: manifest records an inset this frame has no source for")
             if entry.get("outputSha256") != file_hash(output_path):
                 errors.append(f"{device_set}/{filename}: output checksum differs from manifest")
             try:

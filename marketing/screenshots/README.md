@@ -16,16 +16,17 @@ The test captures these surfaces in order:
 
 | File | Surface |
 | --- | --- |
-| `screenshot-widgets.png` | The in-app Widgets dashboard with the Solar, Nightly run, Boiler, and other sample cards. |
-| `screenshot-insights.png` | The in-app chart section centered on the 30-day Energy and 20-run Deploys cards. |
-| `screenshot-activities.png` | The in-app Activities screen with a 24-reading green home-battery curve that rises and dips with solar input and household load, currently ending at 95%. |
-| `screenshot-home-widgets.png` | The Home Screen with three small Solar, Nightly run, and Boiler widgets, a wide Energy chart, and the expanded Dynamic Island Live Activity. |
-| `screenshot-home-insights.png` | A second Home Screen layout with a large 30-day Energy widget and small Deploys and Device fleet widgets. |
-| `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Solar, Car, Energy, and Deploys. |
+| `screenshot-widgets.png` | The in-app Widgets dashboard with the product-launch deck: Launch, Production, Trials, Support, AI spend, Agent runs, and Open PRs. |
+| `screenshot-insights.png` | The in-app chart section, scrolled so the Trials trend and the 20-run Agent runs history are both visible. |
+| `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
+| `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
+| `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. A source rather than a product-page image: the compositor insets it into the Lock Screen frame. Captured only on the 6.3-inch device, the only one with an Island. |
+| `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
+| `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
 | `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
 
 The canonical App Store set contains Home Screen widgets, Home Screen insights,
-Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities,
+Lock Screen activity, Home Screen metrics, Widgets, Insights, and Activities,
 in that order:
 
 ```sh
@@ -128,20 +129,27 @@ adding the empty state. Every 6.5-inch screen uses the exact smaller iPhone 14
 Plus notch silhouette from Xcode's bundled framebuffer mask.
 
 The seven images tell one benefit-led story: see every agent, understand what is
-moving, step in when needed, and turn updates into decisions. The Activities
-image describes the in-app activity list; the Lock Screen image is the
-dedicated system-surface capture, taken host-side after XCUITest stages the
-launch activity.
+moving, step in when needed, and turn updates into decisions. Each claim is made
+on the frame that shows it — the Lock Screen and Dynamic Island are named on the
+image of those surfaces, not on a Home Screen grid.
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
 | `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
 | `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
-| `screenshot-home-metrics.png` | **Follow every step live.** | ETAs and changing work on the Lock Screen and Dynamic Island. |
-| `screenshot-lock-activity.png` | **Live work, on the Lock Screen.** | Check progress at a glance — the update comes to you. |
+| `screenshot-lock-activity.png` | **Follow every step live.** | Progress, completed steps, and the next decision—on your Lock Screen and Dynamic Island. |
+| `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
 | `screenshot-widgets.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
 | `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
+
+The Lock Screen frame carries an inset of the expanded Dynamic Island, cropped
+from `screenshot-island-expanded.png` and composed over the lower part of the
+device. That inset and the compact Island in frame 1 are one change: expanded,
+the Island is drawn over the first row of Home Screen widgets and covers their
+titles, so the hero gives it up and this frame takes it on. A set whose capture
+device has no Island — 6.5-inch and iPad — gets no inset and a supporting line
+that claims only the Lock Screen.
 
 Apple TV follows the same physical-device treatment with a landscape television
 frame that extends past the right and bottom edges. The television uses square

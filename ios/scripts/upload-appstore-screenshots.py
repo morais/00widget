@@ -41,8 +41,8 @@ PROMOTIONAL_SETS = {
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
-                "screenshot-home-metrics.png",
                 "screenshot-lock-activity.png",
+                "screenshot-home-metrics.png",
                 "screenshot-widgets.png",
                 "screenshot-insights.png",
                 "screenshot-activities.png",
@@ -53,8 +53,8 @@ PROMOTIONAL_SETS = {
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
-                "screenshot-home-metrics.png",
                 "screenshot-lock-activity.png",
+                "screenshot-home-metrics.png",
                 "screenshot-widgets.png",
                 "screenshot-insights.png",
                 "screenshot-activities.png",
@@ -65,8 +65,8 @@ PROMOTIONAL_SETS = {
             [
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
-                "screenshot-home-metrics.png",
                 "screenshot-lock-activity.png",
+                "screenshot-home-metrics.png",
                 "screenshot-widgets.png",
                 "screenshot-insights.png",
                 "screenshot-activities.png",

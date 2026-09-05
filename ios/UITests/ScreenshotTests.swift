@@ -71,13 +71,22 @@ final class ScreenshotTests: XCTestCase {
                 // The 6.5-inch capture device has no Dynamic Island.
                 capture(named: "screenshot-home-widgets")
             } else {
-                // Long-press the island to reach the expanded presentation,
-                // which is what the published iPhone screenshot shows.
+                // The hero keeps the *compact* island. Expanded, the system
+                // overlay is drawn over the first row of widgets and covers
+                // their titles — the renderers contain them, so nothing but a
+                // real capture shows it, and no exact-size render can.
+                capture(named: "screenshot-home-widgets")
+
+                // The expanded presentation is still one of the strongest
+                // things this app does, so it is captured on its own and
+                // composed into the Lock Screen frame as an inset. Long-press
+                // is the only way to reach it; re-activating the app
+                // afterwards collapses it before the next Home Screen shot.
                 springboard
                     .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022))
                     .press(forDuration: 1.2)
                 Thread.sleep(forTimeInterval: 2)
-                capture(named: "screenshot-home-widgets")
+                capture(named: "screenshot-island-expanded")
             }
 
             app.activate()

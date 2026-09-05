@@ -305,10 +305,10 @@ echo "→ exporting attachments"
 xcrun xcresulttool export attachments --path "$RESULT" --output-path "$WORK/attachments" >/dev/null
 
 mkdir -p "$OUT"
-python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" <<'PY'
+python3 - "$WORK/attachments" "$OUT" "$ONLY" "$DEVICE" "$DEVICE_FOLDER" <<'PY'
 import datetime, hashlib, json, os, re, shutil, sys
 
-src, dest, mode, device = sys.argv[1:]
+src, dest, mode, device, device_class = sys.argv[1:]
 manifest = json.load(open(os.path.join(src, "manifest.json")))
 
 def entries(node):
@@ -351,6 +351,12 @@ elif mode == "all":
         "screenshot-insights.png",
         "screenshot-activities.png",
     }
+    # Only one capture device has a Dynamic Island, so only one set carries
+    # the expanded presentation. It is a source rather than a promotional
+    # image: the compositor insets it into the Lock Screen frame, which is
+    # where the sequence now makes its system-surface claim.
+    if device_class == "iphone-6.3":
+        required.add("screenshot-island-expanded.png")
 
 missing = sorted(required - produced)
 if missing:
