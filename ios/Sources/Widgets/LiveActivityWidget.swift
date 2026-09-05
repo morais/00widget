@@ -114,7 +114,6 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
             } compactLeading: {
                 IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
                     .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
-                    .fixedSize()
             } compactTrailing: {
                 // The compact trailing region is narrow, and it neither wraps
                 // nor scales: it clips, from the *leading* edge, so "4/5"
