@@ -115,43 +115,65 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 IslandGlyph(systemName: islandIconName(attributes: context.attributes, state: context.state))
                     .foregroundStyle(context.attributes.kind.tint(for: context.state.signal))
             } compactTrailing: {
-                // The compact trailing region is narrow, and it neither wraps
-                // nor scales: it clips, from the *leading* edge, so "4/5"
-                // arrives as "/5" and reads as a real value rather than as
-                // truncation. Two things are needed together. `fixedSize()`
-                // makes the region negotiate a width instead of accepting a
-                // proposal too small for its content — without it even three
-                // glyphs are cut, and the leading glyph is cut with them,
-                // because the whole compact presentation is laid out against
-                // that proposal. And `compactValueToken` bounds what may ask,
-                // since a region free to demand its ideal width grows the
-                // island across most of the screen and clips anyway.
-                Group {
-                    if context.state.showsItemCount {
-                        Text("\(context.state.activeItems.count)")
-                            .monospacedDigit()
-                    } else if let endsAt = context.state.endsAt {
-                        LiveActivityCountdownText(
-                            endsAt: endsAt,
-                            granularity: context.state.countdownGranularity,
-                                ticking: .systemText
-                        )
+                // A ring, not a number, whenever there is a fraction to draw.
+                //
+                // This region does not report its real width to layout. It
+                // proposes generously, accepts whatever is built against that
+                // proposal, and then the *system* squeezes the whole compact
+                // presentation — glyph included — to fit the island it
+                // actually has, and clips what still does not fit. Measured on
+                // one build and one activity: the value rendered at 18 points
+                // on a default Home Screen and 11 on the marketing one, an
+                // overall squeeze to about 61%, with "4/5" arriving as "/5".
+                //
+                // Because the constraint is never reported, nothing that
+                // negotiates can help, and all three attempts to negotiate
+                // failed here in turn: `fixedSize` asks and is granted on
+                // paper, `minimumScaleFactor` shrinks but not by enough, and
+                // `ViewThatFits` picks the widest child because it fits the
+                // proposal it was given. The only lever that works is to need
+                // less width unconditionally.
+                //
+                // A ring is the right thing to need it for. It carries the
+                // same fact as "4/5", it is what Apple puts in this region,
+                // and it degrades by getting smaller rather than by losing its
+                // leading digit — a shape cannot be clipped into a different,
+                // plausible number. Text is kept only for a countdown, which
+                // the system reserves width for itself, and for an activity
+                // with no fraction at all.
+                if let endsAt = context.state.endsAt {
+                    LiveActivityCountdownText(
+                        endsAt: endsAt,
+                        granularity: context.state.countdownGranularity,
+                        ticking: .systemText
+                    )
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                } else if let progress = context.state.minimalProgress {
+                    // `accessoryCircularCapacity` reports a fixed 58x58
+                    // whatever it is proposed, so `scaleEffect` and `frame` are
+                    // both needed: the first draws it small, the second makes
+                    // the layout believe it. Either alone is wrong in a
+                    // different direction — the trap the Watch Smart Stack card
+                    // hit.
+                    Gauge(value: progress) { EmptyView() }
+                        .gaugeStyle(.accessoryCircularCapacity)
+                        .tint(context.attributes.kind.tint(for: context.state.signal))
+                        .scaleEffect(18.0 / 58.0)
+                        .frame(width: 18, height: 18)
+                } else if context.state.showsItemCount {
+                    Text("\(context.state.activeItems.count)")
                         .monospacedDigit()
-                    } else if let token = context.state.compactValueToken {
-                        Text(token)
-                            .font(.caption2)
-                            .monospacedDigit()
-                    } else if let p = context.state.progress {
-                        Text("\(Int((max(0, min(p, 1)) * 100).rounded()))%")
-                            .monospacedDigit()
-                    } else if let token = ZeroZeroWidgetActivityAttributes.ContentState
-                        .compactToken(context.state.state) {
-                        Text(token)
-                    }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                } else if let token = context.state.compactValueToken {
+                    Text(token)
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .fixedSize()
             } minimal: {
                 MinimalIslandView(
                     state: context.state,

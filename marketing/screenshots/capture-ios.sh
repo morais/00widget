@@ -359,7 +359,7 @@ required = set()
 if mode == "activities":
     required = {"screenshot-activities.png"}
 elif mode == "island":
-    required = {"probe-island-compact.png", "probe-island-expanded.png"}
+    required = {"probe-island-compact.png", "probe-island-expanded.png", "probe-island-settled.png"}
 elif mode == "app":
     required = {
         "screenshot-widgets.png",

@@ -231,6 +231,25 @@ it. It cannot show the Lock Screen (that needs the host-side adapter) or the
 minimal circle (that needs a second activity on the device to collapse
 against).
 
+**The probe does not reproduce the hero, and that cost two false fixes.** The
+compact island it captures is 137 points wide; the same activity in
+`screenshot-home-widgets.png` gets 123, with the whole presentation — glyph
+included — squeezed to about 61% and the value clipped. Neither the Home Screen
+page, nor elapsed time, nor the status bar explains it: both were measured and
+neither moves the probe's island. So the probe answers "what does this look
+like" and never "does it fit"; a change to what the compact region *draws* is
+only settled by the hero capture, which is a ten-minute run.
+
+That region also never reports its real width to layout. It proposes
+generously, accepts what is built against the proposal, and lets the system
+squeeze and clip afterwards — which is why every negotiating fix failed in
+turn: `fixedSize` asks and is granted on paper, `minimumScaleFactor` shrinks
+but not by enough, and `ViewThatFits` picks its widest child because that child
+does fit the proposal it was handed. The only lever is to need less width
+unconditionally, which is why the compact trailing now draws a ring rather than
+a number wherever there is a fraction: a shape degrades by getting smaller,
+where text degrades into a different and plausible number.
+
 **What it found, and the rule that came out of it.** A compact region neither
 wraps nor scales what it is given: it clips, and from the *leading* edge, so
 `4/5` arrives as `/5` and reads as a real value rather than as truncation.
