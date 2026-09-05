@@ -361,6 +361,17 @@ afterwards. The full run preflights the same way and folds the resulting
 `screenshot-lock-activity.png` into the manifest, checksum, and order
 validation with everything else.
 
+**A capture run holds the display awake, and needs to.** All three capture
+scripts assert `caffeinate -dimsu -w $$` for their own lifetime. A locked Mac
+hides every window from the accessibility tree, and the Lock Screen step drives
+Simulator.app through exactly that tree — so a run left alone long enough to
+lock reaches the lock step with Simulator running, the device booted, and zero
+windows, and throws away everything it captured. The assertion is tied to the
+script's own pid so it lifts however the run ends. If a run does fail there,
+the message names the window rather than the permission: the preflight probes
+the device window as well as the Device menu, because the menu bar is present
+in exactly the state that fails.
+
 The iOS and tvOS capture scripts reuse incremental DerivedData under
 `ios/build/ScreenshotDerivedData-*`. Leave those gitignored caches in place
 during iteration; delete one only when intentionally diagnosing a clean-build

@@ -5,6 +5,18 @@
 #   marketing/screenshots/capture-all.sh --verify-only
 set -euo pipefail
 
+# Hold the display awake for the whole run.
+#
+# Not a convenience: a locked Mac hides every window from the accessibility
+# tree, and the Lock Screen capture drives Simulator.app through it. A run
+# started before lunch reached the lock step with Simulator running, the device
+# booted, and zero windows visible to `System Events` — ten minutes of capture
+# thrown away for a screen saver. `-w $$` ties the assertion to this script, so
+# it lifts when the run ends however it ends, with no trap to forget.
+if command -v caffeinate >/dev/null 2>&1; then
+  caffeinate -dimsu -w $$ &
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RAW_ROOT="$REPO_ROOT/artifacts/screenshots/raw"
