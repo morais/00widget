@@ -61,7 +61,7 @@
       "overlay": {
         "start": 3.2,
         "end": 6.3,
-        "text": "Ask your agent once: “Track this launch on my iPhone.”",
+        "text": "Ask your agent once: “Ship 2.4 and keep me posted on my phone.”",
         "style": "prompt"
       }
     },
