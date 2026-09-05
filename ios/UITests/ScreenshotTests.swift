@@ -477,8 +477,19 @@ final class ScreenshotTests: XCTestCase {
         let remove = springboard.buttons
             .matching(NSPredicate(format: "label == 'Remove' OR label == 'Remove Widget'"))
             .firstMatch
-        XCTAssertTrue(remove.waitForExistence(timeout: 8))
-        remove.tap()
+        // The confirmation is not guaranteed. A device that has been through
+        // previous runs always showed one, and a freshly erased one removed
+        // the widget on the first tap and never asked — which failed the whole
+        // capture at its Home Screen setup, nowhere near what it was testing.
+        // Treat a widget that has already gone as removed.
+        if remove.waitForExistence(timeout: 8) {
+            remove.tap()
+        } else {
+            XCTAssertFalse(
+                widget.exists,
+                "The widget neither asked for confirmation nor went away."
+            )
+        }
         Thread.sleep(forTimeInterval: 1)
     }
 
