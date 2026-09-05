@@ -49,6 +49,9 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
     device = config["device"]
     if not isinstance(device, dict) or not str(device.get("name", "")).strip():
         raise ConfigError(f"{label}: device.name must be a non-empty string")
+    for key in ("deviceType", "runtime"):
+        if key in device and not str(device[key]).strip():
+            raise ConfigError(f"{label}: device.{key} must be a non-empty string when set")
 
     output = config["output"]
     for key in ("width", "height", "fps", "duration"):

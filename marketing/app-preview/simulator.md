@@ -5,14 +5,23 @@ install, edit, move, or remove Home Screen widgets on every run.
 
 ## Create the device
 
-In Xcode's Devices and Simulators window, create an iPhone Simulator named
-`00Widget Marketing` using the same model/runtime expected by the config. If an
-existing device name occurs in more than one available runtime, add a runtime
-fragment such as `"runtime": "iOS-26-5"` under `device` in
-`marketing/app-preview/ios-main.yaml`.
+The marketing Simulator is provisioned deliberately, never as a capture side
+effect — creating it wipes the hand-placed hero page a capture films:
 
-Build, install, launch, and open the device so the private widget
-configurations appear in the gallery:
+```sh
+./marketing/app-preview/run.sh ios-main --create-device
+```
+
+This reads `device.name`, `device.deviceType`, and `device.runtime` from
+`marketing/app-preview/ios-main.yaml`, creates the Simulator, boots it, opens
+Simulator.app on it, and sets the configured appearance. If a device with the
+same name already exists the command refuses; pass `--replace` to shut it
+down, delete it, and create it again. An existing hand-made device on another
+runtime can stay, but the capture resolves `device.runtime` and will not see
+it — either recreate through this command or narrow the pin.
+
+Then build, install, and launch once so the private widget configurations
+appear in the gallery:
 
 ```sh
 ./marketing/app-preview/run.sh ios-main --prepare-only

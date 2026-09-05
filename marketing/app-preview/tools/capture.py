@@ -25,8 +25,10 @@ from simulator import (
     boot,
     clear_status_bar,
     configure_visual_state,
+    create_device,
     require_tool,
     resolve_device,
+    set_appearance,
 )
 from validate import ValidationError, validate
 
@@ -491,9 +493,19 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--raw-only", action="store_true", help="capture raw.mov without rendering")
     mode.add_argument("--render-only", action="store_true", help="render the existing raw.mov")
     mode.add_argument(
+        "--create-device",
+        action="store_true",
+        help="create the configured marketing Simulator and exit (never runs as part of a capture)",
+    )
+    mode.add_argument(
         "--prepare-only",
         action="store_true",
         help="build, install, and open the Simulator for one-time manual stage setup",
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="with --create-device: delete an existing Simulator of the same name first",
     )
     parser.add_argument("--keep-temp", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -523,6 +535,26 @@ def main() -> int:
             "configSHA256": config_hash,
             "output": str(preview_path),
         }
+
+        if args.replace and not args.create_device:
+            raise PreviewError("--replace is only meaningful with --create-device")
+
+        if args.create_device:
+            device_name = args.device or config["device"]["name"]
+            created = create_device(
+                device_name,
+                config["device"].get("deviceType"),
+                config["device"].get("runtime"),
+                str(config["device"].get("appearance", "light")),
+                args.replace,
+                logger.info,
+            )
+            boot(created["udid"], logger.info)
+            set_appearance(created["udid"], str(config["device"].get("appearance", "light")))
+            print(f"✓ {device_name} is created and open ({created['udid']})")
+            print("  Stage the hero page per marketing/app-preview/simulator.md, then capture:")
+            print(f"  ./marketing/app-preview/run.sh {args.profile}")
+            return 0
 
         if args.prepare_only:
             prepared = prepare_simulator(

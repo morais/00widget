@@ -42,6 +42,8 @@ Useful options:
 
 ```sh
 ./marketing/app-preview/run.sh ios-main --device "iPhone 17 Pro"
+./marketing/app-preview/run.sh ios-main --create-device
+./marketing/app-preview/run.sh ios-main --create-device --replace
 ./marketing/app-preview/run.sh ios-main --prepare-only
 ./marketing/app-preview/run.sh ios-main --app /path/to/ZeroZeroWidgetApp.app
 ./marketing/app-preview/run.sh ios-main --raw-only
