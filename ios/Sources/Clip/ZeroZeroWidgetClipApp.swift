@@ -28,23 +28,19 @@ struct ClipRootView: View {
     @State private var showAppStoreOverlay = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            content
-            Spacer()
-            footer
+        ScrollView {
+            VStack(spacing: 20) {
+                content
+            }
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity)
+            .padding(24)
         }
-        .padding(24)
-        .multilineTextAlignment(.center)
-        .task {
-            // onContinueUserActivity arrives after the first render, so give it
-            // a moment before concluding there is no link.
-            try? await Task.sleep(for: .seconds(2))
-            launcher.reportMissingInvocation()
-        }
-        .appStoreOverlay(isPresented: $showAppStoreOverlay) {
-            SKOverlay.AppClipConfiguration(position: .bottom)
-        }
+        // A scroll view, because the thing being shown is a real card now: a
+        // briefing with three sections is taller than a phone in a way a title
+        // and a number never were.
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) { footer }
     }
 
     @ViewBuilder
@@ -52,38 +48,76 @@ struct ClipRootView: View {
         switch launcher.state {
         case .idle, .loading:
             ProgressView("Opening…")
+                .padding(.top, 80)
 
-        case .running(let title):
-            symbol("bolt.badge.clock.fill")
-            Text(title).font(.title2.weight(.semibold))
-            Text("It's on your Lock Screen and will keep updating.")
-                .foregroundStyle(.secondary)
+        case .running(let session):
+            GuestActivityPreview(session: session)
+            confirmation(
+                "Following on your Lock Screen.",
+                symbol: "lock.iphone"
+            )
+            trustNote
 
-        case .card(let title, let value):
-            symbol("square.grid.2x2.fill")
-            Text(title).font(.title2.weight(.semibold))
-            if let value {
-                Text(value)
-                    .font(.largeTitle.weight(.semibold))
-                    .fontDesign(.rounded)
-            }
-            Text("Get 00Widget to keep this on your Home Screen.")
-                .foregroundStyle(.secondary)
+        case .card(let card):
+            // The production renderer, not a paraphrase of it. Every template,
+            // chart, breakdown and briefing the sender could have shared
+            // arrives looking the way it does in the app — which is the whole
+            // demonstration a shared link gets to make.
+            CardView(card: card, context: .app)
+                .padding(18)
+                .background(
+                    .background.secondary,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
+            trustNote
 
         case .failed(let message):
-            symbol("exclamationmark.triangle.fill")
-            Text(message).foregroundStyle(.secondary)
+            VStack(spacing: 16) {
+                symbol("exclamationmark.triangle.fill")
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 60)
         }
     }
 
+    private func confirmation(_ text: String, symbol name: String) -> some View {
+        Label(text, systemImage: name)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+    }
+
+    /// Beside the content rather than under a button. What someone needs to
+    /// know about a link they were sent is what it can and cannot do, and as
+    /// footer boilerplate under a call to action it read as fine print about
+    /// the app instead.
+    private var trustNote: some View {
+        Text("Read-only · The owner can revoke this link")
+            .font(.footnote)
+            .foregroundStyle(.tertiary)
+    }
+
     private var footer: some View {
-        VStack(spacing: 8) {
-            Button("Get 00Widget") { showAppStoreOverlay = true }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            Text("Read-only. Whoever shared this can stop it at any time.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+        Button(callToAction) { showAppStoreOverlay = true }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(.bar)
+            .appStoreOverlay(isPresented: $showAppStoreOverlay) {
+                SKOverlay.AppClipConfiguration(position: .bottom)
+            }
+    }
+
+    /// What the app would do *next* for this person, rather than its name. The
+    /// two successful states want different sentences: one has something to
+    /// keep watching, the other something to keep.
+    private var callToAction: String {
+        switch launcher.state {
+        case .running: return "Keep following in 00Widget"
+        case .card: return "Keep this card in 00Widget"
+        case .idle, .loading, .failed: return "Get 00Widget"
         }
     }
 

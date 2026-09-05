@@ -26,7 +26,11 @@ IOS_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = IOS_ROOT.parent
 AUTH_SCRIPT = SCRIPT_DIR / "set-appclip-invocation.py"
 DEFAULT_HEADER = REPO_ROOT / "docs/brand/app-clip-header.png"
-DEFAULT_SUBTITLE = "See a shared widget or Live Activity instantly."
+# 40 characters, inside Apple's 56-character limit for an App Clip card. It
+# says what will happen rather than what the app is, and answers the install
+# question before it is asked — the moment this is read, the reader has tapped
+# a link from someone and does not yet know what it costs them.
+DEFAULT_SUBTITLE = "Follow this live status—no app required."
 
 spec = importlib.util.spec_from_file_location("zw_appstore_auth", AUTH_SCRIPT)
 if spec is None or spec.loader is None:
