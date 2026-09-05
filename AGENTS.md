@@ -397,6 +397,23 @@ Three things about this are load-bearing:
   positives on clean captures. A false negative costs a re-run; a false
   positive clicks something.
 
+**A locked simulator exposes nothing to XCUITest, which is why the Lock
+Screen's accessory widgets cannot be placed automatically yet.** Measured, not
+assumed: with the device locked by the host adapter, `XCUIApplication(bundleIdentifier:
+"com.apple.springboard")` reports *no buttons at all* and a single static text —
+the clock. That is the reason the lock staging test coordinates through files
+rather than through the accessibility tree.
+
+The consequence is that the widgets below the clock have no cheap capture path.
+The Lock Screen editor is reached by long-pressing the Lock Screen, which needs
+a locked device; the Settings route that would avoid that does not exist here,
+because this simulator's Settings has no Wallpaper entry at all. What is left
+is driving the editor blind with `sim-tap`, locating each control by analysing
+the framebuffer — the same technique the consent prompt uses, but a sequence of
+half a dozen steps through system UI rather than one button. The
+`ZW_SCREENSHOTS` accessory widget kinds exist and render; only the placement is
+unsolved.
+
 **A capture run holds the display awake, and needs to.** All three capture
 scripts assert `caffeinate -dimsu -w $$` for their own lifetime. A locked Mac
 hides every window from the accessibility tree, and the Lock Screen step drives

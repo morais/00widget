@@ -202,6 +202,56 @@ struct ScreenshotLaunchWidget: Widget {
     }
 }
 
+// The Lock Screen's accessory slots: four widths below the clock, where a
+// rectangular takes two, and one inline row above it. Only cards that suit the
+// renderer go here — a circular is a gauge, so it gets the two cards with a
+// real fraction, and `circularView` draws no ring at all for a card without
+// one rather than an empty one.
+struct ScreenshotLaunchCircularWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.launch-circular",
+            sampleSuffix: "launch",
+            displayName: "Screenshot Launch Circular",
+            supportedFamilies: [.accessoryCircular]
+        )
+    }
+}
+
+struct ScreenshotSpendCircularWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.spend-circular",
+            sampleSuffix: "ai-spend",
+            displayName: "Screenshot Spend Circular",
+            supportedFamilies: [.accessoryCircular]
+        )
+    }
+}
+
+struct ScreenshotTrialsRectangularWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.trials-rectangular",
+            sampleSuffix: "trials",
+            displayName: "Screenshot Trials Rectangular",
+            density: .automatic,
+            supportedFamilies: [.accessoryRectangular]
+        )
+    }
+}
+
+struct ScreenshotOpenPRsInlineWidget: Widget {
+    var body: some WidgetConfiguration {
+        screenshotCardConfiguration(
+            kind: "com.00widget.screenshot.open-prs-inline",
+            sampleSuffix: "open-prs",
+            displayName: "Screenshot Open PRs Inline",
+            supportedFamilies: [.accessoryInline]
+        )
+    }
+}
+
 struct ScreenshotTrialsLargeWidget: Widget {
     var body: some WidgetConfiguration {
         screenshotCardConfiguration(
