@@ -237,7 +237,7 @@ public enum SampleDataFactory {
                 id: sampleId("support"),
                 template: .breakdown,
                 title: "Support",
-                subtitle: "Support Agent · 1 waiting",
+                subtitle: "1 waiting",
                 value: "24",
                 // Healthy overall: the single amber segment inside the
                 // breakdown is what makes the distribution credible, and the

@@ -42,6 +42,9 @@ PROMOTIONAL_SETS = {
                 "screenshot-home-widgets.png",
                 "screenshot-home-insights.png",
                 "screenshot-lock-activity.png",
+                # 6.3-inch only: the expanded Dynamic Island, which is the one
+                # capture device that has one.
+                "screenshot-island-expanded.png",
                 "screenshot-home-metrics.png",
                 "screenshot-widgets.png",
                 "screenshot-insights.png",

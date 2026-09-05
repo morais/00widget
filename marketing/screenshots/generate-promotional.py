@@ -38,19 +38,22 @@ class Promotion:
     filename: str
     headline: str
     supporting: str
-    #: A second raw capture, inset into the composition over the device. Used
-    #: by the Lock Screen frame to carry the expanded Dynamic Island, which is
-    #: the same activity in the other place the system draws it.
-    inset: str | None = None
 
 
 # The sequence Apple shows first is the sequence that has to carry the
 # product, so the order here is the argument: what the agents are doing, all
 # of them at once, then the surfaces that bring it to you without opening
-# anything. Frames 3 and 1 are a pair — the hero gives up the expanded Island
-# so it stops covering the widgets beneath it, and the Lock Screen frame picks
-# that presentation back up as an inset. Shipping either half alone either
-# loses the differentiator or keeps the defect.
+# anything. The hero shows the *compact* Island, because expanded it is drawn
+# over the first row of widgets and covers their titles.
+#
+# The expanded presentation was then inset into the Lock Screen frame to keep
+# it in the sequence, and that is now gone: composed against a real Lock Screen
+# capture it showed the same four lines as the card beneath it, which reads as
+# one thing printed twice rather than as two surfaces. The Island is still in
+# the sequence — frame 1 shows it doing its job at the size a person sees it.
+# `screenshot-island-expanded.png` is still captured: it costs one shot, it is
+# the only record of that presentation, and the App Preview is where showing it
+# in motion will earn its place.
 PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
@@ -65,9 +68,13 @@ PROMOTIONS = (
     Promotion(
         "screenshot-lock-activity.png",
         "Follow every step live.",
-        "Progress, completed steps, and the next decision—on your Lock Screen "
-        "and Dynamic Island.",
-        inset="screenshot-island-expanded.png",
+        "Progress, completed steps, and the next decision—right on your "
+        "Lock Screen.",
+    ),
+    Promotion(
+        "screenshot-island-expanded.png",
+        "Keep live work in sight.",
+        "Progress and approvals stay visible in the Dynamic Island.",
     ),
     Promotion(
         "screenshot-home-metrics.png",
@@ -91,22 +98,6 @@ PROMOTIONS = (
     ),
 )
 
-# One capture device has a Dynamic Island; the other two have a notch and a
-# tablet. Their Lock Screen frame therefore claims the Lock Screen alone and
-# carries no inset — a promise the image cannot keep is the defect this whole
-# pass exists to remove.
-NO_ISLAND_PROMOTIONS = tuple(
-    Promotion(
-        promotion.filename,
-        promotion.headline,
-        "Progress, completed steps, and the next decision—right on your "
-        "Lock Screen.",
-    )
-    if promotion.filename == "screenshot-lock-activity.png"
-    else promotion
-    for promotion in PROMOTIONS
-)
-
 TV_PROMOTIONS = (
     Promotion(
         "screenshot-tv-insights.png",
@@ -126,10 +117,18 @@ TV_PROMOTIONS = (
 )
 
 
+#: The Island frame is a close-up of a presentation only one capture device
+#: has. The other sets omit it rather than fake it, which is why the promotional
+#: counts differ per device — eight on 6.3, seven elsewhere.
+ISLAND_FRAME = "screenshot-island-expanded.png"
+
+
 def promotions_for(device_set: str) -> tuple[Promotion, ...]:
     if device_set == "tvos":
         return TV_PROMOTIONS
-    return PROMOTIONS if device_set == "iphone-6.3" else NO_ISLAND_PROMOTIONS
+    if device_set == "iphone-6.3":
+        return PROMOTIONS
+    return tuple(p for p in PROMOTIONS if p.filename != ISLAND_FRAME)
 
 
 def file_hash(path: Path) -> str:
@@ -487,48 +486,54 @@ def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
     return left, top, right, bottom
 
 
-def draw_island_inset(canvas: Image.Image, source_path: Path) -> None:
-    """Inset the expanded Island into the empty band above the activity.
+def draw_island_closeup(canvas: Image.Image, source: Image.Image) -> None:
+    """Draw the expanded Island large, alone, and with nothing behind it.
 
-    The Lock Screen is the frame's subject and stays dominant; this sits above
-    it at about two thirds of the width, close enough to read as the same
-    activity in the other place the system draws it. It is deliberately not a
-    second device: a phone drawn twice in one frame reads as two phones.
+    An earlier version pasted this over the Lock Screen frame as an inset, and
+    it was rejected on sight: an expanded Island floating inside a locked phone
+    above a banner repeating the same title, progress and rows reads as a
+    compositing mistake rather than as proof of two surfaces. So it gets its
+    own frame, cropped out of a real Home Screen capture, and it is the only
+    thing in it — no second system surface underneath, and the same activity
+    never shown twice in one phone.
+
+    There is no device outline for the same reason. The Island *is* hardware
+    and screen at once; drawing a phone around a close-up of it would either
+    repeat the bezel at the wrong scale or shrink the subject back to the size
+    the hero already shows it at.
     """
-    with Image.open(source_path) as raw:
-        source = raw.convert("RGB")
-    # Crop to the measured bounds exactly. A margin around them, however
-    # small, brings the wallpaper the Island was drawn over into the crop, and
-    # the rounded mask then leaves it as a pale halo along two edges — which
-    # reads as a badly cut-out sticker rather than as a system presentation.
+    width, height = canvas.size
     island = source.crop(island_bounds(source))
 
-    width, height = canvas.size
-    target_width = round(width * 0.62)
+    # Large, because the subject is a 3.25:1 pill in a 1:2.17 canvas and
+    # anything smaller reads as an object lost in a page rather than as the
+    # thing the frame is about. The space around it is then deliberate.
+    target_width = round(width * 0.92)
     scale = target_width / island.width
     island = island.resize(
         (target_width, round(island.height * scale)), Image.Resampling.LANCZOS
     )
-    radius = round(island.height * 0.22)
+    radius = round(island.height * 0.20)
     island = rounded_image(island, radius)
 
     x = (width - island.width) // 2
-    # Above the activity, not over it. The Lock Screen draws its activity low
-    # on the screen, so the obvious placement — down near the bottom, where an
-    # inset usually sits — lands squarely on the card this frame exists to
-    # show. The band under the clock is empty on every one of these captures
-    # and is where the Island's own presentation reads as a second surface
-    # rather than as something covering the first.
-    y = round(height * 0.520)
+    # Centred in the room below the copy block rather than in the canvas, so
+    # the space above and below the subject is even.
+    y = round(height * 0.58) - island.height // 2
 
     shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     ImageDraw.Draw(shadow_layer).rounded_rectangle(
-        (x, y + round(height * 0.006), x + island.width, y + island.height + round(height * 0.006)),
+        (
+            x,
+            y + round(height * 0.008),
+            x + island.width,
+            y + island.height + round(height * 0.008),
+        ),
         radius=radius,
         fill=(6, 21, 42, 150),
     )
     canvas.alpha_composite(
-        shadow_layer.filter(ImageFilter.GaussianBlur(radius=max(12, round(width * 0.016))))
+        shadow_layer.filter(ImageFilter.GaussianBlur(radius=max(16, round(width * 0.020))))
     )
     canvas.alpha_composite(island, (x, y))
 
@@ -580,7 +585,10 @@ def compose(
         round(height * 0.003),
     )
 
-    draw_device(canvas, source, device_set, device_top)
+    if promotion.filename == ISLAND_FRAME:
+        draw_island_closeup(canvas, source)
+    else:
+        draw_device(canvas, source, device_set, device_top)
 
     record: dict[str, object] = {
         "filename": promotion.filename,
@@ -589,14 +597,6 @@ def compose(
         "sourceSha256": file_hash(source_path),
         "dimensions": [width, height],
     }
-    if promotion.inset is not None:
-        inset_path = source_path.parent / promotion.inset
-        if not inset_path.is_file():
-            raise SystemExit(f"missing inset source: {inset_path}")
-        draw_island_inset(canvas, inset_path)
-        # The composition depends on two raw captures, so verification has to
-        # check both or a re-captured Island leaves a stale image behind.
-        record["insetSourceSha256"] = file_hash(inset_path)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
@@ -808,16 +808,6 @@ def verify_promotional_screenshots(
                 errors.append(f"{device_set}/{filename}: manifest dimensions are incorrect")
             if entry.get("sourceSha256") != file_hash(source_path):
                 errors.append(f"{device_set}/{filename}: composition is stale for its raw capture")
-            if promotion.inset is not None:
-                inset_path = source_root / device_set / promotion.inset
-                if not inset_path.is_file():
-                    errors.append(f"{device_set}/{filename}: missing inset source {promotion.inset}")
-                elif entry.get("insetSourceSha256") != file_hash(inset_path):
-                    errors.append(
-                        f"{device_set}/{filename}: composition is stale for its inset capture"
-                    )
-            elif entry.get("insetSourceSha256") is not None:
-                errors.append(f"{device_set}/{filename}: manifest records an inset this frame has no source for")
             if entry.get("outputSha256") != file_hash(output_path):
                 errors.append(f"{device_set}/{filename}: output checksum differs from manifest")
             try:
@@ -838,7 +828,8 @@ def verify_promotional_screenshots(
             print(f"  - {error}")
         raise SystemExit(1)
 
-    print("✓ all 24 promotional screenshots verified")
+    total = sum(len(promotions_for(device_set)) for device_set in selected_sets)
+    print(f"✓ all {total} promotional screenshots verified")
 
 
 def main() -> None:

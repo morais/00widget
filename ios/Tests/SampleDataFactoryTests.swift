@@ -69,7 +69,13 @@ struct SampleDataFactoryTests {
         // caption2 against the 146pt a roomy grid cell gives a subtitle on a
         // 6.3-inch large widget, these are 131.0, 131.7, 131.3 and 96.3.
         #expect(trials.subtitle == "Growth Agent · this week")
-        #expect(support.subtitle == "Support Agent · 1 waiting")
+        // The producer gives up the line and the state keeps it, as on Open
+        // PRs: the small widget in frame 2 rendered "Support Agent · 1 w…",
+        // and a broken name is worth less than a complete state. `producer`
+        // still carries "Support Agent" for the surfaces with room.
+        #expect(support.subtitle == "1 waiting")
+        #expect(!support.producerRepeatsSubtitle)
+        #expect(support.producer?.label == "Support Agent")
         #expect(spend.subtitle == "of $30 today · $11.60 left")
         #expect(runs.subtitle == "19 clean · 1 retried")
 

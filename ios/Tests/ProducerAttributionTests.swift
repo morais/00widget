@@ -49,16 +49,18 @@ struct ProducerAttributionTests {
     }
 
     /// The sample deck is what the App Store screenshots show, and it is
-    /// deliberately written the way a real producer writes: four of its seven
+    /// deliberately written the way a real producer writes: three of its seven
     /// cards repeat their producer in the subtitle, so the renderer's handling
-    /// of that is what a screenshot captures. Three do not, which is what keeps
-    /// the attribution itself visible in those captures.
+    /// of that is what a screenshot captures. Four do not, which is what keeps
+    /// the attribution itself visible in those captures — three of those four
+    /// because the compact surface they are captured on has one line, and a
+    /// complete state is worth more there than a truncated name.
     @Test("The sample deck exercises both cases")
     func samplesCoverBothCases() {
         let cards = SampleDataFactory.makeCards()
         let repeated = cards.filter(\.producerRepeatsSubtitle).map(\.title)
         let distinct = cards.filter { $0.producer != nil && !$0.producerRepeatsSubtitle }.map(\.title)
-        #expect(repeated == ["Launch", "Production", "Trials", "Support"])
-        #expect(distinct == ["AI spend", "Agent runs", "Open PRs"])
+        #expect(repeated == ["Launch", "Production", "Trials"])
+        #expect(distinct == ["Support", "AI spend", "Agent runs", "Open PRs"])
     }
 }

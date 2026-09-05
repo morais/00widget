@@ -168,4 +168,4 @@ else
   python3.12 "$SCRIPT_DIR/generate-promotional.py" --verify-only
 fi
 
-echo "✓ full marketing screenshot workflow complete: 25 raw captures + 24 promotional compositions"
+echo "✓ full marketing screenshot workflow complete: 25 raw captures + 25 promotional compositions"

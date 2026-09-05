@@ -20,7 +20,7 @@ The test captures these surfaces in order:
 | `screenshot-insights.png` | The in-app chart section, scrolled so the Trials trend and the 20-run Agent runs history are both visible. |
 | `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
 | `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
-| `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. A source rather than a product-page image: the compositor insets it into the Lock Screen frame. Captured only on the 6.3-inch device, the only one with an Island. |
+| `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — a close-up with nothing behind it, which is why that set ships eight images and the others seven. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
 | `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
@@ -143,19 +143,21 @@ image of those surfaces, not on a Home Screen grid.
 | --- | --- | --- |
 | `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
 | `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
-| `screenshot-lock-activity.png` | **Follow every step live.** | Progress, completed steps, and the next decision—on your Lock Screen and Dynamic Island. |
+| `screenshot-lock-activity.png` | **Follow every step live.** | Progress, completed steps, and the next decision—right on your Lock Screen. |
+| `screenshot-island-expanded.png` (6.3-inch only) | **Keep live work in sight.** | Progress and approvals stay visible in the Dynamic Island. |
 | `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
 | `screenshot-widgets.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
 | `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
 
-The Lock Screen frame carries an inset of the expanded Dynamic Island, cropped
-from `screenshot-island-expanded.png` and composed over the lower part of the
-device. That inset and the compact Island in frame 1 are one change: expanded,
-the Island is drawn over the first row of Home Screen widgets and covers their
-titles, so the hero gives it up and this frame takes it on. A set whose capture
-device has no Island — 6.5-inch and iPad — gets no inset and a supporting line
-that claims only the Lock Screen.
+The hero shows the *compact* Island, because expanded it is drawn over the
+first row of Home Screen widgets and covers their titles. The expanded
+presentation gets its own frame rather than an inset over the Lock Screen one:
+composed as an inset it showed the same four lines as the card beneath it,
+which reads as one thing printed twice rather than as two surfaces. It is
+cropped from the real capture with nothing behind it and no device outline,
+and a set whose capture device has no Island — 6.5-inch and iPad — simply
+omits the frame.
 
 Apple TV follows the same physical-device treatment with a landscape television
 frame that extends past the right and bottom edges. The television uses square
