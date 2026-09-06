@@ -17,7 +17,7 @@ The test captures these surfaces in order:
 | File | Surface |
 | --- | --- |
 | `screenshot-approve.png` | The Launch card's own screen with its Approve action and the confirmation alert the app puts in front of it. `approve-launch` carries `confirm: true`, so a widget tap cannot run it — this is the screen that rule routes to. |
-| `screenshot-insights.png` | The in-app chart section, scrolled so the Trials trend and the 20-run Agent runs history are both visible. |
+| `screenshot-insights.png` | The bottom of the in-app deck: the AI spend budget, the 20-run Agent runs history, and Open PRs. Scrolled to the list's end rather than to a measured offset, so a change to the deck's length cannot move it. |
 | `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
 | `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
 | `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — the phone's top seen close up, which is why that set ships eight images and the others seven. |
@@ -147,7 +147,7 @@ image of those surfaces, not on a Home Screen grid.
 | `screenshot-island-expanded.png` (6.3-inch only) | **Keep live work in sight.** | Progress and approvals stay visible in the Dynamic Island. |
 | `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
 | `screenshot-approve.png` | **Step in at the right moment.** | Approve from the card—00Widget asks before anything runs. |
-| `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
+| `screenshot-insights.png` | **Updates become decisions.** | Spend against budget, run history, and what is still open. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
 
 The hero shows the *compact* Island, because expanded it is drawn over the

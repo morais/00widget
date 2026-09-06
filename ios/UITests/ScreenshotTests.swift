@@ -370,15 +370,32 @@ final class ScreenshotTests: XCTestCase {
         )
     }
 
+    /// Photographs the far end of the deck, where the cards that read as
+    /// *conclusions* are: the spend budget, the run history, and the review
+    /// state.
+    ///
+    /// The scroll runs to the bottom rather than to a measured offset. An
+    /// earlier version dragged a fixed distance after finding Trials and
+    /// asserted `Agent runs` merely *existed*, which a card scrolled past the
+    /// bottom edge satisfies — so the frame silently drifted to Production,
+    /// Trials and Support when the deck lost a card, and the run history the
+    /// promotional copy named was not in the picture at all. The bottom is a
+    /// fixed point that no change to the deck's length can move, and the
+    /// assertion is `isHittable`, which is on screen rather than in existence.
     private func captureInsights(in app: XCUIApplication) {
-        let trials = app.staticTexts["Trials"].firstMatch
-        XCTAssertTrue(scrollTo(trials, in: app, swipes: 10), "Trials sample card not found.")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
-            .press(
-                forDuration: 0.05,
-                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
-            )
-        XCTAssertTrue(app.staticTexts["Agent runs"].firstMatch.waitForExistence(timeout: 5))
+        let agentRuns = app.staticTexts["Agent runs"].firstMatch
+        XCTAssertTrue(scrollTo(agentRuns, in: app, swipes: 10), "Agent runs sample card not found.")
+        // Keep going past it: the list stops at its own end, and the last
+        // screenful is the frame regardless of how far that is from here.
+        for _ in 0..<4 { app.swipeUp() }
+        XCTAssertTrue(
+            agentRuns.isHittable,
+            "The run history is not on screen at the bottom of the deck."
+        )
+        XCTAssertTrue(
+            app.staticTexts["AI spend"].firstMatch.isHittable,
+            "The spend budget is not on screen at the bottom of the deck."
+        )
         capture(named: "screenshot-insights")
     }
 

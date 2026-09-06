@@ -98,7 +98,10 @@ PROMOTIONS = (
     Promotion(
         "screenshot-insights.png",
         "Updates become decisions.",
-        "Trends, run history, breakdowns, and concise agent briefings.",
+        # Named four things and showed none of them: the frame had drifted to
+        # Production, Trials and Support. It is now the bottom of the deck, so
+        # the line names the three cards that are actually in it.
+        "Spend against budget, run history, and what is still open.",
     ),
     Promotion(
         "screenshot-activities.png",
