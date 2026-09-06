@@ -17,9 +17,12 @@ struct LiveActivitiesView: View {
                 .task {
                     #if ZW_SCREENSHOTS
                     // ActivityKit survives app reinstalls and previous capture
-                    // runs. Replace the retained local sample so changes to
-                    // the marketing data appear on the very next run.
-                    await liveActivityController.endSamples()
+                    // runs. Clear *everything* before staging, not just the
+                    // sample: one other activity of any origin collapses every
+                    // compact Dynamic Island region to a minimal circle, and
+                    // the hero photographs that region. A leftover App Preview
+                    // activity is the neighbour that does it here.
+                    await liveActivityController.endEverythingForCapture()
                     try? await liveActivityController.startSample()
                     #endif
                     await liveActivityController.reconcileWithServer()

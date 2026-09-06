@@ -231,6 +231,29 @@ it. It cannot show the Lock Screen (that needs the host-side adapter) or the
 minimal circle (that needs a second activity on the device to collapse
 against).
 
+**A capture build ends every Live Activity before staging, and must.** One
+other running activity — anyone's — replaces *both* compact Dynamic Island
+regions with a minimal circle for every activity on the device, which
+`startSample` has said in a comment since it was written. The marketing hero is
+a photograph of that region, so a single stray activity turns it into two
+minimal circles either side of the camera housing: the pill stays full width
+while the glyph and the trailing content are each drawn too large for a 24-point
+circle and cut on their leading edges. It reads as a clipped compact island and
+is not one.
+
+`endSamples()` clears only the `sample-` namespace, which is right for the app
+and not enough here — the App Preview's own `preview-` activity outlives a
+reinstall exactly as the samples do and sits alongside them.
+`endEverythingForCapture()` is the screenshot-only answer; no shipping surface
+ends activities it did not start.
+
+Two things this cost, worth not repeating. Erasing the device produces one
+clean run and then the state returns, so a single clean capture proves nothing —
+take two. And `island_check.py` now measures the hero's glyph (14 points when
+whole, 9 when cut) and fails the capture rather than letting a clipped one
+through, because the manifest checks names, checksums and sizes, and a cut
+glyph is none of those.
+
 **The probe does not reproduce the hero, and that cost two false fixes.** The
 compact island it captures is 137 points wide; the same activity in
 `screenshot-home-widgets.png` gets 123, with the whole presentation — glyph

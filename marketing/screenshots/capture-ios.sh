@@ -359,7 +359,7 @@ required = set()
 if mode == "activities":
     required = {"screenshot-activities.png"}
 elif mode == "island":
-    required = {"probe-island-compact.png", "probe-island-expanded.png", "probe-island-settled.png"}
+    required = {"probe-island-compact.png", "probe-island-expanded.png"}
 elif mode == "app":
     required = {
         "screenshot-widgets.png",
@@ -409,6 +409,18 @@ if mode == "all":
         json.dump(provenance, handle, indent=2, sort_keys=True)
         handle.write("\n")
 PY
+fi
+
+# A hero whose Island content is cut off is not an App Store screenshot, and
+# nothing else in the pipeline can see the difference — the manifest checks
+# names, checksums and sizes, and a clipped glyph is none of those. It varies
+# between runs of identical code, so the answer is to catch it and re-run.
+if [[ "$ONLY" == "all" && "$DEVICE_FOLDER" == "iphone-6.3" ]]; then
+  echo "→ checking the Dynamic Island is not clipped"
+  if ! python3 "$SCRIPT_DIR/island_check.py" "$OUT/screenshot-home-widgets.png"; then
+    echo "✗ re-run: the hero's Dynamic Island content is clipped" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
