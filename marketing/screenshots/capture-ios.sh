@@ -393,34 +393,6 @@ XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
   -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_SCREENSHOT_DEVICE_CLASS string $DEVICE_FOLDER" \
   "$XCTESTRUN"
 
-# The share frame's QR encodes a real App Clip invocation URL when this
-# checkout has one. The host is per-developer and gitignored, so its absence
-# is not an error — the fixture falls back to the placeholder and the frame is
-# a picture of a QR either way.
-#
-# It goes to the *test runner*, beside `ZW_SCREENSHOT_DEVICE_CLASS`, and the
-# test copies it into `XCUIApplication.launchEnvironment` — the app's own
-# environment comes from that object, because XCUITest launches the app itself.
-# Two other routes were tried and neither reaches the app: forwarding it as a
-# `-ZWGuestLinkFixtureURL` launch argument for UserDefaults' argument domain,
-# and the xctestrun's `UITargetAppEnvironmentVariables`, which is written and
-# then ignored for an app that `app.launch()` starts. Both looked correct and
-# both silently published a placeholder host in a QR code.
-GUEST_LINK_URL=""
-if [[ -f "$IOS_ROOT/appstore.env" ]]; then
-  # shellcheck disable=SC1091
-  source "$IOS_ROOT/appstore.env"
-  GUEST_LINK_URL="${ZW_APPCLIP_INVOCATION_URL:-}"
-fi
-/usr/libexec/PlistBuddy \
-  -c "Delete :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_GUEST_LINK_URL" \
-  "$XCTESTRUN" 2>/dev/null || true
-if [[ -n "$GUEST_LINK_URL" ]]; then
-  /usr/libexec/PlistBuddy \
-    -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_GUEST_LINK_URL string $GUEST_LINK_URL" \
-    "$XCTESTRUN"
-fi
-
 if [[ "$ONLY" != "lock" && "$ONLY" != "clip" ]]; then
   echo "→ running ScreenshotTests"
 fi
@@ -557,6 +529,37 @@ if mode == "all":
     with open(os.path.join(dest, ".capture-manifest.json"), "w") as handle:
         json.dump(provenance, handle, indent=2, sort_keys=True)
         handle.write("\n")
+else:
+    # A partial run refreshes real files, so it owes the manifest their new
+    # checksums — otherwise the set verifies as stale against captures that are
+    # in fact newer than the ones recorded, and the only way back to green is a
+    # fifteen-minute full run that recaptures nine correct images to fix the
+    # bookkeeping on one. This merges, exactly as the Lock Screen and App Clip
+    # steps already do: `mode` and `device` stay whatever the full run wrote,
+    # because they describe how the *set* was produced and a targeted refresh
+    # does not change that.
+    manifest_path = os.path.join(dest, ".capture-manifest.json")
+    try:
+        with open(manifest_path, encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        if manifest.get("device") != device:
+            raise ValueError("existing manifest is for a different device")
+    except (OSError, ValueError, json.JSONDecodeError):
+        manifest = {
+            "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "device": device,
+            "mode": mode,
+            "files": {},
+        }
+    files = manifest.setdefault("files", {})
+    for name in sorted(produced):
+        path = os.path.join(dest, name)
+        if os.path.isfile(path) and name.endswith(".png"):
+            with open(path, "rb") as handle:
+                files[name] = hashlib.md5(handle.read()).hexdigest()
+    with open(manifest_path, "w") as handle:
+        json.dump(manifest, handle, indent=2, sort_keys=True)
+        handle.write("\n")
 PY
 fi
 
@@ -581,7 +584,7 @@ if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
   echo "→ capturing the Lock Screen surface"
   run_lock_surface
   if [[ "$ONLY" == "lock" ]]; then
-    echo "  note: --only lock refreshes $LOCK_PNG in place; run the full capture to re-baseline the manifest"
+    echo "  note: --only lock refreshes $LOCK_PNG in place and updates its manifest entry"
   fi
 fi
 

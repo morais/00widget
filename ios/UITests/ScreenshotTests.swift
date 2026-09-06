@@ -19,7 +19,6 @@ final class ScreenshotTests: XCTestCase {
 
     func testCaptureMarketingScreenshots() throws {
         let app = XCUIApplication()
-        passGuestLinkHost(to: app)
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -165,7 +164,6 @@ final class ScreenshotTests: XCTestCase {
     /// simulator Home Screen differs from the current marketing device.
     func testCaptureAppScreenshots() throws {
         let app = XCUIApplication()
-        passGuestLinkHost(to: app)
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -381,27 +379,6 @@ final class ScreenshotTests: XCTestCase {
     /// App Clip that same code opens, captured host-side after this run —
     /// `SampleDataFactory.marketingGuestToken` is in both, so the two pictures
     /// are one link rather than two props.
-    /// Points the guest-link fixture at the real App Clip invocation host when
-    /// the capture script has one to give. That host lives in gitignored
-    /// `ios/appstore.env`, so a checkout without it draws the placeholder
-    /// rather than failing — the frame is a picture of a QR either way.
-    ///
-    /// `launchEnvironment` is the channel that works. The value reaches this
-    /// runner through the xctestrun's `EnvironmentVariables`, the same way
-    /// `ZW_SCREENSHOT_DEVICE_CLASS` does, and the app's own environment comes
-    /// from this object because XCUITest launches the app itself. Passing it
-    /// as a `-ZWGuestLinkFixtureURL` launch argument for UserDefaults, and
-    /// writing the xctestrun's `UITargetAppEnvironmentVariables`, both failed
-    /// silently — and a silent failure here is a placeholder host published
-    /// inside a QR code, which nothing but decoding the capture can see.
-    private func passGuestLinkHost(to app: XCUIApplication) {
-        guard
-            let url = ProcessInfo.processInfo.environment["ZW_GUEST_LINK_URL"],
-            !url.isEmpty
-        else { return }
-        app.launchEnvironment["ZW_GUEST_LINK_URL"] = url
-    }
-
     private func captureShare(in app: XCUIApplication) {
         let launchCard = app.buttons["sample-launch"].firstMatch
         XCTAssertTrue(

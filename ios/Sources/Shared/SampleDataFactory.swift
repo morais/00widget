@@ -172,23 +172,28 @@ public enum SampleDataFactory {
     public static let marketingGuestToken = GuestToken.prefix
         + "MarketingSampleLink00WidgetAppStoreFrame_v1"
 
-    /// Where that token points. The host is the App Clip invocation URL, which
-    /// is per-developer and gitignored, so the capture script passes it in and
-    /// this placeholder is what a checkout without one draws.
+    /// Where that token points, built the way `server/src/guestLinks.ts` builds
+    /// a real one: this app's own server host, the guest path, and the token in
+    /// the fragment.
     ///
-    /// It arrives in this process's own environment, through the xctestrun's
-    /// `UITargetAppEnvironmentVariables` — the dict xcodebuild provides for the
-    /// app under test. An earlier version put it in `EnvironmentVariables`,
-    /// which is the *test runner's* environment, and had the test forward it as
-    /// a `-ZWGuestLinkFixtureURL` launch argument for `UserDefaults` to pick up
-    /// out of the argument domain. The runner did receive it and the app did
-    /// not, so every published QR encoded the placeholder. One hop is both
-    /// simpler and the thing that works.
+    /// Deriving it beats carrying it in. Three attempts passed the host from
+    /// the capture script into the app — a `-ZWGuestLinkFixtureURL` launch
+    /// argument, the xctestrun's `UITargetAppEnvironmentVariables`, and
+    /// `XCUIApplication.launchEnvironment` — and the first two never arrived
+    /// while the third arrived only sometimes, which is worse: it published a
+    /// placeholder host inside a QR code, and nothing but decoding the finished
+    /// capture can see that. The host was never external data anyway. It is
+    /// `ZWDefaultServerBaseURL`, which this build already has, and it is the
+    /// same host by construction — the App Clip invocation URL *is* the
+    /// server's guest path.
     public static func marketingGuestLinkURL() -> String {
-        let provided = ProcessInfo.processInfo.environment["ZW_GUEST_LINK_URL"]
-        let base = provided?.isEmpty == false ? provided! : "https://api.example.com/app/g"
-        return "\(base)#\(marketingGuestToken)"
+        let base = APIClientConfig.resolvedBaseURL()?.absoluteString
+            ?? "https://api.example.com"
+        return "\(base)\(guestLinkPath)#\(marketingGuestToken)"
     }
+
+    /// Mirrors `GUEST_LINK_PATH` in `server/src/guestLinks.ts`.
+    private static let guestLinkPath = "/app/g"
 
     /// What that link resolves to: the card the sender was looking at. The
     /// clip renders it through the production `CardView`, so the shared thing
