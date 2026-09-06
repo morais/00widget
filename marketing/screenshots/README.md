@@ -175,8 +175,14 @@ stagger instead. Two phones side by side can only be about half the canvas
 wide, so they are about half its height too; the stagger spends some of that
 slack and the rest is split above and below rather than pooled at the bottom.
 
-`screenshot-activities.png` is still composed, for 00widget.com, but is not in
-the App Store sequence — the share proof replaced it there.
+`screenshot-activities.png` is still composed, for 00widget.com, and it also
+keeps its place in the **iPad** App Store sequence, where the share proof
+cannot carry a frame: the guest-link sheet is a form sheet on a tablet, so its
+QR is a fraction of the screen, and the App Clip caps its content at 460pt,
+which fills a phone and leaves an iPad mostly white — composed, the pair reads
+as two nearly blank tablets. The share proof replaces it on the iPhone sets,
+and the iPad makes the same argument through the App Preview. This is the
+per-device-class judgement the plan already applies to the Island still.
 `upload-appstore-screenshots.py` holds the storefront order, which is why that
 list and `PROMOTIONS` are not the same list.
 

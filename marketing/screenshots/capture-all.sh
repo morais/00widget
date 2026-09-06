@@ -20,6 +20,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RAW_ROOT="$REPO_ROOT/artifacts/screenshots/raw"
+PROMO_ROOT="$REPO_ROOT/artifacts/screenshots/promotional"
 VERIFY_ONLY=false
 
 while [[ $# -gt 0 ]]; do
@@ -173,4 +174,14 @@ else
   python3.12 "$SCRIPT_DIR/generate-promotional.py" --verify-only
 fi
 
-echo "✓ full marketing screenshot workflow complete: 25 raw captures + 25 promotional compositions"
+# Counted rather than asserted. The hardcoded pair this replaced said "25 and
+# 25" and had been wrong since the sets stopped being uniform — the per-device
+# counts are printed above, and a total nobody maintains is worse than none.
+# -maxdepth 2 keeps this to the four canonical sets: the raw tree also holds
+# a `subscriptions/` sub-folder per device, which is a separate campaign and
+# not part of this workflow's count.
+echo "✓ full marketing screenshot workflow complete: $(
+  find "$RAW_ROOT" -maxdepth 2 -name 'screenshot-*.png' | wc -l | tr -d ' '
+) raw captures + $(
+  find "$PROMO_ROOT" -maxdepth 2 -name 'screenshot-*.png' | wc -l | tr -d ' '
+) promotional compositions"

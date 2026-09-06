@@ -63,6 +63,15 @@ PROMOTIONAL_SETS = {
                 "screenshot-share.png",
             ],
         ),
+        # iPad keeps the Activities frame where the phones show the share
+        # proof, for the same reason it has no Dynamic Island frame: the image
+        # cannot carry there. Both halves of the share proof are small on a
+        # tablet — the guest-link sheet is a form sheet, so its QR is a fraction
+        # of the screen, and the App Clip caps its content at 460pt, which
+        # fills a phone and leaves an iPad mostly white. Composed, it reads as
+        # two nearly blank tablets. The proof is made on the iPhone sets and in
+        # the App Preview; this is the per-device-class judgement the plan
+        # already applies to the Island still.
         "APP_IPAD_PRO_3GEN_129": (
             PROMOTIONAL_ROOT / "ipad",
             [
@@ -72,7 +81,7 @@ PROMOTIONAL_SETS = {
                 "screenshot-home-metrics.png",
                 "screenshot-approve.png",
                 "screenshot-insights.png",
-                "screenshot-share.png",
+                "screenshot-activities.png",
             ],
         ),
     },
