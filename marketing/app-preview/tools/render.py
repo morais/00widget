@@ -65,36 +65,97 @@ def is_page_transition(scene: dict[str, Any]) -> bool:
     return scene.get("action") in PAGE_CHANGING_ACTIONS
 
 
+# Normalization stretches each raw segment to its configured length, so a
+# take survives device lag and recorder compression alike — but only while
+# the stretch stays near unity. Beyond these bounds an animation plays at a
+# visibly wrong speed, which means the pairing is untrustworthy rather than
+# merely loose. Static content is speed-invariant, so this bounds visible
+# wrongness, not absolute drift: under compression residuals accumulate and
+# a fixed per-transition tolerance would reject takes whose every segment
+# is honest.
+MIN_SEGMENT_SPEED = 0.5
+MAX_SEGMENT_SPEED = 2.0
+
+
 def detect_page_transitions(
     raw_path: Path, action_starts: list[float], tolerance: float = 1.0
 ) -> list[float]:
-    """Match each configured page transition to its nearest large scene change.
+    """Match each configured page transition to its detected scene change.
 
-    CoreSimulator's recorder can collapse a static interval instead of giving
-    the preceding frame its full wall-clock duration. The UI test still fires
-    on time, but the following swipe then appears early in the movie. Detecting
-    the large scene changes lets normalization restore those configured holds
-    without modifying the raw diagnostic capture.
+    The recorder emits frames only when pixels change, so static holds
+    contribute almost no duration and the movie clock trails wall time by a
+    varying amount: the same schedule has paired within 0.3 s on one run
+    and past 2 s on the next, with every beat present and ordered on both.
+    Absolute residuals therefore cannot tell a good take from a bad one;
+    the segment speeds checked later can, because stretching absorbs any
+    monotonic distortion while a wrong pairing stretches absurdly.
 
-    Matching is per configured start, not by total count: the island-only
-    ContentState update sometimes crosses the scene threshold itself (its
-    animation is a real pixel change), so an extra hit must never shift or
-    invalidate the page boundaries the overlays are aligned to. A configured
+    When the hit count equals the start count the pairing is positional, in
+    order. Otherwise each start takes its nearest hit within the tolerance
+    (windows cannot overlap: page-changing scenes stay several seconds
+    apart, so each hit belongs to at most one start): the island-only
+    ContentState update sometimes crosses the scene threshold itself, and
+    an extra hit must never shift the boundaries the overlays align to. A
     start with no hit nearby is omitted, and the caller treats a short list
     as a failed run rather than normalizing against mispairing.
     """
     if not action_starts:
         return []
     hits = scene_hits(raw_path, 0.08)
+    if len(hits) == len(action_starts):
+        return sorted(hits)
     matched: list[float] = []
     for start in action_starts:
-        # Windows cannot overlap: page-changing scenes stay several seconds
-        # apart while the tolerance is one, so each hit belongs to at most
-        # one start and ordering is preserved.
         near = [hit for hit in hits if abs(hit - start) <= tolerance]
         if near:
             matched.append(min(near, key=lambda hit: abs(hit - start)))
     return matched
+
+
+def segment_speeds(
+    raw_boundaries: list[float],
+    desired_boundaries: list[float],
+    raw_duration: float,
+) -> list[float]:
+    """Playback speed each raw segment needs to reach its desired length.
+
+    `raw_boundaries` holds the matched transition times; the trailing
+    segment runs to the end of the raw movie. A speed of 1.0 is untouched;
+    0.5 plays double-length slow motion and 2.0 double speed.
+    """
+    speeds: list[float] = []
+    for index in range(len(desired_boundaries) - 1):
+        raw_start = raw_boundaries[index]
+        raw_end = (
+            raw_boundaries[index + 1]
+            if index + 1 < len(raw_boundaries)
+            else raw_duration
+        )
+        raw_length = raw_end - raw_start
+        desired_length = desired_boundaries[index + 1] - desired_boundaries[index]
+        speeds.append(desired_length / raw_length if raw_length > 0 else 0.0)
+    return speeds
+
+
+def raw_duration_seconds(raw_path: Path) -> float:
+    """Wall-clock duration of the raw capture from its container metadata."""
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-hide_banner",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(raw_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return float(result.stdout.strip())
 
 
 def render(
@@ -135,6 +196,14 @@ def render(
         float(scene["start"]) for scene in config["scenes"] if is_page_transition(scene)
     ]
     raw_transitions = detect_page_transitions(raw_path, action_starts)
+    raw_duration = raw_duration_seconds(raw_path)
+    speeds = (
+        segment_speeds(
+            [0.0, *raw_transitions], [0.0, *action_starts, duration], raw_duration
+        )
+        if len(raw_transitions) == len(action_starts) and action_starts
+        else []
+    )
     normalize_command = ["ffmpeg", "-hide_banner", "-y"]
     normalize_command.extend(["-i", str(raw_path)])
     if len(raw_transitions) == len(action_starts) and action_starts:
@@ -342,7 +411,11 @@ def render(
             }
             for overlay in overlays
         ],
-        {"configured": action_starts, "detected": raw_transitions},
+        {
+            "configured": action_starts,
+            "detected": raw_transitions,
+            "segmentSpeeds": speeds,
+        },
     )
 
 

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from config import ConfigError, artifact_directory, load_config, repository_root
-from render import render
+from render import MAX_SEGMENT_SPEED, MIN_SEGMENT_SPEED, render
 from simulator import (
     SimulatorError,
     app_container,
@@ -604,15 +604,19 @@ def stage_device(
 
 
 def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], None]) -> None:
-    """Each normalized transition must land near its configured start.
+    """Each normalized segment must play near its natural speed.
 
-    A sub-second gap is ordinary response lag (app activate, push animation)
-    and only gets logged. Beyond a second the run compressed unevenly and no
-    overlay can be trusted, so the run fails rather than filming captioned
-    evidence of the wrong moment. A partial detection fails for the same
-    reason: without every boundary the renderer preserves the recorder's
-    compressed timestamps while the overlays stay on configured time, which
-    is the exact misalignment this gate exists to catch.
+    The recorder emits frames only when pixels change, so static holds
+    contribute almost no duration and the movie clock trails wall time by
+    a varying amount per run — the same schedule has paired within 0.3 s
+    on one run and past 2 s on the next, with every beat present and
+    ordered on both. Absolute residuals therefore cannot tell a good take
+    from a bad one: they accumulate under compression. What can is the
+    stretch each segment needs: normalization absorbs any monotonic
+    distortion, and a pairing that demands slow motion or fast-forward is
+    untrustworthy rather than merely loose. A partial detection fails for
+    the same reason — without every boundary the renderer preserves the
+    recorder's timestamps while the overlays stay on configured time.
     """
     if len(transitions["configured"]) != len(transitions["detected"]):
         raise PreviewError(
@@ -621,14 +625,16 @@ def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], No
             "the run compressed unevenly, re-record rather than shipping misaligned copy"
         )
     for configured, detected in zip(transitions["configured"], transitions["detected"]):
-        delta = detected - configured
-        if abs(delta) > 1.0:
+        if abs(detected - configured) > 0.3:
+            log(f"page transition at {configured:.1f}s rendered at {detected:.1f}s")
+    for index, speed in enumerate(transitions.get("segmentSpeeds", [])):
+        if not MIN_SEGMENT_SPEED <= speed <= MAX_SEGMENT_SPEED:
             raise PreviewError(
-                f"page transition for scene at {configured:.1f}s landed at {detected:.1f}s; "
+                f"segment {index} plays at {speed:.2f}x; "
                 "the run compressed unevenly, re-record rather than shipping misaligned copy"
             )
-        if abs(delta) > 0.3:
-            log(f"page transition at {configured:.1f}s rendered at {detected:.1f}s")
+        if not 0.8 <= speed <= 1.25:
+            log(f"segment {index} plays at {speed:.2f}x")
 
 
 def write_report(path: Path, report: dict[str, Any]) -> None:
