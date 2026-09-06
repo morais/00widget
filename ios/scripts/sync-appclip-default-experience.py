@@ -421,9 +421,30 @@ def main():
             localization_id, args.header, header_data, header_checksum
         )
         uploaded = wait_for_header(image_id, args.wait)
-        remote_checksum = (
-            uploaded["attributes"].get("sourceFileChecksum") or ""
-        ).lower()
+        # `assetDeliveryState == COMPLETE` does not mean the checksum is
+        # readable yet: a correct upload came back COMPLETE with an empty
+        # `sourceFileChecksum`, failed this comparison, and stopped the run
+        # before the screenshots — while the image itself was in place and
+        # carried the right checksum when read again a minute later. Give the
+        # field time to appear rather than calling a good upload a bad one.
+        remote_checksum = ""
+        deadline = time.time() + 60
+        while True:
+            remote_checksum = (
+                uploaded["attributes"].get("sourceFileChecksum") or ""
+            ).lower()
+            if remote_checksum or time.time() >= deadline:
+                break
+            time.sleep(5)
+            status, response = asc.call("GET", f"/v1/appClipHeaderImages/{image_id}")
+            uploaded = expect(
+                status, response, {200}, "re-reading the App Clip header"
+            )["data"]
+        if not remote_checksum:
+            raise RuntimeError(
+                "App Store Connect never reported a checksum for the uploaded "
+                "App Clip header, so the upload could not be verified"
+            )
         if remote_checksum != header_checksum.lower():
             raise RuntimeError(
                 f"uploaded App Clip header checksum is {remote_checksum}, expected {header_checksum}"
