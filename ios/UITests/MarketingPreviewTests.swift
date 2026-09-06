@@ -203,21 +203,23 @@ final class MarketingPreviewTests: XCTestCase {
     /// button that presented it.
     private func tap(accessibilityIdentifier id: String, in app: XCUIApplication, scope: String? = nil) {
         if scope == "sheet" {
-            // Sheets first: a sheet and the label behind it can share one
-            // name, and the presented control is the one the timeline means.
-            // Alerts second: action confirmations are centered alerts on
-            // every device, never sheets.
-            let sheetButton = app.sheets.buttons[id].firstMatch
-            if sheetButton.waitForExistence(timeout: 5) {
-                sheetButton.tap()
+            // Alerts first: action confirmations are centered alerts on
+            // every device, and a missed sheets probe costs its full
+            // timeout — five seconds here cascaded into every later beat
+            // and failed the transition gate on the next scene. Sheets
+            // stay as the fallback for confirmation surfaces that are
+            // genuinely presented as sheets.
+            let alertButton = app.alerts.buttons[id].firstMatch
+            if alertButton.waitForExistence(timeout: 5) {
+                alertButton.tap()
                 return
             }
-            let alertButton = app.alerts.buttons[id].firstMatch
+            let sheetButton = app.sheets.buttons[id].firstMatch
             XCTAssertTrue(
-                alertButton.waitForExistence(timeout: 5),
-                "Preview tap target never appeared in a sheet or alert: \(id)"
+                sheetButton.waitForExistence(timeout: 5),
+                "Preview tap target never appeared in an alert or sheet: \(id)"
             )
-            alertButton.tap()
+            sheetButton.tap()
             return
         }
         // Buttons first: a button and the label inside it share one name,
