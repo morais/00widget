@@ -166,7 +166,14 @@ struct CardDetailView: View {
                 .environmentObject(env)
         }
         #endif
-        .confirmationDialog(
+        // A centered alert rather than a confirmation dialog. The dialog
+        // rendered as a popover bubble overlapping the title with its arrow
+        // aimed at empty mid-screen instead of the tapped button — and on
+        // iPad the dialog style is a popover anchored to this whole view by
+        // construction, so the same mis-anchoring ships there too. An alert
+        // is centered on every device and cannot mis-anchor. Unlike a
+        // confirmation dialog, an alert adds no Cancel button of its own.
+        .alert(
             "Run action?",
             isPresented: Binding(
                 get: { pendingAction != nil },
@@ -176,6 +183,9 @@ struct CardDetailView: View {
         ) { action in
             Button(action.label, role: action.role == .destructive ? .destructive : nil) {
                 run(action)
+                pendingAction = nil
+            }
+            Button("Cancel", role: .cancel) {
                 pendingAction = nil
             }
         } message: { action in

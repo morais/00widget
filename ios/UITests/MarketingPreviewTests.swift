@@ -198,16 +198,26 @@ final class MarketingPreviewTests: XCTestCase {
     /// identifier-or-label match wins; a label-substring fallback lets the
     /// timeline name the card ("Launch") instead of pinning the whole
     /// VoiceOver sentence the renderer composes around it. A `sheet` scope
-    /// resolves inside the presented sheet, which is how a confirmation
-    /// control is told apart from the button that presented it.
+    /// resolves inside the presented confirmation surface — a sheet or an
+    /// alert — which is how a confirmation control is told apart from the
+    /// button that presented it.
     private func tap(accessibilityIdentifier id: String, in app: XCUIApplication, scope: String? = nil) {
         if scope == "sheet" {
-            let element = app.sheets.buttons[id].firstMatch
+            // Sheets first: a sheet and the label behind it can share one
+            // name, and the presented control is the one the timeline means.
+            // Alerts second: action confirmations are centered alerts on
+            // every device, never sheets.
+            let sheetButton = app.sheets.buttons[id].firstMatch
+            if sheetButton.waitForExistence(timeout: 5) {
+                sheetButton.tap()
+                return
+            }
+            let alertButton = app.alerts.buttons[id].firstMatch
             XCTAssertTrue(
-                element.waitForExistence(timeout: 10),
-                "Preview tap target never appeared in a sheet: \(id)"
+                alertButton.waitForExistence(timeout: 5),
+                "Preview tap target never appeared in a sheet or alert: \(id)"
             )
-            element.tap()
+            alertButton.tap()
             return
         }
         // Buttons first: a button and the label inside it share one name,
