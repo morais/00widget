@@ -12,6 +12,7 @@
 #   marketing/screenshots/capture-ios.sh --only activities
 #   marketing/screenshots/capture-ios.sh --only app
 #   marketing/screenshots/capture-ios.sh --only lock
+#   marketing/screenshots/capture-ios.sh --only clip
 #   marketing/screenshots/capture-ios.sh --only island
 #   marketing/screenshots/capture-ios.sh --only subscriptions
 #   marketing/screenshots/capture-ios.sh --device "iPhone 17 Pro" --out /tmp/shots
@@ -22,6 +23,14 @@
 # while the host-side sim-lock-capture.sh locks the simulator through its
 # accessibility menu and screenshots the framebuffer with `simctl io`. An
 # in-process screenshot could never show that surface.
+#
+# The App Clip surface (`--only clip`, also part of the full run) is host-side
+# for a different reason: a clip is launched by an App Clip experience
+# resolving an invocation URL, a capture simulator has no such experience
+# registered, and `simctl openurl` on the link therefore opens Safari. The clip
+# is built, installed and launched with `--guest-fixture`, which a
+# ZW_SCREENSHOTS build reads as the one marketing guest token — the same token
+# the app's QR encodes in the frame beside it.
 #
 # Output is PNGs named after the XCTAttachment names in UITests/ScreenshotTests.swift.
 set -euo pipefail
@@ -128,6 +137,89 @@ print(f"  {name} {digest}")
 PY
 }
 
+# Drives the App Clip surface: the other half of the share frame.
+#
+# There is no XCUITest way in. A clip is launched by an App Clip experience
+# resolving an invocation URL, no such experience is registered on a capture
+# simulator, and `simctl openurl` on the link therefore opens Safari. So the
+# clip is built, installed and launched directly with `--guest-fixture`, which
+# a ZW_SCREENSHOTS build reads as "open the one marketing token" — the same
+# token the app's QR encodes in the frame beside it.
+#
+# It runs after every XCUITest capture and uninstalls itself afterwards: an
+# installed clip is an extra icon on the Home Screen, and the Home Screen is
+# three of this run's images.
+run_clip_surface() {
+  local udid
+  udid="$(xcrun simctl list devices -j | python3 -c "
+import json, sys
+name = sys.argv[1]
+for runtime in json.load(sys.stdin)['devices'].values():
+    for device in runtime:
+        if device['name'] == name and device.get('isAvailable'):
+            print(device['udid'])
+            raise SystemExit(0)
+raise SystemExit('no available simulator named ' + name)
+" "$DEVICE")" || return 1
+
+  echo "→ building the App Clip"
+  if ! run_with_heartbeat "App Clip build" "$WORK/clip-build.log" xcodebuild build \
+    -project ZeroZeroWidget.xcodeproj \
+    -scheme ZeroZeroWidgetClip \
+    -destination "platform=iOS Simulator,name=$DEVICE" \
+    -derivedDataPath "$DERIVED" \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_REQUIRED=NO \
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS="ZW_SHARING_ENABLED ZW_SCREENSHOTS ZW_SUBSCRIPTIONS_ENABLED"; then
+    echo "✗ App Clip build failed — tail of log:" >&2
+    tail -40 "$WORK/clip-build.log" >&2
+    return 1
+  fi
+
+  local clip="$DERIVED/Build/Products/Debug-iphonesimulator/ZeroZeroWidgetClip.app"
+  local clip_id
+  clip_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$clip/Info.plist")"
+
+  echo "→ launching the App Clip on the fixture link"
+  xcrun simctl install "$udid" "$clip"
+  xcrun simctl launch "$udid" "$clip_id" --guest-fixture >/dev/null
+
+  # The clip renders the card through the production CardView the moment the
+  # fixture resolves; the wait is for the launch animation, not for a network.
+  sleep 6
+  xcrun simctl io "$udid" screenshot --type=png "$OUT/$CLIP_PNG" >/dev/null 2>&1
+
+  xcrun simctl terminate "$udid" "$clip_id" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "$udid" "$clip_id" >/dev/null 2>&1 || true
+
+  python3 - "$OUT" "$DEVICE" "$CLIP_PNG" <<'CLIPMANIFEST'
+import datetime, hashlib, json, os, sys
+
+dest, device, name = sys.argv[1:]
+path = os.path.join(dest, name)
+with open(path, "rb") as handle:
+    digest = hashlib.md5(handle.read()).hexdigest()
+manifest_path = os.path.join(dest, ".capture-manifest.json")
+try:
+    with open(manifest_path, encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    if manifest.get("device") != device:
+        raise ValueError("existing manifest is for a different device")
+except (OSError, ValueError):
+    manifest = {
+        "capturedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "device": device,
+        "mode": "clip",
+        "files": {},
+    }
+manifest.setdefault("files", {})[name] = digest
+with open(manifest_path, "w") as handle:
+    json.dump(manifest, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+print(f"  {name} {digest}")
+CLIPMANIFEST
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
@@ -138,8 +230,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "lock" && "$ONLY" != "island" && "$ONLY" != "subscriptions" ]]; then
-  echo "--only must be 'all', 'activities', 'app', 'lock', 'island', or 'subscriptions'" >&2
+if [[ "$ONLY" != "all" && "$ONLY" != "activities" && "$ONLY" != "app" && "$ONLY" != "lock" && "$ONLY" != "clip" && "$ONLY" != "island" && "$ONLY" != "subscriptions" ]]; then
+  echo "--only must be 'all', 'activities', 'app', 'lock', 'clip', 'island', or 'subscriptions'" >&2
   exit 2
 fi
 
@@ -158,6 +250,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOCK_PNG="screenshot-lock-activity.png"
+CLIP_PNG="screenshot-clip.png"
 IOS_ROOT="$REPO_ROOT/ios"
 case "$DEVICE" in
   "iPhone 17 Pro") DEVICE_FOLDER="iphone-6.3" ;;
@@ -300,7 +393,28 @@ XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
   -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_SCREENSHOT_DEVICE_CLASS string $DEVICE_FOLDER" \
   "$XCTESTRUN"
 
-echo "→ running ScreenshotTests"
+# The share frame's QR encodes a real App Clip invocation URL when this
+# checkout has one. The host is per-developer and gitignored, so its absence
+# is not an error — the fixture falls back to the placeholder and the frame is
+# a picture of a QR either way.
+GUEST_LINK_URL=""
+if [[ -f "$IOS_ROOT/appstore.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$IOS_ROOT/appstore.env"
+  GUEST_LINK_URL="${ZW_APPCLIP_INVOCATION_URL:-}"
+fi
+/usr/libexec/PlistBuddy \
+  -c "Delete :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_GUEST_LINK_URL" \
+  "$XCTESTRUN" 2>/dev/null || true
+if [[ -n "$GUEST_LINK_URL" ]]; then
+  /usr/libexec/PlistBuddy \
+    -c "Add :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_GUEST_LINK_URL string $GUEST_LINK_URL" \
+    "$XCTESTRUN"
+fi
+
+if [[ "$ONLY" != "lock" && "$ONLY" != "clip" ]]; then
+  echo "→ running ScreenshotTests"
+fi
 if [[ "$ONLY" == "activities" ]]; then
   TEST_FILTERS=(
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureActivitiesScreenshot
@@ -325,7 +439,10 @@ else
     -only-testing:ZeroZeroWidgetUITests/ScreenshotTests/testCaptureMarketingScreenshots
   )
 fi
-if [[ "$ONLY" != "lock" ]]; then
+# The two host-side surfaces drive nothing in the app, so neither runs a
+# test — but both still need the build above, for the app the clip installs
+# beside and for the xctestrun the lock handshake edits.
+if [[ "$ONLY" != "lock" && "$ONLY" != "clip" ]]; then
 if ! run_with_heartbeat "iOS ScreenshotTests on $DEVICE" "$WORK/xcodebuild.log" xcodebuild test-without-building \
   -xctestrun "$XCTESTRUN" \
   -destination "platform=iOS Simulator,name=$DEVICE" \
@@ -376,12 +493,14 @@ elif mode == "island":
 elif mode == "app":
     required = {
         "screenshot-approve.png",
+        "screenshot-share.png",
         "screenshot-insights.png",
         "screenshot-activities.png",
     }
 elif mode == "all":
     required = {
         "screenshot-approve.png",
+        "screenshot-share.png",
         "screenshot-home-widgets.png",
         "screenshot-home-insights.png",
         "screenshot-home-metrics.png",
@@ -402,8 +521,16 @@ if missing:
     )
 
 if mode == "all":
+    # The Lock Screen and App Clip are captured host-side after this runs, so
+    # they are not in `produced` and must not be swept as strays.
+    host_side = {"screenshot-lock-activity.png", "screenshot-clip.png"}
     for name in os.listdir(dest):
-        if name.startswith("screenshot-") and name.endswith(".png") and name not in required:
+        if (
+            name.startswith("screenshot-")
+            and name.endswith(".png")
+            and name not in required
+            and name not in host_side
+        ):
             os.unlink(os.path.join(dest, name))
 
     files = {}
@@ -434,6 +561,11 @@ if [[ "$ONLY" == "all" && "$DEVICE_FOLDER" == "iphone-6.3" ]]; then
     echo "✗ re-run: the hero's Dynamic Island content is clipped" >&2
     exit 1
   fi
+fi
+
+if [[ "$ONLY" == "all" || "$ONLY" == "clip" ]]; then
+  echo "→ capturing the App Clip surface"
+  run_clip_surface || exit 1
 fi
 
 if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then

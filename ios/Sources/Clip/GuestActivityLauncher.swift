@@ -53,6 +53,17 @@ final class GuestActivityLauncher: ObservableObject {
     private var pushTokenTask: Task<Void, Never>?
 
     func open(token: String) async {
+        #if ZW_SCREENSHOTS
+        // The App Store's share frame needs the clip in its success state, and
+        // a clip's only way in is a link the capture machine has no server to
+        // mint. So the one fixture token resolves locally to the card it
+        // stands for; every other token still goes to the server, because the
+        // point of the frame is the real rendering path.
+        if token == SampleDataFactory.marketingGuestToken {
+            state = .card(SampleDataFactory.marketingGuestCard())
+            return
+        }
+        #endif
         guard GuestToken.looksValid(token) else {
             state = .failed("That link is not valid.")
             return

@@ -38,6 +38,10 @@ class Promotion:
     filename: str
     headline: str
     supporting: str
+    #: A second raw capture drawn beside the first. One frame, two devices, is
+    #: the only way to show a cause and its effect on separate screens — the
+    #: QR someone is handed, and what it opened for them.
+    companion: str | None = None
 
 
 # The sequence Apple shows first is the sequence that has to carry the
@@ -103,6 +107,18 @@ PROMOTIONS = (
         # the line names the three cards that are actually in it.
         "Spend against budget, run history, and what is still open.",
     ),
+    Promotion(
+        "screenshot-share.png",
+        "Share live status—not another login.",
+        "Anyone you send the code to sees the card, read-only, without an "
+        "account.",
+        companion="screenshot-clip.png",
+    ),
+    # Composed, but not in the App Store sequence: the share proof took its
+    # slot there. It stays because 00widget.com publishes it, and a website
+    # asset is a different argument from an eight-frame storefront sequence —
+    # a page has room to show a list of running work for its own sake.
+    # `upload-appstore-screenshots.py` holds the storefront order.
     Promotion(
         "screenshot-activities.png",
         "Every active job. One place.",
@@ -329,6 +345,7 @@ def draw_device(
     device_set: str,
     top: int,
     width_fraction: float = 0.88,
+    center_fraction: float = 0.5,
 ) -> None:
     width, height = canvas.size
     is_ipad = device_set == "ipad"
@@ -355,7 +372,7 @@ def draw_device(
     outer_radius = screen_radius + chrome + bezel
     screen = rounded_image(screen, screen_radius)
     outer_height = screen.height + 2 * (chrome + bezel)
-    outer_x = (width - outer_width) // 2
+    outer_x = round(width * center_fraction) - outer_width // 2
     screen_x = outer_x + chrome + bezel
     screen_y = top + chrome + bezel
 
@@ -532,13 +549,51 @@ def draw_island_expanded(canvas: Image.Image, source: Image.Image) -> None:
     )
 
 
+def draw_pair(
+    canvas: Image.Image,
+    first: Image.Image,
+    second: Image.Image,
+    device_set: str,
+    top: int,
+) -> None:
+    """Two phones in one frame: what you hand someone, and what they get.
+
+    They stand shoulder to shoulder, touching but not overlapping, because the
+    QR sits in the middle of the first screen and *any* overlap from the right
+    eats it — and a share frame whose code is half covered proves nothing. The
+    relationship is carried by the stagger instead: the second is dropped a
+    little, so the pair reads left to right as a step rather than as two
+    alternatives.
+
+    Two phones side by side can only be about half the canvas wide, so they are
+    about half its height too. The stagger spends some of the slack that
+    leaves, and the rest is split above and below rather than pooled at the
+    bottom, where it would read as a frame that fell short of its own edge.
+    """
+    width, height = canvas.size
+    drop = round(height * 0.065)
+    draw_device(canvas, first, device_set, top, width_fraction=0.53, center_fraction=0.255)
+    draw_device(
+        canvas,
+        second,
+        device_set,
+        top + drop,
+        width_fraction=0.53,
+        center_fraction=0.755,
+    )
+
+
 def compose(
     source_path: Path,
     output_path: Path,
     promotion: Promotion,
     device_set: str,
+    companion_path: Path | None = None,
 ) -> dict[str, object]:
     source = Image.open(source_path).convert("RGB")
+    companion = (
+        Image.open(companion_path).convert("RGB") if companion_path is not None else None
+    )
     width, height = source.size
     canvas = background(source.size).convert("RGBA")
     draw = ImageDraw.Draw(canvas)
@@ -581,6 +636,11 @@ def compose(
 
     if promotion.filename == ISLAND_FRAME:
         draw_island_expanded(canvas, source)
+    elif companion is not None:
+        # A pair is about half the height of a single device, so it starts
+        # lower: the header's own top padding is unchanged and the slack is
+        # shared between the two edges instead of falling to the bottom.
+        draw_pair(canvas, source, companion, device_set, round(height * 0.315))
     else:
         draw_device(canvas, source, device_set, device_top)
 
@@ -591,6 +651,9 @@ def compose(
         "sourceSha256": file_hash(source_path),
         "dimensions": [width, height],
     }
+    if companion_path is not None:
+        record["companion"] = companion_path.name
+        record["companionSha256"] = file_hash(companion_path)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(output_path, format="PNG", optimize=True)
@@ -802,6 +865,14 @@ def verify_promotional_screenshots(
                 errors.append(f"{device_set}/{filename}: manifest dimensions are incorrect")
             if entry.get("sourceSha256") != file_hash(source_path):
                 errors.append(f"{device_set}/{filename}: composition is stale for its raw capture")
+            if promotion.companion is not None:
+                companion_path = source_root / device_set / promotion.companion
+                if not companion_path.is_file():
+                    errors.append(f"{device_set}/{filename}: missing companion capture")
+                elif entry.get("companionSha256") != file_hash(companion_path):
+                    errors.append(
+                        f"{device_set}/{filename}: composition is stale for its companion capture"
+                    )
             if entry.get("outputSha256") != file_hash(output_path):
                 errors.append(f"{device_set}/{filename}: output checksum differs from manifest")
             try:
@@ -880,17 +951,24 @@ def main() -> None:
         promotions = promotions_for(device_set)
         composer = compose_tv if device_set == "tvos" else compose
         for promotion in promotions:
-            source_path = source_directory / promotion.filename
-            if not source_path.is_file():
-                raise SystemExit(f"Missing raw capture: {source_path}")
-            with Image.open(source_path) as source:
-                if source.size != expected_size:
-                    raise SystemExit(
-                        f"{source_path} is {source.size[0]}x{source.size[1]}; "
-                        f"expected {expected_size[0]}x{expected_size[1]}"
-                    )
+            source_paths = [source_directory / promotion.filename]
+            if promotion.companion is not None:
+                source_paths.append(source_directory / promotion.companion)
+            for path in source_paths:
+                if not path.is_file():
+                    raise SystemExit(f"Missing raw capture: {path}")
+                with Image.open(path) as source:
+                    if source.size != expected_size:
+                        raise SystemExit(
+                            f"{path} is {source.size[0]}x{source.size[1]}; "
+                            f"expected {expected_size[0]}x{expected_size[1]}"
+                        )
             output_path = output_directory / promotion.filename
-            items.append(composer(source_path, output_path, promotion, device_set))
+            items.append(
+                composer(source_path=source_paths[0], output_path=output_path,
+                         promotion=promotion, device_set=device_set,
+                         **({"companion_path": source_paths[1]} if len(source_paths) > 1 else {}))
+            )
             print(f"✓ {device_set}/{promotion.filename}")
         generated_sets.append({"deviceSet": device_set, "files": items})
 

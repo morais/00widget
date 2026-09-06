@@ -159,6 +159,27 @@ public final class APIClient {
         public let resourceKind: String
         public let resourceId: String
         public let expiresAt: Date
+
+#if ZW_SCREENSHOTS
+        /// Only the capture build can make one of these without a server. The
+        /// shipping app has no way to fabricate a link, which is the point of
+        /// the gate rather than an accident of it.
+        public init(
+            id: String,
+            token: String,
+            url: String,
+            resourceKind: String,
+            resourceId: String,
+            expiresAt: Date
+        ) {
+            self.id = id
+            self.token = token
+            self.url = url
+            self.resourceKind = resourceKind
+            self.resourceId = resourceId
+            self.expiresAt = expiresAt
+        }
+#endif
     }
 
     /// Mints a read-only link for one card or one Live Activity instance.

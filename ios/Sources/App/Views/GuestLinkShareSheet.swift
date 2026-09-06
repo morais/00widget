@@ -120,6 +120,25 @@ struct GuestLinkShareSheet: View {
 
     private func mint() async {
         isLoading = true
+        #if ZW_SCREENSHOTS
+        // A capture build never talks to a server, so minting would leave this
+        // sheet showing its failure state — and the App Store's share frame is
+        // a picture of this sheet succeeding. The fixture is the same link the
+        // App Clip is launched with, so the two halves of that frame are one
+        // link rather than two props.
+        link = APIClient.GuestLinkResponse(
+            id: "sample-guest-link",
+            token: SampleDataFactory.marketingGuestToken,
+            url: SampleDataFactory.marketingGuestLinkURL(),
+            resourceKind: resourceKind,
+            resourceId: resourceId,
+            // Twelve hours is what the server grants, and it is what the
+            // sheet's expiry line has to read for the frame to be honest.
+            expiresAt: Date().addingTimeInterval(12 * 3600)
+        )
+        isLoading = false
+        return
+        #endif
         do {
             link = try await env.createGuestLink(resourceKind: resourceKind, resourceId: resourceId)
             isLoading = false

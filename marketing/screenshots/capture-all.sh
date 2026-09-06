@@ -63,18 +63,23 @@ if started_at:
 
 ios_files = {
     "screenshot-activities.png",
+    "screenshot-clip.png",
     "screenshot-home-insights.png",
     "screenshot-home-metrics.png",
     "screenshot-home-widgets.png",
     "screenshot-insights.png",
     "screenshot-lock-activity.png",
     "screenshot-approve.png",
+    "screenshot-share.png",
 }
-# The expanded Dynamic Island is a *source* for the Lock Screen frame's
-# inset rather than a promotional image of its own, and only one capture
-# device has an island to expand. So the 6.3 set carries eight raw files
-# against the other two sets' seven, and all three still yield seven
-# promotional compositions.
+# Three raw files are not promotional images of their own. The expanded
+# Dynamic Island is the source of its own frame and exists only on the one
+# capture device that has an island; `screenshot-clip.png` is drawn beside
+# `screenshot-share.png` in a single two-device frame; and
+# `screenshot-activities.png` left the App Store sequence when the share proof
+# replaced it, but the website still publishes it. So each iPhone/iPad set
+# carries nine raw files (ten on 6.3) and yields seven promotional
+# compositions (eight on 6.3).
 island_files = ios_files | {"screenshot-island-expanded.png"}
 tv_files = {
     "screenshot-tv-card-detail.png",

@@ -19,6 +19,7 @@ final class ScreenshotTests: XCTestCase {
 
     func testCaptureMarketingScreenshots() throws {
         let app = XCUIApplication()
+        app.launchArguments += guestLinkFixtureArguments
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -31,6 +32,7 @@ final class ScreenshotTests: XCTestCase {
         hideSampleIndicators(in: app)
         generateSampleWidgets(in: app)
         captureApprove(in: app)
+        captureShare(in: app)
         captureInsights(in: app)
 
         prepareHomeScreenWidgets(displayNames: classicWidgetNames)
@@ -163,6 +165,7 @@ final class ScreenshotTests: XCTestCase {
     /// simulator Home Screen differs from the current marketing device.
     func testCaptureAppScreenshots() throws {
         let app = XCUIApplication()
+        app.launchArguments += guestLinkFixtureArguments
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -173,6 +176,7 @@ final class ScreenshotTests: XCTestCase {
         hideSampleIndicators(in: app)
         generateSampleWidgets(in: app)
         captureApprove(in: app)
+        captureShare(in: app)
         captureInsights(in: app)
         XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
     }
@@ -367,6 +371,65 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(
             launchCard.waitForExistence(timeout: 10),
             "The Widgets list did not come back after the approval capture."
+        )
+    }
+
+    /// Photographs the sheet that hands a card to someone who does not have
+    /// the app: the QR, what it grants, and when it stops working.
+    ///
+    /// This is one half of the App Store's share frame. The other half is the
+    /// App Clip that same code opens, captured host-side after this run —
+    /// `SampleDataFactory.marketingGuestToken` is in both, so the two pictures
+    /// are one link rather than two props.
+    /// Points the guest-link fixture at the real App Clip invocation host when
+    /// the capture script has one to give. That host lives in gitignored
+    /// `ios/appstore.env`, so a checkout without it draws the placeholder
+    /// rather than failing — the frame is a picture of a QR either way.
+    private var guestLinkFixtureArguments: [String] {
+        guard
+            let url = ProcessInfo.processInfo.environment["ZW_GUEST_LINK_URL"],
+            !url.isEmpty
+        else { return [] }
+        return ["-ZWGuestLinkFixtureURL", url]
+    }
+
+    private func captureShare(in app: XCUIApplication) {
+        let launchCard = app.buttons["sample-launch"].firstMatch
+        XCTAssertTrue(
+            launchCard.waitForExistence(timeout: 10),
+            "Launch sample card not found on the Widgets tab."
+        )
+        launchCard.tap()
+
+        let shareMenu = app.buttons["Share"].firstMatch
+        XCTAssertTrue(
+            shareMenu.waitForExistence(timeout: 10),
+            "The card screen has no Share menu — only the owner of a card gets one."
+        )
+        shareMenu.tap()
+
+        let asLink = app.buttons["Share this card as a link"].firstMatch
+        XCTAssertTrue(asLink.waitForExistence(timeout: 5), "No guest-link item in the Share menu.")
+        asLink.tap()
+
+        // The sheet mints on appearance. In a capture build that is a fixture
+        // and returns at once, but the QR is generated through CoreImage and
+        // the sheet animates up, so wait on the drawn code rather than a timer.
+        let qr = app.images["QR code for the shared link"].firstMatch
+        XCTAssertTrue(
+            qr.waitForExistence(timeout: 15),
+            "The guest-link sheet drew no QR code."
+        )
+        Thread.sleep(forTimeInterval: 1)
+        capture(named: "screenshot-share")
+
+        app.buttons["Done"].firstMatch.tap()
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "No way back from the card screen.")
+        back.tap()
+        XCTAssertTrue(
+            launchCard.waitForExistence(timeout: 10),
+            "The Widgets list did not come back after the share capture."
         )
     }
 

@@ -18,16 +18,32 @@ The test captures these surfaces in order:
 | --- | --- |
 | `screenshot-approve.png` | The Launch card's own screen with its Approve action and the confirmation alert the app puts in front of it. `approve-launch` carries `confirm: true`, so a widget tap cannot run it — this is the screen that rule routes to. |
 | `screenshot-insights.png` | The bottom of the in-app deck: the AI spend budget, the 20-run Agent runs history, and Open PRs. Scrolled to the list's end rather than to a measured offset, so a change to the deck's length cannot move it. |
-| `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
+| `screenshot-share.png` | The guest-link sheet for the Launch card: the QR, what the code grants, and when it stops working. One half of the share frame. |
+| `screenshot-clip.png` | The other half: the App Clip that same code opens, rendering the same Launch card read-only. Captured host-side — see below. |
+| `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. Composed for 00widget.com; not in the App Store sequence, which spends that slot on the share proof. |
 | `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
 | `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — the phone's top seen close up, which is why that set ships eight images and the others seven. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
 | `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
 
+Two of those are captured host-side, because XCUITest has no way to reach
+either surface. The Lock Screen is captured through the Simulator's
+accessibility menu after XCUITest stages the activity. The App Clip is
+captured by building, installing and launching it with `--guest-fixture`: a
+clip is normally launched by an App Clip experience resolving an invocation
+URL, a capture simulator has no such experience registered, and `simctl
+openurl` on the link therefore opens Safari. The fixture resolves
+`SampleDataFactory.marketingGuestToken` locally, and that is the same token
+the app's QR encodes — the two halves of the share frame are one link rather
+than two props. The clip uninstalls itself afterwards, because an installed
+clip is an extra icon on the Home Screen and the Home Screen is three of this
+run's images.
+
 The canonical App Store set contains Home Screen widgets, Home Screen insights,
-Lock Screen activity, Home Screen metrics, Widgets, Insights, and Activities,
-in that order:
+Lock Screen activity, Home Screen metrics, approval, Insights, and the share
+proof, in that order — with the expanded Dynamic Island fourth on the 6.3-inch
+set, the only capture device that has one:
 
 ```sh
 marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
@@ -148,7 +164,21 @@ image of those surfaces, not on a Home Screen grid.
 | `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
 | `screenshot-approve.png` | **Step in at the right moment.** | Approve from the card—00Widget asks before anything runs. |
 | `screenshot-insights.png` | **Updates become decisions.** | Spend against budget, run history, and what is still open. |
-| `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
+| `screenshot-share.png` + `screenshot-clip.png` | **Share live status—not another login.** | Anyone you send the code to sees the card, read-only, without an account. |
+
+The share frame is the only two-device composition in the sequence, because it
+is the only one making a two-step claim. The phones stand shoulder to
+shoulder, touching but not overlapping: the QR sits in the middle of the first
+screen, so *any* overlap from the right eats it, and a share frame whose code
+is half covered proves nothing. The relationship is carried by a vertical
+stagger instead. Two phones side by side can only be about half the canvas
+wide, so they are about half its height too; the stagger spends some of that
+slack and the rest is split above and below rather than pooled at the bottom.
+
+`screenshot-activities.png` is still composed, for 00widget.com, but is not in
+the App Store sequence — the share proof replaced it there.
+`upload-appstore-screenshots.py` holds the storefront order, which is why that
+list and `PROMOTIONS` are not the same list.
 
 The hero shows the *compact* Island, because expanded it is drawn over the
 first row of Home Screen widgets and covers their titles. The expanded

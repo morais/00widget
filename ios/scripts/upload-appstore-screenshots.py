@@ -48,7 +48,7 @@ PROMOTIONAL_SETS = {
                 "screenshot-home-metrics.png",
                 "screenshot-approve.png",
                 "screenshot-insights.png",
-                "screenshot-activities.png",
+                "screenshot-share.png",
             ],
         ),
         "APP_IPHONE_65": (
@@ -60,7 +60,7 @@ PROMOTIONAL_SETS = {
                 "screenshot-home-metrics.png",
                 "screenshot-approve.png",
                 "screenshot-insights.png",
-                "screenshot-activities.png",
+                "screenshot-share.png",
             ],
         ),
         "APP_IPAD_PRO_3GEN_129": (
@@ -72,7 +72,7 @@ PROMOTIONAL_SETS = {
                 "screenshot-home-metrics.png",
                 "screenshot-approve.png",
                 "screenshot-insights.png",
-                "screenshot-activities.png",
+                "screenshot-share.png",
             ],
         ),
     },

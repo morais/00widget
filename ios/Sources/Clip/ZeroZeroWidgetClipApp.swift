@@ -19,6 +19,17 @@ struct ZeroZeroWidgetClipApp: App {
                     else { return }
                     Task { await launcher.open(token: token) }
                 }
+                #if ZW_SCREENSHOTS
+                // `simctl launch` cannot hand a clip an NSUserActivity, and no
+                // App Clip experience is registered on a capture simulator, so
+                // `simctl openurl` opens Safari rather than this. A launch
+                // argument is the only way in, and it carries the same token
+                // the app's QR encodes.
+                .task {
+                    guard ProcessInfo.processInfo.arguments.contains("--guest-fixture") else { return }
+                    await launcher.open(token: SampleDataFactory.marketingGuestToken)
+                }
+                #endif
         }
     }
 }

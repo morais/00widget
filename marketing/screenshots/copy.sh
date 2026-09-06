@@ -62,6 +62,7 @@ else
     screenshot-home-metrics.png
     screenshot-approve.png
     screenshot-insights.png
+    screenshot-share.png
     screenshot-activities.png
   )
 fi

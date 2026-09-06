@@ -154,6 +154,48 @@ public enum SampleDataFactory {
     /// too long for one, since every other surface gives it more room.
     public static let marketingGridCardSuffixes = ["trials", "support", "agent-runs", "ai-spend"]
 
+#if ZW_SCREENSHOTS
+    /// The one guest link behind both halves of the App Store's share frame.
+    ///
+    /// The QR the app draws and the token the App Clip is launched with are
+    /// the same link on purpose: a picture of a code beside a picture of what
+    /// some *other* code opened is a composition, not a proof, and this frame
+    /// is only worth publishing as a proof.
+    ///
+    /// A capture build reaches no server, so the token is a fixture rather
+    /// than something minted. It has the shape `GuestToken.looksValid`
+    /// demands — the clip checks that before doing anything, so a token that
+    /// merely looked plausible would fail the capture — and it says what it is
+    /// in its own body, because it is going to be published at a size people
+    /// can read. Scanning the shipped screenshot reaches the guest page and is
+    /// told the link is not valid, which is exactly what a revoked link does.
+    public static let marketingGuestToken = GuestToken.prefix
+        + "MarketingSampleLink00WidgetAppStoreFrame_v1"
+
+    /// Where that token points. The host is the App Clip invocation URL, which
+    /// is per-developer and gitignored, so the capture script passes it in and
+    /// this placeholder is what a checkout without one draws.
+    public static let marketingGuestLinkArgument = "-ZWGuestLinkFixtureURL"
+
+    public static func marketingGuestLinkURL() -> String {
+        let provided = UserDefaults.standard.string(forKey: "ZWGuestLinkFixtureURL")
+        let base = provided?.isEmpty == false ? provided! : "https://api.example.com/app/g"
+        return "\(base)#\(marketingGuestToken)"
+    }
+
+    /// What that link resolves to: the card the sender was looking at. The
+    /// clip renders it through the production `CardView`, so the shared thing
+    /// in the App Clip frame is the same Launch card as every frame before it.
+    public static func marketingGuestCard() -> DashboardCard {
+        var card = makeCards()[0]
+        // A guest link strips actions server-side. Strip them here too, or the
+        // clip would draw an Approve button on a read-only card and the
+        // frame's whole trust cue would be a lie.
+        card.actions = []
+        return card
+    }
+#endif
+
     public static func makeCards() -> [DashboardCard] {
         let now = Date()
         return [
