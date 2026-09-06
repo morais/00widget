@@ -8,6 +8,8 @@ updates:
       time: "06:00"
       timezone: Europe/Lisbon
     open-pull-requests-limit: 5
+    assignees:
+      - morais
     commit-message:
       prefix: deps
 
@@ -19,5 +21,7 @@ updates:
       time: "06:30"
       timezone: Europe/Lisbon
     open-pull-requests-limit: 5
+    assignees:
+      - morais
     commit-message:
       prefix: deps
