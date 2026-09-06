@@ -19,7 +19,7 @@ final class ScreenshotTests: XCTestCase {
 
     func testCaptureMarketingScreenshots() throws {
         let app = XCUIApplication()
-        app.launchArguments += guestLinkFixtureArguments
+        passGuestLinkHost(to: app)
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -165,7 +165,7 @@ final class ScreenshotTests: XCTestCase {
     /// simulator Home Screen differs from the current marketing device.
     func testCaptureAppScreenshots() throws {
         let app = XCUIApplication()
-        app.launchArguments += guestLinkFixtureArguments
+        passGuestLinkHost(to: app)
         app.launch()
 
         let widgetsTab = navigationButton(named: "Widgets", in: app)
@@ -385,12 +385,21 @@ final class ScreenshotTests: XCTestCase {
     /// the capture script has one to give. That host lives in gitignored
     /// `ios/appstore.env`, so a checkout without it draws the placeholder
     /// rather than failing — the frame is a picture of a QR either way.
-    private var guestLinkFixtureArguments: [String] {
+    ///
+    /// `launchEnvironment` is the channel that works. The value reaches this
+    /// runner through the xctestrun's `EnvironmentVariables`, the same way
+    /// `ZW_SCREENSHOT_DEVICE_CLASS` does, and the app's own environment comes
+    /// from this object because XCUITest launches the app itself. Passing it
+    /// as a `-ZWGuestLinkFixtureURL` launch argument for UserDefaults, and
+    /// writing the xctestrun's `UITargetAppEnvironmentVariables`, both failed
+    /// silently — and a silent failure here is a placeholder host published
+    /// inside a QR code, which nothing but decoding the capture can see.
+    private func passGuestLinkHost(to app: XCUIApplication) {
         guard
             let url = ProcessInfo.processInfo.environment["ZW_GUEST_LINK_URL"],
             !url.isEmpty
-        else { return [] }
-        return ["-ZWGuestLinkFixtureURL", url]
+        else { return }
+        app.launchEnvironment["ZW_GUEST_LINK_URL"] = url
     }
 
     private func captureShare(in app: XCUIApplication) {

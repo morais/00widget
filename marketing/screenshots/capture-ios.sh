@@ -397,6 +397,15 @@ XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
 # checkout has one. The host is per-developer and gitignored, so its absence
 # is not an error — the fixture falls back to the placeholder and the frame is
 # a picture of a QR either way.
+#
+# It goes to the *test runner*, beside `ZW_SCREENSHOT_DEVICE_CLASS`, and the
+# test copies it into `XCUIApplication.launchEnvironment` — the app's own
+# environment comes from that object, because XCUITest launches the app itself.
+# Two other routes were tried and neither reaches the app: forwarding it as a
+# `-ZWGuestLinkFixtureURL` launch argument for UserDefaults' argument domain,
+# and the xctestrun's `UITargetAppEnvironmentVariables`, which is written and
+# then ignored for an app that `app.launch()` starts. Both looked correct and
+# both silently published a placeholder host in a QR code.
 GUEST_LINK_URL=""
 if [[ -f "$IOS_ROOT/appstore.env" ]]; then
   # shellcheck disable=SC1091

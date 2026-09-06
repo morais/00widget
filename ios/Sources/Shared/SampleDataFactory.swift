@@ -175,10 +175,17 @@ public enum SampleDataFactory {
     /// Where that token points. The host is the App Clip invocation URL, which
     /// is per-developer and gitignored, so the capture script passes it in and
     /// this placeholder is what a checkout without one draws.
-    public static let marketingGuestLinkArgument = "-ZWGuestLinkFixtureURL"
-
+    ///
+    /// It arrives in this process's own environment, through the xctestrun's
+    /// `UITargetAppEnvironmentVariables` — the dict xcodebuild provides for the
+    /// app under test. An earlier version put it in `EnvironmentVariables`,
+    /// which is the *test runner's* environment, and had the test forward it as
+    /// a `-ZWGuestLinkFixtureURL` launch argument for `UserDefaults` to pick up
+    /// out of the argument domain. The runner did receive it and the app did
+    /// not, so every published QR encoded the placeholder. One hop is both
+    /// simpler and the thing that works.
     public static func marketingGuestLinkURL() -> String {
-        let provided = UserDefaults.standard.string(forKey: "ZWGuestLinkFixtureURL")
+        let provided = ProcessInfo.processInfo.environment["ZW_GUEST_LINK_URL"]
         let base = provided?.isEmpty == false ? provided! : "https://api.example.com/app/g"
         return "\(base)#\(marketingGuestToken)"
     }
