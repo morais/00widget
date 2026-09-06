@@ -473,7 +473,21 @@ final class ScreenshotTests: XCTestCase {
         _ widget: XCUIElement,
         in springboard: XCUIApplication
     ) {
-        widget.buttons["DeleteButton"].tap()
+        // A widget on another Home Screen page is in the accessibility tree
+        // with a frame off the left of the screen, and tapping it fails with
+        // "Activation point invalid" — which killed a four-device run at its
+        // second set. Bring it into view first; the page it lives on is the
+        // one this test put it on, so a swipe back is enough.
+        let delete = widget.buttons["DeleteButton"]
+        if !delete.isHittable {
+            springboard.swipeRight()
+            Thread.sleep(forTimeInterval: 1)
+        }
+        guard delete.isHittable else {
+            XCTFail("The widget to remove is not reachable on any visible page.")
+            return
+        }
+        delete.tap()
         let remove = springboard.buttons
             .matching(NSPredicate(format: "label == 'Remove' OR label == 'Remove Widget'"))
             .firstMatch
