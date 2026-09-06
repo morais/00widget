@@ -33,7 +33,7 @@ private struct ScreenshotCardProvider: TimelineProvider {
 }
 
 /// Static preview widgets for the App Store Preview timeline. They render the
-/// deterministic launch-story hero -- small Launch, Production and Open PRs
+/// deterministic launch-story hero -- small AI spend, Production and Open PRs
 /// plus the wide Trials chart -- through the production card renderer.
 private struct PreviewCardProvider: TimelineProvider {
     let sampleSuffix: String
@@ -53,7 +53,7 @@ private struct PreviewCardProvider: TimelineProvider {
         let id = SampleDataFactory.sampleId(sampleSuffix)
         let referenceDate = ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")!
         let card = CardCache.load().cards.first(where: { $0.id == id })
-            ?? SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate)
+            ?? SampleDataFactory.makePreviewWidgetCards(referenceDate: referenceDate)
                 .first(where: { $0.id == id })
         return CardTimelineEntry(date: Date(), card: card, density: density)
     }
@@ -130,12 +130,12 @@ private func previewCardConfiguration(
     .supportedFamilies(supportedFamilies)
 }
 
-struct PreviewLaunchWidget: Widget {
+struct PreviewAISpendWidget: Widget {
     var body: some WidgetConfiguration {
         previewCardConfiguration(
-            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.launch,
-            sampleSuffix: "preview-launch",
-            displayName: "Preview Launch"
+            kind: ZeroZeroWidgetConstants.PreviewWidgetKinds.aiSpend,
+            sampleSuffix: "preview-ai-spend",
+            displayName: "Preview AI Spend"
         )
     }
 }

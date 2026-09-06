@@ -755,13 +755,12 @@ public enum SampleDataFactory {
         }
     }
 
-    /// Deterministic hero cards for the preview: small Launch, Production and
-    /// Open PRs plus the wide Trials chart. The Launch card follows the phase
-    /// so the dashboard opened mid-timeline agrees with the activity; the
-    /// other three are phase-independent. Only phase B carries the approval,
-    /// which is the single amber decision in the story.
+    /// Deterministic launch-story cards for the preview app: the Launch card
+    /// follows the phase so the dashboard opened mid-timeline agrees with the
+    /// activity; the other three are phase-independent. Only phase B carries
+    /// the approval, which is the single amber decision in the story.
     ///
-    /// The default is the opening phase, not the approval state: a widget
+    /// The default is the opening phase, not the approval state: a surface
     /// showing a future the activity has not reached yet reads as broken.
     public static func makePreviewLaunchCards(
         referenceDate: Date,
@@ -782,7 +781,10 @@ public enum SampleDataFactory {
             launchValue = "4/5"
             launchProgress = 0.8
             launchStatus = .warning
-            launchActions = [ActionDefinition(id: "approve-launch", label: "Approve")]
+            // Confirmed in the app, never from a widget: the filmed beat taps
+            // through to the real confirmation dialog, and a one-tap Home
+            // Screen approval is the wrong proof for a customer announcement.
+            launchActions = [ActionDefinition(id: "approve-launch", label: "Approve", confirm: true)]
         case .c:
             launchValue = "5/5"
             launchProgress = 1.0
@@ -821,61 +823,104 @@ public enum SampleDataFactory {
                 ]),
                 actions: launchActions
             ),
-            DashboardCard(
-                id: sampleId("preview-production"),
-                template: .list,
-                title: "Production",
-                subtitle: "Ops Agent · checked now",
-                status: .good,
-                icon: "server.rack",
-                producer: CardProducer(label: "Ops Agent", icon: "gearshape.2"),
-                updatedAt: referenceDate,
-                staleAfter: freshUntil,
-                items: [
-                    DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
-                    DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
-                    DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
-                ]
-            ),
-            DashboardCard(
-                id: sampleId("preview-trials"),
-                template: .chart,
-                title: "Trials",
-                subtitle: "Growth Agent · up 18 this week",
-                value: "128",
-                unit: "today",
-                status: .good,
-                icon: "chart.line.uptrend.xyaxis",
-                producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
-                comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
-                updatedAt: referenceDate,
-                staleAfter: freshUntil,
-                chart: DashboardChart(
-                    points: [110, 111, 114, 116, 119, 123, 128],
-                    min: 108,
-                    max: 130,
-                    reference: 110,
-                    referenceMetadata: DashboardChartReferenceMetadata(
-                        label: "Monday",
-                        semantic: MetricSemantic(role: .baseline)
-                    ),
-                    semantic: MetricSemantic(role: .actual, signal: .favorable),
-                    style: .line,
-                    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"]
-                )
-            ),
-            DashboardCard(
-                id: sampleId("preview-open-prs"),
-                template: .summary,
-                title: "Open PRs",
-                subtitle: "Code Agent · all reviewed",
-                value: "3",
-                status: .good,
-                icon: "arrow.triangle.branch",
-                producer: CardProducer(label: "Code Agent", icon: "chevron.left.forwardslash.chevron.right"),
-                updatedAt: referenceDate,
-                staleAfter: freshUntil
-            ),
+            previewProductionCard(referenceDate: referenceDate),
+            previewTrialsCard(referenceDate: referenceDate),
+            previewOpenPRsCard(referenceDate: referenceDate),
         ]
+    }
+
+    /// The static Home Screen set for the preview: AI spend, Production and
+    /// Open PRs plus the wide Trials chart. Deliberately Launch-free — the
+    /// island owns the changing Launch story, and a widget frozen at 3/5
+    /// under a 5/5 island reads as contradiction rather than coverage.
+    /// WidgetKit reloads are budgeted and non-deterministic, so nothing here
+    /// follows the phase; the app set above does that instead.
+    public static func makePreviewWidgetCards(referenceDate: Date) -> [DashboardCard] {
+        [
+            previewAISpendCard(referenceDate: referenceDate),
+            previewProductionCard(referenceDate: referenceDate),
+            previewTrialsCard(referenceDate: referenceDate),
+            previewOpenPRsCard(referenceDate: referenceDate),
+        ]
+    }
+
+    private static func previewProductionCard(referenceDate: Date) -> DashboardCard {
+        DashboardCard(
+            id: sampleId("preview-production"),
+            template: .list,
+            title: "Production",
+            subtitle: "Ops Agent · checked now",
+            status: .good,
+            icon: "server.rack",
+            producer: CardProducer(label: "Ops Agent", icon: "gearshape.2"),
+            updatedAt: referenceDate,
+            staleAfter: Date.distantFuture,
+            items: [
+                DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
+                DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
+                DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
+            ]
+        )
+    }
+
+    private static func previewTrialsCard(referenceDate: Date) -> DashboardCard {
+        DashboardCard(
+            id: sampleId("preview-trials"),
+            template: .chart,
+            title: "Trials",
+            subtitle: "Growth Agent · this week",
+            value: "128",
+            unit: "today",
+            status: .good,
+            icon: "chart.line.uptrend.xyaxis",
+            producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
+            comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
+            updatedAt: referenceDate,
+            staleAfter: Date.distantFuture,
+            chart: DashboardChart(
+                points: [110, 111, 114, 116, 119, 123, 128],
+                min: 108,
+                max: 130,
+                reference: 110,
+                referenceMetadata: DashboardChartReferenceMetadata(
+                    label: "Monday",
+                    semantic: MetricSemantic(role: .baseline)
+                ),
+                semantic: MetricSemantic(role: .actual, signal: .favorable),
+                style: .line,
+                labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"]
+            )
+        )
+    }
+
+    private static func previewOpenPRsCard(referenceDate: Date) -> DashboardCard {
+        DashboardCard(
+            id: sampleId("preview-open-prs"),
+            template: .summary,
+            title: "Open PRs",
+            subtitle: "All reviewed",
+            value: "3",
+            status: .good,
+            icon: "arrow.triangle.branch",
+            producer: CardProducer(label: "Code Agent", icon: "chevron.left.forwardslash.chevron.right"),
+            updatedAt: referenceDate,
+            staleAfter: Date.distantFuture
+        )
+    }
+
+    private static func previewAISpendCard(referenceDate: Date) -> DashboardCard {
+        DashboardCard(
+            id: sampleId("preview-ai-spend"),
+            template: .progress,
+            title: "AI spend",
+            subtitle: "of $30 today · $11.60 left",
+            value: "$18.40",
+            status: .good,
+            icon: "dollarsign.circle",
+            producer: CardProducer(label: "Usage Agent", icon: "sparkles"),
+            progress: 0.613,
+            updatedAt: referenceDate,
+            staleAfter: Date.distantFuture
+        )
     }
 }

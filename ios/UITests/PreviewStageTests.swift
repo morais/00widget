@@ -3,8 +3,10 @@ import XCTest
 /// Stages the App Store Preview hero page on the marketing Simulator.
 ///
 /// The preview timeline films a prepared SpringBoard stage: three small
-/// launch widgets plus the wide Trials chart alone on one widget-only page,
-/// with the `App launch` Live Activity on the island. Widget placement has no
+/// widgets (AI spend, Production, Open PRs) plus the wide Trials chart
+/// alone on one widget-only page, with the `App launch` Live Activity on
+/// the island. The island owns the changing Launch story, so no Launch
+/// widget sits under it to disagree. Widget placement has no
 /// `simctl` verb and Simulator exposes no accessibility windows, so like the
 /// screenshots this drives SpringBoard's own widget gallery with XCUITest.
 ///
@@ -18,7 +20,7 @@ import XCTest
 /// clean, births exactly one page by dragging, and never empties it again.
 final class PreviewStageTests: XCTestCase {
     private let heroWidgets = [
-        "Preview Launch",
+        "Preview AI Spend",
         "Preview Production",
         "Preview Open PRs",
         "Preview Trials Wide",

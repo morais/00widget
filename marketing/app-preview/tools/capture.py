@@ -15,7 +15,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from config import ConfigError, artifact_directory, load_config, repository_root
 from render import render
@@ -603,6 +603,34 @@ def stage_device(
         clear_status_bar(udid)
 
 
+def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], None]) -> None:
+    """Each normalized transition must land near its configured start.
+
+    A sub-second gap is ordinary response lag (app activate, push animation)
+    and only gets logged. Beyond a second the run compressed unevenly and no
+    overlay can be trusted, so the run fails rather than filming captioned
+    evidence of the wrong moment. A partial detection fails for the same
+    reason: without every boundary the renderer preserves the recorder's
+    compressed timestamps while the overlays stay on configured time, which
+    is the exact misalignment this gate exists to catch.
+    """
+    if len(transitions["configured"]) != len(transitions["detected"]):
+        raise PreviewError(
+            f"page transitions partially detected "
+            f"({len(transitions['detected'])} of {len(transitions['configured'])}); "
+            "the run compressed unevenly, re-record rather than shipping misaligned copy"
+        )
+    for configured, detected in zip(transitions["configured"], transitions["detected"]):
+        delta = detected - configured
+        if abs(delta) > 1.0:
+            raise PreviewError(
+                f"page transition for scene at {configured:.1f}s landed at {detected:.1f}s; "
+                "the run compressed unevenly, re-record rather than shipping misaligned copy"
+            )
+        if abs(delta) > 0.3:
+            log(f"page transition at {configured:.1f}s rendered at {detected:.1f}s")
+
+
 def write_report(path: Path, report: dict[str, Any]) -> None:
     atomic_json(path, report)
 
@@ -742,13 +770,15 @@ def main() -> int:
             if report_path.is_file():
                 existing_report = json.loads(report_path.read_text(encoding="utf-8"))
             report.update({key: value for key, value in existing_report.items() if key == "capture"})
-        report["overlays"] = render(
+        report["overlays"], transitions = render(
             raw_path,
             preview_path,
             config,
             temp_dir / "overlays",
             log=logger.info,
         )
+        report["pageTransitions"] = transitions
+        assert_page_transitions(transitions, logger.info)
         logger.info("Validating App Store Preview output")
         report["validation"] = validate(preview_path, config)
         write_report(report_path, report)

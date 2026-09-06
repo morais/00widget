@@ -94,6 +94,14 @@ def validate_config(config: dict[str, Any], path: Path | None = None) -> None:
             raise ConfigError(
                 f"{label}: scenes[{index}] action 'tap' needs a 'target' accessibility identifier or label"
             )
+        if "scope" in scene and scene["scope"] != "sheet":
+            raise ConfigError(
+                f"{label}: scenes[{index}] scope must be 'sheet' when set"
+            )
+        if "pageTransition" in scene and not isinstance(scene["pageTransition"], bool):
+            raise ConfigError(
+                f"{label}: scenes[{index}] pageTransition must be a boolean when set"
+            )
         if action == "preview_phase" and scene.get("phase") not in {"a", "b", "c"}:
             raise ConfigError(
                 f"{label}: scenes[{index}] action 'preview_phase' needs phase 'a', 'b' or 'c'"

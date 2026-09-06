@@ -44,11 +44,12 @@ Configure the device once:
 - do not erase this Simulator after the layout is ready.
 
 Place one hero Home Screen page, starting at the first ordinary page
-after iOS's far-left Today/widgets view, holding `Preview Launch`,
+after iOS's far-left Today/widgets view, holding `Preview AI Spend`,
 `Preview Production`, `Preview Open PRs`, and `Preview Trials Wide` and
-nothing else. SpringBoard lays the wide Trials chart out itself (in
-practice a full-width top row with the three smalls beneath); the test
-asserts the set, not the arrangement.
+nothing else. The island owns the changing Launch story, so no Launch
+widget sits under it to disagree. SpringBoard lays the wide Trials
+chart out itself (in practice a full-width top row with the three
+smalls beneath); the test asserts the set, not the arrangement.
 
 Prefer the automated staging, which sweeps the device clean, births the
 page by dragging, and places the set through the gallery with a proof

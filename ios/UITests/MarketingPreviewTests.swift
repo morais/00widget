@@ -13,6 +13,7 @@ final class MarketingPreviewTests: XCTestCase {
             let label: String?
             let target: String?
             let phase: String?
+            let scope: String?
         }
         struct Fixtures: Codable {
             struct Countdown: Codable { let title: String; let date: String }
@@ -164,10 +165,10 @@ final class MarketingPreviewTests: XCTestCase {
             app.activate()
         case "tap":
             guard let target = scene.target, !target.isEmpty else {
-                XCTFail("Preview action 'tap' needs a 'target' accessibility identifier.")
+                XCTFail("Preview action 'tap' needs a 'target' accessibility identifier or label.")
                 return
             }
-            tap(accessibilityIdentifier: target, in: app)
+            tap(accessibilityIdentifier: target, in: app, scope: scene.scope)
         case "preview_phase":
             guard let phase = scene.phase, ["a", "b", "c"].contains(phase) else {
                 XCTFail("Preview action 'preview_phase' needs phase 'a', 'b' or 'c'.")
@@ -196,8 +197,26 @@ final class MarketingPreviewTests: XCTestCase {
     /// identifiers survive every simulator the capture runs on. An exact
     /// identifier-or-label match wins; a label-substring fallback lets the
     /// timeline name the card ("Launch") instead of pinning the whole
-    /// VoiceOver sentence the renderer composes around it.
-    private func tap(accessibilityIdentifier id: String, in app: XCUIApplication) {
+    /// VoiceOver sentence the renderer composes around it. A `sheet` scope
+    /// resolves inside the presented sheet, which is how a confirmation
+    /// control is told apart from the button that presented it.
+    private func tap(accessibilityIdentifier id: String, in app: XCUIApplication, scope: String? = nil) {
+        if scope == "sheet" {
+            let element = app.sheets.buttons[id].firstMatch
+            XCTAssertTrue(
+                element.waitForExistence(timeout: 10),
+                "Preview tap target never appeared in a sheet: \(id)"
+            )
+            element.tap()
+            return
+        }
+        // Buttons first: a button and the label inside it share one name,
+        // and tapping the pair is ambiguous where tapping the button is not.
+        let button = app.buttons[id].firstMatch
+        if button.waitForExistence(timeout: 5) {
+            button.tap()
+            return
+        }
         let exact = app.descendants(matching: .any)[id]
         if exact.exists {
             exact.tap()
@@ -207,7 +226,7 @@ final class MarketingPreviewTests: XCTestCase {
             NSPredicate(format: "label CONTAINS %@", id)
         ).firstMatch
         XCTAssertTrue(
-            fuzzy.waitForExistence(timeout: 10),
+            fuzzy.waitForExistence(timeout: 5),
             "Preview tap target never appeared: \(id)"
         )
         fuzzy.tap()

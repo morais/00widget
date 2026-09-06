@@ -49,6 +49,7 @@ struct ZeroZeroWidgetApp: App {
                             phase: MarketingDemo.initialPreviewPhase
                         )
                         PreviewPhaseListener.shared.start(
+                            env: env,
                             initialPhase: MarketingDemo.initialPreviewPhase
                         )
                     } else {

@@ -959,12 +959,27 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
         // Preview widgets are static screenshot-only kinds outside
         // WidgetKinds.all, so the shared reload above never reaches them.
-        // Without this a placed hero keeps whatever it rendered first while
-        // the island moves on, and the opening frame contradicts itself.
+        // Without this a placed hero keeps whatever it rendered first
+        // instead of the current fixtures. The hero itself is Launch-free,
+        // so no reload here can make it disagree with the island; the app
+        // cards above are what follow the filmed phase.
         for kind in ZeroZeroWidgetConstants.PreviewWidgetKinds.all {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }
     }
+
+#if ZW_SCREENSHOTS
+    /// Applies the filmed approval of the preview Launch card: the local
+    /// cards advance to the finished phase and the island follows. The real
+    /// action path needs a signed-in account and a server round trip, neither
+    /// of which a deterministic offline filming has, so the preview drives
+    /// its own completion through the same fixture state the timeline ends
+    /// on. Reached only from the preview detail screen below.
+    public func approvePreviewLaunch() async {
+        generatePreviewLaunchCards(referenceDate: MarketingDemo.referenceDate, phase: .c)
+        await liveActivityController.startOrUpdatePreviewSample(phase: .c)
+    }
+#endif
 
     public var hasSampleCards: Bool {
         cards.contains { $0.isSample }

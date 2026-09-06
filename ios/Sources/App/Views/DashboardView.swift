@@ -186,6 +186,16 @@ struct DashboardView: View {
                             CardView(card: card, context: .app, density: .compact)
                         }
                         .buttonStyle(.plain)
+                        #if ZW_SCREENSHOTS
+                        // Stable hook for the preview timeline's tap, which
+                        // cannot afford a label-substring scan over a loaded
+                        // hierarchy: one slow find cascades every later beat.
+                        // Label-based queries elsewhere are unaffected.
+                        .accessibilityIdentifier(
+                            card.id == SampleDataFactory.sampleId("preview-launch")
+                                ? "preview-launch-card" : card.id
+                        )
+                        #endif
                     }
 
                     if !visibleSharedCards.isEmpty {

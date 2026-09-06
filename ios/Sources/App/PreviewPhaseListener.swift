@@ -3,7 +3,8 @@ import Foundation
 import UIKit
 
 /// Advances the screenshot-only preview Live Activity when the preview
-/// driver posts a phase.
+/// driver posts a phase, and keeps the filmed in-app cards on the same
+/// phase so the dashboard opened mid-timeline agrees with the island.
 ///
 /// A Darwin notification crosses from the UI-test runner to the app with no
 /// entitlements and nothing visible on screen, which a relaunch or deep link
@@ -15,15 +16,18 @@ import UIKit
 /// update lands. Without the background task it suspends and the filmed
 /// change never happens; the task is renewed on every foregrounding, and
 /// the whole listener exists only in screenshot builds.
+@MainActor
 final class PreviewPhaseListener {
     static let shared = PreviewPhaseListener()
 
     private var started = false
+    private weak var env: AppEnvironment?
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
-    func start(initialPhase: SampleDataFactory.PreviewLaunchPhase) {
+    func start(env: AppEnvironment, initialPhase: SampleDataFactory.PreviewLaunchPhase) {
         guard !started else { return }
         started = true
+        self.env = env
         beginBackgroundTask()
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         for phase in SampleDataFactory.PreviewLaunchPhase.allCases {
@@ -56,6 +60,7 @@ final class PreviewPhaseListener {
     }
 
     fileprivate func advance(to phase: SampleDataFactory.PreviewLaunchPhase) async {
+        env?.generatePreviewLaunchCards(referenceDate: MarketingDemo.referenceDate, phase: phase)
         await LiveActivityController.shared.startOrUpdatePreviewSample(phase: phase)
     }
 }
@@ -72,6 +77,6 @@ private func previewPhaseChanged(
         let suffix = raw.split(separator: ".").last.map(String.init),
         let phase = SampleDataFactory.PreviewLaunchPhase(rawValue: suffix)
     else { return }
-    Task { await PreviewPhaseListener.shared.advance(to: phase) }
+    Task { @MainActor in await PreviewPhaseListener.shared.advance(to: phase) }
 }
 #endif

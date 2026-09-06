@@ -18,7 +18,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotSupportWidget()
         ScreenshotMetricsLargeWidget()
         ScreenshotMetricsExtraLargeWidget()
-        PreviewLaunchWidget()
+        PreviewAISpendWidget()
         PreviewProductionWidget()
         PreviewOpenPRsWidget()
         PreviewTrialsWideWidget()

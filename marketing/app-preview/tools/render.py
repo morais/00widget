@@ -44,6 +44,27 @@ def scene_hits(raw_path: Path, threshold: float) -> list[float]:
     return hits
 
 
+# Actions that can visibly change the whole page. Only these anchor the
+# timeline normalization below: an island-only ContentState update moves a
+# few hundred pixels and must never count as a page transition, or the
+# boundary pairing silently shifts and every overlay lands on the wrong
+# visuals. Do not infer this from "not hold".
+PAGE_CHANGING_ACTIONS = {"open_app", "tap", "go_home", "swipe_left", "swipe_right"}
+
+
+def is_page_transition(scene: dict[str, Any]) -> bool:
+    """Whether a scene may replace the whole page on screen.
+
+    A `tap` that navigates (dashboard to detail) does; a `tap` that opens or
+    confirms a sheet stays on the same page and must opt out with
+    `"pageTransition": false`, or its missing scene hit shifts every later
+    boundary pairing and each overlay lands on the wrong visuals.
+    """
+    if "pageTransition" in scene:
+        return bool(scene["pageTransition"])
+    return scene.get("action") in PAGE_CHANGING_ACTIONS
+
+
 def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
     """Return the first frame of each visually distinct page swipe.
 
@@ -94,9 +115,7 @@ def render(
     temp_directory.mkdir(parents=True, exist_ok=True)
     normalized_path = temp_directory / "normalized.mp4"
     action_starts = [
-        float(scene["start"])
-        for scene in config["scenes"]
-        if scene.get("action") != "hold"
+        float(scene["start"]) for scene in config["scenes"] if is_page_transition(scene)
     ]
     raw_transitions = detect_page_transitions(raw_path, len(action_starts))
     normalize_command = ["ffmpeg", "-hide_banner", "-y"]
@@ -295,16 +314,19 @@ def render(
     )
     log("Rendering overlays and App Store output")
     subprocess.run(command, check=True)
-    return [
-        {
-            "text": overlay["text"],
-            "style": overlay["style"],
-            "start": overlay["start"],
-            "end": overlay["end"],
-            "lines": overlay["lines"],
-        }
-        for overlay in overlays
-    ]
+    return (
+        [
+            {
+                "text": overlay["text"],
+                "style": overlay["style"],
+                "start": overlay["start"],
+                "end": overlay["end"],
+                "lines": overlay["lines"],
+            }
+            for overlay in overlays
+        ],
+        {"configured": action_starts, "detected": raw_transitions},
+    )
 
 
 def main() -> int:
@@ -316,8 +338,8 @@ def main() -> int:
     parser.add_argument("--temp", type=Path, required=True)
     args = parser.parse_args()
     config, _ = load_config(args.profile, args.config)
-    overlays = render(args.raw, args.output, config, args.temp)
-    print(json.dumps({"overlays": overlays}, indent=2))
+    overlays, transitions = render(args.raw, args.output, config, args.temp)
+    print(json.dumps({"overlays": overlays, "pageTransitions": transitions}, indent=2))
     return 0
 
 

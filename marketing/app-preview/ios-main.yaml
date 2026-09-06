@@ -55,65 +55,81 @@
     },
     {
       "start": 3.0,
-      "end": 6.5,
+      "end": 5.5,
       "action": "hold",
       "label": "Prompt",
       "overlay": {
         "start": 3.2,
-        "end": 6.3,
+        "end": 5.3,
         "text": "Ask your agent once: “Ship 2.4 and keep me posted on my phone.”",
         "style": "prompt"
       }
     },
     {
-      "start": 6.5,
-      "end": 12.0,
+      "start": 5.5,
+      "end": 9.5,
       "action": "preview_phase",
       "phase": "b",
       "label": "Live Activity 3/5 to 4/5",
       "overlay": {
-        "start": 6.7,
-        "end": 11.8,
+        "start": 5.7,
+        "end": 9.3,
         "text": "Follow the work as it changes.",
         "style": "caption"
       }
     },
     {
-      "start": 12.0,
-      "end": 17.0,
+      "start": 9.5,
+      "end": 12.5,
       "action": "open_app",
       "label": "Dashboard",
       "overlay": {
-        "start": 12.2,
-        "end": 16.8,
+        "start": 9.7,
+        "end": 12.3,
         "text": "Results, trends, and the next decision.",
         "style": "caption"
       }
     },
     {
-      "start": 17.0,
-      "end": 19.0,
+      "start": 12.5,
+      "end": 15.0,
       "action": "tap",
-      "target": "Launch",
-      "label": "Open Launch briefing",
+      "target": "preview-launch-card",
+      "label": "Open Launch briefing"
+    },
+    {
+      "start": 15.0,
+      "end": 16.5,
+      "action": "tap",
+      "target": "Approve",
+      "pageTransition": false,
+      "label": "Tap Approve",
       "overlay": {
-        "start": 17.2,
-        "end": 18.8,
+        "start": 15.2,
+        "end": 17.8,
         "text": "Step in when you're needed.",
         "style": "caption"
       }
     },
     {
-      "start": 19.0,
+      "start": 16.5,
+      "end": 18.0,
+      "action": "tap",
+      "target": "Approve",
+      "scope": "sheet",
+      "pageTransition": false,
+      "label": "Confirm approval"
+    },
+    {
+      "start": 18.0,
       "end": 21.0,
-      "action": "preview_phase",
-      "phase": "c",
-      "label": "Live Activity 4/5 to 5/5"
+      "action": "go_home",
+      "label": "Completed Home Screen"
     },
     {
       "start": 21.0,
       "end": 24.0,
-      "action": "go_home",
+      "action": "hold",
       "label": "End frame",
       "overlay": {
         "start": 21.2,

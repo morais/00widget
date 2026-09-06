@@ -247,6 +247,7 @@ struct SampleDataFactoryTests {
         #expect(launchB.value == "4/5")
         #expect(launchB.progress == 0.8)
         #expect(launchB.actions?.map(\.label) == ["Approve"])
+        #expect(launchB.actions?.allSatisfy(\.confirm) == true)
         #expect(launchB.needsUserAttention)
 
         let launchA = try #require(
@@ -266,6 +267,22 @@ struct SampleDataFactoryTests {
         let trials = try #require(cards.first { $0.title == "Trials" })
         #expect(trials.value == "128")
         #expect(trials.comparison == CardComparison(value: "+18", label: "vs Monday", signal: .favorable))
+
+        #expect(cards.allSatisfy { $0.isSample })
+        #expect(cards.allSatisfy { !$0.isStale })
+    }
+
+    @Test("Preview widgets are static and Launch-free")
+    func previewWidgetCardsAreStatic() throws {
+        let referenceDate = try #require(
+            ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")
+        )
+        let cards = SampleDataFactory.makePreviewWidgetCards(referenceDate: referenceDate)
+        #expect(cards.map(\.title) == ["AI spend", "Production", "Trials", "Open PRs"])
+
+        let spend = try #require(cards.first { $0.title == "AI spend" })
+        #expect(spend.value == "$18.40")
+        #expect(spend.progress == 0.613)
 
         #expect(cards.allSatisfy { $0.isSample })
         #expect(cards.allSatisfy { !$0.isStale })

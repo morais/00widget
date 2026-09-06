@@ -10,6 +10,10 @@ struct CardDetailView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var runningActionIds: Set<String> = []
+    /// Visible success feedback for the filmed preview approval. The real
+    /// action path needs a signed-in account, so the screenshot-only preview
+    /// completes through its own fixture state instead.
+    @State private var previewSuccessMessage: String?
     /// An error appears in the middle of a screen someone is not looking at
     /// the middle of. Announcing it says what happened; moving focus to it is
     /// what lets them read it again, and act on what it says.
@@ -71,6 +75,16 @@ struct CardDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityFocused($focusedMessage, equals: .actionError)
                 }
+
+                #if ZW_SCREENSHOTS
+                if let previewSuccessMessage {
+                    Label(previewSuccessMessage, systemImage: "checkmark.circle.fill")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(previewSuccessMessage)
+                }
+                #endif
 
                 if let deepLink = currentCard.deepLink {
                     deepLinkDestination(deepLink)
@@ -219,6 +233,16 @@ struct CardDetailView: View {
             runningActionIds.insert(action.id)
             actionError = nil
             defer { runningActionIds.remove(action.id) }
+            #if ZW_SCREENSHOTS
+            if MarketingDemo.usesPreviewLaunchStory,
+               resolvedCard.id == SampleDataFactory.sampleId("preview-launch"),
+               action.id == "approve-launch" {
+                await env.approvePreviewLaunch()
+                previewSuccessMessage = "Announcement approved. Starting the 10% rollout."
+                AccessibilityAnnouncement.post("Announcement approved.")
+                return
+            }
+            #endif
             do {
                 if action.confirm || action.role == .destructive {
                     guard let client = env.confirmedActionClient() else {
