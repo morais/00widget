@@ -65,19 +65,36 @@ def is_page_transition(scene: dict[str, Any]) -> bool:
     return scene.get("action") in PAGE_CHANGING_ACTIONS
 
 
-def detect_page_transitions(raw_path: Path, expected: int) -> list[float]:
-    """Return the first frame of each visually distinct page swipe.
+def detect_page_transitions(
+    raw_path: Path, action_starts: list[float], tolerance: float = 1.0
+) -> list[float]:
+    """Match each configured page transition to its nearest large scene change.
 
     CoreSimulator's recorder can collapse a static interval instead of giving
     the preceding frame its full wall-clock duration. The UI test still fires
     on time, but the following swipe then appears early in the movie. Detecting
     the large scene changes lets normalization restore those configured holds
     without modifying the raw diagnostic capture.
+
+    Matching is per configured start, not by total count: the island-only
+    ContentState update sometimes crosses the scene threshold itself (its
+    animation is a real pixel change), so an extra hit must never shift or
+    invalidate the page boundaries the overlays are aligned to. A configured
+    start with no hit nearby is omitted, and the caller treats a short list
+    as a failed run rather than normalizing against mispairing.
     """
-    if expected == 0:
+    if not action_starts:
         return []
-    transitions = scene_hits(raw_path, 0.08)
-    return transitions if len(transitions) == expected else []
+    hits = scene_hits(raw_path, 0.08)
+    matched: list[float] = []
+    for start in action_starts:
+        # Windows cannot overlap: page-changing scenes stay several seconds
+        # apart while the tolerance is one, so each hit belongs to at most
+        # one start and ordering is preserved.
+        near = [hit for hit in hits if abs(hit - start) <= tolerance]
+        if near:
+            matched.append(min(near, key=lambda hit: abs(hit - start)))
+    return matched
 
 
 def render(
@@ -117,10 +134,10 @@ def render(
     action_starts = [
         float(scene["start"]) for scene in config["scenes"] if is_page_transition(scene)
     ]
-    raw_transitions = detect_page_transitions(raw_path, len(action_starts))
+    raw_transitions = detect_page_transitions(raw_path, action_starts)
     normalize_command = ["ffmpeg", "-hide_banner", "-y"]
     normalize_command.extend(["-i", str(raw_path)])
-    if raw_transitions:
+    if len(raw_transitions) == len(action_starts) and action_starts:
         log(
             "Aligning Simulator page transitions to "
             + ", ".join(f"{value:.1f}s" for value in action_starts)
