@@ -190,6 +190,19 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 RESULT="$WORK/screenshots.xcresult"
 
+# Start from a fresh boot. Something in a device's accumulated state makes the
+# compact Dynamic Island draw its content clipped inside a full-width pill —
+# not reliably, but often enough that the hero failed its check three runs in a
+# row, and a reboot has produced a clean one each time it has been tried. The
+# cause is unknown; SpringBoard restarting with the device is the cheapest
+# thing that clears it, and it costs half a minute against a ten-minute run.
+#
+# Erasing would clear it too, and must not be used: it also removes the Lock
+# Screen accessory widgets, which are placed by hand and cannot yet be
+# automated.
+echo "→ restarting $DEVICE"
+xcrun simctl shutdown "$DEVICE" 2>/dev/null || true
+sleep 3
 echo "→ booting $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null

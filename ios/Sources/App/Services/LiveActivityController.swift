@@ -256,6 +256,15 @@ public final class LiveActivityController: ObservableObject {
         for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+        // `end` returning is not the same as the activity being gone: the
+        // list stays populated for a moment afterwards. Starting the sample
+        // inside that window leaves two activities briefly, which is all it
+        // takes — the Island collapses to minimal circles for both and stays
+        // that way for the rest of the run, which is what a clipped hero
+        // actually is. Wait for the list to empty before anything is started.
+        for _ in 0..<40 where !Activity<ZeroZeroWidgetActivityAttributes>.activities.isEmpty {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
         refreshActiveActivities()
     }
     #endif
