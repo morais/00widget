@@ -60,7 +60,14 @@ final class PreviewPhaseListener {
     }
 
     fileprivate func advance(to phase: SampleDataFactory.PreviewLaunchPhase) async {
-        env?.generatePreviewLaunchCards(referenceDate: MarketingDemo.referenceDate, phase: phase)
+        // No widget reload: the static hero is identical in every phase, and
+        // reloading it mid-timeline only buys a snapshot crossfade that films
+        // as a blurred beat. The app cards above still follow the phase.
+        env?.generatePreviewLaunchCards(
+            referenceDate: MarketingDemo.referenceDate,
+            phase: phase,
+            reloadPreviewWidgets: false
+        )
         await LiveActivityController.shared.startOrUpdatePreviewSample(phase: phase)
     }
 }

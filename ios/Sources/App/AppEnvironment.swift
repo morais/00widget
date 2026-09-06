@@ -944,9 +944,18 @@ public final class AppEnvironment: ObservableObject {
     /// Seeds the deterministic launch-story cards filmed by the App Store
     /// Preview timeline. Reached only through `--preview-launch-phase` in a
     /// screenshot build, and never performs a network request.
+    ///
+    /// The static preview widget kinds reload only when `reloadPreviewWidgets`
+    /// is set, i.e. on initial seeding. Their content is identical in every
+    /// phase by construction, so reloading them on an advance buys no new
+    /// pixels and costs a SpringBoard snapshot crossfade: mid-fade frames
+    /// come out soft, scene detection never flags a gradual fade, and the
+    /// timeline stretch then holds those blurred frames on screen. That is
+    /// exactly the blurred hero the capture filmed behind its own caption.
     public func generatePreviewLaunchCards(
         referenceDate: Date,
-        phase: SampleDataFactory.PreviewLaunchPhase = .a
+        phase: SampleDataFactory.PreviewLaunchPhase = .a,
+        reloadPreviewWidgets: Bool = true
     ) {
         let samples = SampleDataFactory.makePreviewLaunchCards(
             referenceDate: referenceDate,
@@ -963,8 +972,10 @@ public final class AppEnvironment: ObservableObject {
         // instead of the current fixtures. The hero itself is Launch-free,
         // so no reload here can make it disagree with the island; the app
         // cards above are what follow the filmed phase.
-        for kind in ZeroZeroWidgetConstants.PreviewWidgetKinds.all {
-            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        if reloadPreviewWidgets {
+            for kind in ZeroZeroWidgetConstants.PreviewWidgetKinds.all {
+                WidgetCenter.shared.reloadTimelines(ofKind: kind)
+            }
         }
     }
 
@@ -976,7 +987,11 @@ public final class AppEnvironment: ObservableObject {
     /// its own completion through the same fixture state the timeline ends
     /// on. Reached only from the preview detail screen below.
     public func approvePreviewLaunch() async {
-        generatePreviewLaunchCards(referenceDate: MarketingDemo.referenceDate, phase: .c)
+        generatePreviewLaunchCards(
+            referenceDate: MarketingDemo.referenceDate,
+            phase: .c,
+            reloadPreviewWidgets: false
+        )
         await liveActivityController.startOrUpdatePreviewSample(phase: .c)
     }
 #endif
