@@ -342,8 +342,9 @@ to ask the content.
 
 The phrase **full screenshot workflow** always means both stages for all four
 canonical device sets—iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV:
-first capture the 24 raw simulator screenshots, then generate the 24 framed
-promotional compositions with approved text. Run the single entry point below;
+first capture the raw simulator screenshots, then generate the framed
+promotional compositions with approved text. Neither count is uniform: see the
+per-device-class note under the expanded Island below. Run the single entry point below;
 do not substitute raw capture alone or one default iPhone capture plus the other
 two platforms:
 
@@ -438,6 +439,25 @@ Three things about this are load-bearing:
   lines, to tolerate a two-line question, immediately reintroduced false
   positives on clean captures. A false negative costs a re-run; a false
   positive clicks something.
+
+**The App Clip is captured host-side too, and for a different reason.** A clip
+is launched by an App Clip experience resolving an invocation URL. A capture
+simulator has no such experience registered, so `simctl openurl` on a guest
+link opens Safari, and `simctl launch` cannot hand a clip an `NSUserActivity`
+at all. `capture-ios.sh --only clip` therefore builds the clip, installs it,
+launches it with `--guest-fixture`, screenshots the framebuffer, and
+uninstalls it — that last step matters, because an installed clip is an extra
+Home Screen icon and the Home Screen is three of the run's images.
+
+`--guest-fixture` is read only by a `ZW_SCREENSHOTS` build and resolves exactly
+one token, `SampleDataFactory.marketingGuestToken`; every other token still
+goes to the server, so the frame proves the real rendering path. That same
+token is what the app's QR encodes in `screenshot-share.png`, which is the
+point: the App Store's share frame draws both captures side by side, and two
+pictures of *different* links would be a composition rather than a proof. The
+QR's host comes from `ZW_APPCLIP_INVOCATION_URL` in gitignored
+`ios/appstore.env` when the checkout has one, and falls back to the placeholder
+otherwise.
 
 **A locked simulator exposes nothing to XCUITest, which is why the Lock
 Screen's accessory widgets cannot be placed automatically yet.** Measured, not
@@ -560,7 +580,11 @@ Support, Agent runs and AI spend. That grid uses the large family on iPhone and
 the extra-large family on iPad. It removes any previous 00Widget layout, adds
 each set through SpringBoard's widget gallery, and asserts the expected sizes
 exist before capturing `screenshot-home-widgets.png`,
-`screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The Lock
+`screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The same
+test also captures the three in-app frames: `screenshot-approve.png` (the
+Launch card's screen with its Approve button and the confirmation alert),
+`screenshot-share.png` (the guest-link QR sheet), and
+`screenshot-insights.png` (the end of the deck). The Lock
 Screen surface (`screenshot-lock-activity.png`) is captured host-side after
 XCUITest stages the launch Live Activity — see the `--only lock` paragraph
 above — because no in-process screenshot can show the Lock Screen.
@@ -570,17 +594,27 @@ one.** Drawn expanded, the system overlay sits on top of the first row of Home
 Screen widgets and covers their titles — the renderers contain them, so nothing
 short of a real capture shows it, and no exact-size `ImageRenderer` check can:
 this is a system layer above the app. So `screenshot-home-widgets.png` is taken
-before the long-press and `screenshot-island-expanded.png` after it, and the
-promotional compositor insets the second into the Lock Screen frame, which is
-where the sequence makes its Lock-Screen-and-Dynamic-Island claim. The two
+before the long-press and `screenshot-island-expanded.png` after it. The two
 halves are one change: compacting the hero alone would drop the strongest
-system surface out of the sequence entirely. Only the 6.3-inch device has an
-Island, so that set carries eight raw files where the other two carry seven,
-and all three still produce seven promotional compositions — the required-file
-sets in `capture-ios.sh` and `capture-all.sh` are per device class for exactly
-this reason. `generate-promotional.py` crops the Island by *measuring* the
-near-black band rather than by a fixed rectangle, because its height follows
-the number of rows the activity draws.
+system surface out of the sequence entirely.
+
+The expanded shot gets its own promotional frame rather than an inset over the
+Lock Screen one, which is what it used to be: composed as an inset it drew the
+same four lines as the card beneath it, and read as one thing printed twice.
+It is now drawn by `draw_device` like every other frame, at a different
+distance — the phone's top seen close up, with bezel, status bar, Island and
+the first rows of the Home Screen. An Island cut out and floated on the page
+was tried first and rejected on sight: it is a 3.25:1 pill in a 1:2.17 canvas,
+mostly empty page at any size, and isolating it loses the hardware that makes
+an Island legible at all. The zoom has a hard ceiling for the same reason —
+past full canvas width the rounded top corners leave the frame, and with them
+the thing that distinguishes an Island from a black shape. The Island is
+centred, so it stays whole at any width; the corners are the constraint.
+
+Only the 6.3-inch device has an Island, so the required-file sets in
+`capture-ios.sh` and `capture-all.sh` are per device class: that set carries
+ten raw files and nine promotional compositions where the other two carry nine
+and eight.
 
 Pass `--device "iPad Pro 13-inch (M4)"` to capture the App Store iPad set under
 `artifacts/screenshots/raw/ipad/`. It produces native 2064×2752 images, uses the
