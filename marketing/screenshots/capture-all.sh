@@ -68,7 +68,7 @@ ios_files = {
     "screenshot-home-widgets.png",
     "screenshot-insights.png",
     "screenshot-lock-activity.png",
-    "screenshot-widgets.png",
+    "screenshot-approve.png",
 }
 # The expanded Dynamic Island is a *source* for the Lock Screen frame's
 # inset rather than a promotional image of its own, and only one capture

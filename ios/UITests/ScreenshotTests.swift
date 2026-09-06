@@ -30,7 +30,7 @@ final class ScreenshotTests: XCTestCase {
 
         hideSampleIndicators(in: app)
         generateSampleWidgets(in: app)
-        capture(named: "screenshot-widgets")
+        captureApprove(in: app)
         captureInsights(in: app)
 
         prepareHomeScreenWidgets(displayNames: classicWidgetNames)
@@ -172,7 +172,7 @@ final class ScreenshotTests: XCTestCase {
         )
         hideSampleIndicators(in: app)
         generateSampleWidgets(in: app)
-        capture(named: "screenshot-widgets")
+        captureApprove(in: app)
         captureInsights(in: app)
         XCTAssertTrue(captureActivities(in: app), "Activities tab did not appear.")
     }
@@ -317,6 +317,57 @@ final class ScreenshotTests: XCTestCase {
             previous = shot
             Thread.sleep(forTimeInterval: 1)
         }
+    }
+
+    /// Photographs the approval the "Step in at the right moment" frame
+    /// claims: the Launch card's own screen, its Approve button, and the
+    /// confirmation the app puts in front of a consequential action.
+    ///
+    /// The list frame this replaced showed only a "Needs you" badge, which
+    /// says a person is being waited on and does not show the app doing
+    /// anything about it. The alert is the point rather than the button —
+    /// `approve-launch` carries `confirm: true` precisely so a widget tap
+    /// cannot run it, and this is the screen that rule routes to.
+    ///
+    /// Nothing is confirmed. `run(action)` would post to a server this build
+    /// never talks to, so the capture is taken with the alert up and dismissed
+    /// through Cancel, leaving the deck exactly as the later frames expect it.
+    private func captureApprove(in app: XCUIApplication) {
+        // A UI test runs out of process and links none of the app's code, so
+        // this is `SampleDataFactory.sampleId("launch")` spelled out.
+        let launchCard = app.buttons["sample-launch"].firstMatch
+        XCTAssertTrue(
+            launchCard.waitForExistence(timeout: 10),
+            "Launch sample card not found on the Widgets tab."
+        )
+        launchCard.tap()
+
+        let approve = app.buttons["Approve"].firstMatch
+        XCTAssertTrue(
+            approve.waitForExistence(timeout: 10),
+            "The Launch card's detail screen has no Approve action."
+        )
+        approve.tap()
+
+        // The alert's own Approve button shares the label, so wait on the
+        // title instead — it exists only while the alert is presented.
+        XCTAssertTrue(
+            app.staticTexts["Run action?"].waitForExistence(timeout: 10),
+            "Tapping Approve did not present the confirmation."
+        )
+        // Let the backdrop finish dimming; a capture mid-animation shows a
+        // half-faded alert over a half-dimmed screen.
+        Thread.sleep(forTimeInterval: 1)
+        capture(named: "screenshot-approve")
+
+        app.buttons["Cancel"].firstMatch.tap()
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "No way back from the card screen.")
+        back.tap()
+        XCTAssertTrue(
+            launchCard.waitForExistence(timeout: 10),
+            "The Widgets list did not come back after the approval capture."
+        )
     }
 
     private func captureInsights(in app: XCUIApplication) {

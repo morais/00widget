@@ -60,7 +60,7 @@ else
     screenshot-lock-activity.png
     screenshot-island-expanded.png
     screenshot-home-metrics.png
-    screenshot-widgets.png
+    screenshot-approve.png
     screenshot-insights.png
     screenshot-activities.png
   )

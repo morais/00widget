@@ -16,7 +16,7 @@ The test captures these surfaces in order:
 
 | File | Surface |
 | --- | --- |
-| `screenshot-widgets.png` | The in-app Widgets dashboard with the product-launch deck: Launch, Production, Trials, Support, AI spend, Agent runs, and Open PRs. |
+| `screenshot-approve.png` | The Launch card's own screen with its Approve action and the confirmation alert the app puts in front of it. `approve-launch` carries `confirm: true`, so a widget tap cannot run it — this is the screen that rule routes to. |
 | `screenshot-insights.png` | The in-app chart section, scrolled so the Trials trend and the 20-run Agent runs history are both visible. |
 | `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
 | `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
@@ -146,7 +146,7 @@ image of those surfaces, not on a Home Screen grid.
 | `screenshot-lock-activity.png` | **Follow every step live.** | Progress, completed steps, and the next decision—right on your Lock Screen. |
 | `screenshot-island-expanded.png` (6.3-inch only) | **Keep live work in sight.** | Progress and approvals stay visible in the Dynamic Island. |
 | `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
-| `screenshot-widgets.png` | **Step in at the right moment.** | Approve, retry, or open the exact task without hunting through chat. |
+| `screenshot-approve.png` | **Step in at the right moment.** | Approve from the card—00Widget asks before anything runs. |
 | `screenshot-insights.png` | **Updates become decisions.** | Trends, run history, breakdowns, and concise agent briefings. |
 | `screenshot-activities.png` | **Every active job. One place.** | See what is running, current, and complete. |
 

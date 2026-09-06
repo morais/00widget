@@ -375,13 +375,13 @@ elif mode == "island":
     required = {"probe-island-compact.png", "probe-island-expanded.png"}
 elif mode == "app":
     required = {
-        "screenshot-widgets.png",
+        "screenshot-approve.png",
         "screenshot-insights.png",
         "screenshot-activities.png",
     }
 elif mode == "all":
     required = {
-        "screenshot-widgets.png",
+        "screenshot-approve.png",
         "screenshot-home-widgets.png",
         "screenshot-home-insights.png",
         "screenshot-home-metrics.png",

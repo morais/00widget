@@ -86,9 +86,14 @@ PROMOTIONS = (
         "Trends, budgets, and run history—without opening anything.",
     ),
     Promotion(
-        "screenshot-widgets.png",
+        "screenshot-approve.png",
         "Step in at the right moment.",
-        "Approve, retry, or open the exact task without hunting through chat.",
+        # Says what this frame shows and nothing beyond it. The old line
+        # promised "approve, retry, or open the exact task" over a picture of a
+        # list with a badge on it: no approval on screen, no retry anywhere in
+        # the product. What is on screen is one consequential action and the
+        # confirmation standing in front of it.
+        "Approve from the card—00Widget asks before anything runs.",
     ),
     Promotion(
         "screenshot-insights.png",
