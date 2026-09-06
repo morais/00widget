@@ -604,7 +604,7 @@ def stage_device(
 
 
 def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], None]) -> None:
-    """Each normalized segment must play near its natural speed.
+    """Each static hold must stretch near unity; transitions play at 1x.
 
     The recorder emits frames only when pixels change, so static holds
     contribute almost no duration and the movie clock trails wall time by
@@ -612,9 +612,10 @@ def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], No
     on one run and past 2 s on the next, with every beat present and
     ordered on both. Absolute residuals therefore cannot tell a good take
     from a bad one: they accumulate under compression. What can is the
-    stretch each segment needs: normalization absorbs any monotonic
-    distortion, and a pairing that demands slow motion or fast-forward is
-    untrustworthy rather than merely loose. A partial detection fails for
+    stretch each static hold needs: transitions play at natural speed from
+    their configured starts, normalization absorbs any monotonic distortion
+    in the holds, and a pairing that demands slow motion or fast-forward
+    there is untrustworthy rather than merely loose. A partial detection fails for
     the same reason — without every boundary the renderer preserves the
     recorder's timestamps while the overlays stay on configured time.
     """
@@ -627,14 +628,16 @@ def assert_page_transitions(transitions: dict[str, Any], log: Callable[[str], No
     for configured, detected in zip(transitions["configured"], transitions["detected"]):
         if abs(detected - configured) > 0.3:
             log(f"page transition at {configured:.1f}s rendered at {detected:.1f}s")
-    for index, speed in enumerate(transitions.get("segmentSpeeds", [])):
+    for index, length in enumerate(transitions.get("animLengths", [])):
+        log(f"transition {index} plays at natural speed over {length:.2f}s")
+    for index, speed in enumerate(transitions.get("holdSpeeds", [])):
         if not MIN_SEGMENT_SPEED <= speed <= MAX_SEGMENT_SPEED:
             raise PreviewError(
-                f"segment {index} plays at {speed:.2f}x; "
+                f"hold {index} plays at {speed:.2f}x; "
                 "the run compressed unevenly, re-record rather than shipping misaligned copy"
             )
         if not 0.8 <= speed <= 1.25:
-            log(f"segment {index} plays at {speed:.2f}x")
+            log(f"hold {index} plays at {speed:.2f}x")
 
 
 def write_report(path: Path, report: dict[str, Any]) -> None:

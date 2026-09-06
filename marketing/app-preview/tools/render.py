@@ -65,16 +65,28 @@ def is_page_transition(scene: dict[str, Any]) -> bool:
     return scene.get("action") in PAGE_CHANGING_ACTIONS
 
 
-# Normalization stretches each raw segment to its configured length, so a
+# Normalization stretches each static hold to its configured length, so a
 # take survives device lag and recorder compression alike — but only while
-# the stretch stays near unity. Beyond these bounds an animation plays at a
+# the stretch stays near unity. Beyond these bounds a hold plays at a
 # visibly wrong speed, which means the pairing is untrustworthy rather than
 # merely loose. Static content is speed-invariant, so this bounds visible
 # wrongness, not absolute drift: under compression residuals accumulate and
 # a fixed per-transition tolerance would reject takes whose every segment
-# is honest.
+# is honest. Transitions themselves always play at natural speed (see
+# animation_interval); only holds are gated here.
 MIN_SEGMENT_SPEED = 0.5
 MAX_SEGMENT_SPEED = 2.0
+
+# Low scene threshold for animation bracketing. Fires densely through a
+# transition while mostly quiet on static content. Only clusters containing
+# a paired anchor are ever used, so stray noise hits elsewhere cost nothing.
+ANIM_SCENE_THRESHOLD = 0.02
+# Largest gap inside one animation cluster; wider gaps mean separate events.
+ANIM_CLUSTER_GAP = 0.4
+# Longest transition interval the renderer will pass at natural speed.
+# iOS transitions are sub-second by design; anything beyond is device stall,
+# whose frozen frames are static and stretch invisibly with the holds.
+MAX_ANIM_LENGTH = 1.5
 
 
 def detect_page_transitions(
@@ -137,6 +149,42 @@ def segment_speeds(
     return speeds
 
 
+def animation_interval(
+    anchor: float, low_hits: list[float], next_anchor: float | None
+) -> tuple[float, float]:
+    """Raw [start, end] of the transition animation containing `anchor`.
+
+    Grows a cluster of low-threshold hits around the paired anchor while
+    hits stay dense, so the transition plays at natural speed from its
+    configured scene start instead of being smeared by the surrounding
+    holds' stretch. Without a cluster the interval is zero-width at the
+    anchor and today's boundary behavior is unchanged. Clamped to
+    `MAX_ANIM_LENGTH` and to the next anchor, so a stall or a neighbor can
+    never swallow the schedule.
+    """
+    near = sorted(h for h in low_hits if abs(h - anchor) <= MAX_ANIM_LENGTH)
+    if not near:
+        return (anchor, anchor)
+    cluster = [anchor]
+    for hit in sorted((h for h in near if h < anchor), reverse=True):
+        if cluster[0] - hit <= ANIM_CLUSTER_GAP:
+            cluster.insert(0, hit)
+        else:
+            break
+    for hit in sorted(h for h in near if h >= anchor):
+        if next_anchor is not None and hit >= next_anchor:
+            break
+        if hit - cluster[-1] <= ANIM_CLUSTER_GAP:
+            cluster.append(hit)
+        else:
+            break
+    start = cluster[0]
+    end = min(cluster[-1] + 1.0 / 30.0, start + MAX_ANIM_LENGTH)
+    if next_anchor is not None:
+        end = min(end, next_anchor)
+    return (start, end)
+
+
 def raw_duration_seconds(raw_path: Path) -> float:
     """Wall-clock duration of the raw capture from its container metadata."""
     result = subprocess.run(
@@ -197,27 +245,62 @@ def render(
     ]
     raw_transitions = detect_page_transitions(raw_path, action_starts)
     raw_duration = raw_duration_seconds(raw_path)
+    # Interleaved boundaries: static holds stretch to the schedule while each
+    # transition animation plays at natural speed from its configured start.
+    # A transition smeared by a hold's stretch reads as a pause mid-blur, so
+    # the animation owns its own raw-length slot and the holds absorb the
+    # difference invisibly.
+    intervals: list[tuple[float, float]] = []
+    raw_boundaries = [0.0]
+    desired_boundaries = [0.0]
+    hold_flags: list[bool] = []
+    matched = len(raw_transitions) == len(action_starts) and bool(action_starts)
+    if matched:
+        low_hits = scene_hits(raw_path, ANIM_SCENE_THRESHOLD)
+        prev_raw_end = 0.0
+        prev_des_end = 0.0
+        for index, (start, anchor) in enumerate(zip(action_starts, raw_transitions)):
+            next_anchor = (
+                raw_transitions[index + 1] if index + 1 < len(raw_transitions) else None
+            )
+            anim_start, anim_end = animation_interval(anchor, low_hits, next_anchor)
+            if intervals:
+                anim_start = max(anim_start, intervals[-1][1])
+                anim_end = max(anim_end, anim_start)
+            intervals.append((anim_start, anim_end))
+            anim_len = anim_end - anim_start
+            raw_boundaries += [anim_start, anim_end]
+            desired_boundaries += [start, start + anim_len]
+            # One flag per emitted segment, in order: the hold this
+            # transition ends, then the transition itself. A missing False
+            # silently realigns every later flag with the wrong speed, and
+            # the gate ends up checking animations instead of holds.
+            hold_flags += [True, False]
+        # Trailing hold runs to the end of the raw movie; like the old tail
+        # segment it is open-ended here and resolved against the probed
+        # duration wherever lengths are needed.
+        desired_boundaries.append(duration)
+        hold_flags.append(True)
     speeds = (
-        segment_speeds(
-            [0.0, *raw_transitions], [0.0, *action_starts, duration], raw_duration
-        )
-        if len(raw_transitions) == len(action_starts) and action_starts
+        segment_speeds(raw_boundaries, desired_boundaries, raw_duration)
+        if matched
         else []
     )
+    hold_speeds = [speed for speed, hold in zip(speeds, hold_flags) if hold]
     normalize_command = ["ffmpeg", "-hide_banner", "-y"]
     normalize_command.extend(["-i", str(raw_path)])
-    if len(raw_transitions) == len(action_starts) and action_starts:
+    if matched:
         log(
             "Aligning Simulator page transitions to "
             + ", ".join(f"{value:.1f}s" for value in action_starts)
         )
-        raw_boundaries = [0.0, *raw_transitions]
-        desired_boundaries = [0.0, *action_starts, duration]
+        for index, (anim_start, anim_end) in enumerate(intervals):
+            log(f"Transition {index} plays at natural speed over {anim_end - anim_start:.2f}s")
         segments: list[str] = []
         segment_filters: list[str] = []
         for index, raw_start in enumerate(raw_boundaries):
             desired_length = desired_boundaries[index + 1] - desired_boundaries[index]
-            raw_end = raw_transitions[index] if index < len(raw_transitions) else None
+            raw_end = raw_boundaries[index + 1] if index + 1 < len(raw_boundaries) else None
             trim = f"trim=start={raw_start:.6f}"
             if raw_end is not None:
                 trim += f":end={raw_end:.6f}"
@@ -414,7 +497,9 @@ def render(
         {
             "configured": action_starts,
             "detected": raw_transitions,
-            "segmentSpeeds": speeds,
+            "animations": [[a0, a1] for a0, a1 in intervals],
+            "animLengths": [round(a1 - a0, 3) for a0, a1 in intervals],
+            "holdSpeeds": [round(speed, 3) for speed in hold_speeds],
         },
     )
 
