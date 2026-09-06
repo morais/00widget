@@ -320,10 +320,11 @@ def draw_device(
     source: Image.Image,
     device_set: str,
     top: int,
+    width_fraction: float = 0.88,
 ) -> None:
     width, height = canvas.size
     is_ipad = device_set == "ipad"
-    outer_width = round(width * 0.88)
+    outer_width = round(width * width_fraction)
     if is_ipad:
         # The 13-inch iPad Pro display occupies about 92% of the physical
         # device width. Keep that real, uniform black bezel instead of scaling
@@ -490,56 +491,37 @@ def island_bounds(screen: Image.Image) -> tuple[int, int, int, int]:
     return left, top, right, bottom
 
 
-def draw_island_closeup(canvas: Image.Image, source: Image.Image) -> None:
-    """Draw the expanded Island large, alone, and with nothing behind it.
+def draw_island_expanded(canvas: Image.Image, source: Image.Image) -> None:
+    """Draw the expanded Island in the phone it belongs to, seen close up.
 
-    An earlier version pasted this over the Lock Screen frame as an inset, and
-    it was rejected on sight: an expanded Island floating inside a locked phone
-    above a banner repeating the same title, progress and rows reads as a
-    compositing mistake rather than as proof of two surfaces. So it gets its
-    own frame, cropped out of a real Home Screen capture, and it is the only
-    thing in it — no second system surface underneath, and the same activity
-    never shown twice in one phone.
+    Two treatments were rejected before this one. As an inset over the Lock
+    Screen frame it repeated that frame's own card, title for title and row for
+    row, and read as a compositing mistake. Cut out and floated on the
+    background it read as unfinished: a 3.25:1 pill alone in a 1:2.17 canvas is
+    mostly empty page whatever size it is drawn at, and it loses the one thing
+    that makes an Island legible — the hardware it is part of.
 
-    There is no device outline for the same reason. The Island *is* hardware
-    and screen at once; drawing a phone around a close-up of it would either
-    repeat the bezel at the wrong scale or shrink the subject back to the size
-    the hero already shows it at.
+    So the phone is drawn as every other frame draws it, and simply larger: the
+    top bezel, the status bar, the Island and the first row of Home Screen
+    widgets underneath it. The device runs off the bottom of the frame the way
+    it already does elsewhere, so the treatment is the same one the sequence
+    uses, at a different distance.
     """
     width, height = canvas.size
-    island = source.crop(island_bounds(source))
-
-    # Large, because the subject is a 3.25:1 pill in a 1:2.17 canvas and
-    # anything smaller reads as an object lost in a page rather than as the
-    # thing the frame is about. The space around it is then deliberate.
-    target_width = round(width * 0.92)
-    scale = target_width / island.width
-    island = island.resize(
-        (target_width, round(island.height * scale)), Image.Resampling.LANCZOS
+    draw_device(
+        canvas,
+        source,
+        "iphone-6.3",
+        # Above the frame's own top edge, so the phone's rounded top sits just
+        # under the copy block and the Island lands near the optical centre.
+        round(height * 0.235),
+        # Full canvas width is the zoom ceiling: past it the phone's rounded
+        # top corners leave the frame, and with them the thing that makes an
+        # Island read as hardware rather than as a black shape. The Island is
+        # centred, so it stays whole at any width; the corners are what set
+        # the limit.
+        width_fraction=0.98,
     )
-    radius = round(island.height * 0.20)
-    island = rounded_image(island, radius)
-
-    x = (width - island.width) // 2
-    # Centred in the room below the copy block rather than in the canvas, so
-    # the space above and below the subject is even.
-    y = round(height * 0.58) - island.height // 2
-
-    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    ImageDraw.Draw(shadow_layer).rounded_rectangle(
-        (
-            x,
-            y + round(height * 0.008),
-            x + island.width,
-            y + island.height + round(height * 0.008),
-        ),
-        radius=radius,
-        fill=(6, 21, 42, 150),
-    )
-    canvas.alpha_composite(
-        shadow_layer.filter(ImageFilter.GaussianBlur(radius=max(16, round(width * 0.020))))
-    )
-    canvas.alpha_composite(island, (x, y))
 
 
 def compose(
@@ -590,7 +572,7 @@ def compose(
     )
 
     if promotion.filename == ISLAND_FRAME:
-        draw_island_closeup(canvas, source)
+        draw_island_expanded(canvas, source)
     else:
         draw_device(canvas, source, device_set, device_top)
 

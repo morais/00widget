@@ -20,7 +20,7 @@ The test captures these surfaces in order:
 | `screenshot-insights.png` | The in-app chart section, scrolled so the Trials trend and the 20-run Agent runs history are both visible. |
 | `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. |
 | `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
-| `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — a close-up with nothing behind it, which is why that set ships eight images and the others seven. |
+| `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — the phone's top seen close up, which is why that set ships eight images and the others seven. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
 | `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
@@ -155,9 +155,17 @@ first row of Home Screen widgets and covers their titles. The expanded
 presentation gets its own frame rather than an inset over the Lock Screen one:
 composed as an inset it showed the same four lines as the card beneath it,
 which reads as one thing printed twice rather than as two surfaces. It is
-cropped from the real capture with nothing behind it and no device outline,
-and a set whose capture device has no Island — 6.5-inch and iPad — simply
-omits the frame.
+drawn as the phone's top seen close up — bezel, status bar, Island and the
+first rows of the Home Screen — because an Island cut out and floated on the
+background reads as unfinished: it is a 3.25:1 pill in a 1:2.17 canvas, mostly
+empty page at any size, and it loses the hardware that makes an Island legible.
+A set whose capture device has no Island — 6.5-inch and iPad — simply omits the
+frame.
+
+The zoom has a ceiling: past full canvas width the phone's rounded top corners
+leave the frame, and with them the thing that distinguishes an Island from a
+black shape. The Island is centred, so it stays whole at any width; the corners
+are what set the limit.
 
 Apple TV follows the same physical-device treatment with a landscape television
 frame that extends past the right and bottom edges. The television uses square
