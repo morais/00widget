@@ -13,6 +13,7 @@
 #   marketing/screenshots/capture-ios.sh --only app
 #   marketing/screenshots/capture-ios.sh --only lock
 #   marketing/screenshots/capture-ios.sh --only clip
+#   marketing/screenshots/capture-ios.sh --only lock --no-consent-check
 #   marketing/screenshots/capture-ios.sh --only island
 #   marketing/screenshots/capture-ios.sh --only subscriptions
 #   marketing/screenshots/capture-ios.sh --device "iPhone 17 Pro" --out /tmp/shots
@@ -38,6 +39,7 @@ set -euo pipefail
 DEVICE="iPhone 17 Pro"
 OUT=""
 ONLY="all"
+CONSENT_CHECK_ARGS=()
 
 run_with_heartbeat() {
   local label="$1"
@@ -91,6 +93,7 @@ run_lock_surface() {
     --device "$DEVICE" \
     --bundle-id "$app_bundle" \
     --handshake-dir "$handshake" \
+    "${CONSENT_CHECK_ARGS[@]}" \
     --out "$OUT/$LOCK_PNG" || adapter_status=$?
 
   local test_status=0
@@ -225,6 +228,11 @@ while [[ $# -gt 0 ]]; do
     --device) DEVICE="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --only) ONLY="$2"; shift 2 ;;
+    # Skips the Lock Screen consent detection. Use it only after looking at a
+    # capture from this device and confirming there is no prompt in it: the
+    # detector fires on an activity item row (see lock_consent.py), so a device
+    # that answered its prompt long ago can fail a run it should pass.
+    --no-consent-check) CONSENT_CHECK_ARGS=(--no-consent-check); shift ;;
     -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac

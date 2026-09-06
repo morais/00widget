@@ -33,6 +33,7 @@ SETTLE=20
 BUNDLE_ID="com.00widget.app"
 PREFLIGHT_ONLY=false
 NO_RESTORE=false
+CONSENT_CHECK=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --bundle-id) BUNDLE_ID="$2"; shift 2 ;;
     --preflight-only) PREFLIGHT_ONLY=true; shift ;;
     --no-restore) NO_RESTORE=true; shift ;;
+    --no-consent-check) CONSENT_CHECK=false; shift ;;
     -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -575,11 +577,17 @@ xcrun simctl io "$UDID" screenshot --type=png "$STAGED"
 # the frame; a click that lands on the activity instead opens the app, and an
 # app is far brighter than a Lock Screen. Refusing a large change keeps a
 # mis-aimed click from being mistaken for success.
-if answer_consent_prompt "$STAGED"; then
+if [[ "$CONSENT_CHECK" == true ]] && answer_consent_prompt "$STAGED"; then
   before_brightness="$(mean_brightness "$STAGED")"
   before_hash="$(md5 -q "$STAGED" 2>/dev/null || md5sum "$STAGED" | cut -d' ' -f1)"
+  # Keep what the click was aimed at. Both rejection paths below destroy the
+  # only evidence of why they fired — the staging directory goes with the
+  # trap — which left "the screen changed too much" impossible to tell apart
+  # from a false positive on a clean capture without reproducing it by hand.
+  cp "$STAGED" "${OUT%.png}.rejected-before.png"
   echo "  re-capturing without the prompt"
   xcrun simctl io "$UDID" screenshot --type=png "$STAGED"
+  cp "$STAGED" "${OUT%.png}.rejected-after.png"
   after_brightness="$(mean_brightness "$STAGED")"
   after_hash="$(md5 -q "$STAGED" 2>/dev/null || md5sum "$STAGED" | cut -d' ' -f1)"
   if [[ "$before_hash" == "$after_hash" ]]; then
@@ -590,9 +598,13 @@ import sys
 before, after = float('$before_brightness'), float('$after_brightness')
 sys.exit(0 if before <= 0 or abs(after - before) / before <= 0.35 else 1)
 "; then
-    fail_done "the screen changed too much after the click — it probably opened the app rather than answering the prompt"
+    fail_done "the screen changed too much after the click — it probably opened the app rather than answering the prompt (kept ${OUT%.png}.rejected-before.png and .rejected-after.png)"
   fi
 fi
+# The click was answered and accepted, so the evidence is no longer wanted —
+# and a stray PNG beside the canonical ones is exactly what the manifest's
+# "extra files" check refuses.
+rm -f "${OUT%.png}.rejected-before.png" "${OUT%.png}.rejected-after.png"
 if ! python3 -c "
 import sys
 data = open('$STAGED','rb').read()

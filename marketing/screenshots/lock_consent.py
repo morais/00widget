@@ -142,6 +142,25 @@ def find_allow_button(path: Path) -> tuple[int, int] | None:
             # line — which are also two bright clusters with a gap between
             # them. Without this the detector aimed a click at a card on a
             # clean capture, and the click opened the app.
+            #
+            # It is not sufficient, and the remaining hole is worth knowing.
+            # A band can fall so that its lower half holds exactly *one*
+            # activity item row, and an item row is a label on the left and a
+            # value on the right in white on the same dark card — the shape
+            # this function is looking for. Measured on a clean iPad capture:
+            # band y=2118..2316 of 2752, clusters x=608..658 ("Tests") and
+            # x=1368..1496 ("412 passed"), one line, both at 255. Neither
+            # brightness nor symmetry separates that from two buttons: the
+            # footer beside it *is* dim and correctly ignored, and the pair is
+            # centred to within 20px of the card's own centre.
+            #
+            # Width ratio looked like the answer and is not: these differ 2.6x,
+            # but "Don't Allow" against "Allow" is about 2.2x, so any cut that
+            # rejects the row risks rejecting a real prompt — and a missed
+            # prompt is published, where a spurious one only costs a re-run.
+            # Tightening this needs a capture of a genuine prompt to calibrate
+            # against; until someone has one, `--no-consent-check` is the
+            # documented way past a device whose prompt was answered long ago.
             lines = _clusters(sorted({y for _, y in lit}), round(height * MIN_LINE_GAP))
             if len(lines) != 1:
                 continue
