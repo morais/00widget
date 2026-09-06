@@ -138,10 +138,19 @@ struct LiveActivityMinimalPresentationTests {
     /// in this suite can see the Island itself.
     @Test("Only a value that fits the compact region becomes a token")
     func compactValueTokenFits() {
-        #expect(state(value: "4/5").compactValueToken == "4/5")
-        #expect(state(value: "~8 min").compactValueToken == "~8 min")
-        #expect(state(value: " 12/15 ").compactValueToken == "12/15")
+        // Two glyphs, because the region does not report its width and the
+        // narrowest island seen gave the trailing text 11 points where another
+        // gave 18. Everything longer that *means* a fraction is drawn as a
+        // ring instead, which is why this costs so little.
+        #expect(state(value: "OK").compactValueToken == "OK")
+        #expect(state(value: " 3 ").compactValueToken == "3")
+        #expect(state(value: "4/5").compactValueToken == nil)
+        #expect(state(value: "~8 min").compactValueToken == nil)
         #expect(state(value: "Announcement 4/5").compactValueToken == nil)
+
+        // …and the ones that lose the token get a ring, not silence.
+        #expect(state(value: "4/5").minimalProgress == 0.8)
+        #expect(state(value: "12/15").minimalProgress == 0.8)
         #expect(state(value: "").compactValueToken == nil)
         #expect(state().compactValueToken == nil)
 

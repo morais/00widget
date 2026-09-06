@@ -75,6 +75,15 @@ final class ScreenshotTests: XCTestCase {
                 // overlay is drawn over the first row of widgets and covers
                 // their titles — the renderers contain them, so nothing but a
                 // real capture shows it, and no exact-size render can.
+                //
+                // Let the Island settle before shooting. Identical runs of
+                // this test have produced a compact presentation whose glyph
+                // and trailing content are both clipped on their leading edge
+                // while the pill around them is full width — the content laid
+                // out for a smaller Island than the one drawn. It is not the
+                // renderers: the same build one run earlier drew both whole.
+                // Waiting costs eight seconds of a ten-minute run.
+                settleDynamicIsland(in: springboard)
                 capture(named: "screenshot-home-widgets")
 
                 // The expanded presentation is still one of the strongest
@@ -294,6 +303,22 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(verdict, "ok", "The host lock adapter reported: \(verdict)")
     }
 
+    /// Waits for the Dynamic Island's compact presentation to stop changing.
+    ///
+    /// Compares successive screenshots of the strip the Island occupies and
+    /// returns once two agree, so a run that has already settled pays almost
+    /// nothing and one that has not waits for it rather than photographing a
+    /// half-laid-out Island.
+    private func settleDynamicIsland(in springboard: XCUIApplication) {
+        var previous: Data?
+        for _ in 0..<10 {
+            let shot = XCUIScreen.main.screenshot().pngRepresentation
+            if let previous, previous == shot { return }
+            previous = shot
+            Thread.sleep(forTimeInterval: 1)
+        }
+    }
+
     private func captureInsights(in app: XCUIApplication) {
         let trials = app.staticTexts["Trials"].firstMatch
         XCTAssertTrue(scrollTo(trials, in: app, swipes: 10), "Trials sample card not found.")
@@ -452,8 +477,19 @@ final class ScreenshotTests: XCTestCase {
         let remove = springboard.buttons
             .matching(NSPredicate(format: "label == 'Remove' OR label == 'Remove Widget'"))
             .firstMatch
-        XCTAssertTrue(remove.waitForExistence(timeout: 8))
-        remove.tap()
+        // The confirmation is not guaranteed. A device that has been through
+        // previous runs always showed one, and a freshly erased one removed
+        // the widget on the first tap and never asked — which failed the whole
+        // capture at its Home Screen setup, nowhere near what it was testing.
+        // Treat a widget that has already gone as removed.
+        if remove.waitForExistence(timeout: 8) {
+            remove.tap()
+        } else {
+            XCTAssertFalse(
+                widget.exists,
+                "The widget neither asked for confirmation nor went away."
+            )
+        }
         Thread.sleep(forTimeInterval: 1)
     }
 

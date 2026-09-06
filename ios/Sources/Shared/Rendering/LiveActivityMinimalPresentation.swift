@@ -99,7 +99,7 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
     }
 
     /// A string short enough for the Dynamic Island's *compact* trailing
-    /// region, which is wider than the minimal circle and still small.
+    /// region — which is smaller than it looks, and does not say how small.
     ///
     /// The region neither wraps nor scales what it is given: it clips, and
     /// from the leading edge, so "Announcement 4/5" arrives as
@@ -114,8 +114,21 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
     /// Nothing is shown rather than something clipped. The leading glyph still
     /// says which activity this is, and the Lock Screen, the expanded island
     /// and every widget surface have room for the value in full.
+    ///
+    /// **Two glyphs, not six.** Six was measured against one island; a later
+    /// capture of the same activity had 11 points of trailing width where the
+    /// first had 18, and "4/5" arrived as "/5" — a number that is wrong rather
+    /// than visibly cut. Because the region never reports its width, the only
+    /// safe budget is one that survives the narrowest island seen, and at
+    /// caption2 that is about two glyphs.
+    ///
+    /// This costs less than it appears. Anything with a fraction behind it —
+    /// an explicit `progress`, items far enough along, or a counter written
+    /// into `value` like "4/5" — is drawn as a ring by `minimalProgress`
+    /// instead, which cannot be clipped into a different number. What reaches
+    /// this token is only a short word or code with no fraction at all.
     var compactValueToken: String? {
-        Self.token(in: value, budget: 6)
+        Self.token(in: value, budget: 2)
     }
 
     /// The same budget applied to any other string a compact region might

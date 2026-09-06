@@ -239,6 +239,27 @@ public final class LiveActivityController: ObservableObject {
 
     /// Ends every locally generated sample activity. Server-started activities
     /// are left alone.
+    /// Ends *every* activity on the device, whatever started it.
+    ///
+    /// `endSamples` deliberately matches only the `sample-` namespace, which
+    /// is right for the app. A capture needs more: as `startSample` notes
+    /// below, one other running activity — anyone's — replaces both compact
+    /// Dynamic Island regions with a minimal circle for every activity on the
+    /// device, and the marketing hero is a photograph of that region. The App
+    /// Preview's own `preview-` activity is the obvious neighbour, and it
+    /// outlives a reinstall exactly as the samples do.
+    ///
+    /// Screenshot builds only: no shipping surface may end activities it did
+    /// not start.
+    #if ZW_SCREENSHOTS
+    public func endEverythingForCapture() async {
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        refreshActiveActivities()
+    }
+    #endif
+
     public func endSamples() async {
         for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
         where activity.attributes.activityInstanceId == nil
