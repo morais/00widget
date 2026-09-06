@@ -222,10 +222,20 @@ def verify_promotional_provenance(directory, filenames):
         entry = recorded.get(filename) or {}
         output_checksum = sha256_checksum(directory / filename)
         source_checksum = sha256_checksum(RAW_ROOT / directory.name / filename)
-        if (
+        stale = (
             entry.get("outputSha256") != output_checksum
             or entry.get("sourceSha256") != source_checksum
+        )
+        # A composition may be drawn from two raw captures — the share frame
+        # puts the QR sheet and the App Clip it opens in one image. Checking
+        # only the first would let a stale second half reach the storefront,
+        # so the manifest names its own companion and this verifies that too.
+        companion = entry.get("companion")
+        if companion and entry.get("companionSha256") != sha256_checksum(
+            RAW_ROOT / directory.name / companion
         ):
+            stale = True
+        if stale:
             errors.append(filename)
     if errors:
         raise RuntimeError(
