@@ -131,6 +131,45 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
         Self.token(in: value, budget: 2)
     }
 
+    /// What the compact trailing region draws, as a testable decision.
+    ///
+    /// Mirrors the branch order in `LiveActivityWidget`'s `compactTrailing`:
+    /// a countdown first (the system reserves width for it), then a ring for
+    /// anything with an honest fraction, then numbers only when the island has
+    /// not told us width is constrained. When `widthLimited` is true — iOS 27's
+    /// `isDynamicIslandLimitedInWidth`, e.g. landscape — numbers are suppressed
+    /// in favour of the ring-or-nothing fallback, because a clipped number
+    /// reads as a different, plausible number while nothing reads as nothing.
+    public enum IslandCompactTrailingChoice: Equatable, Sendable {
+        case countdown, ring, count, token, none
+    }
+
+    /// What the minimal circle draws, as a testable decision. Same rule as
+    /// above, except the fallback is the identity glyph rather than nothing:
+    /// the circle replaces *both* compact regions, so the leading glyph it
+    /// would otherwise borrow is gone too.
+    public enum IslandMinimalChoice: Equatable, Sendable {
+        case countdown, ring, count, token, glyph
+    }
+
+    public func compactTrailingChoice(widthLimited: Bool) -> IslandCompactTrailingChoice {
+        if endsAt != nil { return .countdown }
+        if minimalProgress != nil { return .ring }
+        if widthLimited { return .none }
+        if showsItemCount { return .count }
+        if compactValueToken != nil { return .token }
+        return .none
+    }
+
+    public func minimalChoice(widthLimited: Bool) -> IslandMinimalChoice {
+        if endsAt != nil { return .countdown }
+        if minimalProgress != nil { return .ring }
+        if widthLimited { return .glyph }
+        if showsItemCount { return .count }
+        if minimalValueToken != nil { return .token }
+        return .glyph
+    }
+
     /// The same budget applied to any other string a compact region might
     /// fall back to, so a new branch cannot reintroduce the clipping.
     static func compactToken(_ raw: String?) -> String? {

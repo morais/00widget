@@ -141,45 +141,65 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 // plausible number. Text is kept only for a countdown, which
                 // the system reserves width for itself, and for an activity
                 // with no fraction at all.
-                if let endsAt = context.state.endsAt {
-                    LiveActivityCountdownText(
-                        endsAt: endsAt,
-                        granularity: context.state.countdownGranularity,
-                        ticking: .systemText
-                    )
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                } else if let progress = context.state.minimalProgress {
-                    // `accessoryCircularCapacity` reports a fixed 58x58
-                    // whatever it is proposed, so `scaleEffect` and `frame` are
-                    // both needed: the first draws it small, the second makes
-                    // the layout believe it. Either alone is wrong in a
-                    // different direction — the trap the Watch Smart Stack card
-                    // hit.
-                    Gauge(value: progress) { EmptyView() }
-                        .gaugeStyle(.accessoryCircularCapacity)
-                        .tint(context.attributes.kind.tint(for: context.state.signal))
-                        .scaleEffect(18.0 / 58.0)
-                        .frame(width: 18, height: 18)
-                } else if context.state.showsItemCount {
-                    Text("\(context.state.activeItems.count)")
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                } else if let token = context.state.compactValueToken {
-                    Text(token)
-                        .font(.caption2)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                //
+                // iOS 27 finally reports the constraint via
+                // `isDynamicIslandLimitedInWidth` (landscape): when limited,
+                // numbers are suppressed even if they fit the heuristic budget
+                // — see `compactTrailingChoice(widthLimited:)` — and the ring
+                // wins wherever one exists. Portrait behaviour is unchanged.
+                IslandWidthLimitedReader { limited in
+                    switch context.state.compactTrailingChoice(widthLimited: limited) {
+                    case .countdown:
+                        if let endsAt = context.state.endsAt {
+                            LiveActivityCountdownText(
+                                endsAt: endsAt,
+                                granularity: context.state.countdownGranularity,
+                                ticking: .systemText
+                            )
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        }
+                    case .ring:
+                        if let progress = context.state.minimalProgress {
+                            // `accessoryCircularCapacity` reports a fixed 58x58
+                            // whatever it is proposed, so `scaleEffect` and `frame` are
+                            // both needed: the first draws it small, the second makes
+                            // the layout believe it. Either alone is wrong in a
+                            // different direction — the trap the Watch Smart Stack card
+                            // hit.
+                            Gauge(value: progress) { EmptyView() }
+                                .gaugeStyle(.accessoryCircularCapacity)
+                                .tint(context.attributes.kind.tint(for: context.state.signal))
+                                .scaleEffect(18.0 / 58.0)
+                                .frame(width: 18, height: 18)
+                        }
+                    case .count:
+                        Text("\(context.state.activeItems.count)")
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                    case .token:
+                        if let token = context.state.compactValueToken {
+                            Text(token)
+                                .font(.caption2)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.6)
+                        }
+                    case .none:
+                        EmptyView()
+                    }
                 }
             } minimal: {
-                MinimalIslandView(
-                    state: context.state,
-                    tint: context.attributes.kind.tint(for: context.state.signal),
-                    glyph: islandIconName(attributes: context.attributes, state: context.state)
-                )
+                IslandWidthLimitedReader { limited in
+                    MinimalIslandView(
+                        state: context.state,
+                        tint: context.attributes.kind.tint(for: context.state.signal),
+                        glyph: islandIconName(attributes: context.attributes, state: context.state),
+                        widthLimited: limited
+                    )
+                }
             }
             .widgetURL(tapURL(for: context.attributes))
         }
@@ -278,32 +298,86 @@ private struct MinimalIslandView: View {
     let state: ZeroZeroWidgetActivityAttributes.ContentState
     let tint: Color
     let glyph: String
+    var widthLimited = false
 
     @ViewBuilder
     var body: some View {
-        if let endsAt = state.endsAt {
-            LiveActivityCountdownToken(endsAt: endsAt, granularity: state.countdownGranularity)
-                .minimalIslandToken(tint: tint)
-        } else if let progress = state.minimalProgress {
-            // The label sits inside the capacity ring rather than filling the
-            // circle, so it gets less room than the bare glyph beside it.
-            Gauge(value: progress) {
-                IslandGlyph(systemName: glyph, size: 10)
+        switch state.minimalChoice(widthLimited: widthLimited) {
+        case .countdown:
+            if let endsAt = state.endsAt {
+                LiveActivityCountdownToken(endsAt: endsAt, granularity: state.countdownGranularity)
+                    .minimalIslandToken(tint: tint)
             }
-            .gaugeStyle(.accessoryCircularCapacity)
-            .tint(tint)
-        } else if state.showsItemCount {
+        case .ring:
+            if let progress = state.minimalProgress {
+                // The label sits inside the capacity ring rather than filling the
+                // circle, so it gets less room than the bare glyph beside it.
+                Gauge(value: progress) {
+                    IslandGlyph(systemName: glyph, size: 10)
+                }
+                .gaugeStyle(.accessoryCircularCapacity)
+                .tint(tint)
+            }
+        case .count:
             Text("\(state.activeItems.count)")
                 .minimalIslandToken(tint: tint)
-        } else if let token = state.minimalValueToken {
-            Text(token)
-                .minimalIslandToken(tint: tint)
-        } else {
+        case .token:
+            if let token = state.minimalValueToken {
+                Text(token)
+                    .minimalIslandToken(tint: tint)
+            }
+        case .glyph:
             IslandGlyph(systemName: glyph)
                 .foregroundStyle(tint)
         }
     }
 }
+
+/// Reads iOS 27's `isDynamicIslandLimitedInWidth`.
+///
+/// Every reference to that environment value in this target goes through here,
+/// because naming it is a compile-time decision: the repository is built
+/// against two SDKs — iOS 27 on the development machine, iOS 26 on the machine
+/// that archives for the App Store — and the value is absent from the older
+/// one entirely (WidgetKit 664.5.28.100 vs 749.0.1), so naming it there is a
+/// hard error no `#available` check can rescue. Same gate shape as
+/// `FullPageWidgetFamily`: ask WidgetKit its version, not the compiler its
+/// own, and keep the runtime `#available(iOS 27.0, *)` inside the gate because
+/// the app still deploys back to iOS 26.
+///
+/// Lives in this file rather than in `Sources/Shared` because this file is the
+/// one both island hosts compile: the full widget extension and the App Clip's
+/// Live-Activity-only extension. A helper in `Sources/Widgets` would not reach
+/// the clip; a helper in `Sources/Shared` would also compile into the tvOS app,
+/// where the value is marked unavailable.
+private struct IslandWidthLimitedReader<Content: View>: View {
+    @ViewBuilder var content: (Bool) -> Content
+
+    @ViewBuilder
+    var body: some View {
+        #if canImport(WidgetKit, _version: 749)
+        if #available(iOS 27.0, *) {
+            IslandWidthLimitedReader27(content: content)
+        } else {
+            content(false)
+        }
+        #else
+        content(false)
+        #endif
+    }
+}
+
+#if canImport(WidgetKit, _version: 749)
+@available(iOS 27.0, *)
+private struct IslandWidthLimitedReader27<Content: View>: View {
+    @Environment(\.isDynamicIslandLimitedInWidth) private var limited
+    @ViewBuilder var content: (Bool) -> Content
+
+    var body: some View {
+        content(limited)
+    }
+}
+#endif
 
 private extension View {
     /// Text in the minimal circle. The region clips rather than shrinks, and it

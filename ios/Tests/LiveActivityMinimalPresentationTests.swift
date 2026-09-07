@@ -166,6 +166,41 @@ struct LiveActivityMinimalPresentationTests {
         #expect(State.compactToken(nil) == nil)
     }
 
+    // MARK: Width-limited choices (iOS 27 isDynamicIslandLimitedInWidth)
+
+    @Test("Unlimited choices preserve the existing ladder")
+    func unlimitedChoicesPreserveLadder() {
+        typealias State = ZeroZeroWidgetActivityAttributes.ContentState
+        #expect(state(value: "OK").compactTrailingChoice(widthLimited: false) == .token)
+        #expect(state(value: "OK").minimalChoice(widthLimited: false) == .token)
+        #expect(state(items: [item(), item()]).compactTrailingChoice(widthLimited: false) == .count)
+    }
+
+    @Test("A width-limited island falls back to ring-or-nothing, never a number")
+    func widthLimitedFallsBackToRing() {
+        // Countdowns are system-reserved width, so they survive the constraint.
+        #expect(
+            state(value: "4/5", progress: 0.8).compactTrailingChoice(widthLimited: true) == .ring
+        )
+        #expect(
+            state(value: "4/5", progress: 0.8).minimalChoice(widthLimited: true) == .ring
+        )
+        // Numbers without a fraction behind them are suppressed: a clipped
+        // number reads as a different number, while nothing reads as nothing.
+        #expect(
+            state(value: "OK").compactTrailingChoice(widthLimited: true) == .none
+        )
+        #expect(
+            state(value: "OK").minimalChoice(widthLimited: true) == .glyph
+        )
+        // Item counts are numbers too.
+        let items = [item(), item(status: .finished)]
+        #expect(state(items: items).minimalProgress != nil)
+        #expect(
+            state(items: items).compactTrailingChoice(widthLimited: true) == .ring
+        )
+    }
+
     // MARK: Countdown token
 
     @Test("A countdown reads as one unit, rounded so it never overstates")
