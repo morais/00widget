@@ -124,7 +124,9 @@ public struct RunDashboardActionIntent: AppIntent, ProgressReportingIntent {
 // cards). Decided 2026-09-07: when the UI arrives, island-originated runs
 // reuse the existing action path as-is — same scopes, no extra attribution —
 // so a run from the island is indistinguishable from one from a widget.
+#if os(iOS)
 extension RunDashboardActionIntent: LiveActivityIntent {}
+#endif
 
 // `CancellableIntent`, and the only place in this target that names it.
 //
