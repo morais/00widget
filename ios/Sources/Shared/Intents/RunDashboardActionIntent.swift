@@ -38,6 +38,10 @@ public struct RunDashboardActionIntent: AppIntent, ProgressReportingIntent {
         progress.totalUnitCount = 1
         progress.localizedDescription = "Preparing…"
 
+        if Task.isCancelled {
+            return finish("Cancelled")
+        }
+
         guard !actionId.isEmpty else {
             return finish("Nothing to run")
         }
@@ -58,7 +62,15 @@ public struct RunDashboardActionIntent: AppIntent, ProgressReportingIntent {
 
         do {
             try await APIClient(config: config).runAction(id: actionId, cardId: cardId)
+            if Task.isCancelled {
+                return finish("Cancelled")
+            }
             return finish("Done")
+        } catch is CancellationError {
+            // A cancelled run is not a failed run: reporting it as
+            // "Couldn't run" would send the person retrying something they
+            // just asked to stop.
+            return finish("Cancelled")
         } catch {
             // Swallowed, as before. Reported now, which is the whole point:
             // "Couldn't run" is a worse outcome than "Done" and a far better
@@ -91,3 +103,26 @@ public struct RunDashboardActionIntent: AppIntent, ProgressReportingIntent {
         return action
     }
 }
+
+// `CancellableIntent`, and the only place in this target that names it.
+//
+// Agent runs are cancellable by nature — a multi-minute job started from a
+// widget should stop when the person asks it to, not run to completion
+// because the intent had no way to hear the cancellation. Conforming lets the
+// system cancel the task (timeout, user-cancelled); `perform()` above already
+// honours `Task.isCancelled` and reports it as "Cancelled" rather than as a
+// failure, so no new SDK is needed for the behaviour, only for the protocol.
+//
+// The gate is the same shape as `FullPageWidgetFamily` and
+// `SpotlightReindexing`, and exists for the second reason AGENTS.md records:
+// `CancellableIntent` is annotated `@available(anyAppleOS 26.4, *)` — which
+// reads as back-deployable to an OS older than the submission machine — yet is
+// absent from the iOS 26.5 SDK entirely (AppIntents 300.5.12 vs 301.0.51.1.102
+// in the 27.0 SDK). Naming it there is a compile-time error no `#available`
+// can rescue, so the conformance lives behind
+// `canImport(AppIntents, _version: 301)`. The runtime `@available` still
+// matters because the app deploys back to 26.0.
+#if canImport(AppIntents, _version: 301)
+@available(iOS 26.4, tvOS 26.4, *)
+extension RunDashboardActionIntent: CancellableIntent {}
+#endif
