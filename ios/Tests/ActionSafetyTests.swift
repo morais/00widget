@@ -88,7 +88,62 @@ struct ActionSafetyTests {
         let decoded = try decode(#"{"id":"a","label":"Run"}"#)
         #expect(decoded.role == .normal)
         #expect(decoded.confirm == false)
+        #expect(decoded.confirmation == nil)
         #expect(decoded.isSafeFromWidget)
+    }
+
+    @Test("Custom confirmation copy is presented verbatim")
+    func customConfirmationPresentation() {
+        let action = ActionDefinition(
+            id: "approve-launch",
+            label: "Approve",
+            confirm: true,
+            confirmation: ActionConfirmation(
+                title: "Approve launch?",
+                message: "Publish the announcement and start the 10% rollout."
+            )
+        )
+        let card = DashboardCard(
+            id: "launch",
+            template: .action,
+            title: "Launch",
+            producer: CardProducer(label: "Release Agent")
+        )
+
+        #expect(action.confirmationPresentation(for: card) == ActionConfirmationPresentation(
+            title: "Approve launch?",
+            message: "Publish the announcement and start the 10% rollout.",
+            confirmButtonLabel: "Approve",
+            isDestructive: false
+        ))
+    }
+
+    @Test("An older action gets a truthful confirmation fallback")
+    func fallbackConfirmationPresentation() throws {
+        let action = try decode(#"{"id":"approve-launch","label":"Approve","confirm":true}"#)
+        let card = DashboardCard(
+            id: "launch",
+            template: .action,
+            title: "Launch",
+            producer: CardProducer(label: "Release Agent")
+        )
+
+        let presentation = action.confirmationPresentation(for: card)
+        #expect(presentation.title == "Confirm action?")
+        #expect(presentation.message == "00Widget will send “Approve” for Launch to Release Agent.")
+        #expect(presentation.confirmButtonLabel == "Approve")
+    }
+
+    @Test("Custom confirmation copy decodes without changing the safety gate")
+    func customConfirmationDecodes() throws {
+        let decoded = try decode(
+            #"{"id":"approve-launch","label":"Approve","confirm":true,"confirmation":{"title":"Approve launch?","message":"Publish it."}}"#
+        )
+        #expect(decoded.confirmation == ActionConfirmation(
+            title: "Approve launch?",
+            message: "Publish it."
+        ))
+        #expect(!decoded.isSafeFromWidget)
     }
 
     @Test("confirm alone withholds an otherwise runnable action")

@@ -354,15 +354,21 @@ final class ScreenshotTests: XCTestCase {
         // The alert's own Approve button shares the label, so wait on the
         // title instead — it exists only while the alert is presented.
         XCTAssertTrue(
-            app.staticTexts["Run action?"].waitForExistence(timeout: 10),
+            app.alerts.staticTexts["Approve launch?"].waitForExistence(timeout: 10),
             "Tapping Approve did not present the confirmation."
         )
+        XCTAssertTrue(
+            app.alerts.staticTexts["Publish the announcement and start the 10% rollout."].exists,
+            "The approval confirmation did not explain its consequence."
+        )
+        XCTAssertTrue(app.alerts.buttons["Approve"].isHittable)
+        XCTAssertTrue(app.alerts.buttons["Cancel"].isHittable)
         // Let the backdrop finish dimming; a capture mid-animation shows a
         // half-faded alert over a half-dimmed screen.
         Thread.sleep(forTimeInterval: 1)
         capture(named: "screenshot-approve")
 
-        app.buttons["Cancel"].firstMatch.tap()
+        app.alerts.buttons["Cancel"].tap()
         let back = app.navigationBars.buttons.element(boundBy: 0)
         XCTAssertTrue(back.waitForExistence(timeout: 5), "No way back from the card screen.")
         back.tap()

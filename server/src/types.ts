@@ -141,6 +141,15 @@ export const DashboardTemplateSchema = z.enum([
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
 
+export const ActionConfirmationSchema = z.object({
+  title: z.string().min(1).max(FieldLimits.alertTitle).describe(
+    "Question shown as the confirmation title, such as \"Approve launch?\".",
+  ),
+  message: z.string().min(1).max(FieldLimits.alertBody).describe(
+    "Plain-language consequence shown beneath the confirmation title.",
+  ),
+});
+
 const ActionPayloadSchema = z
   .record(
     z.string().min(1).max(FieldLimits.actionPayloadKey),
@@ -168,6 +177,10 @@ const ActionDefinitionFields = {
   confirm: z.boolean().default(false).describe(
     "Ask the person before running. Also stops the button running from a "
     + "widget, for the same reason `role: destructive` does.",
+  ),
+  confirmation: ActionConfirmationSchema.optional().describe(
+    "Custom copy for the foreground confirmation alert. Older actions may omit it; "
+    + "clients then explain that 00Widget will send the named action for the card.",
   ),
 };
 

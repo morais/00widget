@@ -2,12 +2,15 @@
 # Runs the app's XCTest accessibility audits at Large and AX5 on a disposable
 # simulator. No existing simulator state, Keychain, or content-size preference
 # is touched.
+# Pass --only-confirmation to exercise just the action confirmation surface.
 set -euo pipefail
 
 DEVICE_TYPE="iPhone 17 Pro"
+TEST_METHOD="testRepresentativeSurfaces"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE_TYPE="$2"; shift 2 ;;
+    --only-confirmation) TEST_METHOD="testActionConfirmation"; shift ;;
     -h|--help) sed -n '2,5p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -91,7 +94,7 @@ for AUDIT_SIZE in large accessibility-extra-extra-extra-large; do
     -xctestrun "$XCTESTRUN" \
     -destination "platform=iOS Simulator,id=$AUDIT_DEVICE_ID" \
     -resultBundlePath "$AUDIT_WORK/$AUDIT_LABEL.xcresult" \
-    -only-testing:ZeroZeroWidgetAccessibilityUITests/AccessibilityAuditTests/testRepresentativeSurfaces \
+    -only-testing:"ZeroZeroWidgetAccessibilityUITests/AccessibilityAuditTests/$TEST_METHOD" \
     > "$AUDIT_WORK/$AUDIT_LABEL.log" 2>&1 || {
       echo "✗ $AUDIT_LABEL audit failed — tail of log:" >&2
       tail -80 "$AUDIT_WORK/$AUDIT_LABEL.log" >&2

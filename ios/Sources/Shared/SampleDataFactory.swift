@@ -244,7 +244,15 @@ public enum SampleDataFactory {
                 // A customer announcement is consequential enough that the
                 // widget must route to the app's confirmation step rather than
                 // approving on one tap.
-                actions: [ActionDefinition(id: "approve-launch", label: "Approve", confirm: true)]
+                actions: [ActionDefinition(
+                    id: "approve-launch",
+                    label: "Approve",
+                    confirm: true,
+                    confirmation: ActionConfirmation(
+                        title: "Approve launch?",
+                        message: "Publish the announcement and start the 10% rollout."
+                    )
+                )]
             ),
             DashboardCard(
                 id: sampleId("production"),
@@ -838,7 +846,15 @@ public enum SampleDataFactory {
             // Confirmed in the app, never from a widget: the filmed beat taps
             // through to the real confirmation dialog, and a one-tap Home
             // Screen approval is the wrong proof for a customer announcement.
-            launchActions = [ActionDefinition(id: "approve-launch", label: "Approve", confirm: true)]
+            launchActions = [ActionDefinition(
+                id: "approve-launch",
+                label: "Approve",
+                confirm: true,
+                confirmation: ActionConfirmation(
+                    title: "Approve launch?",
+                    message: "Publish the announcement and start the 10% rollout."
+                )
+            )]
         case .c:
             launchValue = "5/5"
             launchProgress = 1.0

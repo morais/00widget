@@ -117,6 +117,35 @@ final class AccessibilityAuditTests: XCTestCase {
         try audit("Activity list", in: app, includesContrast: contrastAuditsEnabled)
     }
 
+    func testActionConfirmation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ZWSubscriptionState", "expired",
+            "-ZWAccessibilitySeedSamples",
+        ]
+        app.launch()
+
+        let widgetsTab = navigationButton(named: "Widgets", in: app)
+        XCTAssertTrue(widgetsTab.waitForExistence(timeout: 30))
+        widgetsTab.tap()
+        let launch = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH 'Launch'"))
+            .firstMatch
+        XCTAssertTrue(scrollTo(launch, in: app, swipes: 12))
+        launch.tap()
+        XCTAssertTrue(app.navigationBars["Launch"].waitForExistence(timeout: 10))
+
+        let approve = app.buttons["Approve"].firstMatch
+        XCTAssertTrue(scrollTo(approve, in: app), "Launch approval is not reachable.")
+        approve.tap()
+
+        XCTAssertTrue(app.alerts.staticTexts["Approve launch?"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.alerts.staticTexts["Publish the announcement and start the 10% rollout."].exists)
+        XCTAssertTrue(app.alerts.buttons["Approve"].isHittable)
+        XCTAssertTrue(app.alerts.buttons["Cancel"].isHittable)
+        try auditActionConfirmation(in: app)
+    }
+
     /// Large is the stricter contrast threshold. At AX5 XCTest samples labels
     /// where enlarged scroll content is partially occluded and reports even
     /// `.primary` text as failing, so AX5 stays focused on layout and semantics.
@@ -202,6 +231,30 @@ final class AccessibilityAuditTests: XCTestCase {
                 "\(name) accessibility issues:\n\(issues.joined(separator: "\n"))"
             )
         }
+    }
+
+    private func auditActionConfirmation(in app: XCUIApplication) throws {
+        var issues: [String] = []
+        let auditTypes: XCUIAccessibilityAuditType = [
+            .hitRegion,
+            .sufficientElementDescription,
+            .textClipped,
+            .trait,
+        ]
+        // UIKit's alert title and message are already asserted through the
+        // accessibility hierarchy above. XCTest's element-detection audit
+        // nevertheless reports those two native labels as inaccessible, so
+        // this focused audit covers every actionable control and text-layout
+        // check without that false duplicate OCR result.
+        try app.performAccessibilityAudit(for: auditTypes) { issue in
+            let element = issue.element.map { " Element: \($0)." } ?? ""
+            issues.append("\(issue.compactDescription): \(issue.detailedDescription).\(element)")
+            return true
+        }
+        XCTAssertTrue(
+            issues.isEmpty,
+            "Action confirmation accessibility issues:\n\(issues.joined(separator: "\n"))"
+        )
     }
 
     private func navigationButton(named name: String, in app: XCUIApplication) -> XCUIElement {

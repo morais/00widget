@@ -38,6 +38,10 @@ struct SampleDataFactoryTests {
         // The deck's only approval, and it must route through the app's
         // confirmation step rather than approving from a widget.
         #expect(launch.actions?.first?.confirm == true)
+        #expect(launch.actions?.first?.confirmation == ActionConfirmation(
+            title: "Approve launch?",
+            message: "Publish the announcement and start the 10% rollout."
+        ))
         #expect(launch.actions?.first?.isSafeFromWidget == false)
         #expect(launch.needsUserAttention)
         // A person is the thing being waited on, so nothing may draw a clock.
@@ -248,6 +252,10 @@ struct SampleDataFactoryTests {
         #expect(launchB.progress == 0.8)
         #expect(launchB.actions?.map(\.label) == ["Approve"])
         #expect(launchB.actions?.allSatisfy(\.confirm) == true)
+        #expect(launchB.actions?.first?.confirmation == ActionConfirmation(
+            title: "Approve launch?",
+            message: "Publish the announcement and start the 10% rollout."
+        ))
         #expect(launchB.needsUserAttention)
 
         let launchA = try #require(

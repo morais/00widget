@@ -32,6 +32,13 @@ enum TVDetailSubject: Identifiable {
         }
     }
 
+    var producerLabel: String? {
+        switch self {
+        case .card(let card): card.producer?.label
+        case .activity: nil
+        }
+    }
+
     /// Everything the panel draws in colour: the icon, the plot, the progress
     /// bar, the badge. A card takes it from its status, an activity from its
     /// kind or its current semantic signal, which is what both surfaces do.
@@ -94,6 +101,12 @@ struct TVDetailView: View {
 
     var body: some View {
         let subject = resolved
+        let confirmationPresentation = pendingAction.map { action in
+            action.confirmationPresentation(
+                cardTitle: subject.title,
+                producerLabel: subject.producerLabel
+            )
+        }
         ZStack {
             Color(red: 0.025, green: 0.03, blue: 0.05)
                 .ignoresSafeArea()
@@ -124,19 +137,29 @@ struct TVDetailView: View {
             .padding(.vertical, 56)
         }
         .confirmationDialog(
-            "Run action?",
+            confirmationPresentation?.title ?? "Confirm action?",
             isPresented: Binding(
                 get: { pendingAction != nil },
                 set: { if !$0 { pendingAction = nil } }
             ),
             presenting: pendingAction
         ) { action in
-            Button(action.label, role: action.role == .destructive ? .destructive : nil) {
+            let presentation = action.confirmationPresentation(
+                cardTitle: subject.title,
+                producerLabel: subject.producerLabel
+            )
+            Button(
+                presentation.confirmButtonLabel,
+                role: presentation.isDestructive ? .destructive : nil
+            ) {
                 run(action)
                 pendingAction = nil
             }
         } message: { action in
-            Text("Run \(action.label) for \(subject.title)?")
+            Text(action.confirmationPresentation(
+                cardTitle: subject.title,
+                producerLabel: subject.producerLabel
+            ).message)
         }
         .alert(
             "Action failed",

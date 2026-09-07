@@ -671,6 +671,56 @@ describe("DashboardCardSchema", () => {
     if (parsed.success) expect(parsed.data.actions?.[0]).not.toHaveProperty("payload");
   });
 
+  it("accepts custom action confirmation copy and keeps older actions compatible", () => {
+    const custom = DashboardCardSchema.safeParse({
+      id: "launch",
+      template: "action",
+      title: "Launch",
+      actions: [{
+        id: "approve-launch",
+        label: "Approve",
+        confirm: true,
+        confirmation: {
+          title: "Approve launch?",
+          message: "Publish the announcement and start the 10% rollout.",
+        },
+      }],
+    });
+    expect(custom.success).toBe(true);
+    if (custom.success) {
+      expect(custom.data.actions?.[0]?.confirmation).toEqual({
+        title: "Approve launch?",
+        message: "Publish the announcement and start the 10% rollout.",
+      });
+    }
+
+    const legacy = DashboardCardSchema.safeParse({
+      id: "legacy",
+      template: "action",
+      title: "Legacy",
+      actions: [{ id: "approve", label: "Approve", confirm: true }],
+    });
+    expect(legacy.success).toBe(true);
+    if (legacy.success) expect(legacy.data.actions?.[0]?.confirmation).toBeUndefined();
+  });
+
+  it("rejects incomplete or empty custom action confirmation copy", () => {
+    const card = {
+      id: "launch",
+      template: "action",
+      title: "Launch",
+      actions: [{ id: "approve", label: "Approve", confirm: true }],
+    };
+    expect(DashboardCardSchema.safeParse({
+      ...card,
+      actions: [{ ...card.actions[0], confirmation: { title: "", message: "Publish it." } }],
+    }).success).toBe(false);
+    expect(DashboardCardSchema.safeParse({
+      ...card,
+      actions: [{ ...card.actions[0], confirmation: { title: "Approve?" } }],
+    }).success).toBe(false);
+  });
+
   it("rejects oversized action payloads", () => {
     const payload = Object.fromEntries(
       Array.from({ length: FieldLimits.actionPayloadKeys + 1 }, (_, index) => [

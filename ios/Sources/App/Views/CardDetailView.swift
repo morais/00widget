@@ -42,6 +42,9 @@ struct CardDetailView: View {
 
     var body: some View {
         let currentCard = resolvedCard
+        let confirmationPresentation = pendingAction.map {
+            $0.confirmationPresentation(for: currentCard)
+        }
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CardView(
@@ -174,14 +177,18 @@ struct CardDetailView: View {
         // is centered on every device and cannot mis-anchor. Unlike a
         // confirmation dialog, an alert adds no Cancel button of its own.
         .alert(
-            "Run action?",
+            confirmationPresentation?.title ?? "Confirm action?",
             isPresented: Binding(
                 get: { pendingAction != nil },
                 set: { if !$0 { pendingAction = nil } }
             ),
             presenting: pendingAction
         ) { action in
-            Button(action.label, role: action.role == .destructive ? .destructive : nil) {
+            let presentation = action.confirmationPresentation(for: currentCard)
+            Button(
+                presentation.confirmButtonLabel,
+                role: presentation.isDestructive ? .destructive : nil
+            ) {
                 run(action)
                 pendingAction = nil
             }
@@ -189,7 +196,7 @@ struct CardDetailView: View {
                 pendingAction = nil
             }
         } message: { action in
-            Text("Run \(action.label) for \(currentCard.title)?")
+            Text(action.confirmationPresentation(for: currentCard).message)
         }
         .confirmationDialog(
             "Delete \(currentCard.title)?",

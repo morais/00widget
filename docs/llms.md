@@ -542,11 +542,17 @@ can render.
   "label": "string",
   "role": "normal | destructive (default: normal)",
   "confirm": "boolean (default: false)",
+  "confirmation": {"title": "string", "message": "string"},
   "payload": "Record<string,string>? (write-only server-side context)"
 }
 ```
 
 Only `role: normal` + `confirm: false` actions can run from widgets. Anything else routes through the iOS app for confirmation. Don't make destructive actions auto-runnable.
+
+`confirmation` is optional custom copy for that foreground prompt. Use it to
+name the real consequence instead of restating the button label. Older actions
+remain compatible; the app falls back to a truthful sentence naming the action,
+card, and producer when available.
 
 `payload` is accepted only when publishing a card. The server extracts it into private action storage and omits it from the stored card JSON, API responses, shared cards, and device caches. When the action runs, the server adds the private payload to the signed webhook delivery. Treat card reads as a public rendering model: they will never return this field.
 
