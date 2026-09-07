@@ -35,3 +35,12 @@ else
   "$SCRIPT_DIR/sync-appclip-default-experience.py"
   "$SCRIPT_DIR/upload-appstore-screenshots.py"
 fi
+
+cat <<'EOF'
+
+Manual App Store completion gate:
+  [ ] Upload the current App Preview.
+  [ ] Select its configured opening-hero poster.
+  [ ] Inspect the processed movie and poster on the product page.
+See marketing/README.md#manual-app-store-completion-gate.
+EOF

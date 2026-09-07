@@ -56,6 +56,11 @@ Exact strings belong in `SampleDataFactory`, not in this guide. If a string is
 changed for legibility, update both the regular marketing deck and App Preview
 fixtures in the same change, then update their tests.
 
+The Launch action uses publisher-supplied confirmation copy rather than the
+generic fallback: **Approve launch?** followed by **Publish the announcement
+and start the 10% rollout.** Keep that consequence consistent in the regular
+fixture, App Preview fixture, approval still, and movie.
+
 ## Release asset workflow
 
 Treat a fixture, renderer, capture, or promotional-copy change as an asset
@@ -78,6 +83,25 @@ revision across every destination:
    the listing sync does not manage either one.
 8. Inspect the resulting storefront and public website rather than inferring
    customer-visible state from a successful API response.
+
+### Manual App Store completion gate
+
+`sync-appstore-listing.sh` manages text metadata, the App Clip experience, and
+screenshots. App Store Preview upload and poster selection are deliberately
+manual. For every campaign revision that changes fixtures, captures, preview
+timing, or preview copy, the release is not complete until all three boxes are
+closed:
+
+- [ ] Upload the current `artifacts/app-preview/preview.mp4` to the intended
+  App Store version.
+- [ ] Select the populated opening hero at `output.posterTime` in
+  `marketing/app-preview/ios-main.yaml` as the poster.
+- [ ] Inspect the processed movie and poster on the App Store product-page
+  preview, then record completion in the campaign execution status.
+
+The listing sync prints a pointer to this gate on every dry-run, apply, and
+verification run. Do not mark a campaign revision distributed based only on
+the automated listing verification.
 
 Generated captures and movies under `artifacts/` are gitignored. App Store
 upload and website derivatives distribute them; neither makes the raw capture

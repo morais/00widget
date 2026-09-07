@@ -155,4 +155,6 @@ sharp; the Island reads 3/5, 4/5, then 5/5; captions sit over the proof they
 describe; dashboard and detail agree with phase B; the confirmation and
 success response are visible; and the final disclosure is readable. Also
 confirm that `preview.json` was generated from the current config. Upload and
-poster selection remain manual App Store Connect gates.
+poster selection remain manual App Store Connect gates; close them with the
+[manual completion checklist](../README.md#manual-app-store-completion-gate)
+after every affected campaign revision.
