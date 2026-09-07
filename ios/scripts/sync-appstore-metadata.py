@@ -35,6 +35,7 @@ FIELD_LIMITS = {
     "keywords": 100,
     "description": 4000,
 }
+STANDARD_EULA_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
 RELEASED_APP_INFO_STATES = {
     "READY_FOR_DISTRIBUTION",
     "READY_FOR_SALE",
@@ -103,6 +104,11 @@ def load_metadata(path):
         raise RuntimeError("unsupported platforms: " + ", ".join(unsupported))
     for platform, fields in versions.items():
         require_fields(fields, VERSION_FIELDS, f"versions.{platform}")
+        if STANDARD_EULA_URL not in fields["description"]:
+            raise RuntimeError(
+                f"versions.{platform}.description must include Apple's standard "
+                f"Terms of Use URL: {STANDARD_EULA_URL}"
+            )
 
     for section in [metadata["appInfo"], *versions.values()]:
         for field, value in section.items():
