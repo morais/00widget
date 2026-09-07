@@ -56,16 +56,18 @@ struct ProducerAttributionTests {
     /// because the compact surface they are captured on has one line, and a
     /// complete state is worth more there than a truncated name.
     ///
-    /// **Trials is here pending an open decision.** Shortening its subtitle to
-    /// `Growth · this week` while `producer` stays `Growth Agent` moved it out
-    /// of the repeated group, so the tvOS cell now draws an attribution line it
-    /// used to drop — which is why `TVCardFitTests` reports that card wanting
-    /// 260 points of the 228 a cell offers. Two ways out, neither taken here:
-    /// shorten the producer to `Growth` so the match fires again, or widen the
-    /// rule so a subtitle beginning with part of the producer's name counts as
-    /// a repeat — which would invert the case asserted a few lines above, where
-    /// `Growth` against `Growth Agent · up 18` is deliberately a *different*
-    /// producer.
+    /// **Trials is here by decision, and it costs a tvOS row.** Its subtitle is
+    /// `This week`, which says the one thing the headline does not and repeats
+    /// no producer, so the tvOS cell draws the attribution line it used to
+    /// drop — `TVCardFitTests` reports that card wanting 260 points of the 228
+    /// a cell offers.
+    ///
+    /// Shortening the subtitle further cannot fix that, and it is worth knowing
+    /// why before anyone tries: a `chart` cell drops its subtitle entirely when
+    /// the card carries a comparison, so on that surface the subtitle's length
+    /// is not the cost — the attribution line is, and it appears whenever the
+    /// subtitle stops repeating the producer. `Growth Agent · this week` was
+    /// the only form that kept it hidden.
     @Test("The sample deck exercises both cases")
     func samplesCoverBothCases() {
         let cards = SampleDataFactory.makeCards()

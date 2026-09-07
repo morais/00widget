@@ -69,7 +69,7 @@ struct SampleDataFactoryTests {
         // No marketing screenshot may contain an ellipsis. Measured at
         // caption2 against the 146pt a roomy grid cell gives a subtitle on a
         // 6.3-inch large widget, these are 131.0, 131.7, 131.3 and 96.3.
-        #expect(trials.subtitle == "Growth · this week")
+        #expect(trials.subtitle == "This week")
         // The producer gives up the line and the state keeps it, as on Open
         // PRs: the small widget in frame 2 rendered "Support Agent · 1 w…",
         // and a broken name is worth less than a complete state. `producer`
