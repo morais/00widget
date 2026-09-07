@@ -50,14 +50,10 @@ class Promotion:
 # anything. The hero shows the *compact* Island, because expanded it is drawn
 # over the first row of widgets and covers their titles.
 #
-# The expanded presentation was then inset into the Lock Screen frame to keep
-# it in the sequence, and that is now gone: composed against a real Lock Screen
-# capture it showed the same four lines as the card beneath it, which reads as
-# one thing printed twice rather than as two surfaces. The Island is still in
-# the sequence — frame 1 shows it doing its job at the size a person sees it.
-# `screenshot-island-expanded.png` is still captured: it costs one shot, it is
-# the only record of that presentation, and the App Preview is where showing it
-# in motion will earn its place.
+# The expanded presentation was once inset into the Lock Screen frame. That is
+# gone: composed against a real Lock Screen capture it showed the same four
+# lines as the card beneath it and read as one thing printed twice. It now owns
+# a dedicated 6.3-inch storefront frame, anchored by the authentic phone top.
 PROMOTIONS = (
     Promotion(
         "screenshot-home-widgets.png",
@@ -147,7 +143,9 @@ TV_PROMOTIONS = (
 
 #: The Island frame is a close-up of a presentation only one capture device
 #: has. The other sets omit it rather than fake it, which is why the promotional
-#: counts differ per device — eight on 6.3, seven elsewhere.
+#: generated counts differ per device — nine on 6.3 and eight on the other iOS
+#: sets because Activities is also generated for the website. The storefront
+#: subsets remain eight and seven respectively.
 ISLAND_FRAME = "screenshot-island-expanded.png"
 
 

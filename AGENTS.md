@@ -459,26 +459,15 @@ goes to the server, so the frame proves the real rendering path. That same
 token is what the app's QR encodes in `screenshot-share.png`, which is the
 point: the App Store's share frame draws both captures side by side, and two
 pictures of *different* links would be a composition rather than a proof. The
-QR's host comes from `ZW_APPCLIP_INVOCATION_URL` in gitignored
-`ios/appstore.env` when the checkout has one, and falls back to the placeholder
-otherwise.
+QR's URL is derived from the app's configured server base URL and the same
+guest path the backend serves; do not try to carry it through XCUITest launch
+arguments or environment variables, which do not survive every relaunch.
 
-**A locked simulator exposes nothing to XCUITest, which is why the Lock
-Screen's accessory widgets cannot be placed automatically yet.** Measured, not
-assumed: with the device locked by the host adapter, `XCUIApplication(bundleIdentifier:
-"com.apple.springboard")` reports *no buttons at all* and a single static text —
-the clock. That is the reason the lock staging test coordinates through files
-rather than through the accessibility tree.
-
-The consequence is that the widgets below the clock have no cheap capture path.
-The Lock Screen editor is reached by long-pressing the Lock Screen, which needs
-a locked device; the Settings route that would avoid that does not exist here,
-because this simulator's Settings has no Wallpaper entry at all. What is left
-is driving the editor blind with `sim-tap`, locating each control by analysing
-the framebuffer — the same technique the consent prompt uses, but a sequence of
-half a dozen steps through system UI rather than one button. The
-`ZW_SCREENSHOTS` accessory widget kinds exist and render; only the placement is
-unsolved.
+**A locked simulator exposes nothing useful to XCUITest.** SpringBoard reports
+only the clock, so the host adapter can lock and capture but cannot place
+accessory widgets. The canonical capture devices retain a manually prepared
+row with the two screenshot-only rectangular widgets; the exact arrangement
+and recovery rule live in `marketing/screenshots/README.md`.
 
 **A capture run holds the display awake, and needs to.** All three capture
 scripts assert `caffeinate -dimsu -w $$` for their own lifetime. A locked Mac
@@ -502,20 +491,17 @@ Apple TV uses `marketing/screenshots/capture-tvos.sh`, which builds a private
 `ZW_SCREENSHOTS` sample dashboard through the dedicated
 `ZeroZeroWidgetTVScreenshots` scheme and writes native 1920×1080 PNGs to
 `artifacts/screenshots/raw/tvos/`. The screenshot-only state and UI-test target are
-not compiled into the shipping tvOS scheme. A full run captures the general
-dashboard and the Energy/Deploys/Device fleet insights dashboard with a running
-Live Activity, and the Energy card's detail panel. The App Store order is
-Insights, Widgets, then Card detail.
+not compiled into the shipping tvOS scheme. The current surfaces and copy live
+in `marketing/screenshots/README.md`; the App Store order is Insights, Widgets,
+then Card detail.
 
 **Each capture is composed to fill the screen exactly once.** The `widgets`
-section deliberately holds six of the eight samples, not all of them: two rows
-is what 1080 lines hold at the card's height, a third is reachable by scrolling
-and correct on a device, and a marketing image that slices a row through the
-middle of a number reads as a bug rather than as an affordance. The two it drops
-are the two the insights capture features, so the pair of images still covers
-every sample and shows none of them twice. Re-check both captures against the
-bottom edge after anything that changes a card's height — `TVCardMetrics`, the
-type sizes, a section's spacing.
+section deliberately holds only the bounded prefix that fits in two rows. A
+third row is reachable by scrolling and correct on a device, but a marketing
+image that slices one through the middle of a number reads as a bug rather than
+as an affordance. The insights capture selects its own smaller set. Re-check
+both captures against the bottom edge after anything that changes a card's
+height — `TVCardMetrics`, the type sizes, or a section's spacing.
 
 A UI test is the only way in. The simulator cannot be driven from outside: the
 app opens on Settings until an API key is in the **Keychain**, which cannot be
@@ -572,26 +558,14 @@ separately signed extension and the key `widget_push_cadence` is rationed by.
 change how the app *looks* to someone else rather than what it does, and a
 screen recording wants them as much as the marketing run does.
 
-XCUITest can drive Springboard (`XCUIApplication(bundleIdentifier:
-"com.apple.springboard")`), which is how the expanded Dynamic Island is
-captured — a long-press on the island after backgrounding the app. The same test
-also rebuilds the dedicated marketing Home Screen page three times on every
-full run. The
-classic capture has small Production, Open PRs and Launch widgets plus a wide
-Trials chart; the insights capture uses a large Trials widget plus small Agent
-runs and Support widgets; the metrics capture uses one grid with Trials,
-Support, Agent runs and AI spend. That grid uses the large family on iPhone and
-the extra-large family on iPad. It removes any previous 00Widget layout, adds
-each set through SpringBoard's widget gallery, and asserts the expected sizes
-exist before capturing `screenshot-home-widgets.png`,
-`screenshot-home-insights.png`, and `screenshot-home-metrics.png`. The same
-test also captures the three in-app frames: `screenshot-approve.png` (the
-Launch card's screen with its Approve button and the confirmation alert),
-`screenshot-share.png` (the guest-link QR sheet), and
-`screenshot-insights.png` (the end of the deck). The Lock
-Screen surface (`screenshot-lock-activity.png`) is captured host-side after
-XCUITest stages the launch Live Activity — see the `--only lock` paragraph
-above — because no in-process screenshot can show the Lock Screen.
+XCUITest can drive SpringBoard (`XCUIApplication(bundleIdentifier:
+"com.apple.springboard")`), which is how the three dedicated Home Screen pages
+are rebuilt and the expanded Dynamic Island is captured after backgrounding
+the app. The canonical widget selections, in-app surfaces, filenames, and
+per-device order live in `marketing/screenshots/README.md`; do not duplicate
+that evolving campaign inventory here. The Lock Screen remains host-captured
+after XCUITest stages its Live Activity because no in-process screenshot can
+show that system surface.
 
 **The expanded Island is a separate capture, and the hero keeps the compact
 one.** Drawn expanded, the system overlay sits on top of the first row of Home
@@ -630,14 +604,13 @@ Library button previews the installed UI-test runner as an apparent extra
 because iPad has no Dynamic Island.
 
 The screenshot script builds with the private `ZW_SCREENSHOTS` compilation
-condition. It adds static widget kinds that feed Solar, Nightly run, Boiler, Energy,
-Deploys, and Device fleet through the production card renderer, including
-medium and large Energy variants for the classic and insights layouts and a
-large four-card grid for the metrics layout. This is
-necessary because the Simulator does not rehydrate stored AppIntent card selections (see
-"Widget configuration cannot be verified on the Simulator" above), so three
-normal configurable widgets cannot retain three distinct cards there. Ordinary
-simulator builds and every shipping build do not compile these widget kinds.
+condition. It adds static widget kinds for the campaign's Home Screen, Lock
+Screen, and App Preview fixtures through the production card renderer. This is
+necessary because the Simulator does not rehydrate stored AppIntent card
+selections (see "Widget configuration cannot be verified on the Simulator"
+above), so normal configurable widgets cannot retain several distinct cards
+there. Ordinary simulator builds and every shipping build do not compile these
+widget kinds.
 
 App Store Connect listing writes are command-line driven. The canonical HTTPS
 URL lives in gitignored `ios/appstore.env`, with `ios/appstore.env.sample` as the

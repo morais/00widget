@@ -40,8 +40,11 @@ Configure the device once:
 - remove distracting apps from the hero capture page;
 - disable notifications or enable a Focus that suppresses banners;
 - leave the keyboard dismissed and turn off pointer/touch visualizations;
-- prepare the desired Lock Screen separately if a future timeline uses it;
 - do not erase this Simulator after the layout is ready.
+
+The App Preview deliberately does not enter the Lock Screen. That surface is
+captured by the separate screenshot workflow, while this prepared stage owns
+the request, changing Dynamic Island state, approval, and completion story.
 
 Place one hero Home Screen page, starting at the first ordinary page
 after iOS's far-left Today/widgets view, holding `Preview AI Spend`,

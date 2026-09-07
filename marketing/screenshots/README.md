@@ -1,6 +1,10 @@
 # Marketing screenshots
 
-The marketing screenshot suite is driven by XCUITest and uses built-in sample data. The iOS run fixes the status bar at 9:41 with full signal and battery, hides the `SAMPLE` indicators, and prepares dedicated Home Screen pages so repeated runs produce the same layouts.
+The marketing screenshot suite is driven by XCUITest and uses built-in sample
+data. The iOS run fixes the status bar at 9:41 with full signal and battery,
+hides the `SAMPLE` indicators, and prepares dedicated Home Screen pages so
+repeated runs produce the same layouts. See [`../README.md`](../README.md) for
+the campaign story, source-of-truth map, and cross-destination release flow.
 
 ## iPhone with Dynamic Island
 
@@ -25,7 +29,7 @@ The test captures these surfaces in order:
 | `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — the phone's top seen close up, which is why that set ships eight images and the others seven. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
-| `screenshot-lock-activity.png` | The Lock Screen with the launch Live Activity, captured host-side via the Simulator accessibility adapter after XCUITest stages the activity. |
+| `screenshot-lock-activity.png` | The Lock Screen with persistent Trials and Agent runs accessories below the clock and the changing Launch Live Activity beneath them. Captured host-side via the Simulator accessibility adapter after XCUITest stages the state. |
 
 Two of those are captured host-side, because XCUITest has no way to reach
 either surface. The Lock Screen is captured through the Simulator's
@@ -48,6 +52,15 @@ set, the only capture device that has one:
 ```sh
 marketing/screenshots/copy.sh --set iphone-6.3 --to /path/to/site/public/assets
 ```
+
+The capture adapter can lock and screenshot the Simulator, but it cannot edit
+the Lock Screen: SpringBoard exposes no controls to XCUITest while locked. The
+canonical capture devices therefore retain one manually prepared Lock Screen
+with the screenshot-only `Screenshot Trials Lock` and `Screenshot Agent Runs
+Lock` rectangular widgets below the clock. Leave the inline date intact and do
+not add a Launch accessory, because the Launch Live Activity already occupies
+the surface beneath them. If either accessory disappears after a device reset
+or widget-kind change, restore this arrangement before running the full set.
 
 For a quick Activities-only refresh, run `marketing/screenshots/capture-ios.sh --only activities`. Use `--only app` to capture the three in-app surfaces without rebuilding or depending on a SpringBoard widget layout. Use `--only island` for a 37-second look at the Dynamic Island — it stages the
 launch activity, backgrounds the app, and captures the compact and expanded
@@ -86,23 +99,25 @@ It writes the following raw files to `artifacts/screenshots/raw/tvos/`:
 
 | File | Surface |
 | --- | --- |
-| `screenshot-tv-insights.png` | The insights dashboard with Energy, Deploys, Device fleet, and the running home battery activity. |
-| `screenshot-tv-widgets.png` | The general dashboard with the Solar and other classic cards. |
-| `screenshot-tv-card-detail.png` | The Energy card's detail panel, which is what pressing Select on a card opens. |
+| `screenshot-tv-insights.png` | The launch insights dashboard with Trials, Support, Agent runs, and the running App launch activity. |
+| `screenshot-tv-widgets.png` | The bounded launch dashboard: Launch, Production, Trials, Support, and AI spend. |
+| `screenshot-tv-card-detail.png` | The Trials detail panel and its full chart, which is what pressing Select on that dashboard card opens. |
 
 The canonical App Store order is Insights, Widgets, then Card detail.
 
 Each Apple TV capture is composed to fill the screen exactly once, so check a
 new one against the bottom edge rather than trusting the full-size render. The
-`widgets` section deliberately holds six of the eight samples: two rows is what
-1080 lines hold at the card's height, and an image that slices a third row
-through the middle of a number reads as a bug. The two it leaves out are the two
-the insights capture features, so the set covers every sample without repeating
-one. Copy the promotional set with `marketing/screenshots/copy.sh --set tvos --to /path/to/site/public/assets/tvos`.
+`widgets` section deliberately holds only the five-card prefix that fits in two
+rows. A third row is reachable by scrolling and correct on a device, but an
+image that slices one through the middle of a number reads as a bug rather than
+as an affordance. The dedicated Insights frame separately selects Trials,
+Support, and Agent runs around the Live Activity. Copy the promotional set with
+`marketing/screenshots/copy.sh --set tvos --to
+/path/to/site/public/assets/tvos`.
 
 ## iPhone without Dynamic Island
 
-The App Store 6.5-inch set follows the same seven-image story as the 6.3-inch set.
+The App Store 6.5-inch set uses the seven-image version of the campaign.
 `screenshot-home-widgets.png` shows the classic Home Screen layout without a
 Dynamic Island, and `screenshot-home-metrics.png` uses the same large
 four-metric widget. Capture the full marketing suite with an explicit device;
@@ -115,7 +130,8 @@ marketing/screenshots/capture-ios.sh \
 ```
 
 The canonical published order is Home Screen widgets, Home Screen insights,
-Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities.
+Lock Screen activity, Home Screen metrics, approval, Insights, and the
+share/App Clip proof.
 Relative `--out` paths are resolved from `ios/`; this canonical device already
 selects the correct default. Copy the promotional set with:
 
@@ -125,7 +141,19 @@ marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
 
 ## iPad
 
-iPad follows the same seven-image story and order. Because iPad has no Dynamic Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three small widgets and the wide Energy chart. Its `screenshot-home-metrics.png` uses a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical published order is Home Screen widgets, Home Screen insights, Home Screen metrics, Lock Screen activity, Widgets, Insights, and Activities. The standard App Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch (M4)"`, writes 2064×2752 raw files to `artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree with `marketing/screenshots/copy.sh --set ipad --to /path/to/site/public/assets/ipad`.
+iPad follows a seven-image version of the story. Because iPad has no Dynamic
+Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three
+small widgets and the wide Trials chart. Its `screenshot-home-metrics.png` uses
+a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical
+published order is Home Screen widgets, Home Screen insights, Lock Screen
+activity, Home Screen metrics, approval, Insights, and Activities. The tablet
+keeps Activities where the iPhones use share/App Clip, because the guest sheet
+and width-capped clip become two mostly empty tablet screens. The standard App
+Store run uses `marketing/screenshots/capture-ios.sh --device "iPad Pro 13-inch
+(M4)"`, writes 2064×2752 raw files to
+`artifacts/screenshots/raw/ipad/`, and can be copied from the promotional tree
+with `marketing/screenshots/copy.sh --set ipad --to
+/path/to/site/public/assets/ipad`.
 
 ## Promotional compositions
 
@@ -150,16 +178,18 @@ whether SpringBoard already rendered a compact or expanded Live Activity before
 adding the empty state. Every 6.5-inch screen uses the exact smaller iPhone 14
 Plus notch silhouette from Xcode's bundled framebuffer mask.
 
-The seven images tell one benefit-led story: see every agent, understand what is
-moving, step in when needed, and turn updates into decisions. Each claim is made
-on the frame that shows it — the Lock Screen and Dynamic Island are named on the
-image of those surfaces, not on a Home Screen grid.
+The storefront images tell one benefit-led story: see every agent, understand
+what is moving, step in when needed, and turn updates into decisions. The
+6.3-inch set contains eight images because it alone includes the expanded
+Dynamic Island; the other iPhone and iPad sets contain seven. Each claim is
+made on the frame that shows it — the Lock Screen and Dynamic Island are named
+on the image of those surfaces, not on a Home Screen grid.
 
 | File | Headline | Supporting line |
 | --- | --- | --- |
 | `screenshot-home-widgets.png` | **Know what every agent is doing.** | Live progress, results, and approvals—right on your Home Screen. |
 | `screenshot-home-insights.png` | **One dashboard. Every agent.** | See the work that’s done, in motion, and waiting on you. |
-| `screenshot-lock-activity.png` | **Follow every step live.** | Progress, completed steps, and the next decision—right on your Lock Screen. |
+| `screenshot-lock-activity.png` | **Follow every step live.** | See agent status, live progress, and approvals—right on your Lock Screen. |
 | `screenshot-island-expanded.png` (6.3-inch only) | **Keep live work in sight.** | Progress and approvals stay visible in the Dynamic Island. |
 | `screenshot-home-metrics.png` | **Four agents. One widget.** | Trends, budgets, and run history—without opening anything. |
 | `screenshot-approve.png` | **Step in at the right moment.** | Approve from the card—00Widget asks before anything runs. |
@@ -214,14 +244,14 @@ frame. Its three-image copy is:
 | `screenshot-tv-widgets.png` | **Live work. Shared screen.** | Keep the whole room aligned without opening another dashboard. |
 | `screenshot-tv-card-detail.png` | **The detail is one click away.** | Open any card for the trend, briefing, or action behind it. |
 
-Generate all 24 promotional images from the current raw captures with:
+Generate all 28 promotional images from the current raw captures with:
 
 ```sh
 python3.12 marketing/screenshots/generate-promotional.py
 ```
 
 The canonical end-to-end workflow captures all four raw device sets and then
-generates and verifies all 24 promotional compositions:
+generates and verifies 28 promotional compositions from 31 raw captures:
 
 ```sh
 marketing/screenshots/capture-all.sh
@@ -229,6 +259,29 @@ marketing/screenshots/capture-all.sh
 
 Its `--verify-only` mode checks both trees and fails if a promotional image was
 generated from an older raw capture.
+
+### Human visual review
+
+The manifests prove provenance, dimensions, filenames, checksums, and approved
+copy. They do not prove that a widget fits, a permission prompt is absent, the
+claim matches the visible product, or the resulting sequence reads well. After
+every full capture and before any upload, inspect every promotional image at
+its canonical size and explicitly check:
+
+- no truncated titles, values, chips, charts, cards, or Dynamic Island glyphs;
+- the Lock Screen shows the normal date, the two genuine accessory widgets,
+  and one non-duplicated Live Activity with no consent prompt;
+- the approval frame contains the real action and its confirmation;
+- the Insights crop visibly contains the budget, run history, and open-work
+  evidence named by its copy;
+- the share QR decodes to the configured App Clip guest host and token, and
+  the companion clip renders that same token read-only;
+- the iPhone, iPad, and Apple TV sequences match the order in
+  `ios/scripts/upload-appstore-screenshots.py`.
+
+Record only unresolved findings in the execution tracker. Once a lesson is
+enforced by a script, test, or this guide, remove its investigation history
+from the tracker.
 
 Generate one device class while iterating with `--set iphone-6.3`,
 `--set iphone-6.5`, `--set ipad`, or `--set tvos`. The output keeps the canonical filenames

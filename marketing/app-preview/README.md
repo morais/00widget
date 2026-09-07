@@ -4,7 +4,32 @@
 Simulator into a deterministic 24-second App Store Preview. It builds the
 private screenshot scheme, seeds offline fixtures, records the Simulator
 framebuffer, runs a monotonic XCUITest timeline, renders prompt cards with
-FFmpeg, and validates the MP4 with ffprobe.
+FFmpeg, and validates the MP4 with ffprobe. See [`../README.md`](../README.md)
+for the campaign story, source-of-truth map, and cross-destination release
+flow.
+
+## Creative contract
+
+The preview is a causal product demonstration, not a tour. One launch moves
+from automatic work to a human decision and completion:
+
+| Time | Proof |
+| --- | --- |
+| 0–3 s | A populated Home Screen and compact 3/5 Launch Live Activity establish the product immediately. |
+| 3–5.5 s | One plausible request: “Ship 2.4 and keep me posted on my phone.” |
+| 5.5–9.5 s | The Live Activity advances to 4/5 and waits for approval. |
+| 9.5–12.5 s | The app opens on the matching dashboard state. |
+| 12.5–15 s | The Launch briefing exposes the result and next decision. |
+| 15–18 s | The real Approve action, confirmation, and success response are shown. |
+| 18–21 s | The Home Screen returns with the Live Activity complete at 5/5. |
+| 21–24 s | The brand end frame carries the compatibility/subscription disclosure. |
+
+The Lock Screen is intentionally not another movie beat. The static screenshot
+set proves persistent accessories and the Live Activity there at full size;
+adding lock/wake automation would duplicate that proof and displace the
+request-to-result sequence above. The expanded Dynamic Island likewise owns a
+dedicated 6.3-inch still while the movie shows the compact state changing in
+context.
 
 ## Requirements
 
@@ -66,11 +91,10 @@ bitrate and duration changes cheap. The three overlay styles are `prompt`,
 rounded PNG with the installed SF system font, then faded and composited by
 FFmpeg. Font files are referenced in place and never copied.
 
-`output.posterTime` nominates the poster moment (currently the bare hero at
-0.2s, inside the plan's first-three-seconds window with the launch story and
-the live island and no overlay text). There is no upload automation for
-previews or poster frames yet; both are selected by hand in App Store
-Connect.
+`output.posterTime` nominates the poster moment. It is currently 1.5 seconds:
+the populated opening hero after its benefit headline has appeared, before the
+prompt takes over. There is no upload automation for previews or poster frames
+yet; both are selected by hand in App Store Connect.
 
 ## Timeline behavior
 
@@ -90,9 +114,15 @@ and widgets rather than the Today view.
 The Simulator has no stable public command for lock/sleep control, and XCTest's
 Simulator device button API exposes Home but not Lock. The config validator
 therefore rejects `lock`, `wake`, and `sleep_wake` with an actionable message.
-If a later preview needs the Lock Screen, add a small macOS UI-automation driver
-as a separate adapter; do not put hard-coded screen coordinates into the
-capture or rendering code.
+That is also the intended creative boundary: use the dedicated Lock Screen
+still rather than adding one of those actions to this timeline.
+
+The four static hero widgets never change during the movie and must not reload
+on a phase advance. Only the screenshot-only ActivityKit state moves. A
+WidgetKit reload is budgeted and non-deterministic; even when its content is
+identical, SpringBoard crossfades the snapshot and can leave the hero visibly
+soft after timeline normalization. The app's own Launch card does follow the
+phase so the dashboard and detail agree with the Live Activity when they open.
 
 The host/test handshake excludes Xcode startup from the movie:
 
@@ -118,3 +148,11 @@ Run the validator directly when useful:
 ```sh
 python3 marketing/app-preview/tools/validate.py ios-main artifacts/app-preview/preview.mp4
 ```
+
+Technical validation is necessary but not creative approval. Review the final
+MP4 at full resolution and confirm that the opening fixtures are current and
+sharp; the Island reads 3/5, 4/5, then 5/5; captions sit over the proof they
+describe; dashboard and detail agree with phase B; the confirmation and
+success response are visible; and the final disclosure is readable. Also
+confirm that `preview.json` was generated from the current config. Upload and
+poster selection remain manual App Store Connect gates.

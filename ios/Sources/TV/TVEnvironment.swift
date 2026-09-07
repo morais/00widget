@@ -105,8 +105,9 @@ final class TVEnvironment: ObservableObject {
             // reachable by scrolling and is the right behaviour on a device,
             // but a marketing capture that slices one through the middle of a
             // number reads as a bug rather than as an affordance. Keep the
-            // publication-order prefix here; the dedicated insights capture
-            // separately selects Trials, Support, and Agent runs.
+            // publication-order prefix here. The dedicated insights capture
+            // separately selects the three cards that best support its
+            // trend/history story.
             self.cards = Array(samples.dropLast(2))
         } else {
             self.cards = samples
