@@ -228,7 +228,7 @@ public enum SampleDataFactory {
                     DashboardBriefingSection(
                         id: "now",
                         label: "Now",
-                        text: "Build and tests passed. Store uploaded; website live."
+                        text: "Store uploaded; website live."
                     ),
                     DashboardBriefingSection(
                         id: "next",
@@ -257,7 +257,7 @@ public enum SampleDataFactory {
                 updatedAt: now,
                 items: [
                     DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
-                    DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
+                    DashboardItem(id: "checkout", title: "Store", value: "99.99", unit: "%", status: .good, amount: 99.99),
                     DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
                 ]
             ),
@@ -265,12 +265,12 @@ public enum SampleDataFactory {
                 id: sampleId("trials"),
                 template: .chart,
                 title: "Trials",
-                subtitle: "Growth Agent · this week",
+                subtitle: "Growth · this week",
                 value: "128",
                 unit: "today",
                 status: .good,
                 icon: "chart.line.uptrend.xyaxis",
-                producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
+                producer: CardProducer(label: "Growth", icon: "sparkles"),
                 comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
                 updatedAt: now,
                 chart: DashboardChart(
@@ -311,7 +311,7 @@ public enum SampleDataFactory {
                 id: sampleId("ai-spend"),
                 template: .progress,
                 title: "AI spend",
-                subtitle: "of $30 today · $11.60 left",
+                subtitle: "of $30 · $11.60 left",
                 value: "$18.40",
                 status: .good,
                 icon: "dollarsign.circle",
@@ -862,7 +862,7 @@ public enum SampleDataFactory {
                     DashboardBriefingSection(
                         id: "now",
                         label: "Now",
-                        text: "Build and tests passed. Store uploaded; website live."
+                        text: "Store uploaded; website live."
                     ),
                     DashboardBriefingSection(
                         id: "next",
@@ -911,7 +911,7 @@ public enum SampleDataFactory {
             staleAfter: Date.distantFuture,
             items: [
                 DashboardItem(id: "api", title: "API", value: "118", unit: "ms", status: .good, amount: 118),
-                DashboardItem(id: "checkout", title: "Checkout", value: "99.99", unit: "%", status: .good, amount: 99.99),
+                DashboardItem(id: "checkout", title: "Store", value: "99.99", unit: "%", status: .good, amount: 99.99),
                 DashboardItem(id: "queue", title: "Queue", value: "0", unit: "waiting", status: .good, amount: 0),
             ]
         )
@@ -922,12 +922,12 @@ public enum SampleDataFactory {
             id: sampleId("preview-trials"),
             template: .chart,
             title: "Trials",
-            subtitle: "Growth Agent · this week",
+            subtitle: "Growth · this week",
             value: "128",
             unit: "today",
             status: .good,
             icon: "chart.line.uptrend.xyaxis",
-            producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
+            producer: CardProducer(label: "Growth", icon: "sparkles"),
             comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
             updatedAt: referenceDate,
             staleAfter: Date.distantFuture,
@@ -967,7 +967,7 @@ public enum SampleDataFactory {
             id: sampleId("preview-ai-spend"),
             template: .progress,
             title: "AI spend",
-            subtitle: "of $30 today · $11.60 left",
+            subtitle: "of $30 · $11.60 left",
             value: "$18.40",
             status: .good,
             icon: "dollarsign.circle",

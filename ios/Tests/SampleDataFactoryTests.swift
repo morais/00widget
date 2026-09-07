@@ -69,7 +69,7 @@ struct SampleDataFactoryTests {
         // No marketing screenshot may contain an ellipsis. Measured at
         // caption2 against the 146pt a roomy grid cell gives a subtitle on a
         // 6.3-inch large widget, these are 131.0, 131.7, 131.3 and 96.3.
-        #expect(trials.subtitle == "Growth Agent · this week")
+        #expect(trials.subtitle == "Growth · this week")
         // The producer gives up the line and the state keeps it, as on Open
         // PRs: the small widget in frame 2 rendered "Support Agent · 1 w…",
         // and a broken name is worth less than a complete state. `producer`
@@ -77,7 +77,7 @@ struct SampleDataFactoryTests {
         #expect(support.subtitle == "1 waiting")
         #expect(!support.producerRepeatsSubtitle)
         #expect(support.producer?.label == "Support Agent")
-        #expect(spend.subtitle == "of $30 today · $11.60 left")
+        #expect(spend.subtitle == "of $30 · $11.60 left")
         #expect(runs.subtitle == "19 clean · 1 retried")
 
         // A summary's subtitle gets one line in a small widget — a briefing's
@@ -94,7 +94,7 @@ struct SampleDataFactoryTests {
         #expect(prs.deadline == nil)
 
         #expect(cards.compactMap(\.producer?.label) == [
-            "Release Agent", "Ops Agent", "Growth Agent", "Support Agent",
+            "Release Agent", "Ops Agent", "Growth", "Support Agent",
             "Usage Agent", "Run Agent", "Code Agent",
         ])
 
