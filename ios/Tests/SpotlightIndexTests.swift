@@ -15,6 +15,16 @@ struct SpotlightIndexTests {
         #expect(SpotlightIndex.indexable([own]).map(\.id) == ["solar"])
     }
 
+    /// The `SyncableEntity` precondition: the entity's id is the card's
+    /// server-provided stable id, identical on every device signed into the
+    /// same tenant — never a device-local UUID. Cross-device Siri handoff
+    /// resolves to the same thing everywhere only because this holds.
+    @Test("The entity id is the stable card id")
+    func entityIdIsStable() {
+        let entity = DashboardCardEntity(card(id: "solar"))
+        #expect(entity.id == "solar")
+    }
+
     /// Samples are generated on-device for someone who has never signed in.
     /// The SAMPLE badge that makes them honest in the app cannot follow a card
     /// into Spotlight, so they must not go.

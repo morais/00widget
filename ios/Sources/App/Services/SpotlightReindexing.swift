@@ -1,12 +1,12 @@
-// iOS 27's `IndexedEntityQuery`, and the only place in this target that names
-// it.
+// iOS 27's `IndexedEntityQuery` and `SyncableEntity`, and the only place in
+// this target that names either.
 //
 // The gate is the same pattern as `Sources/Widgets/FullPageWidgetFamily.swift`
 // and exists for the same reason: this repository is built against two SDKs —
 // iOS 27 on the development machine, iOS 26 on the machine that archives for
-// the App Store — and `IndexedEntityQuery` is absent from the older one
-// entirely, so naming it there is a compile-time error no `#available` check
-// can rescue.
+// the App Store — and both protocols are absent from the older one
+// entirely, so naming either there is a compile-time error no `#available`
+// check can rescue.
 //
 // AppIntents carries its own module version, so the gate asks that rather than
 // asking the compiler its own. Observed `-user-module-version`: `300.5.12` in
@@ -57,5 +57,20 @@ extension DashboardCardEntityQuery: IndexedEntityQuery {
         await SpotlightIndex.matchIndex(to: CardCache.load().cards)
     }
 }
+
+/// Cross-device-stable identity so Siri hands conversations across
+/// iPhone/Mac/Watch.
+///
+/// Conformance is nearly free because the precondition already holds: a
+/// `DashboardCardEntity`'s id *is* the card's server-provided stable id
+/// (`DashboardCardEntity(card).id == card.id`), identical on every device
+/// signed into the same tenant — never a device-local UUID. Samples,
+/// guest-link and shared cards never reach the entity at all
+/// (`SpotlightIndex.indexable`), so nothing syncable names something another
+/// device cannot resolve to the same tenant-owned thing. No relevance-API
+/// change in 27, so scores stay as they are; there is just more wrist traffic
+/// over them with Siri on watchOS 27.
+@available(iOS 27.0, *)
+extension DashboardCardEntity: SyncableEntity {}
 
 #endif
