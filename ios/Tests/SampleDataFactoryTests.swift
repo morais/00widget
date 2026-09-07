@@ -94,7 +94,7 @@ struct SampleDataFactoryTests {
         #expect(prs.deadline == nil)
 
         #expect(cards.compactMap(\.producer?.label) == [
-            "Release Agent", "Ops Agent", "Growth", "Support Agent",
+            "Release Agent", "Ops Agent", "Growth Agent", "Support Agent",
             "Usage Agent", "Run Agent", "Code Agent",
         ])
 

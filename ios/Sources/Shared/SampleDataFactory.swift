@@ -270,7 +270,7 @@ public enum SampleDataFactory {
                 unit: "today",
                 status: .good,
                 icon: "chart.line.uptrend.xyaxis",
-                producer: CardProducer(label: "Growth", icon: "sparkles"),
+                producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
                 comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
                 updatedAt: now,
                 chart: DashboardChart(
@@ -927,7 +927,7 @@ public enum SampleDataFactory {
             unit: "today",
             status: .good,
             icon: "chart.line.uptrend.xyaxis",
-            producer: CardProducer(label: "Growth", icon: "sparkles"),
+            producer: CardProducer(label: "Growth Agent", icon: "sparkles"),
             comparison: CardComparison(value: "+18", label: "vs Monday", signal: .favorable),
             updatedAt: referenceDate,
             staleAfter: Date.distantFuture,

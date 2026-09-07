@@ -49,18 +49,29 @@ struct ProducerAttributionTests {
     }
 
     /// The sample deck is what the App Store screenshots show, and it is
-    /// deliberately written the way a real producer writes: three of its seven
+    /// deliberately written the way a real producer writes: two of its seven
     /// cards repeat their producer in the subtitle, so the renderer's handling
-    /// of that is what a screenshot captures. Four do not, which is what keeps
-    /// the attribution itself visible in those captures — three of those four
+    /// of that is what a screenshot captures. Five do not, which is what keeps
+    /// the attribution itself visible in those captures — three of those five
     /// because the compact surface they are captured on has one line, and a
     /// complete state is worth more there than a truncated name.
+    ///
+    /// **Trials is here pending an open decision.** Shortening its subtitle to
+    /// `Growth · this week` while `producer` stays `Growth Agent` moved it out
+    /// of the repeated group, so the tvOS cell now draws an attribution line it
+    /// used to drop — which is why `TVCardFitTests` reports that card wanting
+    /// 260 points of the 228 a cell offers. Two ways out, neither taken here:
+    /// shorten the producer to `Growth` so the match fires again, or widen the
+    /// rule so a subtitle beginning with part of the producer's name counts as
+    /// a repeat — which would invert the case asserted a few lines above, where
+    /// `Growth` against `Growth Agent · up 18` is deliberately a *different*
+    /// producer.
     @Test("The sample deck exercises both cases")
     func samplesCoverBothCases() {
         let cards = SampleDataFactory.makeCards()
         let repeated = cards.filter(\.producerRepeatsSubtitle).map(\.title)
         let distinct = cards.filter { $0.producer != nil && !$0.producerRepeatsSubtitle }.map(\.title)
-        #expect(repeated == ["Launch", "Production", "Trials"])
-        #expect(distinct == ["Support", "AI spend", "Agent runs", "Open PRs"])
+        #expect(repeated == ["Launch", "Production"])
+        #expect(distinct == ["Trials", "Support", "AI spend", "Agent runs", "Open PRs"])
     }
 }
