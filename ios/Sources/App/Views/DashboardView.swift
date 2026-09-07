@@ -9,6 +9,7 @@ struct DashboardView: View {
     /// NavigationLinks use.
     @State private var path: [String] = []
     @State private var searchText = ""
+    @State private var removalNotice: String?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -23,6 +24,9 @@ struct DashboardView: View {
                 }
                 .onChange(of: env.requestedCardId) { _, _ in applyRequestedCard() }
                 .onChange(of: env.requestedSearchQuery) { _, _ in applyRequestedSearch() }
+                .onChange(of: availableDestinations) { _, destinations in
+                    dismissUnavailableDetail(availableDestinations: destinations)
+                }
                 .navigationDestination(for: String.self) { id in
                     if let card = card(forDestination: id) {
                         CardDetailView(card: card)
@@ -32,6 +36,20 @@ struct DashboardView: View {
                         // pushed screen, so pop back to the list instead.
                         DismissingDetailPlaceholder()
                     }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let removalNotice {
+                        DetailRemovalNotice(message: removalNotice)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .task(id: removalNotice) {
+                    guard removalNotice != nil else { return }
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { return }
+                    withAnimation { removalNotice = nil }
                 }
                 .sheet(isPresented: $showingWidgetGuide) {
                     NavigationStack {
@@ -100,6 +118,25 @@ struct DashboardView: View {
     private var visibleCards: [DashboardCard] { env.cards.filter(matchesSearch) }
     private var visibleSharedCards: [DashboardCard] { env.sharedCards.filter(matchesSearch) }
     private var visibleGuestCards: [DashboardCard] { env.guestCards.filter(matchesSearch) }
+
+    private var availableDestinations: Set<String> {
+        Set(env.cards.map(\.id))
+            .union(env.sharedCards.map { "shared:\($0.id)" })
+            .union(env.guestCards.map { "guest:\($0.id)" })
+    }
+
+    private func dismissUnavailableDetail(availableDestinations: Set<String>) {
+        guard DetailNavigation.missingDestination(
+            in: path,
+            availableDestinations: availableDestinations
+        ) != nil else { return }
+
+        withAnimation {
+            path = []
+            removalNotice = "This widget is no longer available."
+        }
+        AccessibilityAnnouncement.post("This widget is no longer available.")
+    }
 
     /// Cards reaching the app through a share or a guest link are namespaced in
     /// the navigation path, so an incoming id has to be matched against all
@@ -349,13 +386,5 @@ struct DashboardView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
         )
-    }
-}
-
-private struct DismissingDetailPlaceholder: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        Color.clear.onAppear { dismiss() }
     }
 }

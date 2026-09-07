@@ -18,7 +18,6 @@ struct CardDetailView: View {
     /// the middle of. Announcing it says what happened; moving focus to it is
     /// what lets them read it again, and act on what it says.
     @AccessibilityFocusState private var focusedMessage: Message?
-    @Environment(\.dismiss) private var dismiss
     #if ZW_SHARING_ENABLED
     @State private var showShareSheet = false
     #endif
@@ -224,8 +223,6 @@ struct CardDetailView: View {
             defer { deleting = false }
             do {
                 try await env.deleteCard(card)
-                AccessibilityAnnouncement.post("\(card.title) deleted.")
-                dismiss()
             } catch {
                 deleteError = error.localizedDescription
                 AccessibilityAnnouncement.post("Could not delete \(card.title). \(error.localizedDescription)")
@@ -235,6 +232,10 @@ struct CardDetailView: View {
     }
 
     private var resolvedCard: DashboardCard {
+        if card.isFromGuestLink,
+           let guest = env.guestCards.first(where: { $0.id == card.id }) {
+            return guest
+        }
         if let sharedBy = card.sharedBy,
            let shared = env.sharedCards.first(where: { candidate in
                candidate.id == card.id && candidate.sharedBy?.shareId == sharedBy.shareId

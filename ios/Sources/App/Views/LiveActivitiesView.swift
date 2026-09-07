@@ -5,15 +5,41 @@ struct LiveActivitiesView: View {
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     @State private var isGeneratingSample = false
     @State private var sampleError: String?
+    @State private var path: [String] = []
+    @State private var removalNotice: String?
     /// See the note in `CardDetailView`: an announcement says what happened,
     /// focus is what lets it be read again.
     @AccessibilityFocusState private var sampleErrorFocused: Bool
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             content
                 .navigationTitle("Activities")
                 .refreshable { await liveActivityController.reconcileWithServer() }
+                .onChange(of: availableActivityIDs) { _, activityIDs in
+                    dismissEndedActivity(availableActivityIDs: activityIDs)
+                }
+                .navigationDestination(for: String.self) { id in
+                    if let session = liveActivityController.activeSessions.first(where: { $0.id == id }) {
+                        ActivityDetailView(session: session)
+                    } else {
+                        DismissingDetailPlaceholder()
+                    }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let removalNotice {
+                        DetailRemovalNotice(message: removalNotice)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .task(id: removalNotice) {
+                    guard removalNotice != nil else { return }
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { return }
+                    withAnimation { removalNotice = nil }
+                }
                 .task {
                     #if ZW_SCREENSHOTS
                     // ActivityKit survives app reinstalls and previous capture
@@ -40,9 +66,7 @@ struct LiveActivitiesView: View {
                 LazyVStack(spacing: 12) {
                     if hasSampleActivities { sampleNotice }
                     ForEach(liveActivityController.activeSessions) { session in
-                        NavigationLink {
-                            ActivityDetailView(session: session)
-                        } label: {
+                        NavigationLink(value: session.id) {
                             VStack(alignment: .leading, spacing: 6) {
                                 if env.guestActivities.contains(where: { $0.id == session.id }) {
                                     Label("Read-only link", systemImage: "link")
@@ -116,6 +140,23 @@ struct LiveActivitiesView: View {
     private var hasSampleActivities: Bool {
         !SharedSettings.hideSampleIndicators
             && liveActivityController.activeSessions.contains { $0.isSample }
+    }
+
+    private var availableActivityIDs: Set<String> {
+        Set(liveActivityController.activeSessions.map(\.id))
+    }
+
+    private func dismissEndedActivity(availableActivityIDs: Set<String>) {
+        guard DetailNavigation.missingDestination(
+            in: path,
+            availableDestinations: availableActivityIDs
+        ) != nil else { return }
+
+        withAnimation {
+            path = []
+            removalNotice = "This activity has ended."
+        }
+        AccessibilityAnnouncement.post("This activity has ended.")
     }
 
     /// Mirrors the Dashboard's sample notice: demo state is always labelled as

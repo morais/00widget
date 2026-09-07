@@ -81,7 +81,6 @@ public final class AppEnvironment: ObservableObject {
     public let liveActivityController = LiveActivityController.shared
     private var apiKeyRegistrationTask: Task<Void, Never>?
     private var widgetTokenRetryTask: Task<Void, Never>?
-    private var lastForegroundFetchAt: Date?
 
     public init() {
         let defaults = UserDefaults.standard
@@ -594,8 +593,23 @@ public final class AppEnvironment: ObservableObject {
                 continue
             } catch {
                 // A transient failure must not discard a link that may still be
-                // perfectly valid, so keep it and surface the problem instead.
+                // perfectly valid, so keep both its link and last-known
+                // resource. Dropping the resource here would make an open
+                // detail screen look definitively deleted merely because the
+                // network was unavailable.
                 surviving.append(link)
+                if let resourceId = link.resourceId {
+                    if link.resourceKind == "card",
+                       !cards.contains(where: { $0.id == resourceId }),
+                       let cached = guestCards.first(where: { $0.id == resourceId }) {
+                        cards.append(cached)
+                    }
+                    if link.resourceKind == "activity",
+                       !activities.contains(where: { $0.id == resourceId }),
+                       let cached = guestActivities.first(where: { $0.id == resourceId }) {
+                        activities.append(cached)
+                    }
+                }
                 lastError = error.localizedDescription
             }
         }
@@ -844,20 +858,14 @@ public final class AppEnvironment: ObservableObject {
 
     public func syncAfterForeground() async {
         loadCachedCards()
-        // Runs ahead of the throttle: coming back from the Home Screen is
-        // exactly when a widget has just been added, and the hint should go
-        // away on its own rather than waiting out the fetch interval.
+        // Coming back from the Home Screen is exactly when a widget has just
+        // been added, so refresh the hint on every foreground as well.
         await refreshInstalledWidgetCount()
         // APNs can accept an end event that the device never applies. Compare
         // ActivityKit's local state with the server on every foreground so an
         // orphan does not remain on the Lock Screen indefinitely.
         await liveActivityController.reconcileWithServer()
         await refreshGuestLinks()
-        let now = Date()
-        if let lastForegroundFetchAt, now.timeIntervalSince(lastForegroundFetchAt) < 30 {
-            return
-        }
-        lastForegroundFetchAt = now
         // A registration attempt can fail while the extension or app has no
         // network. The durable snapshot stays unacknowledged, so each later
         // foreground is a natural retry point without polling in background.
