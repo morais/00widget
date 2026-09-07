@@ -30,7 +30,12 @@ OUT=""
 HANDSHAKE_DIR=""
 TIMEOUT=150
 SETTLE=20
-BUNDLE_ID="com.00widget.app"
+# Nothing identifying is hardcoded here: the production bundle id lives only
+# in the gitignored ios/project.yml. Prefer --bundle-id (as capture-ios.sh
+# does, reading it from the built app's Info.plist), then ZW_BUNDLE_ID, then
+# the first PRODUCT_BUNDLE_IDENTIFIER in ios/project.yml. Unset means the
+# final unlock-restore step is skipped.
+BUNDLE_ID="${ZW_BUNDLE_ID:-}"
 PREFLIGHT_ONLY=false
 NO_RESTORE=false
 CONSENT_CHECK=true
@@ -63,6 +68,16 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IOS_BUILD_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)/ios/build"
+
+# Resolve the restore bundle id when the caller did not pass one. The first
+# PRODUCT_BUNDLE_IDENTIFIER in the gitignored ios/project.yml is the app
+# target's (same convention as ios/scripts/set-appclip-invocation.py).
+if [[ -z "$BUNDLE_ID" ]]; then
+  PROJECT_YML="$IOS_BUILD_DIR/../project.yml"
+  if [[ -f "$PROJECT_YML" ]]; then
+    BUNDLE_ID="$(grep -m1 -E '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER:' "$PROJECT_YML" | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]#].*$//')"
+  fi
+fi
 
 # Resolve the UDID for a simulator display name. Prefers the booted match so a
 # second runtime holding the same name cannot steal the capture.
@@ -617,7 +632,9 @@ printf 'ok\n' > "$HANDSHAKE_DIR/done"
 
 if [[ "$NO_RESTORE" == false ]]; then
   echo "→ restoring the unlocked state"
-  if ! xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null 2>&1; then
+  if [[ -z "$BUNDLE_ID" ]]; then
+    echo "  warning: no bundle id (pass --bundle-id, set ZW_BUNDLE_ID, or create ios/project.yml) — leaving the simulator locked" >&2
+  elif ! xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null 2>&1; then
     echo "  warning: relaunch of $BUNDLE_ID failed — the simulator is still locked" >&2
   fi
 fi
