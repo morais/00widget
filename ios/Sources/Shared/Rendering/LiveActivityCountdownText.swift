@@ -29,7 +29,12 @@ public struct LiveActivityCountdownText: View {
             // what it has always been here, and moves when the producer pushes.
             switch granularity {
             case .second:
+                // Animated timers reserve a stable-width layout box so their
+                // changing digits do not resize the Dynamic Island. Align the
+                // glyphs inside that box; aligning only the box leaves the
+                // visible countdown stranded near the camera.
                 Text(endsAt, style: .timer)
+                    .multilineTextAlignment(.trailing)
             case .minute:
                 Text(Self.minuteText(endsAt: endsAt, now: Date()))
             }
