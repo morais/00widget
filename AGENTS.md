@@ -340,6 +340,10 @@ to ask the content.
 
 ## Marketing screenshots
 
+The campaign source-of-truth map, surface roles, and cross-repository release
+checklist live in `marketing/README.md`; keep this agent guide focused on the
+non-obvious engineering constraints below.
+
 The phrase **full screenshot workflow** always means both stages for all four
 canonical device sets—iPhone 6.3-inch, iPhone 6.5-inch, iPad, and Apple TV:
 first capture the raw simulator screenshots, then generate the framed
@@ -860,6 +864,8 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 - **The Apple TV widget card's height is measured, not chosen, and a fixed frame hides the mistake.** A `VStack` handed less height than it needs does not compress — it overflows, centred, straight through the padding around it, and nothing about that shows up in a build, a warning, or the suite. At 220 points a `chart` card's four stacked elements (header, headline, subtitle, a 46-point plot ≈ 188 points) came to more than the box held, so the plot sat flush against the card's bottom edge with no inset at all on a real television. `TVCardMetrics` now holds the height and the inset together, derived from that measurement plus a little slack; the Live Activity card had already hit the same wall and answered it with a `minHeight`, which a grid row cannot use without going ragged. Re-measure if the type sizes or the plot height change, and check a screenshot — the compiler cannot see an overflow. A consequence worth knowing before trimming it back: a dashboard of eight cards no longer fits one screen and scrolls, which is fine here because the grid is focusable and non-lazy.
 
   **Decide what a cell draws, then size the box to that — not the reverse.** The height is derived from the *trimmed* card. Measured, the tallest thing a cell now draws is a `chart` card at 228 points, and 228 plus both insets is the 284 the constant holds. Before trimming, the same measurement said 362, which does not fit under the ceiling below. So a card that will not fit is asking for a row the cell has not got: take the row away, and only then re-derive. `TVDashboardCardContent.body` documents what each template defers, and `TVCardFitTests` asserts that nothing has to shrink — that assertion and the constant move together, so changing one without the other fails loudly.
+
+  That assertion now carries a named exemption list, `shrinkAllowance`, holding `Trials` at 260 and `Support` at 230 against the 228 a cell offers. Both were judged from a real capture rather than from the numbers, and both *shrink* rather than overflow — the ink assertion beside it still applies to every card without exception, and it is the one that corresponds to the bug that reached TestFlight. The list is a ratchet, not a mute: an entry is a ceiling, so a card that gets worse still fails, and an entry whose card starts fitting unaided also fails, so the list cannot outlive its reason. Adding to it means looking at a tvOS capture and deciding the type is acceptable at that size — not silencing a red suite.
 
   **The height has a ceiling, and it is not a matter of taste.** Two full rows have to fit a 1080-line screen for the capture not to slice one: the first row's top is at 371, the safe area ends at 1020, the gap is 40, so `371 + 2H + 40 <= 1020` gives **H <= 304**, or 248 points of content. Measure before proposing a number — the worst card (`briefing`) wants 306 points of content, so no height that keeps two rows can remove its shrinking entirely; that one is closed by trimming what the template draws, not by growing the box.
 
