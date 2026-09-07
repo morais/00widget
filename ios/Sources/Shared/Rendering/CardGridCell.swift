@@ -73,6 +73,16 @@ struct CardGridCell: View {
     /// recolours everything in it, and a filled rectangle behind each cell
     /// becomes a solid block. WidgetKit is absent on tvOS, where the question
     /// does not arise and the fill is always right.
+    ///
+    /// Audited 2026-09-07 for iOS 27's Liquid Glass refinements (diffusion,
+    /// toolbar layering, icon refraction, user transparency slider): no API
+    /// change, and this `fullColor` gate is still the correct one — accented
+    /// and tinted modes recolour content, so any filled card background would
+    /// flatten into a block under the user's slider setting too. The app icon
+    /// rebuilds cleanly under Xcode 27 (single 1024 universal asset; system
+    /// derives light/dark/tinted and small sizes), and widget chrome already
+    /// uses system fills (`.fill.tertiary`, `.background.secondary`) that track
+    /// the glass.
     private var drawsBackground: Bool {
         #if canImport(WidgetKit)
         return renderingMode == .fullColor
