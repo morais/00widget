@@ -104,6 +104,28 @@ public struct RunDashboardActionIntent: AppIntent, ProgressReportingIntent {
     }
 }
 
+// `LiveActivityIntent` quick actions (spike).
+//
+// WWDC26 sess. 223: Live Activity buttons can run App Intents conforming to
+// `LiveActivityIntent`. Conforming here unblocks one-tap safe actions
+// (acknowledge, snooze) from the Lock Screen banner and the expanded island,
+// reusing the same server webhook path cards already use — no new SDK, the
+// protocol is iOS 17 and present in both the 26.5 and 27.0 SDKs.
+//
+// The `isSafeFromWidget` rule extends to island buttons unchanged: a
+// destructive action, or one wanting confirmation, still does not run from an
+// intent — `safeAction()` above remains the only enforcement point, and the
+// person is told to open the app instead. Buttons do not act in CarPlay: the
+// `.small` activity family (watch, CarPlay Dashboard, menu bar) draws no
+// buttons, so there is nothing to gate there.
+//
+// No buttons are added yet, and no server change: activities carry no
+// `actions` today (see `StartLiveActivitySchema`, which has none, unlike
+// cards), so the first UI needs a small server question — whether an
+// island-originated run needs its own scope or attribution — before it can
+// name an action to run.
+extension RunDashboardActionIntent: LiveActivityIntent {}
+
 // `CancellableIntent`, and the only place in this target that names it.
 //
 // Agent runs are cancellable by nature — a multi-minute job started from a
