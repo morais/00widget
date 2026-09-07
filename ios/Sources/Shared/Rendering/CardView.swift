@@ -117,6 +117,16 @@ public struct CardView: View {
             }
         }
         .modifier(CardAccessibilityModifier(card: card, combinesChildren: combinesAccessibilityChildren))
+        // On-screen annotation hook for App Intents ("this card").
+        //
+        // Siri's on-screen awareness resolves what the person is looking at
+        // through the accessibility tree, which is what the iOS 27 View
+        // Annotations API reads. A stable per-card identifier here is what lets
+        // "what's the status of this card" bind to an id without the person
+        // saying a title — the same binding `parameterPresentation` gives the
+        // hand-written shortcut, but for what is on screen rather than what was
+        // heard. Namespaced so it never collides with a producer-chosen id.
+        .accessibilityIdentifier("zw-card-\(card.id)")
     }
 
     private var combinesAccessibilityChildren: Bool {
