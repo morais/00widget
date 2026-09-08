@@ -456,6 +456,20 @@ public final class APIClient {
         let _: EmptyBody = try await request("DELETE", path: "/v1/cards/\(Self.pathSegment(id))")
     }
 
+    /// Ends a Live Activity by the id it was started with. The server sends
+    /// the end push and removes its record; ending is idempotent, so ending
+    /// something already gone still answers ok.
+    public func endLiveActivity(externalActivityId: String) async throws {
+        struct Body: Codable {
+            let externalActivityId: String
+        }
+        let _: EmptyBody = try await request(
+            "POST",
+            path: "/v1/live-activities/end",
+            body: Body(externalActivityId: externalActivityId)
+        )
+    }
+
     public func registerDevice(
         deviceId: String,
         apnsDeviceToken: String?,

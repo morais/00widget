@@ -758,6 +758,29 @@ public final class AppEnvironment: ObservableObject {
         reloadWidgetTimelines()
     }
 
+    /// Ends a Live Activity everywhere, not just on this device.
+    ///
+    /// Mirrors `deleteCard`: samples never reached the server — they are
+    /// generated on-device — so removing one is a local edit and needs no
+    /// credential, which also keeps them removable for a user who has never
+    /// signed in. Everything else goes to the server first on the publisher
+    /// credential, since ending needs the `publish` scope the device token
+    /// does not carry. Dropping the local activity on a failed request would
+    /// let the next reconcile bring it straight back (or recover it
+    /// push-to-start), with nothing said about why.
+    public func deleteActivity(_ session: LiveActivitySession) async throws {
+        if !session.isSample {
+            guard let client = publisherClient() else {
+                throw APIClientError(
+                    status: 0,
+                    message: "Server URL or API key not configured."
+                )
+            }
+            try await client.endLiveActivity(externalActivityId: session.externalActivityId)
+        }
+        await liveActivityController.endLocalActivity(session)
+    }
+
     public func fetchCards() async {
         guard let client = apiClient() else {
             lastSyncError = "Server URL or API key not configured"

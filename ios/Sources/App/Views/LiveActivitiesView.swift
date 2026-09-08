@@ -453,6 +453,12 @@ private struct ActivityDetailView: View {
     @ObservedObject private var liveActivityController = LiveActivityController.shared
     let session: LiveActivitySession
     @State private var showGuestLinkSheet = false
+    @State private var confirmingDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
+    /// See the note in `CardDetailView`: an announcement says what happened,
+    /// focus is what lets it be read again.
+    @AccessibilityFocusState private var deleteErrorFocused: Bool
     #if ZW_SHARING_ENABLED
     @State private var showKindShareSheet = false
     #endif
@@ -499,6 +505,29 @@ private struct ActivityDetailView: View {
                         Spacer()
                         ReportProblemLink()
                             .font(.footnote)
+                    }
+                }
+
+                // Only an activity this account owns. A guest link's activity
+                // lives in somebody else's tenant, so there is nothing here
+                // that could end it — a local-only "delete" would be
+                // recovered push-to-start on the next reconcile.
+                if !isGuestActivity {
+                    if let deleteError {
+                        Text(deleteError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityFocused($deleteErrorFocused)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button(deleting ? "Deleting\u{2026}" : "Delete", role: .destructive) {
+                            confirmingDelete = true
+                        }
+                        .disabled(deleting)
+                        .accessibilityValue(deleting ? "In progress" : "")
                     }
                 }
             }
@@ -552,6 +581,39 @@ private struct ActivityDetailView: View {
                 .environmentObject(env)
         }
         #endif
+        .confirmationDialog(
+            "Delete \(currentSession.title)?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { delete(currentSession) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(deleteConfirmationMessage(for: currentSession))
+        }
+    }
+
+    private func deleteConfirmationMessage(for session: LiveActivitySession) -> String {
+        session.isSample
+            ? "This sample only exists on this device. Removing it affects nothing else."
+            : "This ends the activity and removes it from the server as well as from this device."
+    }
+
+    private func delete(_ session: LiveActivitySession) {
+        guard !deleting else { return }
+        Task {
+            deleting = true
+            deleteError = nil
+            defer { deleting = false }
+            do {
+                try await env.deleteActivity(session)
+                AccessibilityAnnouncement.post("Activity deleted.")
+            } catch {
+                deleteError = error.localizedDescription
+                AccessibilityAnnouncement.post("Could not delete \(session.title). \(error.localizedDescription)")
+                deleteErrorFocused = true
+            }
+        }
     }
 
     private var isGuestActivity: Bool {

@@ -237,6 +237,31 @@ public final class LiveActivityController: ObservableObject {
         refreshActiveActivities()
     }
 
+    /// Ends the on-device Live Activity for one session, whatever started it.
+    /// The server record is removed separately (see `AppEnvironment.deleteActivity`);
+    /// this is the local half, mirroring how `reconcileWithServer` clears an
+    /// orphan. Matches by instance id when the session has one, otherwise by
+    /// the local-only external id, so ending one activity can never take
+    /// another with it.
+    public func endLocalActivity(_ session: LiveActivitySession) async {
+        for activity in Activity<ZeroZeroWidgetActivityAttributes>.activities
+        where matches(session, attributes: activity.attributes) {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        refreshActiveActivities()
+    }
+
+    private func matches(
+        _ session: LiveActivitySession,
+        attributes: ZeroZeroWidgetActivityAttributes
+    ) -> Bool {
+        if let instanceId = session.activityInstanceId {
+            return attributes.activityInstanceId == instanceId
+        }
+        return attributes.activityInstanceId == nil
+            && attributes.externalActivityId == session.externalActivityId
+    }
+
     /// Ends every locally generated sample activity. Server-started activities
     /// are left alone.
     /// Ends *every* activity on the device, whatever started it.
