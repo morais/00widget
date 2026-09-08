@@ -89,12 +89,17 @@ run_lock_surface() {
   local adapter_status=0
   local app_bundle
   app_bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+  # Empty-array expansion under `set -u` fails on the system bash 3.2
+  # (`CONSENT_CHECK_ARGS[@]: unbound variable`), which is the default empty
+  # state here. Drop nounset around exactly this expansion.
+  set +u
   "$SCRIPT_DIR/sim-lock-capture.sh" \
     --device "$DEVICE" \
     --bundle-id "$app_bundle" \
     --handshake-dir "$handshake" \
     "${CONSENT_CHECK_ARGS[@]}" \
     --out "$OUT/$LOCK_PNG" || adapter_status=$?
+  set -u
 
   local test_status=0
   wait "$test_pid" || test_status=$?
