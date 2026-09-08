@@ -10,6 +10,7 @@ struct ZeroZeroWidgetWidgetBundle: WidgetBundle {
         ScreenshotProductionWidget()
         ScreenshotOpenPRsWidget()
         ScreenshotLaunchWidget()
+        ScreenshotCompletedLaunchWidget()
         ScreenshotTrialsRectangularWidget()
         ScreenshotAgentRunsRectangularWidget()
         ScreenshotTrialsLargeWidget()

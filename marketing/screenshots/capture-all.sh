@@ -79,16 +79,18 @@ ios_files = {
 # `screenshot-share.png` in a single two-device frame; and
 # `screenshot-activities.png` left the App Store sequence when the share proof
 # replaced it, but the website still publishes it. So each iPhone/iPad set
-# carries nine raw files (ten on 6.3) and yields seven promotional
+# carries nine raw files (eleven on 6.3, which also owns the expanded Island
+# and website-only completed state) and yields seven promotional
 # compositions (eight on 6.3).
 island_files = ios_files | {"screenshot-island-expanded.png"}
+iphone_63_files = island_files | {"screenshot-launch-complete.png"}
 tv_files = {
     "screenshot-tv-card-detail.png",
     "screenshot-tv-insights.png",
     "screenshot-tv-widgets.png",
 }
 sets = {
-    "iphone-6.3": ("iPhone 17 Pro", (1206, 2622), island_files),
+    "iphone-6.3": ("iPhone 17 Pro", (1206, 2622), iphone_63_files),
     "iphone-6.5": ("iPhone 14 Plus – App Store 6.5", (1284, 2778), ios_files),
     "ipad": ("iPad Pro 13-inch (M4)", (2064, 2752), ios_files),
     "tvos": ("Apple TV 4K (3rd generation) (at 1080p)", (1920, 1080), tv_files),

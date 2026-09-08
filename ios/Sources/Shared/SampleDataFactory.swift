@@ -833,16 +833,22 @@ public enum SampleDataFactory {
         let launchProgress: Double
         let launchStatus: DashboardStatus
         let launchActions: [ActionDefinition]?
+        let launchSubtitle: String
+        let launchBriefing: DashboardBriefing
         switch phase {
         case .a:
             launchValue = "3/5"
             launchProgress = 0.6
             launchStatus = .running
             launchActions = nil
+            launchSubtitle = "Release Agent · final approval"
+            launchBriefing = approvalBriefing
         case .b:
             launchValue = "4/5"
             launchProgress = 0.8
             launchStatus = .warning
+            launchSubtitle = "Release Agent · final approval"
+            launchBriefing = approvalBriefing
             // Confirmed in the app, never from a widget: the filmed beat taps
             // through to the real confirmation dialog, and a one-tap Home
             // Screen approval is the wrong proof for a customer announcement.
@@ -860,13 +866,31 @@ public enum SampleDataFactory {
             launchProgress = 1.0
             launchStatus = .good
             launchActions = nil
+            launchSubtitle = "Release Agent · rollout started"
+            launchBriefing = DashboardBriefing(sections: [
+                DashboardBriefingSection(
+                    id: "now",
+                    label: "Now",
+                    text: "Announcement published; 10% rollout started."
+                ),
+                DashboardBriefingSection(
+                    id: "result",
+                    label: "Result",
+                    text: "Version 2.4 is live."
+                ),
+                DashboardBriefingSection(
+                    id: "next",
+                    label: "Next",
+                    text: "Monitor the rollout and customer feedback."
+                ),
+            ])
         }
         return [
             DashboardCard(
                 id: sampleId("preview-launch"),
                 template: .briefing,
                 title: "Launch",
-                subtitle: "Release Agent · final approval",
+                subtitle: launchSubtitle,
                 value: launchValue,
                 status: launchStatus,
                 icon: "shippingbox.fill",
@@ -874,29 +898,33 @@ public enum SampleDataFactory {
                 progress: launchProgress,
                 updatedAt: referenceDate,
                 staleAfter: freshUntil,
-                briefing: DashboardBriefing(sections: [
-                    DashboardBriefingSection(
-                        id: "now",
-                        label: "Now",
-                        text: "Store uploaded; website live."
-                    ),
-                    DashboardBriefingSection(
-                        id: "next",
-                        label: "Next",
-                        text: "Start the 10% rollout and publish the release notes after approval."
-                    ),
-                    DashboardBriefingSection(
-                        id: "needs-you",
-                        label: "Needs you",
-                        text: "Approve the customer announcement."
-                    ),
-                ]),
+                briefing: launchBriefing,
                 actions: launchActions
             ),
             previewProductionCard(referenceDate: referenceDate),
             previewTrialsCard(referenceDate: referenceDate),
             previewOpenPRsCard(referenceDate: referenceDate),
         ]
+    }
+
+    private static var approvalBriefing: DashboardBriefing {
+        DashboardBriefing(sections: [
+            DashboardBriefingSection(
+                id: "now",
+                label: "Now",
+                text: "Store uploaded; website live."
+            ),
+            DashboardBriefingSection(
+                id: "next",
+                label: "Next",
+                text: "Start the 10% rollout and publish the release notes after approval."
+            ),
+            DashboardBriefingSection(
+                id: "needs-you",
+                label: "Needs you",
+                text: "Approve the customer announcement."
+            ),
+        ])
     }
 
     /// The static Home Screen set for the preview: AI spend, Production and

@@ -58,9 +58,9 @@ final class ScreenshotTests: XCTestCase {
                 .allElementsBoundByIndex
                 .filter { $0.frame.width > 120 }
             XCTAssertTrue(
-                homeWidgets.count == 4
-                    && homeWidgets.filter { isSmallWidget($0) }.count == 3,
-                "The classic marketing page must contain three small widgets and one wide widget."
+                homeWidgets.count == 5
+                    && homeWidgets.filter { isSmallWidget($0) }.count == 4,
+                "The classic marketing page must contain four small widgets and one wide widget."
             )
             if isIPad(springboard) {
                 XCTAssertFalse(
@@ -97,6 +97,12 @@ final class ScreenshotTests: XCTestCase {
                     .press(forDuration: 1.2)
                 Thread.sleep(forTimeInterval: 2)
                 capture(named: "screenshot-island-expanded")
+
+                // Give the website a still-image payoff rather than making
+                // playback the only way to see the launch finish. The same
+                // product-only page now carries a 5/5 Launch widget while the
+                // real Live Activity is in its favorable phase-C state.
+                captureCompletedLaunch(in: app, springboard: springboard)
             }
 
             app.activate()
@@ -454,8 +460,59 @@ final class ScreenshotTests: XCTestCase {
         capture(named: "screenshot-insights")
     }
 
+    /// Captures the completed launch only on the Dynamic Island device used
+    /// by 00widget.com. It is a raw website source, not another App Store frame.
+    /// Relaunching into the existing phase-C preview fixture updates both the
+    /// app's card cache and the authentic ActivityKit presentation; the static
+    /// screenshot widget reads that same card, so the two surfaces agree.
+    private func captureCompletedLaunch(
+        in app: XCUIApplication,
+        springboard: XCUIApplication
+    ) {
+        app.terminate()
+        Thread.sleep(forTimeInterval: 1)
+        app.launchArguments = ["--marketing-demo", "--preview-launch-phase", "c"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["preview-launch-card"].waitForExistence(timeout: 30),
+            "The completed Launch fixture did not appear."
+        )
+        XCTAssertTrue(
+            app.staticTexts["5/5"].waitForExistence(timeout: 10),
+            "The completed Launch fixture did not reach 5/5."
+        )
+
+        prepareHomeScreenWidgets(displayNames: completedWidgetNames)
+        let widgets = marketingWidgets(in: springboard)
+        XCTAssertEqual(widgets.count, 5, "The completed page must contain five widgets.")
+        XCTAssertEqual(
+            widgets.filter { isSmallWidget($0) }.count,
+            4,
+            "The completed page must contain four small widgets."
+        )
+        settleDynamicIsland(in: springboard)
+        capture(named: "screenshot-launch-complete")
+    }
+
     private var classicWidgetNames: [String] {
-        ["Screenshot Production", "Screenshot Open PRs", "Screenshot Launch", "Screenshot Trials Wide"]
+        [
+            "Screenshot Production",
+            "Screenshot Open PRs",
+            "Screenshot Launch",
+            "Screenshot Agent Runs",
+            "Screenshot Trials Wide",
+        ]
+    }
+
+    private var completedWidgetNames: [String] {
+        [
+            "Screenshot Production",
+            "Screenshot Open PRs",
+            "Screenshot Launch Complete",
+            "Screenshot Agent Runs",
+            "Screenshot Trials Wide",
+        ]
     }
 
     private var insightWidgetNames: [String] {
@@ -491,7 +548,7 @@ final class ScreenshotTests: XCTestCase {
 
         // A fresh iPhone simulator ships with Maps and Calendar widgets on its
         // widget page. Reuse that page, but clear those system widgets so the
-        // classic layout has room for three small cards and the wide Trials
+        // classic layout has room for four small cards and the wide Trials
         // chart. App icons are excluded by the widget-sized frame filter.
         if !isIPad(springboard) {
             for widget in homeScreenWidgets(in: springboard)

@@ -502,6 +502,10 @@ elif mode == "all":
     # where the sequence now makes its system-surface claim.
     if device_class == "iphone-6.3":
         required.add("screenshot-island-expanded.png")
+        # Website-only payoff: the same launch after approval, at 5/5. It is
+        # intentionally absent from the other device sets and the App Store
+        # promotional sequence.
+        required.add("screenshot-launch-complete.png")
 
 missing = sorted(required - produced)
 if missing:
@@ -577,10 +581,12 @@ fi
 # between runs of identical code, so the answer is to catch it and re-run.
 if [[ "$ONLY" == "all" && "$DEVICE_FOLDER" == "iphone-6.3" ]]; then
   echo "→ checking the Dynamic Island is not clipped"
-  if ! python3 "$SCRIPT_DIR/island_check.py" "$OUT/screenshot-home-widgets.png"; then
-    echo "✗ re-run: the hero's Dynamic Island content is clipped" >&2
-    exit 1
-  fi
+  for island_capture in screenshot-home-widgets.png screenshot-launch-complete.png; do
+    if ! python3 "$SCRIPT_DIR/island_check.py" "$OUT/$island_capture"; then
+      echo "✗ re-run: $island_capture has clipped Dynamic Island content" >&2
+      exit 1
+    fi
+  done
 fi
 
 if [[ "$ONLY" == "all" || "$ONLY" == "clip" ]]; then

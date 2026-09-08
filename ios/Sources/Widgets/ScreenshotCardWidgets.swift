@@ -59,6 +59,31 @@ private struct PreviewCardProvider: TimelineProvider {
     }
 }
 
+/// The website's still-image payoff for the launch story. Unlike the App
+/// Preview's deliberately Launch-free static Home Screen, this widget is
+/// photographed only after the Live Activity reaches phase C, so the 5/5 card
+/// and the system-drawn Island cannot disagree.
+private struct ScreenshotCompletedLaunchProvider: TimelineProvider {
+    func placeholder(in context: Context) -> CardTimelineEntry { entry() }
+
+    func getSnapshot(in context: Context, completion: @escaping (CardTimelineEntry) -> Void) {
+        completion(entry())
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CardTimelineEntry>) -> Void) {
+        completion(Timeline(entries: [entry()], policy: .never))
+    }
+
+    private func entry() -> CardTimelineEntry {
+        let referenceDate = ZeroZeroWidgetDateFormat.parse("2026-09-01T09:41:00Z")!
+        let id = SampleDataFactory.sampleId("preview-launch")
+        let card = CardCache.load().cards.first(where: { $0.id == id })
+            ?? SampleDataFactory.makePreviewLaunchCards(referenceDate: referenceDate, phase: .c)
+                .first(where: { $0.id == id })
+        return CardTimelineEntry(date: Date(), card: card, density: .compact)
+    }
+}
+
 private struct ScreenshotMetricsGridProvider: TimelineProvider {
     private let sampleSuffixes = SampleDataFactory.marketingGridCardSuffixes
 
@@ -199,6 +224,21 @@ struct ScreenshotLaunchWidget: Widget {
             sampleSuffix: "launch",
             displayName: "Screenshot Launch"
         )
+    }
+}
+
+struct ScreenshotCompletedLaunchWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: "com.00widget.screenshot.launch-complete",
+            provider: ScreenshotCompletedLaunchProvider()
+        ) { entry in
+            CardWidgetView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Screenshot Launch Complete")
+        .description("Completed launch sample for the website.")
+        .supportedFamilies([.systemSmall])
     }
 }
 

@@ -45,6 +45,8 @@ Each surface has a distinct job:
 - The share/App Clip pair proves a read-only guest can see the same card
   without creating an account.
 - Apple TV proves the same launch dashboard works as a shared control room.
+- The website-only completed Home Screen still closes the launch story at 5/5
+  without requiring a visitor to play the App Preview.
 
 The App Preview uses a deliberately Launch-free static Home Screen: AI spend,
 Production, Trials, and Open PRs stay stable while the Dynamic Island alone

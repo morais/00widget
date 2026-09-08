@@ -270,7 +270,15 @@ struct SampleDataFactoryTests {
                 .first { $0.title == "Launch" }
         )
         #expect(launchC.value == "5/5")
+        #expect(launchC.status == .good)
+        #expect(launchC.subtitle == "Release Agent · rollout started")
+        #expect(launchC.briefing?.sections.map(\.id) == ["now", "result", "next"])
+        #expect(
+            launchC.briefing?.sections.first?.text
+                == "Announcement published; 10% rollout started."
+        )
         #expect(launchC.actions == nil)
+        #expect(!launchC.needsUserAttention)
 
         let trials = try #require(cards.first { $0.title == "Trials" })
         #expect(trials.value == "128")

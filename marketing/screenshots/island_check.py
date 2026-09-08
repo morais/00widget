@@ -35,11 +35,15 @@ from PIL import Image
 BAND_TOP = 0.015
 BAND_BOTTOM = 0.075
 
-#: A tinted glyph: strongly red, mid green, weak blue. The launch fixture's
-#: orange sits well inside this; so does every other kind tint the samples use.
+#: A strongly saturated launch glyph. The waiting phase is orange and the
+#: completed phase is green; accepting both lets the same geometric check guard
+#: the App Store hero and the website's 5/5 payoff without confusing white
+#: status-bar content for the glyph.
 def _is_tinted(pixel: tuple[int, int, int]) -> bool:
     red, green, blue = pixel
-    return red > 170 and 60 < green < 200 and blue < 110
+    orange = red > 170 and 60 < green < 200 and blue < 110
+    green = green > 150 and red < 130 and blue < 150
+    return orange or green
 
 
 #: Measured on real captures: 14 points wide when whole, 9 when clipped.

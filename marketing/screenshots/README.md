@@ -25,8 +25,9 @@ The test captures these surfaces in order:
 | `screenshot-share.png` | The guest-link sheet for the Launch card: the QR, what the code grants, and when it stops working. One half of the share frame. |
 | `screenshot-clip.png` | The other half: the App Clip that same code opens, rendering the same Launch card read-only. Captured host-side — see below. |
 | `screenshot-activities.png` | The in-app Activities screen with the App launch job at 4/5, one step waiting on a person and four finished. Composed for 00widget.com; not in the App Store sequence, which spends that slot on the share proof. |
-| `screenshot-home-widgets.png` | The Home Screen with small Production, Open PRs, and Launch widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
+| `screenshot-home-widgets.png` | The product-only Home Screen hero with small Production, Open PRs, Launch, and Agent runs widgets, a wide Trials chart, and the **compact** Dynamic Island Live Activity. |
 | `screenshot-island-expanded.png` | The same activity in the expanded Dynamic Island. Captured only on the 6.3-inch device, the only one with an Island, and composed as its own promotional frame — the phone's top seen close up, which is why that set ships eight images and the others seven. |
+| `screenshot-launch-complete.png` | Website-only payoff on the same product-only Home Screen: Launch is 5/5 with the rollout started and the authentic compact Island in its favorable completed state. Captured only on the 6.3-inch device and deliberately omitted from App Store compositions. |
 | `screenshot-home-insights.png` | A second Home Screen layout with a large Trials widget and small Agent runs and Support widgets. |
 | `screenshot-home-metrics.png` | A third Home Screen layout with one large four-metric grid showing Trials, Support, Agent runs, and AI spend. |
 | `screenshot-lock-activity.png` | The Lock Screen with persistent Trials and Agent runs accessories below the clock and the changing Launch Live Activity beneath them. Captured host-side via the Simulator accessibility adapter after XCUITest stages the state. |
@@ -41,8 +42,8 @@ openurl` on the link therefore opens Safari. The fixture resolves
 `SampleDataFactory.marketingGuestToken` locally, and that is the same token
 the app's QR encodes — the two halves of the share frame are one link rather
 than two props. The clip uninstalls itself afterwards, because an installed
-clip is an extra icon on the Home Screen and the Home Screen is three of this
-run's images.
+clip is an extra icon on the Home Screen. Every set captures three Home Screen
+surfaces, and the 6.3-inch set captures the website-only completed surface too.
 
 The canonical App Store set contains Home Screen widgets, Home Screen insights,
 Lock Screen activity, Home Screen metrics, approval, Insights, and the share
@@ -82,7 +83,8 @@ Both capture scripts keep incremental DerivedData under the gitignored `ios/buil
 A successful full iOS or tvOS capture also writes `.capture-manifest.json` inside that
 device folder with the checksums produced by that exact XCUITest run. The export
 fails if a required attachment is absent, including
-`screenshot-home-widgets.png`; an older file left in the directory cannot make a
+`screenshot-home-widgets.png` and the 6.3-inch website-only
+`screenshot-launch-complete.png`; an older file left in the directory cannot make a
 partial run look complete. App Store publishing requires this provenance by
 default. `--allow-unprovenanced` exists only for an intentional one-time
 migration of older assets.
@@ -118,7 +120,7 @@ Support, and Agent runs around the Live Activity. Copy the promotional set with
 ## iPhone without Dynamic Island
 
 The App Store 6.5-inch set uses the seven-image version of the campaign.
-`screenshot-home-widgets.png` shows the classic Home Screen layout without a
+`screenshot-home-widgets.png` shows the product-only Home Screen layout without a
 Dynamic Island, and `screenshot-home-metrics.png` uses the same large
 four-metric widget. Capture the full marketing suite with an explicit device;
 do not use `--only app`, because that mode intentionally omits the required
@@ -142,7 +144,7 @@ marketing/screenshots/copy.sh --set iphone-6.5 --to /path/to/site/public/assets
 ## iPad
 
 iPad follows a seven-image version of the story. Because iPad has no Dynamic
-Island, `screenshot-home-widgets.png` is the ordinary Home Screen with three
+Island, `screenshot-home-widgets.png` is the ordinary Home Screen with four
 small widgets and the wide Trials chart. Its `screenshot-home-metrics.png` uses
 a four-metric `systemExtraLarge` widget, the largest iPad family. The canonical
 published order is Home Screen widgets, Home Screen insights, Lock Screen
@@ -251,7 +253,8 @@ python3.12 marketing/screenshots/generate-promotional.py
 ```
 
 The canonical end-to-end workflow captures all four raw device sets and then
-generates and verifies 28 promotional compositions from 31 raw captures:
+generates and verifies 28 promotional compositions from 32 raw captures. The
+extra raw file is the 6.3-inch completed Launch payoff used by 00widget.com:
 
 ```sh
 marketing/screenshots/capture-all.sh
@@ -269,6 +272,9 @@ every full capture and before any upload, inspect every promotional image at
 its canonical size and explicitly check:
 
 - no truncated titles, values, chips, charts, cards, or Dynamic Island glyphs;
+- the product-only hero contains four small 00Widget cards and the wide Trials
+  chart, with no unrelated app block; the completed website source shows the
+  same story at 5/5 with the rollout started;
 - the Lock Screen shows the normal date, the two genuine accessory widgets,
   and one non-duplicated Live Activity with no consent prompt;
 - the approval frame contains the real action and its confirmation;
