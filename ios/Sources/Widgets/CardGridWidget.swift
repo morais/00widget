@@ -311,7 +311,7 @@ struct CardGridWidgetView: View {
     var body: some View {
         content
             .widgetUpdateStamp(entry.updateMark)
-            .widgetURL(family == .systemSmall ? compactTapURL : nil)
+            .widgetURL(family == .systemSmall ? compactTapURL : backgroundTapURL)
     }
 
     @ViewBuilder
@@ -323,9 +323,26 @@ struct CardGridWidgetView: View {
         }
     }
 
+    /// The small widget is one tap target covering every cell, so its tap
+    /// cannot address a specific card: it lands on the Widgets tab explicitly.
+    /// "Open the first card" still honours a producer deep link where one
+    /// exists, but without one it is the tab rather than a guessed detail
+    /// screen — the producer decides which card leads, and it can change.
     private var compactTapURL: URL? {
-        guard let index = entry.compactTapTarget.cardIndex else { return nil }
-        return entry.cards[safe: index]?.deepLink
+        guard let index = entry.compactTapTarget.cardIndex else {
+            return ZeroZeroWidgetInternalLink.dashboardURL()
+        }
+        guard let card = entry.cards[safe: index] else {
+            return ZeroZeroWidgetInternalLink.dashboardURL()
+        }
+        return card.deepLink ?? ZeroZeroWidgetInternalLink.dashboardURL()
+    }
+
+    /// Taps landing between cells on the roomier families. Previously nil,
+    /// which opened the app onto its default tab — Settings for anyone with no
+    /// key — rather than where the widgets are.
+    private var backgroundTapURL: URL? {
+        ZeroZeroWidgetInternalLink.dashboardURL()
     }
 
     private var cellStyle: CardGridCell.Style {
@@ -405,7 +422,7 @@ struct CardGridWidgetView: View {
     private func cell(at index: Int, linkable: Bool) -> some View {
         if let card = entry.cards[safe: index] {
             let view = CardGridCell(card: card, style: cellStyle)
-            if linkable, let url = card.deepLink {
+            if linkable, let url = card.deepLink ?? ZeroZeroWidgetInternalLink.cardURL(for: card) {
                 Link(destination: url) { view }
             } else {
                 view

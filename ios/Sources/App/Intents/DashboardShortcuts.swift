@@ -134,9 +134,10 @@ enum CardStatusReport {
 /// `requestedLandingTab` changing, so a warm launch needs nothing extra.
 @MainActor
 enum IntentLanding {
-    /// The dashboard as a whole, or one card on it. `.dashboard` is not a
-    /// `ZeroZeroWidgetInternalLink.Destination` because no URL points at it —
-    /// "show my dashboard" is a request to be somewhere, not to open a thing.
+    /// The dashboard as a whole, or one card on it. `.dashboard` mirrors
+    /// `ZeroZeroWidgetInternalLink.Destination.dashboard` — the widget tap
+    /// fallback reaches the app through that URL, while intents arrive here
+    /// directly because they have no URL to open.
     enum Request: Equatable {
         case dashboard
         case card(id: String)

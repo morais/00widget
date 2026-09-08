@@ -33,7 +33,18 @@ struct CardWidgetView: View {
             // handful of points tall and monochrome by design, so a badge there
             // would displace the content it is meant to annotate.
             .widgetUpdateStamp(isSystemFamily ? entry.updateMark : nil)
-            .widgetURL(entry.card?.deepLink)
+            .widgetURL(tapURL)
+    }
+
+    /// A producer URL wins. Without one the tap opens the card's detail screen
+    /// through the internal link rather than doing nothing — `widgetURL(nil)`
+    /// just launches the app onto its default tab. An empty widget has no card
+    /// to point at, so it lands on the dashboard explicitly.
+    private var tapURL: URL? {
+        guard let card = entry.card else {
+            return ZeroZeroWidgetInternalLink.dashboardURL()
+        }
+        return card.deepLink ?? ZeroZeroWidgetInternalLink.cardURL(for: card)
     }
 
     private var isSystemFamily: Bool {

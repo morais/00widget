@@ -454,7 +454,7 @@ public final class AppEnvironment: ObservableObject {
     /// calls out.
     public func go(to destination: ZeroZeroWidgetInternalLink.Destination) {
         switch destination {
-        case .activities:
+        case .activities, .dashboard:
             requestedCardId = nil
         case .card(let id):
             requestedCardId = id

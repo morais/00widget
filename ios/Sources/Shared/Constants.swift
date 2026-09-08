@@ -168,12 +168,14 @@ public enum ZeroZeroWidgetInternalLink {
     /// derived from it.
     public enum Destination: Equatable, Sendable {
         case activities
+        case dashboard
         case card(id: String)
 
         /// Which tab this destination lives on.
         public var tab: String {
             switch self {
             case .activities: return "activities"
+            case .dashboard: return "widgets"
             case .card: return "widgets"
             }
         }
@@ -184,6 +186,8 @@ public enum ZeroZeroWidgetInternalLink {
         switch url.host?.lowercased() {
         case "activities":
             return .activities
+        case "dashboard":
+            return .dashboard
         case "card":
             // zerozerowidget://card/<id>. The id is percent-encoded by
             // `cardURL(id:)` because card ids are producer-chosen and the
@@ -195,6 +199,27 @@ public enum ZeroZeroWidgetInternalLink {
         default:
             return nil
         }
+    }
+
+    /// The link that opens the dashboard without pushing a card. Used as the
+    /// widget tap fallback where no specific card can be addressed — the small
+    /// grid is one tap target covering every cell, and an empty widget has no
+    /// card at all — so the tap lands on the Widgets tab explicitly rather
+    /// than on whatever tab the app would otherwise open on.
+    public static func dashboardURL() -> URL? {
+        URL(string: "\(scheme)://dashboard")
+    }
+
+    /// The link that opens one card, given the card itself. Widget caches carry
+    /// guest cards under their namespaced id (`guest-<id>`), while the
+    /// dashboard resolves the raw id against its guest list — so the prefix is
+    /// stripped here rather than at every tap site.
+    public static func cardURL(for card: DashboardCard) -> URL? {
+        if card.isFromGuestLink {
+            let raw = String(card.id.dropFirst(ZeroZeroWidgetConstants.guestCardIdPrefix.count))
+            return cardURL(id: raw)
+        }
+        return cardURL(id: card.id)
     }
 
     /// The link that opens one card. Shared by `DashboardCardEntity`'s URL

@@ -38,6 +38,26 @@ struct ZeroZeroWidgetInternalLinkTests {
         #expect(url.absoluteString.hasPrefix("zerozerowidget://card/"))
     }
 
+    @Test("The dashboard destination routes to the widgets tab")
+    func dashboardRoutes() throws {
+        let url = try #require(ZeroZeroWidgetInternalLink.dashboardURL())
+        #expect(url.absoluteString == "zerozerowidget://dashboard")
+        #expect(ZeroZeroWidgetInternalLink.destination(for: url) == .dashboard)
+        #expect(ZeroZeroWidgetInternalLink.Destination.dashboard.tab == "widgets")
+    }
+
+    @Test("A guest-namespaced card resolves to its raw id")
+    func guestCardURLStripsPrefix() throws {
+        let namespaced = DashboardCard(
+            id: "\(ZeroZeroWidgetConstants.guestCardIdPrefix)solar",
+            template: .summary,
+            title: "Solar"
+        )
+        let url = try #require(ZeroZeroWidgetInternalLink.cardURL(for: namespaced))
+        #expect(url.absoluteString == "zerozerowidget://card/solar")
+        #expect(ZeroZeroWidgetInternalLink.destination(for: url) == .card(id: "solar"))
+    }
+
     @Test("The activities destination still routes, and reports its tab")
     func activitiesStillRoutes() throws {
         let url = try #require(URL(string: "zerozerowidget://activities"))
