@@ -170,6 +170,7 @@ public enum ZeroZeroWidgetInternalLink {
         case activities
         case dashboard
         case card(id: String)
+        case activity(id: String)
 
         /// Which tab this destination lives on.
         public var tab: String {
@@ -177,6 +178,7 @@ public enum ZeroZeroWidgetInternalLink {
             case .activities: return "activities"
             case .dashboard: return "widgets"
             case .card: return "widgets"
+            case .activity: return "activities"
             }
         }
     }
@@ -196,6 +198,12 @@ public enum ZeroZeroWidgetInternalLink {
             let id = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
             let decoded = id.removingPercentEncoding ?? id
             return decoded.isEmpty ? nil : .card(id: decoded)
+        case "activity":
+            // Same encoding rule as cards: activity ids are producer-chosen
+            // too, so they travel percent-encoded and decode here.
+            let id = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
+            let decoded = id.removingPercentEncoding ?? id
+            return decoded.isEmpty ? nil : .activity(id: decoded)
         default:
             return nil
         }
@@ -235,6 +243,21 @@ public enum ZeroZeroWidgetInternalLink {
             return nil
         }
         return URL(string: "\(scheme)://card/\(encoded)")
+    }
+
+    /// The link that opens one activity's detail screen. Same encoding rule as
+    /// `cardURL(id:)`: activity ids are producer-chosen, so they travel
+    /// percent-encoded.
+    public static func activityURL(id: String) -> URL? {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove("/")
+        guard
+            !id.isEmpty,
+            let encoded = id.addingPercentEncoding(withAllowedCharacters: allowed)
+        else {
+            return nil
+        }
+        return URL(string: "\(scheme)://activity/\(encoded)")
     }
 }
 

@@ -440,6 +440,12 @@ public final class AppEnvironment: ObservableObject {
     /// two observers, one intent.
     @Published public var requestedCardId: String?
 
+    /// Activity the Activities tab should push, mirroring `requestedCardId`:
+    /// set alongside `requestedLandingTab` so the tab switch and the push are
+    /// one act. `LiveActivitiesView` owns its navigation path and `RootView`
+    /// owns the tab — two observers, one intent.
+    @Published public var requestedActivityId: String?
+
     /// Search term delivered by "Search 00Widget for boiler". Set rather than
     /// acted on directly for the same reason as `requestedCardId`: the search
     /// field belongs to `DashboardView`, and the intent can run before it
@@ -456,8 +462,13 @@ public final class AppEnvironment: ObservableObject {
         switch destination {
         case .activities, .dashboard:
             requestedCardId = nil
+            requestedActivityId = nil
         case .card(let id):
             requestedCardId = id
+            requestedActivityId = nil
+        case .activity(let id):
+            requestedActivityId = id
+            requestedCardId = nil
         }
         requestedLandingTab = destination.tab
     }

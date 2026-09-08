@@ -58,6 +58,31 @@ struct ZeroZeroWidgetInternalLinkTests {
         #expect(ZeroZeroWidgetInternalLink.destination(for: url) == .card(id: "solar"))
     }
 
+    @Test("An activity link round-trips through the builder and the router")
+    func activityLinkRoundTrips() throws {
+        let url = try #require(ZeroZeroWidgetInternalLink.activityURL(id: "deploy-7"))
+        #expect(url.absoluteString == "zerozerowidget://activity/deploy-7")
+        #expect(ZeroZeroWidgetInternalLink.destination(for: url) == .activity(id: "deploy-7"))
+        #expect(ZeroZeroWidgetInternalLink.Destination.activity(id: "deploy-7").tab == "activities")
+    }
+
+    @Test("Activity ids carrying URL-significant characters survive the round trip")
+    func awkwardActivityIdsSurvive() throws {
+        for id in ["home/deploy 7", "build#1", "100%"] {
+            let url = try #require(ZeroZeroWidgetInternalLink.activityURL(id: id), "no URL for \(id)")
+            #expect(ZeroZeroWidgetInternalLink.destination(for: url) == .activity(id: id), "round trip failed for \(id)")
+        }
+    }
+
+    @Test("An activity link with no id does not route")
+    func emptyActivityIdDoesNotRoute() throws {
+        for raw in ["zerozerowidget://activity", "zerozerowidget://activity/"] {
+            let url = try #require(URL(string: raw))
+            #expect(ZeroZeroWidgetInternalLink.destination(for: url) == nil, "\(raw) should not route")
+        }
+        #expect(ZeroZeroWidgetInternalLink.activityURL(id: "") == nil)
+    }
+
     @Test("The activities destination still routes, and reports its tab")
     func activitiesStillRoutes() throws {
         let url = try #require(URL(string: "zerozerowidget://activities"))

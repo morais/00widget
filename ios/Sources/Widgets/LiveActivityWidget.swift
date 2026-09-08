@@ -216,11 +216,21 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
         state.icon ?? attributes.icon ?? iconName(for: attributes.kind)
     }
 
-    /// A producer URL wins. The full app's widget target supplies an internal
-    /// Activities-tab URL as its fallback; the App Clip extension deliberately
-    /// omits that setting because the clip has no tab bar.
+    /// A producer URL wins. Without one the tap opens the activity's detail
+    /// screen through the internal link rather than just landing on the
+    /// Activities list. The id matches `LiveActivitySession.id` — the running
+    /// instance where one exists, else the producer's external id — which is
+    /// what the detail screen resolves against. The full app's widget target
+    /// supplies an internal Activities-tab URL as its fallback; the App Clip
+    /// extension deliberately omits that setting because the clip has no tab
+    /// bar.
     private func tapURL(for attributes: ZeroZeroWidgetActivityAttributes) -> URL? {
-        attributes.deepLink ?? ZeroZeroWidgetConstants.liveActivityFallbackURL
+        if let deepLink = attributes.deepLink {
+            return deepLink
+        }
+        let id = attributes.activityInstanceId ?? attributes.externalActivityId
+        return ZeroZeroWidgetInternalLink.activityURL(id: id)
+            ?? ZeroZeroWidgetConstants.liveActivityFallbackURL
     }
 
     private func iconName(for kind: LiveActivityKind) -> String {

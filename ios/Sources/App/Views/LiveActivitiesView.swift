@@ -16,6 +16,10 @@ struct LiveActivitiesView: View {
             content
                 .navigationTitle("Activities")
                 .refreshable { await liveActivityController.reconcileWithServer() }
+                .onAppear {
+                    applyRequestedActivity()
+                }
+                .onChange(of: env.requestedActivityId) { _, _ in applyRequestedActivity() }
                 .onChange(of: availableActivityIDs) { _, activityIDs in
                     dismissEndedActivity(availableActivityIDs: activityIDs)
                 }
@@ -144,6 +148,17 @@ struct LiveActivitiesView: View {
 
     private var availableActivityIDs: Set<String> {
         Set(liveActivityController.activeSessions.map(\.id))
+    }
+
+    /// Pushes the activity a Live Activity tap asked for, replacing whatever
+    /// was on the stack. Mirrors the dashboard's `applyRequestedCard`:
+    /// deliberately pushes the id even when no matching session is in memory
+    /// yet, because `navigationDestination` pops back on an id it cannot
+    /// resolve rather than leaving a blank screen.
+    private func applyRequestedActivity() {
+        guard let id = env.requestedActivityId else { return }
+        path = [id]
+        env.requestedActivityId = nil
     }
 
     private func dismissEndedActivity(availableActivityIDs: Set<String>) {
