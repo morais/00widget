@@ -72,7 +72,7 @@ struct OnboardingView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    NavigationLink("Connect Claude or ChatGPT") {
+                    NavigationLink("Connect an agent") {
                         ConnectAgentGuideView().environmentObject(env)
                     }
                 }

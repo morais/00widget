@@ -1,12 +1,16 @@
 import SwiftUI
 import UIKit
 
-/// How to attach Claude or ChatGPT to this account through the MCP endpoint.
+/// How to attach an MCP client to this account through the MCP endpoint.
 ///
 /// A separate screen from Agent config on purpose: that section hands over a
 /// token for something the owner runs themselves, and this is the other route
 /// entirely — the assistant asks for permission and is issued its own
 /// credential, so nothing is pasted anywhere and no secret is on screen.
+///
+/// Mirrors the "Choose your platform" section on 00Widget.com — Claude,
+/// ChatGPT, Manus, OpenCode, Codex, and any other Streamable-HTTP client.
+/// Keep the steps, commands, and doc links here in sync with the site.
 struct ConnectAgentGuideView: View {
     @EnvironmentObject var env: AppEnvironment
     @Environment(\.openURL) private var openURL
@@ -60,7 +64,7 @@ struct ConnectAgentGuideView: View {
                 } header: {
                     Text("Connected agents")
                 } footer: {
-                    Text("Disconnecting stops that agent's 00Widget access immediately. It may remain visible in Claude or ChatGPT until you remove it there.")
+                    Text("Disconnecting stops that agent's 00Widget access immediately. It may remain listed in that client until you remove it there.")
                 }
             }
 
@@ -76,6 +80,14 @@ struct ConnectAgentGuideView: View {
                         Label("Connect Claude", systemImage: "arrow.up.forward.app")
                     }
                 }
+
+                if let command = claudeCodeCommand {
+                    Text("Using Claude Code? Run this command, then open /mcp in Claude Code to complete OAuth.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy Claude Code command")
+                }
             } header: {
                 Text("Claude")
             } footer: {
@@ -83,11 +95,12 @@ struct ConnectAgentGuideView: View {
             }
 
             Section {
-                Text("ChatGPT has no prefilled link, and it takes a custom connector only after developer mode is turned on. Follow OpenAI's instructions, then paste this address when it asks for the MCP server.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Step(1, "In ChatGPT on the web, enable Developer mode from Settings → Apps → Advanced settings, or your workspace's Apps settings.")
+                Step(2, "Create a custom app and paste the MCP address below as the MCP server URL.")
+                Step(3, "Connect it, then sign in to 00Widget and approve access.")
+
                 Link(
-                    destination: URL(string: "https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt")!
+                    destination: URL(string: "https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt")!
                 ) {
                     Label("Developer mode and MCP apps in ChatGPT", systemImage: "arrow.up.forward.app")
                 }
@@ -117,6 +130,91 @@ struct ConnectAgentGuideView: View {
                 }
             } header: {
                 Text("ChatGPT")
+            }
+
+            Section {
+                Step(1, "In Manus, go to Settings → Integrations → Custom MCP Servers and select Add Server.")
+                Step(2, "Name it 00Widget and enter the MCP address below as the server URL.")
+                Step(3, "Test the connection, then complete the 00Widget sign-in when prompted.")
+
+                Link(destination: URL(string: "https://manus.im/docs/integrations/custom-mcp")!) {
+                    Label("Manus custom MCP instructions", systemImage: "arrow.up.forward.app")
+                }
+                if let endpoint = mcpEndpoint {
+                    CopyableCodeBlock(text: endpoint, accessibilityLabel: "Copy MCP address")
+                }
+            } header: {
+                Text("Manus")
+            }
+
+            Section {
+                Step(1, "Run this command once.")
+                Step(2, "Approve the 00Widget sign-in in the browser window that opens.")
+
+                if let command = openCodeCommand {
+                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy OpenCode command")
+                }
+            } header: {
+                Text("OpenCode")
+            }
+
+            Section {
+                Step(1, "In the ChatGPT desktop app, open Settings → MCP Servers → Add server.")
+                Step(2, "Name it 00Widget, choose Streamable HTTP, and enter the MCP address below.")
+                Step(3, "Save, restart, then select Authenticate and approve access.")
+
+                if let endpoint = mcpEndpoint {
+                    CopyableCodeBlock(text: endpoint, accessibilityLabel: "Copy MCP address")
+                }
+                if let command = codexCommand {
+                    Text("Prefer the terminal?")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy Codex command")
+                }
+                Link(destination: URL(string: "https://learn.chatgpt.com/docs/extend/mcp?surface=cli")!) {
+                    Label("Codex MCP instructions", systemImage: "arrow.up.forward.app")
+                }
+            } header: {
+                Text("Codex")
+            }
+
+            Section {
+                Step(1, "Add a custom or remote MCP server.")
+                Step(2, "Choose Streamable HTTP and enter the MCP address below.")
+                Step(3, "Save the server, then complete the 00Widget OAuth sign-in.")
+
+                if let endpoint = mcpEndpoint {
+                    CopyableCodeBlock(text: endpoint, accessibilityLabel: "Copy MCP address")
+                }
+                Text("Works with MCP clients that support remote Streamable HTTP and OAuth. Confirmed guides:")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+                Link(destination: URL(string: "https://cursor.com/docs/mcp")!) {
+                    Label("Cursor", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://code.visualstudio.com/docs/agent-customization/mcp-servers")!) {
+                    Label("VS Code", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html")!) {
+                    Label("Gemini CLI", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://manual.raycast.com/ai/model-context-protocol")!) {
+                    Label("Raycast", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://docs.mistral.ai/vibe/work/connectors/mcp-connectors")!) {
+                    Label("Mistral", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://zed.dev/docs/ai/mcp")!) {
+                    Label("Zed", systemImage: "arrow.up.forward.app")
+                }
+                Link(destination: URL(string: "https://docs.devin.ai/desktop/cascade/mcp")!) {
+                    Label("Windsurf", systemImage: "arrow.up.forward.app")
+                }
+            } header: {
+                Text("Other MCP client")
             }
 
             Section {
@@ -276,6 +374,24 @@ struct ConnectAgentGuideView: View {
         )
     }
 
+    /// Terminal commands embed the same derived endpoint, so a self-hosted
+    /// deployment hands out commands pointing at itself rather than at the
+    /// production host.
+    private var claudeCodeCommand: String? {
+        guard let endpoint = mcpEndpoint else { return nil }
+        return "claude mcp add --transport http 00widget \(endpoint)"
+    }
+
+    private var openCodeCommand: String? {
+        guard let endpoint = mcpEndpoint else { return nil }
+        return "opencode mcp add 00widget --url \(endpoint) && opencode mcp auth 00widget"
+    }
+
+    private var codexCommand: String? {
+        guard let endpoint = mcpEndpoint else { return nil }
+        return "codex mcp add 00widget --url \(endpoint) && codex mcp login 00widget"
+    }
+
     /// How long the checkmark stays up. Matches the agent config row in
     /// Settings: an acknowledgement of the tap, not a running status.
     private static let copyConfirmationDuration: TimeInterval = 10
@@ -287,6 +403,42 @@ struct ConnectAgentGuideView: View {
         set.insert(charactersIn: "-._~")
         return set
     }()
+}
+
+private struct CopyableCodeBlock: View {
+    let text: String
+    let accessibilityLabel: String
+
+    @State private var copied = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(text)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                UIPasteboard.general.string = text
+                copied = true
+                AccessibilityAnnouncement.post("\(accessibilityLabel).")
+                resetTask?.cancel()
+                resetTask = Task {
+                    try? await Task.sleep(for: .seconds(10))
+                    guard !Task.isCancelled else { return }
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .imageScale(.large)
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .buttonStyle(.borderless)
+            .accessibilityLabel(copied ? "\(accessibilityLabel) copied" : accessibilityLabel)
+        }
+    }
 }
 
 private struct Step: View {
