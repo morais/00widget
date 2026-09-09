@@ -209,6 +209,31 @@ examples, both of which came out of exactly this loop.
 
 ## Looking at the Dynamic Island without a full capture run
 
+For the ordinary Live Activity edit loop, render the entire Lock Screen state
+matrix first:
+
+```sh
+ios/scripts/render-live-activity-previews.sh
+```
+
+It compiles the real `LockScreenView` into a private test target and writes 32
+PNGs — every canonical state at both 364×170 and 321×148 points — to
+`artifacts/live-activity-previews/`. The test target and fixture data are
+simulator-only and enter neither shipping archive. Add a fixture in
+`LiveActivityPreviewFixtures.swift` whenever a new rendering branch is added;
+the batch inventory picks it up automatically.
+
+The same fixture source feeds native ActivityKit `#Preview`s at the bottom of
+`LiveActivityWidget.swift`. Use the `Compact · …` previews in Xcode's canvas
+for the Dynamic Island: countdown, progress ring, item count, and value token
+cover every compact-trailing branch. Those previews use the system host and
+are the cheap island loop; `ImageRenderer` cannot reproduce the system's
+post-layout width constraint. The device probe below remains the final check.
+
+The UIKit-backed warning from the widget renderer still applies: a linear
+`ProgressView`'s offscreen fill is not pixel-faithful. Its placement and width
+are useful; its exact fill needs a device.
+
 The Island is drawn by the system, above the app. `ImageRenderer` cannot draw
 it, so the two loops above are blind to it, and until recently the only way to
 see one was the full marketing run — ten minutes of Home Screen widget

@@ -79,5 +79,10 @@ ios/Resources/*/*.entitlements
 /artifacts/screenshots/*
 !/artifacts/screenshots/README.md
 
+# Fast, local Lock Screen layout inventory. The recipe and fixture source are
+# committed; generated PNGs are not.
+/artifacts/live-activity-previews/*
+!/artifacts/live-activity-previews/README.md
+
 # Python bytecode from the marketing tooling
 __pycache__/

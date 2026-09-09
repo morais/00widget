@@ -214,6 +214,7 @@ targets:
     sources:
       - path: Sources/ClipWidgets
       - path: Sources/Widgets/LiveActivityWidget.swift
+      - path: Sources/Widgets/LiveActivityPreviewFixtures.swift
       - path: Sources/Shared
       - path: Resources/ClipWidgets/PrivacyInfo.xcprivacy
         buildPhase: resources
@@ -300,6 +301,24 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  # One-command Lock Screen visual inventory. It compiles the real Live
+  # Activity renderer and shared model directly into an app-hosted test bundle,
+  # so no fixture or test target enters either shipping archive.
+  ZeroZeroWidgetLiveActivityPreviewTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LiveActivityPreviewTests
+      - path: Sources/Widgets/LiveActivityWidget.swift
+      - path: Sources/Widgets/LiveActivityPreviewFixtures.swift
+      - path: Sources/Shared
+    dependencies:
+      - target: ZeroZeroWidgetApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.zerozerowidget.liveactivitypreviewtests
         GENERATE_INFOPLIST_FILE: YES
 
   # Logic and layout tests for Sources/TV. Hosted by the tvOS app for the same
@@ -419,6 +438,16 @@ schemes:
       config: Debug
       targets:
         - ZeroZeroWidgetTests
+
+  ZeroZeroWidgetLiveActivityPreviews:
+    build:
+      targets:
+        ZeroZeroWidgetApp: all
+        ZeroZeroWidgetLiveActivityPreviewTests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZeroZeroWidgetLiveActivityPreviewTests
 
   # tvOS unit tests. Separate from ZeroZeroWidgetTV for the reason above: that
   # scheme is what upload-testflight.sh archives with.

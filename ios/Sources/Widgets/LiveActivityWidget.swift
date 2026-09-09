@@ -403,7 +403,7 @@ private extension View {
     }
 }
 
-private struct LockScreenView: View {
+struct LockScreenView: View {
     let attributes: ZeroZeroWidgetActivityAttributes
     let state: ZeroZeroWidgetActivityAttributes.ContentState
     /// ActivityKit's own verdict, from the `staleDate` on `ActivityContent`.
@@ -471,7 +471,7 @@ private struct LockScreenView: View {
     private var lockScreenBody: some View {
         Group {
             if state.presentationItems.isEmpty {
-                legacyLockScreenBody
+                metricLockScreenBody
             } else {
                 compositeLockScreenBody
             }
@@ -575,23 +575,14 @@ private struct LockScreenView: View {
             ForEach(shown) { item in
                 LiveActivityItemRow(item: item, condensed: condensed)
             }
-            // One line, not two. Both are trailing metadata and neither fills
-            // its own width, so pairing them buys back a whole row of item —
-            // which is the difference between showing three parts of a job and
-            // two.
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if hidden > 0 {
-                    Text("+\(hidden) more")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 4)
-                freshness
-            }
+            lockScreenFooter(hiddenItemCount: hidden)
         }
     }
 
-    private var legacyLockScreenBody: some View {
+    /// A single moving metric. This is a peer of the composite item layout,
+    /// not a compatibility fallback. It can spend height on a subtitle and
+    /// countdown; the composite header stays compact to preserve item rows.
+    private var metricLockScreenBody: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(spacing: 3) {
@@ -615,17 +606,6 @@ private struct LockScreenView: View {
                             .monospacedDigit()
                             .lineLimit(1)
                     }
-                    // Not an `else`. "How long is left" and "how much is done"
-                    // are different questions, and a job that can answer both
-                    // was answering neither here — the bar was suppressed by
-                    // the deadline, and the deadline is an estimate while the
-                    // fraction is a count. The chart still wins, because it
-                    // says which way the number is going rather than how far.
-                    if let p = state.progress, state.chart == nil {
-                        ProgressView(value: max(0, min(p, 1)))
-                            .progressViewStyle(.linear)
-                            .tint(tint)
-                    }
                 }
                 Spacer()
                 // An explicit producer value is more useful than the generic
@@ -646,16 +626,41 @@ private struct LockScreenView: View {
                 }
             }
 
-            // Keep the identity column clear while allowing the plot to use
-            // the space beneath the trailing value/status presentation.
+            // The identity column ends with the header. Charts and progress
+            // bars are the main visual below it, so both use the banner's full
+            // content width. A chart still wins when both are present because
+            // it shows direction while a bar only shows completion.
             if let chart = state.chart, chart.isRenderable {
                 SparklineView(chart: chart, tint: tint, lineWidth: 1.5)
                     .frame(height: 24)
-                    .padding(.leading, 44)
+            } else if let p = state.progress {
+                ProgressView(value: max(0, min(p, 1)))
+                    .progressViewStyle(.linear)
+                    .tint(tint)
             }
 
+            lockScreenFooter()
+        }
+    }
+
+    /// Shared footer alignment for both Lock Screen data shapes.
+    ///
+    /// With no overflow count, freshness starts at the content edge. When the
+    /// item layout has hidden rows, the two pieces of trailing metadata share
+    /// one line at opposite edges instead of spending a second row.
+    @ViewBuilder
+    private func lockScreenFooter(hiddenItemCount: Int = 0) -> some View {
+        if hiddenItemCount > 0 {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("+\(hiddenItemCount) more")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                freshness
+            }
+            .frame(maxWidth: .infinity)
+        } else {
             freshness
-                .padding(.leading, 44)
         }
     }
 
@@ -785,6 +790,42 @@ private struct LockScreenView: View {
         }
     }
 }
+
+#if targetEnvironment(simulator)
+// These use ActivityKit's own preview host, rather than a hand-drawn island.
+// The batch renderer covers every Lock Screen fixture; the previews below cover
+// every compact-trailing decision where the system's post-layout squeezing is
+// part of the behaviour and ImageRenderer cannot be authoritative.
+#Preview("Lock Screen · Battery", as: .content, using: LiveActivityPreviewFixtures.line.attributes) {
+    ZeroZeroWidgetLiveActivityWidget()
+} contentStates: {
+    LiveActivityPreviewFixtures.line.state
+}
+
+#Preview("Compact · Countdown", as: .dynamicIsland(.compact), using: LiveActivityPreviewFixtures.countdown.attributes) {
+    ZeroZeroWidgetLiveActivityWidget()
+} contentStates: {
+    LiveActivityPreviewFixtures.countdown.state
+}
+
+#Preview("Compact · Progress ring", as: .dynamicIsland(.compact), using: LiveActivityPreviewFixtures.progress.attributes) {
+    ZeroZeroWidgetLiveActivityWidget()
+} contentStates: {
+    LiveActivityPreviewFixtures.progress.state
+}
+
+#Preview("Compact · Item count", as: .dynamicIsland(.compact), using: LiveActivityPreviewFixtures.compactCount.attributes) {
+    ZeroZeroWidgetLiveActivityWidget()
+} contentStates: {
+    LiveActivityPreviewFixtures.compactCount.state
+}
+
+#Preview("Compact · Value token", as: .dynamicIsland(.compact), using: LiveActivityPreviewFixtures.compactToken.attributes) {
+    ZeroZeroWidgetLiveActivityWidget()
+} contentStates: {
+    LiveActivityPreviewFixtures.compactToken.state
+}
+#endif
 
 /// The ground a Live Activity is drawn on.
 ///
