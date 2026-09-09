@@ -646,12 +646,12 @@ private struct LockScreenView: View {
                 }
             }
 
-            // The identity column ends with the header. The plot is the main
-            // visual below it, so use the banner's full content width rather
-            // than carrying the icon column's indentation into an empty row.
+            // Keep the identity column clear while allowing the plot to use
+            // the space beneath the trailing value/status presentation.
             if let chart = state.chart, chart.isRenderable {
                 SparklineView(chart: chart, tint: tint, lineWidth: 1.5)
                     .frame(height: 24)
+                    .padding(.leading, 44)
             }
 
             freshness
