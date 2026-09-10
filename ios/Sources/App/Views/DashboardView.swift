@@ -205,7 +205,7 @@ struct DashboardView: View {
             .background(Color.primary.opacity(0.025))
         } else {
             ScrollView {
-                LazyVStack(spacing: 16) {
+                VStack(spacing: 16) {
                     if Self.isMac {
                         macSearchField
                     }
@@ -229,21 +229,35 @@ struct DashboardView: View {
                         sampleNotice
                     }
 
-                    ForEach(visibleCards) { card in
-                        NavigationLink(value: card.id) {
-                            CardView(card: card, context: .app, density: .compact)
+                    // One column on a narrow phone, two once the window fits
+                    // two minimum-width cards side by side. Adaptive rather
+                    // than size-class driven so resizable windows, Split View,
+                    // Stage Manager, iPad and Mac all follow the actual width.
+                    // The outer maxWidth below caps this at two columns: the
+                    // widest content (888) fits 2x340+16 but not 3x340+32.
+                    if !visibleCards.isEmpty {
+                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                            ForEach(visibleCards) { card in
+                                NavigationLink(value: card.id) {
+                                    CardView(card: card, context: .app, density: .compact)
+                                }
+                                .buttonStyle(.plain)
+                                // Row heights settle on the tallest card; the link
+                                // takes the full row so CardView's own expanding
+                                // frame has a finite height to grow into.
+                                .frame(maxHeight: .infinity, alignment: .top)
+                                #if ZW_SCREENSHOTS
+                                // Stable hook for the preview timeline's tap, which
+                                // cannot afford a label-substring scan over a loaded
+                                // hierarchy: one slow find cascades every later beat.
+                                // Label-based queries elsewhere are unaffected.
+                                .accessibilityIdentifier(
+                                    card.id == SampleDataFactory.sampleId("preview-launch")
+                                        ? "preview-launch-card" : card.id
+                                )
+                                #endif
+                            }
                         }
-                        .buttonStyle(.plain)
-                        #if ZW_SCREENSHOTS
-                        // Stable hook for the preview timeline's tap, which
-                        // cannot afford a label-substring scan over a loaded
-                        // hierarchy: one slow find cascades every later beat.
-                        // Label-based queries elsewhere are unaffected.
-                        .accessibilityIdentifier(
-                            card.id == SampleDataFactory.sampleId("preview-launch")
-                                ? "preview-launch-card" : card.id
-                        )
-                        #endif
                     }
 
                     if !visibleSharedCards.isEmpty {
@@ -253,18 +267,22 @@ struct DashboardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 
-                        ForEach(visibleSharedCards) { card in
-                            NavigationLink(value: "shared:\(card.id)") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    if let owner = card.sharedBy?.ownerEmail {
-                                        Label("From \(owner)", systemImage: "person.fill")
-                                            .font(.caption.weight(.medium))
-                                            .foregroundStyle(.secondary)
+                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                            ForEach(visibleSharedCards) { card in
+                                NavigationLink(value: "shared:\(card.id)") {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        if let owner = card.sharedBy?.ownerEmail {
+                                            Label("From \(owner)", systemImage: "person.fill")
+                                                .font(.caption.weight(.medium))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        CardView(card: card, context: .app, density: .compact)
                                     }
-                                    CardView(card: card, context: .app, density: .compact)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 }
+                                .buttonStyle(.plain)
+                                .frame(maxHeight: .infinity, alignment: .top)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
 
@@ -275,22 +293,28 @@ struct DashboardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 12)
 
-                        ForEach(visibleGuestCards) { card in
-                            NavigationLink(value: "guest:\(card.id)") {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Label("Read-only link", systemImage: "link")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(.secondary)
-                                    CardView(card: card, context: .app, density: .compact)
+                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                            ForEach(visibleGuestCards) { card in
+                                NavigationLink(value: "guest:\(card.id)") {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Label("Read-only link", systemImage: "link")
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                        CardView(card: card, context: .app, density: .compact)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 }
+                                .buttonStyle(.plain)
+                                .frame(maxHeight: .infinity, alignment: .top)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
+                .frame(maxWidth: Self.maxDashboardWidth)
+                .frame(maxWidth: .infinity)
             }
             .id("cards")
             .background(Color.primary.opacity(0.025))
@@ -405,6 +429,20 @@ struct DashboardView: View {
     /// field driving the same `searchText` instead of `.searchable`.
     static var isMac: Bool {
         UIDevice.current.userInterfaceIdiom == .mac
+    }
+
+    /// Narrowest a dashboard card gets before the grid drops back to one
+    /// column. Two columns need 2×minimum + spacing (16) + edge insets (32),
+    /// so the break sits at ~728pt: narrow phones stay single-column, wide
+    /// phones landscape, iPads, Macs and resizable windows get two.
+    static let minCardWidth: CGFloat = 340
+
+    /// Caps the dashboard so wide windows centre two readable columns instead
+    /// of stretching cards — or growing a third column — indefinitely.
+    static let maxDashboardWidth: CGFloat = 920
+
+    static var cardColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: minCardWidth), spacing: 16)]
     }
 
     private var macSearchField: some View {

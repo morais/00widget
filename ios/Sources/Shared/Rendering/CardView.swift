@@ -835,6 +835,11 @@ public struct CardView: View {
                 .foregroundStyle(.primary)
             }
         }
+        // In a vertical scroll the height proposal is infinite, so maxHeight
+        // hugs and single-column layouts are unchanged. In a grid row the
+        // proposal is the row height, so a short card stretches its background
+        // to match its tallest neighbour instead of floating beside it.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(20)
         .background(appBackground)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
