@@ -17,6 +17,10 @@ public struct InspectableChartView: View {
     public let plotHeight: CGFloat
     public let lineWidth: CGFloat
     public let compact: Bool
+    /// When true the plot may grow to twice `plotHeight` to absorb spare
+    /// space in a viewport-filling parent. Fixed everywhere else — notably
+    /// tvOS, whose detail budgets pin exact heights.
+    public let growsToFill: Bool
 
     @State private var selectedIndex: Int
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -33,7 +37,8 @@ public struct InspectableChartView: View {
         unit: String? = nil,
         plotHeight: CGFloat = 180,
         lineWidth: CGFloat = 3,
-        compact: Bool = false
+        compact: Bool = false,
+        growsToFill: Bool = false
     ) {
         self.chart = chart
         self.tint = tint
@@ -42,6 +47,7 @@ public struct InspectableChartView: View {
         self.plotHeight = plotHeight
         self.lineWidth = lineWidth
         self.compact = compact
+        self.growsToFill = growsToFill
         _selectedIndex = State(initialValue: max(0, chart.points.count - 1))
     }
 
@@ -52,9 +58,13 @@ public struct InspectableChartView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             GeometryReader { proxy in
-                interactivePlot(width: proxy.size.width)
+                interactivePlot(width: proxy.size.width, height: proxy.size.height)
             }
-            .frame(height: plotHeight)
+            // A fixed parent proposes exactly `plotHeight`, so min and max
+            // agree and this is today's `.frame(height:)`. A viewport-filling
+            // parent proposes its spare height, which the plot absorbs up to
+            // twice its base height — see `growsToFill`.
+            .frame(minHeight: plotHeight, maxHeight: growsToFill ? plotHeight * 2 : plotHeight)
 
             if let snapshot {
                 selectionPanel(snapshot)
@@ -87,10 +97,10 @@ public struct InspectableChartView: View {
     }
 
     @ViewBuilder
-    private func interactivePlot(width: CGFloat) -> some View {
+    private func interactivePlot(width: CGFloat, height: CGFloat) -> some View {
         let plot = ZStack {
             SparklineView(chart: chart, tint: tint, lineWidth: lineWidth)
-            selectionIndicator(width: width)
+            selectionIndicator(width: width, height: height)
         }
         .contentShape(Rectangle())
 
@@ -130,7 +140,7 @@ public struct InspectableChartView: View {
     }
 
     @ViewBuilder
-    private func selectionIndicator(width: CGFloat) -> some View {
+    private func selectionIndicator(width: CGFloat, height: CGFloat) -> some View {
         if !chart.points.isEmpty {
             let count = chart.points.count
             let categorical = chart.style != .line
@@ -147,19 +157,19 @@ public struct InspectableChartView: View {
                                 VisualAccommodations.washOpacity(0.12, increasedContrast: increasedContrast)
                             )
                         )
-                        .frame(width: max(4, slot * 0.78), height: plotHeight)
+                        .frame(width: max(4, slot * 0.78), height: height)
                         .offset(x: x - max(4, slot * 0.78) / 2)
                 }
                 Rectangle()
                     .fill(tint.opacity(0.9))
-                    .frame(width: 2, height: plotHeight)
+                    .frame(width: 2, height: height)
                     .offset(x: min(max(0, x - 1), max(0, width - 2)))
             }
             // Offsets do not contribute to layout. Without an explicit plot
             // frame this ZStack is only as wide as the 2pt selection rule, so
             // its origin is centred by the parent and every x position is
             // displaced by roughly half the chart width.
-            .frame(width: width, height: plotHeight, alignment: .topLeading)
+            .frame(width: width, height: height, alignment: .topLeading)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }

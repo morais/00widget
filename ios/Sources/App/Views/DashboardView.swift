@@ -239,7 +239,7 @@ struct DashboardView: View {
                         LazyVGrid(columns: Self.cardColumns, spacing: 16) {
                             ForEach(visibleCards) { card in
                                 NavigationLink(value: card.id) {
-                                    CardView(card: card, context: .app, density: .compact)
+                                    CardView(card: card, context: .app, density: .compact, growsToFill: true)
                                 }
                                 .buttonStyle(.plain)
                                 // Row heights settle on the tallest card; the link
@@ -276,7 +276,7 @@ struct DashboardView: View {
                                                 .font(.caption.weight(.medium))
                                                 .foregroundStyle(.secondary)
                                         }
-                                        CardView(card: card, context: .app, density: .compact)
+                                        CardView(card: card, context: .app, density: .compact, growsToFill: true)
                                     }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 }
@@ -300,7 +300,7 @@ struct DashboardView: View {
                                         Label("Read-only link", systemImage: "link")
                                             .font(.caption.weight(.medium))
                                             .foregroundStyle(.secondary)
-                                        CardView(card: card, context: .app, density: .compact)
+                                        CardView(card: card, context: .app, density: .compact, growsToFill: true)
                                     }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 }

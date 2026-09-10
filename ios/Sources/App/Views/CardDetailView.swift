@@ -44,90 +44,109 @@ struct CardDetailView: View {
         let confirmationPresentation = pendingAction.map {
             $0.confirmationPresentation(for: currentCard)
         }
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                CardView(
-                    card: currentCard,
-                    context: .app,
-                    showsAppChart: currentCard.chart == nil,
-                    appActionIsBusy: { runningActionIds.contains($0.id) }
-                ) { action in
-                    if action.confirm || action.role == .destructive {
-                        pendingAction = action
-                    } else {
-                        run(action)
+        // The viewport floor lets a short screen hand its spare height to the
+        // chart instead of leaving it empty below. Read synchronously from the
+        // surrounding GeometryReader: when the content scrolls, the proposal
+        // is infinite and every flexible frame below hugs exactly as before.
+        GeometryReader { viewport in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    CardView(
+                        card: currentCard,
+                        context: .app,
+                        showsAppChart: currentCard.chart == nil,
+                        appActionIsBusy: { runningActionIds.contains($0.id) }
+                    ) { action in
+                        if action.confirm || action.role == .destructive {
+                            pendingAction = action
+                        } else {
+                            run(action)
+                        }
                     }
-                }
 
-                if let chart = currentCard.chart, chart.isRenderable {
-                    InspectableChartView(
-                        chart: chart,
-                        tint: currentCard.status.tint,
-                        title: currentCard.title,
-                        unit: currentCard.unit,
-                        plotHeight: 180,
-                        lineWidth: 3
-                    )
-                }
-
-                if let actionError {
-                    Text(actionError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityFocused($focusedMessage, equals: .actionError)
-                }
-
-                #if ZW_SCREENSHOTS
-                if let previewSuccessMessage {
-                    Label(previewSuccessMessage, systemImage: "checkmark.circle.fill")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.green)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(previewSuccessMessage)
-                }
-                #endif
-
-                if let deepLink = currentCard.deepLink {
-                    deepLinkDestination(deepLink)
-                }
-
-                RawPayloadDisclosure(payload: currentCard, endpoint: "/v1/cards/upsert")
-
-                if !canDelete {
-                    // Someone else published this. There is nothing to delete
-                    // and nothing to revoke from here, so reporting is the one
-                    // thing this screen can offer about it.
-                    HStack {
-                        Spacer()
-                        ReportProblemLink()
-                            .font(.footnote)
+                    if let chart = currentCard.chart, chart.isRenderable {
+                        // The flexible child on a viewport-filling screen: the
+                        // floored stack below offers it the spare height, which
+                        // it absorbs up to twice its base height and hugs 180pt
+                        // whenever the content scrolls. Anything it declines
+                        // pools below Delete rather than under the panel, so no
+                        // outer frame here: one would swallow all spare itself
+                        // and park the remainder mid-screen.
+                        InspectableChartView(
+                            chart: chart,
+                            tint: currentCard.status.tint,
+                            title: currentCard.title,
+                            unit: currentCard.unit,
+                            plotHeight: 180,
+                            lineWidth: 3,
+                            growsToFill: true
+                        )
                     }
-                }
 
-                if canDelete {
-                    if let deleteError {
-                        Text(deleteError)
+                    if let actionError {
+                        Text(actionError)
                             .font(.caption)
                             .foregroundStyle(.red)
                             .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityFocused($focusedMessage, equals: .deleteError)
+                            .accessibilityFocused($focusedMessage, equals: .actionError)
                     }
 
-                    HStack {
-                        Spacer()
-                        Button(deleting ? "Deleting\u{2026}" : "Delete", role: .destructive) {
-                            confirmingDelete = true
+                    #if ZW_SCREENSHOTS
+                    if let previewSuccessMessage {
+                        Label(previewSuccessMessage, systemImage: "checkmark.circle.fill")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.green)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel(previewSuccessMessage)
+                    }
+                    #endif
+
+                    if let deepLink = currentCard.deepLink {
+                        deepLinkDestination(deepLink)
+                    }
+
+                    RawPayloadDisclosure(payload: currentCard, endpoint: "/v1/cards/upsert")
+
+                    if !canDelete {
+                        // Someone else published this. There is nothing to delete
+                        // and nothing to revoke from here, so reporting is the one
+                        // thing this screen can offer about it.
+                        HStack {
+                            Spacer()
+                            ReportProblemLink()
+                                .font(.footnote)
                         }
-                        .disabled(deleting)
-                        .accessibilityValue(deleting ? "In progress" : "")
+                    }
+
+                    if canDelete {
+                        if let deleteError {
+                            Text(deleteError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityFocused($focusedMessage, equals: .deleteError)
+                        }
+
+                        HStack {
+                            Spacer()
+                            Button(deleting ? "Deleting\u{2026}" : "Delete", role: .destructive) {
+                                confirmingDelete = true
+                            }
+                            .disabled(deleting)
+                            .accessibilityValue(deleting ? "In progress" : "")
+                        }
                     }
                 }
+                .padding()
+                // A minimum never forces scrolling: taller content hugs as
+                // before, and only the chart absorbs what is left over.
+                // Top-aligned: the default center alignment would park short
+                // content mid-screen with dead space above it.
+                .frame(minHeight: viewport.size.height, alignment: .top)
             }
-            .padding()
-        }
-        .refreshable {
-            await env.fetchCards()
+            .refreshable {
+                await env.fetchCards()
+            }
         }
         .navigationTitle(currentCard.title)
         .toolbar {

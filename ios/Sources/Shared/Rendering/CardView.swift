@@ -46,6 +46,13 @@ public struct CardView: View {
     public let context: CardRenderContext
     public let density: CardRenderDensity
     private let showsAppChart: Bool
+    /// When true the card stretches its background to fill the height its
+    /// parent offers, matching a taller neighbour. Opt-in because the offer
+    /// means different things in different parents: in a grid row it is the
+    /// row height, but in a viewport-filling detail column it is the screen's
+    /// spare space — where a stretching card would steal the room the chart
+    /// is meant to absorb. Only grid cells set this.
+    private let growsToFill: Bool
     private let appActionIsBusy: ((ActionDefinition) -> Bool)?
     private let appActionHandler: ((ActionDefinition) -> Void)?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -82,6 +89,7 @@ public struct CardView: View {
         context: CardRenderContext = .app,
         density: CardRenderDensity = .automatic,
         showsAppChart: Bool = true,
+        growsToFill: Bool = false,
         appActionIsBusy: ((ActionDefinition) -> Bool)? = nil,
         appActionHandler: ((ActionDefinition) -> Void)? = nil
     ) {
@@ -89,6 +97,7 @@ public struct CardView: View {
         self.context = context
         self.density = density
         self.showsAppChart = showsAppChart
+        self.growsToFill = growsToFill
         self.appActionIsBusy = appActionIsBusy
         self.appActionHandler = appActionHandler
     }
@@ -835,11 +844,10 @@ public struct CardView: View {
                 .foregroundStyle(.primary)
             }
         }
-        // In a vertical scroll the height proposal is infinite, so maxHeight
-        // hugs and single-column layouts are unchanged. In a grid row the
-        // proposal is the row height, so a short card stretches its background
-        // to match its tallest neighbour instead of floating beside it.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A nil maximum hugs; an infinite one takes what the parent offers.
+        // In a vertical scroll the height proposal is infinite either way, so
+        // single-column layouts are unchanged with or without the flag.
+        .frame(maxWidth: .infinity, maxHeight: growsToFill ? .infinity : nil, alignment: .topLeading)
         .padding(20)
         .background(appBackground)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
