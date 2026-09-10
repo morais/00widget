@@ -67,6 +67,8 @@ if [[ "$PREFLIGHT_ONLY" == false ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sim-app.sh
+source "$SCRIPT_DIR/sim-app.sh"
 IOS_BUILD_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)/ios/build"
 
 # Resolve the restore bundle id when the caller did not pass one. The first
@@ -112,11 +114,11 @@ ax_probe_error_hint() {
   invoker="$(ps -o comm= -p "$PPID" 2>/dev/null || true)"
   if [[ -n "$invoker" ]]; then parent="$invoker (via $parent)"; fi
   cat >&2 <<EOF
-✗ The lock-screen adapter cannot drive Simulator.app: macOS denied the
+✗ The lock-screen adapter cannot drive $SIM_APP: macOS denied the
   accessibility request.
 
   This script locks the simulator through the accessibility tree
-  (System Events → Simulator → Device → Lock), which needs Accessibility
+  (System Events → $SIM_APP → Device → Lock), which needs Accessibility
   permission for the app running it: $parent.
 
   Fix: System Settings → Privacy & Security → Accessibility → enable the
@@ -132,12 +134,13 @@ EOF
 # booted, and `open -a Simulator` will not bring the window back — but the
 # Window menu still lists the device, so clicking that entry restores it.
 summon_device_window() {
-  osascript - "$DEVICE" <<'EOF' >/dev/null 2>&1
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' >/dev/null 2>&1
 on run argv
   set deviceName to item 1 of argv
-  tell application "Simulator" to activate
+  set simApp to item 2 of argv
+  tell application simApp to activate
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       tell menu 1 of menu bar item "Window" of menu bar 1
         repeat with idx from 1 to (count of menu items)
           try
@@ -156,11 +159,12 @@ EOF
 }
 
 device_window_count() {
-  osascript - "$DEVICE" <<'EOF' 2>/dev/null || echo 0
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' 2>/dev/null || echo 0
 on run argv
   set deviceName to item 1 of argv
+  set simApp to item 2 of argv
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       set found to 0
       repeat with w in (every window)
         try
@@ -180,11 +184,12 @@ EOF
 # capture's own width, which keeps 2x devices (iPad) and 3x ones (iPhone) on
 # the same code path.
 device_screen_frame() {
-  osascript - "$DEVICE" <<'EOF' 2>/dev/null
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' 2>/dev/null
 on run argv
   set deviceName to item 1 of argv
+  set simApp to item 2 of argv
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       repeat with w in (every window)
         try
           if name of w starts with deviceName then
@@ -255,12 +260,13 @@ EOF
   # device sets has several overlapping Simulator windows: the first attempt
   # answered the 6.3 prompt, whose window happened to be frontmost, and
   # silently missed on the two behind it.
-  osascript - "$DEVICE" <<'EOF' >/dev/null 2>&1 || true
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' >/dev/null 2>&1 || true
 on run argv
   set deviceName to item 1 of argv
-  tell application "Simulator" to activate
+  set simApp to item 2 of argv
+  tell application simApp to activate
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       repeat with w in (every window)
         try
           if name of w starts with deviceName then
@@ -292,20 +298,21 @@ EOF
 # the preflight — which passed again. So the window is checked here too, and
 # restored when it can be.
 preflight() {
-  if ! pgrep -x Simulator >/dev/null; then
-    echo "→ opening Simulator.app for preflight"
-    open -a Simulator
+  resolve_sim_app
+  if ! sim_app_running; then
+    echo "→ opening the simulator UI for preflight"
+    open_sim_app
     for _ in {1..20}; do
-      if pgrep -x Simulator >/dev/null; then break; fi
+      if sim_app_running; then break; fi
       sleep 0.25
     done
   fi
-  if ! pgrep -x Simulator >/dev/null; then
-    echo "✗ Simulator.app did not launch" >&2
+  if ! sim_app_running; then
+    echo "✗ $SIM_APP did not launch" >&2
     exit 1
   fi
   local probe_err
-  if probe_err="$(osascript -e 'tell application "System Events" to tell process "Simulator" to get count of menu items of menu 1 of menu bar item "Device" of menu bar 1' 2>&1)"; then
+  if probe_err="$(osascript -e "tell application \"System Events\" to tell process \"$SIM_APP\" to get count of menu items of menu 1 of menu bar item \"Device\" of menu bar 1" 2>&1)"; then
     if [[ "$(device_window_count)" == "0" ]]; then
       echo "→ no window for $DEVICE; restoring it from the Window menu"
       summon_device_window || true
@@ -316,17 +323,17 @@ preflight() {
     fi
     if [[ "$(device_window_count)" == "0" ]]; then
       cat >&2 <<EOF
-✗ Simulator.app is running but has no window for $DEVICE, and the Window menu
+✗ $SIM_APP is running but has no window for $DEVICE, and the Window menu
   did not restore one. The lock step raises that window before clicking
   Device → Lock, so it cannot proceed.
 
-  Fix: bring the simulator window up by hand — Simulator → Window → $DEVICE,
-  or quit Simulator.app and re-run. A Mac whose screen is locked also hides
+  Fix: bring the simulator window up by hand — $SIM_APP → Window → $DEVICE,
+  or quit $SIM_APP and re-run. A Mac whose screen is locked also hides
   windows from the accessibility tree; unlock it first.
 EOF
       exit 1
     fi
-    echo "✓ Simulator accessibility preflight passed"
+    echo "✓ $SIM_APP accessibility preflight passed"
   else
     if printf '%s' "$probe_err" | grep -qiE "assistive access|accessib|not allowed|-25211|-1719|operation not permitted"; then
       ax_probe_error_hint "$probe_err"
@@ -341,12 +348,13 @@ EOF
 # item carries no accessibility name on some Xcode builds (it still carries the
 # ⌘L equivalent), so fall back to the ⌘L item when the named lookup misses.
 ax_lock() {
-  osascript - "$DEVICE" <<'EOF' 2>&1
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' 2>&1
 on run argv
   set deviceName to item 1 of argv
-  tell application "Simulator" to activate
+  set simApp to item 2 of argv
+  tell application simApp to activate
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       -- Front the intended simulator: Device-menu commands act on whichever
       -- device window is selected, so never assume it already is.
       set targetWindow to missing value
@@ -359,7 +367,7 @@ on run argv
         end try
       end repeat
       if targetWindow is missing value then
-        error "no Simulator window for device " & deviceName
+        error "no " & simApp & " window for device " & deviceName
       end if
       perform action "AXRaise" of targetWindow
       delay 0.5
@@ -393,12 +401,13 @@ EOF
 # Wake a dark display back to the Lock Screen, again through accessibility:
 # raising the window plus Device → Home wakes without unlocking.
 ax_wake_to_lock() {
-  osascript - "$DEVICE" <<'EOF' 2>&1
+  osascript - "$DEVICE" "$SIM_APP" <<'EOF' 2>&1
 on run argv
   set deviceName to item 1 of argv
-  tell application "Simulator" to activate
+  set simApp to item 2 of argv
+  tell application simApp to activate
   tell application "System Events"
-    tell process "Simulator"
+    tell process simApp
       repeat with w in (every window)
         try
           if name of w starts with deviceName then
@@ -528,7 +537,7 @@ while [[ ! -f "$HANDSHAKE_DIR/ready" ]]; do
   sleep 1
 done
 
-echo "→ locking $DEVICE through Simulator → Device → Lock"
+echo "→ locking $DEVICE through $SIM_APP → Device → Lock"
 if ! ax_lock; then
   fail_done "accessibility lock failed — re-run with --preflight-only for the fix"
 fi

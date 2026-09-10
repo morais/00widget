@@ -78,7 +78,8 @@ authentication, and suppresses sample badges.
 
 ## What each run changes
 
-The script boots the designated device, opens Simulator.app on that UDID,
+The script boots the designated device, opens Simulator.app on that UDID
+(DeviceHub.app on Xcode 27, where Simulator.app no longer exists),
 installs the current build without uninstalling, pins supported status-bar
 fields, and sets appearance. It does not erase the Simulator, delete app/widget
 state, edit SpringBoard, change the wallpaper, or touch global Xcode settings.

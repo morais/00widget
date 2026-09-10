@@ -251,7 +251,8 @@ fi
 # Hold the display awake for the whole run.
 #
 # Not a convenience: a locked Mac hides every window from the accessibility
-# tree, and the Lock Screen capture drives Simulator.app through it. A run
+# tree, and the Lock Screen capture drives the simulator UI through it
+# (Simulator.app on Xcode 26, DeviceHub.app on 27). A run
 # started before lunch reached the lock step with Simulator running, the device
 # booted, and zero windows visible to `System Events` — ten minutes of capture
 # thrown away for a screen saver. `-w $$` ties the assertion to this script, so
@@ -261,6 +262,8 @@ if command -v caffeinate >/dev/null 2>&1; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=sim-app.sh
+source "$SCRIPT_DIR/sim-app.sh"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOCK_PNG="screenshot-lock-activity.png"
 CLIP_PNG="screenshot-clip.png"
@@ -314,26 +317,26 @@ xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
 # A headless `simctl boot` is not enough for reliable SpringBoard accessibility.
-# Keep Simulator.app open so XCUITest has a visible host for Home Screen and
-# Dynamic Island interactions.
-echo "→ opening Simulator.app"
-open -a Simulator
+# Keep the simulator UI open so XCUITest has a visible host for Home Screen and
+# Dynamic Island interactions (Simulator.app on Xcode 26, DeviceHub.app on 27).
+echo "→ opening the simulator UI (Simulator.app on Xcode 26, DeviceHub.app on 27)"
+open_sim_app
 for _ in {1..20}; do
-  if pgrep -x Simulator >/dev/null; then
+  if sim_app_running; then
     break
   fi
   sleep 0.25
 done
-if ! pgrep -x Simulator >/dev/null; then
-  echo "✗ Simulator.app did not launch" >&2
+if ! sim_app_running; then
+  echo "✗ $SIM_APP did not launch" >&2
   exit 1
 fi
 
-# The Lock Screen step drives Simulator.app through the accessibility tree,
+# The Lock Screen step drives the simulator UI through the accessibility tree,
 # which needs macOS Accessibility permission for this terminal. Fail fast here
 # — before the build — so a missing grant does not waste a full capture run.
 if [[ "$ONLY" == "all" || "$ONLY" == "lock" ]]; then
-  echo "→ lock-capture preflight (Simulator accessibility)"
+  echo "→ lock-capture preflight ($SIM_APP accessibility)"
   if ! "$SCRIPT_DIR/sim-lock-capture.sh" --preflight-only --device "$DEVICE"; then
     exit 3
   fi

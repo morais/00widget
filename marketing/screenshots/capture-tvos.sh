@@ -9,7 +9,8 @@ set -euo pipefail
 # Hold the display awake for the whole run.
 #
 # Not a convenience: a locked Mac hides every window from the accessibility
-# tree, and the Lock Screen capture drives Simulator.app through it. A run
+# tree, and the Lock Screen capture drives the simulator UI through it
+# (Simulator.app on Xcode 26, DeviceHub.app on 27). A run
 # started before lunch reached the lock step with Simulator running, the device
 # booted, and zero windows visible to `System Events` — ten minutes of capture
 # thrown away for a screen saver. `-w $$` ties the assertion to this script, so
@@ -53,6 +54,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=sim-app.sh
+source "$REPO_ROOT/marketing/screenshots/sim-app.sh"
 IOS_ROOT="$REPO_ROOT/ios"
 OUT="${OUT:-$REPO_ROOT/artifacts/screenshots/raw/tvos}"
 cd "$IOS_ROOT"
@@ -71,16 +74,16 @@ echo "→ booting $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
-echo "→ opening Simulator.app"
-open -a Simulator
+echo "→ opening the simulator UI (Simulator.app on Xcode 26, DeviceHub.app on 27)"
+open_sim_app
 for _ in {1..20}; do
-  if pgrep -x Simulator >/dev/null; then
+  if sim_app_running; then
     break
   fi
   sleep 0.25
 done
-if ! pgrep -x Simulator >/dev/null; then
-  echo "✗ Simulator.app did not launch" >&2
+if ! sim_app_running; then
+  echo "✗ $SIM_APP did not launch" >&2
   exit 1
 fi
 

@@ -59,14 +59,46 @@ def resolve_device(name: str, runtime: str | None = None) -> tuple[str, str]:
     return udid, runtime_id
 
 
+def open_simulator_app(udid: str) -> None:
+    """Open the Simulator UI on `udid`, on either Xcode generation.
+
+    Xcode 27 removed Simulator.app; DeviceHub.app is its replacement, and it
+    accepts the same -CurrentDeviceUDID device-selection argument (verified
+    with a full preview capture against the iOS 26 marketing Simulator).
+    Probe for Simulator.app first so an Xcode 26 machine keeps its exact old
+    behavior, and fall back to DeviceHub only when Simulator.app is not
+    installed — any other launch failure still raises rather than masking
+    itself behind the fallback.
+    """
+    # -CurrentDeviceUDID is the supported device-selection argument.
+    last_error = ""
+    for app in ("Simulator", "DeviceHub"):
+        result = run(
+            ["open", "-a", app, "--args", "-CurrentDeviceUDID", udid],
+            check=False,
+            capture=True,
+        )
+        if result.returncode == 0:
+            return
+        last_error = (result.stderr or "").strip()
+        if "Unable to find application" not in last_error:
+            raise SimulatorError(
+                f"could not open {app} on {udid}: "
+                f"{last_error or f'exit {result.returncode}'}"
+            )
+    raise SimulatorError(
+        "neither Simulator.app nor DeviceHub.app could be opened "
+        f"({last_error or 'both are missing'}); install Xcode's simulator UI"
+    )
+
+
 def boot(udid: str, log: Log) -> None:
     result = run(["xcrun", "simctl", "boot", udid], check=False, capture=True)
     if result.returncode and "current state: Booted" not in result.stderr:
         raise SimulatorError(result.stderr.strip() or f"could not boot Simulator {udid}")
     log("Simulator boot requested")
     run(["xcrun", "simctl", "bootstatus", udid, "-b"])
-    # -CurrentDeviceUDID is Simulator.app's supported device-selection argument.
-    run(["open", "-a", "Simulator", "--args", "-CurrentDeviceUDID", udid])
+    open_simulator_app(udid)
 
 
 def reboot(udid: str, log: Log) -> None:
