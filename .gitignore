@@ -75,6 +75,9 @@ ios/Resources/*/*.entitlements
 /artifacts/app-preview/*
 !/artifacts/app-preview/.gitkeep
 
+# Generated iOS 27 product-page header and Search creative assets
+/artifacts/app-store/
+
 # Generated raw and promotional App Store screenshots
 /artifacts/screenshots/*
 !/artifacts/screenshots/README.md

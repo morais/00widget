@@ -17,6 +17,7 @@ Keep each decision in one durable place:
 | Demo cards and Live Activity state | `ios/Sources/Shared/SampleDataFactory.swift`, pinned by `ios/Tests/SampleDataFactoryTests.swift` |
 | Screenshot surfaces and capture behavior | [`screenshots/README.md`](screenshots/README.md) and the capture scripts beside it |
 | Promotional copy and composition | `screenshots/generate-promotional.py` |
+| iOS 27 product-page header and Search creative | [`creative-assets/README.md`](creative-assets/README.md) and `creative-assets/build.py` |
 | Storefront screenshot order | `ios/scripts/upload-appstore-screenshots.py` |
 | App Preview story and timing | [`app-preview/README.md`](app-preview/README.md) and `app-preview/ios-main.yaml` |
 | App Store text metadata | `ios/appstore-metadata.json` |
@@ -83,7 +84,11 @@ revision across every destination:
    captures and preview.
 7. Upload the App Preview and select its poster manually in App Store Connect;
    the listing sync does not manage either one.
-8. Inspect the resulting storefront and public website rather than inferring
+8. Build the optional iOS 27 creative assets with
+   `python3.12 marketing/creative-assets/build.py`, upload them through the
+   Asset Library, and inspect both placements in App Store Connect's preview
+   tool. They are not managed by the listing sync.
+9. Inspect the resulting storefront and public website rather than inferring
    customer-visible state from a successful API response.
 
 ### Manual App Store completion gate
