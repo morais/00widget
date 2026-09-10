@@ -176,29 +176,50 @@ struct LiveActivityMinimalPresentationTests {
         #expect(state(items: [item(), item()]).compactTrailingChoice(widthLimited: false) == .count)
     }
 
-    @Test("A width-limited island falls back to ring-or-nothing, never a number")
-    func widthLimitedFallsBackToRing() {
-        // Countdowns are system-reserved width, so they survive the constraint.
+    @Test("A width-limited compact island preserves short trailing values")
+    func widthLimitedPreservesShortValues() {
         #expect(
             state(value: "4/5", progress: 0.8).compactTrailingChoice(widthLimited: true) == .ring
         )
         #expect(
             state(value: "4/5", progress: 0.8).minimalChoice(widthLimited: true) == .ring
         )
-        // Numbers without a fraction behind them are suppressed: a clipped
-        // number reads as a different number, while nothing reads as nothing.
         #expect(
-            state(value: "OK").compactTrailingChoice(widthLimited: true) == .none
+            state(value: "OK").compactTrailingChoice(widthLimited: true) == .token
         )
+        // The minimal circle does not gain vertical space, so its conservative
+        // fallback remains unchanged.
         #expect(
             state(value: "OK").minimalChoice(widthLimited: true) == .glyph
         )
-        // Item counts are numbers too.
         let items = [item(), item(status: .finished)]
         #expect(state(items: items).minimalProgress != nil)
         #expect(
             state(items: items).compactTrailingChoice(widthLimited: true) == .ring
         )
+        #expect(
+            state(items: [item(), item()]).compactTrailingChoice(widthLimited: true) == .count
+        )
+    }
+
+    @Test("A width-limited countdown formats as two complete lines")
+    func widthLimitedCountdownLines() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        typealias Countdown = LiveActivityVerticalCountdownText
+
+        #expect(
+            Countdown.lines(endsAt: now.addingTimeInterval(12 * 60), granularity: .minute, now: now)
+                == ["~12", "min"]
+        )
+        #expect(
+            Countdown.lines(endsAt: now.addingTimeInterval(72 * 60), granularity: .minute, now: now)
+                == ["~1h", "12m"]
+        )
+        #expect(
+            Countdown.lines(endsAt: now.addingTimeInterval(12 * 60 + 34), granularity: .second, now: now)
+                == ["12m", "34s"]
+        )
+        #expect(Countdown.lines(endsAt: now, granularity: .minute, now: now) == ["Over", "due"])
     }
 
     // MARK: Countdown token

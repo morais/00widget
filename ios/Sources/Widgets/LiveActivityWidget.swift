@@ -143,22 +143,29 @@ struct ZeroZeroWidgetLiveActivityWidget: Widget {
                 // with no fraction at all.
                 //
                 // iOS 27 finally reports the constraint via
-                // `isDynamicIslandLimitedInWidth` (landscape): when limited,
-                // numbers are suppressed even if they fit the heuristic budget
-                // — see `compactTrailingChoice(widthLimited:)` — and the ring
-                // wins wherever one exists. Portrait behaviour is unchanged.
+                // `isDynamicIslandLimitedInWidth` (landscape). Its compact
+                // regions are stacked vertically: keep the short count/token,
+                // and give a countdown two lines rather than letting the
+                // single horizontal string ellipsize. A ring is unchanged.
                 IslandWidthLimitedReader { limited in
                     switch context.state.compactTrailingChoice(widthLimited: limited) {
                     case .countdown:
                         if let endsAt = context.state.endsAt {
-                            LiveActivityCountdownText(
-                                endsAt: endsAt,
-                                granularity: context.state.countdownGranularity,
-                                ticking: .systemText
-                            )
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
+                            if limited {
+                                LiveActivityVerticalCountdownText(
+                                    endsAt: endsAt,
+                                    granularity: context.state.countdownGranularity
+                                )
+                            } else {
+                                LiveActivityCountdownText(
+                                    endsAt: endsAt,
+                                    granularity: context.state.countdownGranularity,
+                                    ticking: .systemText
+                                )
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.6)
+                            }
                         }
                     case .ring:
                         if let progress = context.state.minimalProgress {

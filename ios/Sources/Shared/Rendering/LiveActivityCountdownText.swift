@@ -132,6 +132,66 @@ public struct LiveActivityCountdownToken: View {
     }
 }
 
+/// A countdown for iOS 27's width-limited compact Island, whose leading and
+/// trailing regions are stacked down a narrow vertical capsule. Splitting the
+/// value across two short lines uses the height the system provides and avoids
+/// turning a useful countdown into "~12…".
+public struct LiveActivityVerticalCountdownText: View {
+    private let endsAt: Date
+    private let granularity: CountdownGranularity
+
+    public init(endsAt: Date, granularity: CountdownGranularity?) {
+        self.endsAt = endsAt
+        self.granularity = granularity ?? .second
+    }
+
+    public var body: some View {
+        TimelineView(.periodic(from: Date(), by: tickInterval)) { context in
+            let lines = Self.lines(endsAt: endsAt, granularity: granularity, now: context.date)
+            VStack(spacing: -2) {
+                Text(lines[0])
+                Text(lines[1])
+            }
+            .font(.caption2)
+            .monospacedDigit()
+            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .fixedSize(horizontal: true, vertical: true)
+        }
+    }
+
+    private var tickInterval: TimeInterval {
+        granularity == .second && endsAt.timeIntervalSinceNow < 3600 ? 1 : 60
+    }
+
+    /// Two independently fitting rows, with no truncation-dependent meaning.
+    public static func lines(
+        endsAt: Date,
+        granularity: CountdownGranularity,
+        now: Date
+    ) -> [String] {
+        let remaining = endsAt.timeIntervalSince(now)
+        guard remaining > 0 else { return ["Over", "due"] }
+
+        if granularity == .minute {
+            let totalMinutes = max(1, Int(ceil(remaining / 60)))
+            if totalMinutes < 60 { return ["~\(totalMinutes)", "min"] }
+            let hours = totalMinutes / 60
+            let minutes = totalMinutes % 60
+            return minutes == 0 ? ["~\(hours)", "hr"] : ["~\(hours)h", "\(minutes)m"]
+        }
+
+        let totalSeconds = max(1, Int(ceil(remaining)))
+        if totalSeconds < 60 { return ["\(totalSeconds)", "sec"] }
+        if totalSeconds < 3600 {
+            return ["\(totalSeconds / 60)m", "\(totalSeconds % 60)s"]
+        }
+        let totalMinutes = Int(ceil(remaining / 60))
+        return ["\(totalMinutes / 60)h", "\(totalMinutes % 60)m"]
+    }
+}
+
 /// Wakes the countdown when its text can actually change, and once more the
 /// instant the deadline passes.
 ///

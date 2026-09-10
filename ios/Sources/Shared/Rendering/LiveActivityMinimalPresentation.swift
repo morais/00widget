@@ -134,12 +134,10 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
     /// What the compact trailing region draws, as a testable decision.
     ///
     /// Mirrors the branch order in `LiveActivityWidget`'s `compactTrailing`:
-    /// a countdown first (the system reserves width for it), then a ring for
-    /// anything with an honest fraction, then numbers only when the island has
-    /// not told us width is constrained. When `widthLimited` is true — iOS 27's
-    /// `isDynamicIslandLimitedInWidth`, e.g. landscape — numbers are suppressed
-    /// in favour of the ring-or-nothing fallback, because a clipped number
-    /// reads as a different, plausible number while nothing reads as nothing.
+    /// a countdown first, then a ring for anything with an honest fraction,
+    /// then the short count or token. iOS 27's width-limited landscape Island
+    /// stacks the same choices vertically, so those one- or two-glyph values
+    /// remain useful instead of disappearing with the trailing region.
     public enum IslandCompactTrailingChoice: Equatable, Sendable {
         case countdown, ring, count, token, none
     }
@@ -155,7 +153,6 @@ public extension ZeroZeroWidgetActivityAttributes.ContentState {
     public func compactTrailingChoice(widthLimited: Bool) -> IslandCompactTrailingChoice {
         if endsAt != nil { return .countdown }
         if minimalProgress != nil { return .ring }
-        if widthLimited { return .none }
         if showsItemCount { return .count }
         if compactValueToken != nil { return .token }
         return .none
