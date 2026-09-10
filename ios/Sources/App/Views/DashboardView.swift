@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @EnvironmentObject var env: AppEnvironment
@@ -17,7 +18,7 @@ struct DashboardView: View {
                 .navigationTitle("Widgets")
                 .refreshable { await env.fetchCards() }
                 .task { await env.refreshInstalledWidgetCount() }
-                .searchable(text: $searchText, prompt: "Search cards")
+                .modifier(DashboardSearchModifier(searchText: $searchText))
                 .onAppear {
                     applyRequestedCard()
                     applyRequestedSearch()
@@ -167,6 +168,12 @@ struct DashboardView: View {
         // offset, leaving the user parked on blank space below the empty state.
         if visibleCards.isEmpty && visibleSharedCards.isEmpty && visibleGuestCards.isEmpty {
             ScrollView {
+                if Self.isMac {
+                    macSearchField
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+
                 if let banner = env.guestLinkBanner {
                     guestLinkBanner(banner)
                         .padding(.horizontal, 16)
@@ -199,6 +206,10 @@ struct DashboardView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {
+                    if Self.isMac {
+                        macSearchField
+                    }
+
                     if let banner = env.guestLinkBanner {
                         guestLinkBanner(banner)
                     }
@@ -386,5 +397,58 @@ struct DashboardView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
         )
+    }
+
+    /// Designed for iPad on Mac reports `.mac`. Focusing the system's search
+    /// field there crashes inside UIKit (`_screenBasedFocusUnsupported`,
+    /// via `_UISearchPresentationController`), so the Mac gets a plain inline
+    /// field driving the same `searchText` instead of `.searchable`.
+    static var isMac: Bool {
+        UIDevice.current.userInterfaceIdiom == .mac
+    }
+
+    private var macSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search cards", text: $searchText)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+#if os(iOS)
+                .textInputAutocapitalization(.never)
+#endif
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Search cards")
+    }
+}
+
+/// Applies `.searchable` everywhere except Designed for iPad on Mac, where
+/// focusing it crashes in UIKit (see `DashboardView.isMac`). The Mac renders
+/// `macSearchField` inline instead, bound to the same text.
+private struct DashboardSearchModifier: ViewModifier {
+    @Binding var searchText: String
+
+    func body(content: Content) -> some View {
+        if DashboardView.isMac {
+            content
+        } else {
+            content.searchable(text: $searchText, prompt: "Search cards")
+        }
     }
 }
