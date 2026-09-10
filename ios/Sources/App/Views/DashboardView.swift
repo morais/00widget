@@ -174,17 +174,23 @@ struct DashboardView: View {
         // scrolling — while the fetch underneath completes normally. Every
         // row below draws its own chrome (no separators, clear background)
         // so the list reads exactly like the stack it replaces.
-        List {
-            if showsEmptyState {
-                emptyBranch
-            } else {
-                cardsBranch
+        //
+        // Width-driven columns need the window width, which only an
+        // ancestor reader sees: size class doesn't track resizable or
+        // split widths, and a reader inside the list collapses.
+        GeometryReader { proxy in
+            List {
+                if showsEmptyState {
+                    emptyBranch
+                } else {
+                    cardsBranch(width: proxy.size.width)
+                }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.primary.opacity(0.025))
+            .refreshable { await env.fetchCards() }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color.primary.opacity(0.025))
-        .refreshable { await env.fetchCards() }
     }
 
     /// One dashboard row: no separator, no row chrome, 16pt gutters, 8pt
@@ -228,7 +234,7 @@ struct DashboardView: View {
     }
 
     @ViewBuilder
-    private var cardsBranch: some View {
+    private func cardsBranch(width: CGFloat) -> some View {
         if Self.isMac {
             dashboardRow(macSearchField)
         }
@@ -251,13 +257,13 @@ struct DashboardView: View {
             dashboardRow(sampleNotice)
         }
 
-        // One column on a narrow phone, two once the window fits two
-        // minimum-width cards side by side (see `cardColumns`). The grid
-        // lives in a single row capped at `maxDashboardWidth` so wide
-        // windows centre two readable columns instead of stretching cards.
+        // Exactly one column below the break, exactly two above — never
+        // three (see `columns(forWidth:)`). The grid lives in a single row
+        // capped at `maxDashboardWidth` so wide windows centre two readable
+        // columns instead of stretching cards.
         if !visibleCards.isEmpty {
             dashboardRow(
-                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
                     ForEach(visibleCards) { card in
                         // A button appending to the navigation path rather
                         // than a NavigationLink: inside a List a link draws a
@@ -301,7 +307,7 @@ struct DashboardView: View {
             )
 
             dashboardRow(
-                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
                     ForEach(visibleSharedCards) { card in
                         Button {
                             path.append("shared:\(card.id)")
@@ -334,7 +340,7 @@ struct DashboardView: View {
             )
 
             dashboardRow(
-                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
                     ForEach(visibleGuestCards) { card in
                         Button {
                             path.append("guest:\(card.id)")
@@ -468,17 +474,38 @@ struct DashboardView: View {
     }
 
     /// Narrowest a dashboard card gets before the grid drops back to one
-    /// column. Two columns need 2×minimum + spacing (16) + edge insets (32),
-    /// so the break sits at ~728pt: narrow phones stay single-column, wide
-    /// phones landscape, iPads, Macs and resizable windows get two.
+    /// column. Unchanged: narrow phones stay single-column.
     static let minCardWidth: CGFloat = 340
 
-    /// Caps the dashboard so wide windows centre two readable columns instead
-    /// of stretching cards — or growing a third column — indefinitely.
-    static let maxDashboardWidth: CGFloat = 920
+    /// A column may grow to the widest single-column width before the
+    /// dashboard stops widening, so a two-column card never reads narrower
+    /// than its single-column sibling.
+    static let maxColumnWidth: CGFloat = 700
 
-    static var cardColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: minCardWidth), spacing: 16)]
+    static let cardSpacing: CGFloat = 16
+    static let edgeInsets: CGFloat = 16
+
+    /// Total width at and above which the grid uses two columns: two minimum
+    /// cards plus spacing plus both insets.
+    static var twoColumnBreak: CGFloat {
+        minCardWidth * 2 + cardSpacing + edgeInsets * 2
+    }
+
+    /// The dashboard never grows past two maximum columns plus spacing plus
+    /// insets, centred in anything wider.
+    static var maxDashboardWidth: CGFloat {
+        maxColumnWidth * 2 + cardSpacing + edgeInsets * 2
+    }
+
+    /// Exactly one column below the break, exactly two above — never three.
+    /// Chosen from the actual window width so resizable windows, Split View,
+    /// Stage Manager, iPad and Mac all follow the room they have; size class
+    /// cannot do this because it doesn't track resizable or split widths.
+    /// Adaptive is the wrong tool here for the same reason in reverse: it
+    /// would keep adding columns on wide Mac windows.
+    static func columns(forWidth width: CGFloat) -> [GridItem] {
+        let count = width >= twoColumnBreak ? 2 : 1
+        return Array(repeating: GridItem(.flexible(), spacing: cardSpacing), count: count)
     }
 
     private var macSearchField: some View {
