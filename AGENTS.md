@@ -234,6 +234,17 @@ The UIKit-backed warning from the widget renderer still applies: a linear
 `ProgressView`'s offscreen fill is not pixel-faithful. Its placement and width
 are useful; its exact fill needs a device.
 
+On a machine with Xcode 27 and an iOS 27 simulator, add `--include-island` to
+the same command. The batch then writes a `system-island/` directory containing
+real system-hosted captures of countdown, progress ring, item count, and value
+token compact states in both portrait and landscape, plus the expanded state.
+The landscape images are the vertical, width-limited presentation that sets
+`isDynamicIslandLimitedInWidth`; count and token intentionally reduce to the
+leading identity glyph there. None of this can be reproduced faithfully by
+`ImageRenderer` or a portrait canvas preview. The extra system capture is
+optional because it launches a real system surface and is therefore slower
+than the default 32-image render.
+
 The Island is drawn by the system, above the app. `ImageRenderer` cannot draw
 it, so the two loops above are blind to it, and until recently the only way to
 see one was the full marketing run — ten minutes of Home Screen widget

@@ -5,16 +5,23 @@
 #   ios/scripts/render-live-activity-previews.sh
 #   ios/scripts/render-live-activity-previews.sh --device "iPhone 17 Pro"
 #   ios/scripts/render-live-activity-previews.sh --output /tmp/activity-previews
+#   ios/scripts/render-live-activity-previews.sh --include-island
+#   ios/scripts/render-live-activity-previews.sh --include-island --island-device "iPhone 18 Pro"
 set -euo pipefail
 
 DEVICE="${SIM_DEVICE:-iPhone 17 Pro}"
+ISLAND_DEVICE="${SIM_ISLAND_DEVICE:-iPhone 18 Pro}"
 OUTPUT=""
+INCLUDE_ISLAND=0
+ISLAND_DEVELOPER_DIR="${ZW_ISLAND_DEVELOPER_DIR:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device) DEVICE="$2"; shift 2 ;;
+    --island-device) ISLAND_DEVICE="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    --include-island) INCLUDE_ISLAND=1; shift ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -72,4 +79,35 @@ cp -R "$SOURCE/." "$OUTPUT/"
 
 COUNT="$(find "$OUTPUT" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
 echo "✓ wrote $COUNT previews to $OUTPUT"
-echo "  Dynamic Island: open LiveActivityWidget.swift and select a native Compact preview in the Xcode canvas."
+
+if ((INCLUDE_ISLAND)); then
+  if [[ -z "$ISLAND_DEVELOPER_DIR" ]]; then
+    for candidate in \
+      "${DEVELOPER_DIR:-}" \
+      "$(xcode-select -p 2>/dev/null || true)" \
+      "/Applications/Xcode 27.app/Contents/Developer" \
+      "/Applications/Xcode 27 RC.app/Contents/Developer"; do
+      [[ -n "$candidate" && -d "$candidate" ]] || continue
+      sdk_version="$(DEVELOPER_DIR="$candidate" xcrun --sdk iphonesimulator --show-sdk-version 2>/dev/null || true)"
+      if [[ "$sdk_version" == 27* ]]; then
+        ISLAND_DEVELOPER_DIR="$candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$ISLAND_DEVELOPER_DIR" ]]; then
+    echo "✗ --include-island needs Xcode 27; set ZW_ISLAND_DEVELOPER_DIR" >&2
+    exit 1
+  fi
+
+  echo "→ capturing system-hosted Dynamic Islands on $ISLAND_DEVICE"
+  DEVELOPER_DIR="$ISLAND_DEVELOPER_DIR" \
+  ZW_SCREENSHOT_DERIVED_DATA="${ZW_ISLAND_DERIVED_DATA:-$IOS_ROOT/build/LiveActivityIslandDerivedData-ios27}" \
+    "$REPO_ROOT/marketing/screenshots/capture-ios.sh" \
+      --only island \
+      --device "$ISLAND_DEVICE" \
+      --out "$OUTPUT/system-island"
+  echo "✓ four compact types in portrait + landscape, and expanded, are in $OUTPUT/system-island"
+else
+  echo "  Add --include-island for all compact types in portrait + landscape, and expanded."
+fi

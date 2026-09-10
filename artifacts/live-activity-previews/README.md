@@ -19,3 +19,18 @@ ring, item count, and short value token — every compact-trailing branch.
 For final device evidence, use `marketing/screenshots/capture-ios.sh --only
 island`. It is slower because it captures the real system surface; the native
 canvas previews are the normal edit loop.
+
+To include that real system evidence in the same batch, run:
+
+```sh
+ios/scripts/render-live-activity-previews.sh --include-island
+```
+
+With Xcode 27 and an iOS 27 simulator installed, this adds `system-island/`
+with all four compact-trailing types — countdown, progress ring, item count,
+and value token — in portrait and landscape, plus the expanded capture and
+zoomed crops. In the vertical, width-limited Island the count and token
+fixtures intentionally keep only the leading identity glyph; showing nothing
+is safer than clipping a value into a different plausible value. The default
+command deliberately stays the cheap Lock Screen-only loop. Override the
+defaults with `--island-device` or `ZW_ISLAND_DEVELOPER_DIR` when needed.

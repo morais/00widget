@@ -588,6 +588,96 @@ public enum SampleDataFactory {
     }
 
 
+    #if ZW_SCREENSHOTS
+    /// The four mutually exclusive compact-trailing renderers. The simulator
+    /// capture harness stages each one independently so ActivityKit shows the
+    /// real portrait presentation and iOS 27's width-limited landscape form.
+    public enum CompactActivityPreview: String, CaseIterable, Sendable {
+        case countdown
+        case progress
+        case count
+        case token
+
+        public var title: String {
+            switch self {
+            case .countdown: return "Compact countdown"
+            case .progress: return "Compact progress"
+            case .count: return "Compact item count"
+            case .token: return "Compact value token"
+            }
+        }
+    }
+
+    public static func makeCompactActivityPreviewSession(
+        _ preview: CompactActivityPreview
+    ) -> LiveActivitySession {
+        let now = Date()
+        let common = (
+            externalActivityId: sampleId("compact-\(preview.rawValue)"),
+            title: preview.title
+        )
+        switch preview {
+        case .countdown:
+            return LiveActivitySession(
+                externalActivityId: common.externalActivityId,
+                kind: .timer,
+                title: common.title,
+                state: "running",
+                signal: .neutral,
+                icon: "timer",
+                endsAt: now.addingTimeInterval(12 * 60),
+                countdownGranularity: .minute,
+                startedAt: now,
+                updatedAt: now,
+                staleAt: now.addingTimeInterval(3600)
+            )
+        case .progress:
+            return LiveActivitySession(
+                externalActivityId: common.externalActivityId,
+                kind: .progress,
+                title: common.title,
+                state: "running",
+                signal: .neutral,
+                icon: "arrow.down.circle.fill",
+                value: "64%",
+                progress: 0.64,
+                startedAt: now,
+                updatedAt: now,
+                staleAt: now.addingTimeInterval(3600)
+            )
+        case .count:
+            return LiveActivitySession(
+                externalActivityId: common.externalActivityId,
+                kind: .job,
+                title: common.title,
+                state: "running",
+                signal: .neutral,
+                icon: "tray.full.fill",
+                items: [
+                    LiveActivityItem(id: "one", title: "First", status: .running),
+                    LiveActivityItem(id: "two", title: "Second", status: .running),
+                ],
+                startedAt: now,
+                updatedAt: now,
+                staleAt: now.addingTimeInterval(3600)
+            )
+        case .token:
+            return LiveActivitySession(
+                externalActivityId: common.externalActivityId,
+                kind: .generic,
+                title: common.title,
+                state: "ready",
+                signal: .favorable,
+                icon: "checkmark.seal.fill",
+                value: "OK",
+                startedAt: now,
+                updatedAt: now,
+                staleAt: now.addingTimeInterval(3600)
+            )
+        }
+    }
+    #endif
+
     /// Which demo a generated Live Activity shows.
     ///
     /// Two, because the two ways a Live Activity can be built look nothing

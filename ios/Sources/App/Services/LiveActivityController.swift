@@ -292,6 +292,22 @@ public final class LiveActivityController: ObservableObject {
         }
         refreshActiveActivities()
     }
+
+    /// Starts one of the four compact renderer fixtures after the caller has
+    /// cleared retained activities. Kept out of shipping builds: its only job
+    /// is to let XCUITest photograph ActivityKit's real system host.
+    public func startCompactPreview(
+        _ preview: SampleDataFactory.CompactActivityPreview
+    ) async throws {
+        let session = SampleDataFactory.makeCompactActivityPreviewSession(preview)
+        let (attributes, state) = ZeroZeroWidgetActivityAttributes.from(session)
+        _ = try Activity.request(
+            attributes: attributes,
+            content: ActivityContent(state: state, staleDate: session.staleAt),
+            pushType: nil
+        )
+        refreshActiveActivities()
+    }
     #endif
 
     public func endSamples() async {

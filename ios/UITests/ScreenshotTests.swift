@@ -195,7 +195,10 @@ final class ScreenshotTests: XCTestCase {
     /// Stages the sample Live Activity without capturing anything in-process.
     /// Shared by the in-app Activities shot and the host-driven Lock Screen
     /// capture below, so both wait for the same presenting state.
-    private func stageSampleActivity(in app: XCUIApplication) -> Bool {
+    private func stageSampleActivity(
+        in app: XCUIApplication,
+        expectedTitle: String = "App launch"
+    ) -> Bool {
         let activitiesTab = navigationButton(named: "Activities", in: app)
         guard activitiesTab.waitForExistence(timeout: 5) else { return false }
         activitiesTab.tap()
@@ -203,7 +206,7 @@ final class ScreenshotTests: XCTestCase {
         // The private screenshot build replaces any retained local sample when
         // this screen opens, so a previous capture cannot leave stale content.
         XCTAssertTrue(
-            app.staticTexts["App launch"].waitForExistence(timeout: 15),
+            app.staticTexts[expectedTitle].waitForExistence(timeout: 15),
             "Sample Live Activity did not start."
         )
         return true
@@ -218,8 +221,9 @@ final class ScreenshotTests: XCTestCase {
     /// answer a question about one 24-point-tall strip — so a defect in it cost
     /// a capture cycle per attempt and shipped twice.
     ///
-    /// This stages the same launch activity, backgrounds the app, and captures
-    /// the compact and expanded presentations with nothing else in between.
+    /// This stages all four compact-trailing renderers, backgrounds the app,
+    /// and captures their portrait and iOS 27 landscape presentations. It also
+    /// keeps the original launch activity's expanded capture.
     /// Run it with `marketing/screenshots/capture-ios.sh --only island`, which
     /// writes the pair outside the canonical raw tree — they are a diagnostic,
     /// never an App Store asset.
@@ -238,10 +242,13 @@ final class ScreenshotTests: XCTestCase {
             "Sample Live Activity did not start, so there is no Island to look at."
         )
 
-        // The Island only draws while the app is in the background.
-        XCUIDevice.shared.press(.home)
-        Thread.sleep(forTimeInterval: 3)
-        capture(named: "probe-island-compact")
+        captureCompactIsland(
+            portraitNames: ["probe-island-compact", "probe-island-compact-progress"],
+            landscapeNames: [
+                "probe-island-compact-landscape",
+                "probe-island-compact-progress-landscape",
+            ]
+        )
 
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard
@@ -249,6 +256,60 @@ final class ScreenshotTests: XCTestCase {
             .press(forDuration: 1.2)
         Thread.sleep(forTimeInterval: 2)
         capture(named: "probe-island-expanded")
+
+        let remaining: [(id: String, title: String)] = [
+            ("countdown", "Compact countdown"),
+            ("count", "Compact item count"),
+            ("token", "Compact value token"),
+        ]
+        for preview in remaining {
+            app.terminate()
+            app.launchArguments = ["--compact-activity-preview", preview.id]
+            app.launch()
+            XCTAssertTrue(
+                stageSampleActivity(in: app, expectedTitle: preview.title),
+                "The \(preview.id) compact fixture did not start."
+            )
+            captureCompactIsland(
+                portraitNames: ["probe-island-compact-\(preview.id)"],
+                landscapeNames: ["probe-island-compact-\(preview.id)-landscape"]
+            )
+        }
+    }
+
+    private func captureCompactIsland(
+        portraitNames: [String],
+        landscapeNames: [String]
+    ) {
+        // The Island only draws while the app is in the background.
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 3)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        settleDynamicIsland(in: springboard)
+        // Ending one ActivityKit instance and starting the next can leave a
+        // stable but empty pill for several seconds even after SpringBoard's
+        // framebuffer itself stops changing. Give the system content host its
+        // own settle budget; the post-capture glyph check remains the proof.
+        Thread.sleep(forTimeInterval: 5)
+        for name in portraitNames { capture(named: name) }
+
+        // iOS 27 keeps compact and minimal Live Activities visible when the
+        // phone rotates. The physical camera cutout is now on the short edge,
+        // so the Island reads vertically and both compact regions receive the
+        // width-limited environment. SpringBoard itself is portrait-only on
+        // iPhone, so Safari supplies a foreground landscape-capable host.
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        safari.launch()
+            XCUIDevice.shared.orientation = .landscapeLeft
+            Thread.sleep(forTimeInterval: 3)
+            settleDynamicIsland(in: safari)
+            Thread.sleep(forTimeInterval: 5)
+        for name in landscapeNames { capture(named: name) }
+        XCUIDevice.shared.orientation = .portrait
+        safari.terminate()
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
     }
 
     /// Stages the launch Live Activity and pauses on a host-visible marker so

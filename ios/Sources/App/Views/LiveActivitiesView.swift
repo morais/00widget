@@ -53,7 +53,11 @@ struct LiveActivitiesView: View {
                     // the hero photographs that region. A leftover App Preview
                     // activity is the neighbour that does it here.
                     await liveActivityController.endEverythingForCapture()
-                    try? await liveActivityController.startSample()
+                    if let compactPreview = MarketingDemo.compactActivityPreview {
+                        try? await liveActivityController.startCompactPreview(compactPreview)
+                    } else {
+                        try? await liveActivityController.startSample()
+                    }
                     #endif
                     await liveActivityController.reconcileWithServer()
                 }

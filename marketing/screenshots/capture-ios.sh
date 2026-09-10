@@ -475,6 +475,10 @@ produced = set()
 for entry in entries(manifest):
     # XCTest appends _<index>_<UUID> to the attachment name.
     name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}(\.\w+)$", r"\1", entry["suggestedHumanReadableName"])
+    # Simulator diagnostics can attach a crash report without failing the UI
+    # test. It is useful in the xcresult and noise in an image inventory.
+    if not name.endswith(".png"):
+        continue
     shutil.copy2(os.path.join(src, entry["exportedFileName"]), os.path.join(dest, name))
     print(f"  {name}")
     produced.add(name)
@@ -486,7 +490,23 @@ required = set()
 if mode == "activities":
     required = {"screenshot-activities.png"}
 elif mode == "island":
-    required = {"probe-island-compact.png", "probe-island-expanded.png"}
+    required = {
+        "probe-island-compact.png",
+        "probe-island-compact-countdown.png",
+        "probe-island-compact-progress.png",
+        "probe-island-compact-count.png",
+        "probe-island-compact-token.png",
+        "probe-island-expanded.png",
+    }
+    landscape = {
+        "probe-island-compact-landscape.png",
+        "probe-island-compact-countdown-landscape.png",
+        "probe-island-compact-progress-landscape.png",
+        "probe-island-compact-count-landscape.png",
+        "probe-island-compact-token-landscape.png",
+    }
+    if landscape & produced:
+        required |= landscape
 elif mode == "app":
     required = {
         "screenshot-approve.png",
@@ -587,7 +607,31 @@ fi
 # nothing else in the pipeline can see the difference — the manifest checks
 # names, checksums and sizes, and a clipped glyph is none of those. It varies
 # between runs of identical code, so the answer is to catch it and re-run.
-if [[ "$ONLY" == "all" && "$DEVICE_FOLDER" == "iphone-6.3" ]]; then
+if [[ "$ONLY" == "island" ]]; then
+  echo "→ checking the compact Dynamic Islands are presenting"
+  island_captures=(
+    "probe-island-compact.png"
+    "probe-island-compact-countdown.png"
+    "probe-island-compact-progress.png"
+    "probe-island-compact-count.png"
+    "probe-island-compact-token.png"
+  )
+  if [[ -f "$OUT/probe-island-compact-landscape.png" ]]; then
+    island_captures+=(
+      "probe-island-compact-landscape.png"
+      "probe-island-compact-countdown-landscape.png"
+      "probe-island-compact-progress-landscape.png"
+      "probe-island-compact-count-landscape.png"
+      "probe-island-compact-token-landscape.png"
+    )
+  fi
+  for island_capture in "${island_captures[@]}"; do
+    if ! python3 "$SCRIPT_DIR/island_check.py" "$OUT/$island_capture"; then
+      echo "✗ re-run: $island_capture has missing or clipped content" >&2
+      exit 1
+    fi
+  done
+elif [[ "$ONLY" == "all" && "$DEVICE_FOLDER" == "iphone-6.3" ]]; then
   echo "→ checking the Dynamic Island is not clipped"
   for island_capture in screenshot-home-widgets.png screenshot-launch-complete.png; do
     if ! python3 "$SCRIPT_DIR/island_check.py" "$OUT/$island_capture"; then
@@ -621,12 +665,49 @@ except ImportError:  # the crop is a convenience, not the capture
     raise SystemExit(0)
 
 out = Path(sys.argv[1])
-for name, depth in (("probe-island-compact", 0.09), ("probe-island-expanded", 0.22)):
+portrait = [
+    "probe-island-compact",
+    "probe-island-compact-countdown",
+    "probe-island-compact-progress",
+    "probe-island-compact-count",
+    "probe-island-compact-token",
+]
+for name in portrait:
     source = out / f"{name}.png"
     if not source.is_file():
         continue
     with Image.open(source) as image:
-        crop = image.crop((0, 0, image.width, round(image.height * depth)))
+        crop = image.crop((0, 0, image.width, round(image.height * 0.09)))
+        crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+        crop.save(out / f"{name}-zoom.png")
+    print(f"  {name}-zoom.png")
+
+source = out / "probe-island-expanded.png"
+if source.is_file():
+    with Image.open(source) as image:
+        crop = image.crop((0, 0, image.width, round(image.height * 0.22)))
+        crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
+        crop.save(out / "probe-island-expanded-zoom.png")
+    print("  probe-island-expanded-zoom.png")
+
+# XCUIScreen preserves portrait pixel order for an iPhone screenshot taken in
+# landscape. In those raw pixels the physical left edge is the top band. Crop
+# that band, then rotate it into the orientation a person holding the phone
+# sees: a narrow vertical Dynamic Island with its two compact regions stacked.
+landscape = [
+    "probe-island-compact-landscape",
+    "probe-island-compact-countdown-landscape",
+    "probe-island-compact-progress-landscape",
+    "probe-island-compact-count-landscape",
+    "probe-island-compact-token-landscape",
+]
+for name in landscape:
+    source = out / f"{name}.png"
+    if not source.is_file():
+        continue
+    with Image.open(source) as image:
+        crop = image.crop((0, 0, image.width, round(image.height * 0.16)))
+        crop = crop.transpose(Image.Transpose.ROTATE_90)
         crop = crop.resize((crop.width * 2, crop.height * 2), Image.Resampling.LANCZOS)
         crop.save(out / f"{name}-zoom.png")
     print(f"  {name}-zoom.png")

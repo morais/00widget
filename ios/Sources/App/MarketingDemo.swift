@@ -62,4 +62,17 @@ enum MarketingDemo {
         }
         return phase
     }
+
+    #if ZW_SCREENSHOTS
+    /// Selects one compact Dynamic Island branch for the private screenshot
+    /// harness. A shipping build never compiles this fixture path.
+    static var compactActivityPreview: SampleDataFactory.CompactActivityPreview? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard
+            let flag = arguments.firstIndex(of: "--compact-activity-preview"),
+            arguments.indices.contains(flag + 1)
+        else { return nil }
+        return SampleDataFactory.CompactActivityPreview(rawValue: arguments[flag + 1])
+    }
+    #endif
 }
