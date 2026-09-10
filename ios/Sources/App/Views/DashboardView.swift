@@ -469,8 +469,13 @@ struct DashboardView: View {
     /// field there crashes inside UIKit (`_screenBasedFocusUnsupported`,
     /// via `_UISearchPresentationController`), so the Mac gets a plain inline
     /// field driving the same `searchText` instead of `.searchable`.
+    ///
+    /// Both halves are load-bearing: a Designed-for-iPad app running on an
+    /// Apple Silicon Mac still reports `userInterfaceIdiom == .pad` — `.mac`
+    /// is Mac Catalyst only — so the idiom check alone never fires where the
+    /// crash actually happens. `isiOSAppOnMac` is the Designed-for-iPad half.
     static var isMac: Bool {
-        UIDevice.current.userInterfaceIdiom == .mac
+        UIDevice.current.userInterfaceIdiom == .mac || ProcessInfo.processInfo.isiOSAppOnMac
     }
 
     /// Narrowest a dashboard card gets before the grid drops back to one
