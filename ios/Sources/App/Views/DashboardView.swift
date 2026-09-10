@@ -16,7 +16,6 @@ struct DashboardView: View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle("Widgets")
-                .refreshable { await env.fetchCards() }
                 .task { await env.refreshInstalledWidgetCount() }
                 .modifier(DashboardSearchModifier(searchText: $searchText))
                 .onAppear {
@@ -161,163 +160,200 @@ struct DashboardView: View {
         return env.cards.first { $0.id == id }
     }
 
+    private var showsEmptyState: Bool {
+        visibleCards.isEmpty && visibleSharedCards.isEmpty && visibleGuestCards.isEmpty
+    }
+
     @ViewBuilder
     private var content: some View {
-        // Two scroll views rather than one with a branch inside: removing the
-        // last card shrinks the content, and a shared scroll view keeps its old
-        // offset, leaving the user parked on blank space below the empty state.
-        if visibleCards.isEmpty && visibleSharedCards.isEmpty && visibleGuestCards.isEmpty {
-            ScrollView {
-                if Self.isMac {
-                    macSearchField
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                }
-
-                if let banner = env.guestLinkBanner {
-                    guestLinkBanner(banner)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                }
-
-                #if ZW_SUBSCRIPTIONS_ENABLED
-                // Also here, not only alongside cards. Someone who has never
-                // subscribed usually has nothing published yet, so putting the
-                // notice only on the populated dashboard hid it from exactly
-                // the person it is addressed to.
-                SubscriptionNotice()
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                #endif
-
-                // "No widgets yet" is the wrong sentence for a search that
-                // matched nothing — the cards are there, the term is not.
-                Group {
-                    if hasAnyCard {
-                        noSearchResults
-                    } else {
-                        emptyState
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 420)
+        // A List hosts the dashboard rather than a ScrollView + LazyVStack.
+        // List is the system host for the large-title + searchable +
+        // refreshable combination (Settings, Mail, Messages); the same
+        // combination on a plain ScrollView strands the content offset on
+        // iOS 26 — pulled down with no spinner and no way back short of
+        // scrolling — while the fetch underneath completes normally. Every
+        // row below draws its own chrome (no separators, clear background)
+        // so the list reads exactly like the stack it replaces.
+        List {
+            if showsEmptyState {
+                emptyBranch
+            } else {
+                cardsBranch
             }
-            .id("empty")
-            .background(Color.primary.opacity(0.025))
-        } else {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if Self.isMac {
-                        macSearchField
-                    }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Color.primary.opacity(0.025))
+        .refreshable { await env.fetchCards() }
+    }
 
-                    if let banner = env.guestLinkBanner {
-                        guestLinkBanner(banner)
-                    }
+    /// One dashboard row: no separator, no row chrome, 16pt gutters, 8pt
+    /// vertical rhythm (16pt between adjacent rows, matching the old stack).
+    private func dashboardRow<Content: View>(_ content: Content) -> some View {
+        content
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+    }
 
-                    #if ZW_SUBSCRIPTIONS_ENABLED
-                    // A banner rather than a modal: the cards below are the
-                    // last state every widget received, which is exactly what
-                    // someone opening the app during a lapse wants to see.
-                    SubscriptionNotice()
-                    #endif
+    @ViewBuilder
+    private var emptyBranch: some View {
+        if Self.isMac {
+            dashboardRow(macSearchField)
+        }
+        if let banner = env.guestLinkBanner {
+            dashboardRow(guestLinkBanner(banner))
+        }
 
-                    if env.shouldShowWidgetSetupHint {
-                        widgetSetupHint
-                    }
+        #if ZW_SUBSCRIPTIONS_ENABLED
+        // Also here, not only alongside cards. Someone who has never
+        // subscribed usually has nothing published yet, so putting the
+        // notice only on the populated dashboard hid it from exactly
+        // the person it is addressed to.
+        dashboardRow(SubscriptionNotice())
+        #endif
 
-                    if env.hasSampleCards && !SharedSettings.hideSampleIndicators {
-                        sampleNotice
-                    }
+        // "No widgets yet" is the wrong sentence for a search that
+        // matched nothing — the cards are there, the term is not.
+        dashboardRow(
+            Group {
+                if hasAnyCard {
+                    noSearchResults
+                } else {
+                    emptyState
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 420)
+        )
+    }
 
-                    // One column on a narrow phone, two once the window fits
-                    // two minimum-width cards side by side. Adaptive rather
-                    // than size-class driven so resizable windows, Split View,
-                    // Stage Manager, iPad and Mac all follow the actual width.
-                    // The outer maxWidth below caps this at two columns: the
-                    // widest content (888) fits 2x340+16 but not 3x340+32.
-                    if !visibleCards.isEmpty {
-                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
-                            ForEach(visibleCards) { card in
-                                NavigationLink(value: card.id) {
-                                    CardView(card: card, context: .app, density: .compact, growsToFill: true)
-                                }
-                                .buttonStyle(.plain)
-                                // Row heights settle on the tallest card; the link
-                                // takes the full row so CardView's own expanding
-                                // frame has a finite height to grow into.
-                                .frame(maxHeight: .infinity, alignment: .top)
-                                #if ZW_SCREENSHOTS
-                                // Stable hook for the preview timeline's tap, which
-                                // cannot afford a label-substring scan over a loaded
-                                // hierarchy: one slow find cascades every later beat.
-                                // Label-based queries elsewhere are unaffected.
-                                .accessibilityIdentifier(
-                                    card.id == SampleDataFactory.sampleId("preview-launch")
-                                        ? "preview-launch-card" : card.id
-                                )
-                                #endif
-                            }
+    @ViewBuilder
+    private var cardsBranch: some View {
+        if Self.isMac {
+            dashboardRow(macSearchField)
+        }
+        if let banner = env.guestLinkBanner {
+            dashboardRow(guestLinkBanner(banner))
+        }
+
+        #if ZW_SUBSCRIPTIONS_ENABLED
+        // A banner rather than a modal: the cards below are the
+        // last state every widget received, which is exactly what
+        // someone opening the app during a lapse wants to see.
+        dashboardRow(SubscriptionNotice())
+        #endif
+
+        if env.shouldShowWidgetSetupHint {
+            dashboardRow(widgetSetupHint)
+        }
+
+        if env.hasSampleCards && !SharedSettings.hideSampleIndicators {
+            dashboardRow(sampleNotice)
+        }
+
+        // One column on a narrow phone, two once the window fits two
+        // minimum-width cards side by side (see `cardColumns`). The grid
+        // lives in a single row capped at `maxDashboardWidth` so wide
+        // windows centre two readable columns instead of stretching cards.
+        if !visibleCards.isEmpty {
+            dashboardRow(
+                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                    ForEach(visibleCards) { card in
+                        // A button appending to the navigation path rather
+                        // than a NavigationLink: inside a List a link draws a
+                        // disclosure chevron beside the card's own, so the
+                        // same destination is reached without the doubled
+                        // affordance. The destination machinery below is
+                        // untouched.
+                        Button {
+                            path.append(card.id)
+                        } label: {
+                            CardView(card: card, context: .app, density: .compact, growsToFill: true)
                         }
-                    }
-
-                    if !visibleSharedCards.isEmpty {
-                        Text("Shared with you")
-                            .font(.title3.weight(.semibold))
-                            .accessibilityAddTraits(.isHeader)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 12)
-
-                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
-                            ForEach(visibleSharedCards) { card in
-                                NavigationLink(value: "shared:\(card.id)") {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        if let owner = card.sharedBy?.ownerEmail {
-                                            Label("From \(owner)", systemImage: "person.fill")
-                                                .font(.caption.weight(.medium))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        CardView(card: card, context: .app, density: .compact, growsToFill: true)
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                }
-                                .buttonStyle(.plain)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                            }
-                        }
-                    }
-
-                    if !visibleGuestCards.isEmpty {
-                        Text("Shared links")
-                            .font(.title3.weight(.semibold))
-                            .accessibilityAddTraits(.isHeader)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 12)
-
-                        LazyVGrid(columns: Self.cardColumns, spacing: 16) {
-                            ForEach(visibleGuestCards) { card in
-                                NavigationLink(value: "guest:\(card.id)") {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Label("Read-only link", systemImage: "link")
-                                            .font(.caption.weight(.medium))
-                                            .foregroundStyle(.secondary)
-                                        CardView(card: card, context: .app, density: .compact, growsToFill: true)
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                }
-                                .buttonStyle(.plain)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                            }
-                        }
+                        .buttonStyle(.plain)
+                        // Row heights settle on the tallest card; the button
+                        // takes the full row so CardView's own expanding frame
+                        // has a finite height to grow into.
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        #if ZW_SCREENSHOTS
+                        // Stable hook for the preview timeline's tap, which
+                        // cannot afford a label-substring scan over a loaded
+                        // hierarchy: one slow find cascades every later beat.
+                        // Label-based queries elsewhere are unaffected.
+                        .accessibilityIdentifier(
+                            card.id == SampleDataFactory.sampleId("preview-launch")
+                                ? "preview-launch-card" : card.id
+                        )
+                        #endif
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
-            }
-            .id("cards")
-            .background(Color.primary.opacity(0.025))
+            )
+        }
+
+        if !visibleSharedCards.isEmpty {
+            dashboardRow(
+                Text("Shared with you")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+
+            dashboardRow(
+                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                    ForEach(visibleSharedCards) { card in
+                        Button {
+                            path.append("shared:\(card.id)")
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if let owner = card.sharedBy?.ownerEmail {
+                                    Label("From \(owner)", systemImage: "person.fill")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                CardView(card: card, context: .app, density: .compact, growsToFill: true)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                }
+                .frame(maxWidth: Self.maxDashboardWidth)
+                .frame(maxWidth: .infinity)
+            )
+        }
+
+        if !visibleGuestCards.isEmpty {
+            dashboardRow(
+                Text("Shared links")
+                    .font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+
+            dashboardRow(
+                LazyVGrid(columns: Self.cardColumns, spacing: 16) {
+                    ForEach(visibleGuestCards) { card in
+                        Button {
+                            path.append("guest:\(card.id)")
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("Read-only link", systemImage: "link")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                CardView(card: card, context: .app, density: .compact, growsToFill: true)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                }
+                .frame(maxWidth: Self.maxDashboardWidth)
+                .frame(maxWidth: .infinity)
+            )
         }
     }
 
