@@ -63,6 +63,46 @@ describe("GET /v1/status", () => {
     expect(body.delivery.widgetPushTokens).toBe(1);
   });
 
+  it("counts start tokens by how recently their device ran the app", async () => {
+    // A device that has not refreshed its token in 30 days is not sent starts,
+    // so counting it would say a Live Activity can appear where it cannot.
+    const env = makeEnv();
+    const hash = await sha256Hex(TEST_API_KEY);
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const seedAt = async (ms: number, deviceId: string) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(ms));
+      await storage.putStartToken(env, "test-tenant", hash, deviceId, "ZeroZeroWidgetActivityAttributes", deviceId);
+      vi.useRealTimers();
+    };
+    await seedAt(now - 31 * day, "abandoned");
+    await seedAt(now - 10 * day, "quiet");
+    await seedAt(now, "active");
+
+    const body = await status(env);
+    expect(body.delivery.liveActivityStartTokens).toBe(2);
+    expect(body.delivery.liveActivityStartTokensRecentlyActive).toBe(1);
+    expect(body.delivery.canStartLiveActivities).toBe(true);
+
+    // Read-only: reporting a token stale does not delete it.
+    expect(await storage.listStartTokens(env, "test-tenant", "ZeroZeroWidgetActivityAttributes")).toHaveLength(3);
+  });
+
+  it("cannot start a Live Activity when every start token is stale", async () => {
+    const env = makeEnv();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.now() - 45 * 24 * 60 * 60 * 1000));
+    await storage.putStartToken(
+      env, "test-tenant", await sha256Hex(TEST_API_KEY), "gone", "ZeroZeroWidgetActivityAttributes", "gone",
+    );
+    vi.useRealTimers();
+
+    const body = await status(env);
+    expect(body.delivery.liveActivityStartTokens).toBe(0);
+    expect(body.delivery.canStartLiveActivities).toBe(false);
+  });
+
   it("states the reload cadence and how long until the next one", async () => {
     const body = await status(makeEnv());
     expect(body.delivery.widgetReloadMinSpacingSeconds).toBe(5 * 60);

@@ -415,6 +415,15 @@ const StartActivityOutput = z.object({
     + "no device registered, so tell them to open the 00Widget app and allow "
     + "notifications rather than continuing to publish.",
   ),
+  pushToStartRecentlyActive: z.number().describe(
+    "Of the devices sent the start, how many have run the 00Widget app in the "
+    + "last 7 days. Fewer than `pushToStartAttempted` means some were sent it and "
+    + "may never show it; compare `registeredDevices` on your next update.",
+  ),
+  pushToStartPrunedStale: z.number().describe(
+    "Devices that had not run the app in 30 days, so were not sent the start and "
+    + "were removed. They return on their own the next time the app launches.",
+  ),
   apnsResults: z.array(ApnsResultSchema),
   warnings: ActivityWarningsSchema,
 });
@@ -425,7 +434,13 @@ const UpdateActivityOutput = z.object({
   recipientResults: z.array(ApnsResultSchema),
   pendingUpdated: z.boolean().describe(
     "True when the new state was stored but no device holds a token for this "
-    + "activity yet, so nothing was pushed.",
+    + "activity yet, so nothing was pushed. A device that registers later is "
+    + "sent the current state then, so nothing needs re-sending.",
+  ),
+  registeredDevices: z.number().describe(
+    "How many of the operator's devices hold a token for this activity and were "
+    + "pushed this update. Set it against `pushToStartAttempted`: the difference "
+    + "is devices that were sent the start and have not registered it.",
   ),
   secondsSincePreviousUpdate: z.number().nullable().describe(
     "How long this activity spent showing its previous state. There is no "
@@ -727,7 +742,13 @@ const TOOLS: McpTool[] = [
       delivery: z.object({
         devices: z.number(),
         widgetPushTokens: z.number(),
-        liveActivityStartTokens: z.number(),
+        liveActivityStartTokens: z.number().describe(
+          "Devices a Live Activity start is sent to. Devices that have not run the app in 30 "
+          + "days are not counted and are not sent starts.",
+        ),
+        liveActivityStartTokensRecentlyActive: z.number().describe(
+          "Of those, devices that have run the app in the last 7 days.",
+        ),
         canPushWidgets: z.boolean().describe(
           "False means no device can receive a widget reload: what you publish is stored and seen "
           + "by nobody.",

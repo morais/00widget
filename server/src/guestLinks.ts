@@ -19,6 +19,7 @@ import {
 import { parseJson } from "./cards";
 import { enforceRateLimits, enforceTenantRateLimits, guestCredentialKey, tenantKey } from "./rateLimit";
 import * as storage from "./storage";
+import { replayCurrentState } from "./liveActivities";
 
 // Guest links let someone who has no 00Widget account watch exactly one card or
 // one Live Activity. The credential is an api_keys row of kind "guest" bound to
@@ -231,6 +232,9 @@ export async function registerGuestActivity(
       updatedAt: now,
     },
   });
+  // A guest registers whenever it opens the link, usually well after the
+  // activity started, so it is the likeliest device to be behind.
+  await replayCurrentState(env, instance, parsed.data.pushToken);
 
   return json({ ok: true, activityInstanceId: instance.activityInstanceId });
 }

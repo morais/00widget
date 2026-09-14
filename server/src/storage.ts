@@ -1000,19 +1000,46 @@ export async function deleteStartTokenByValue(
     .run();
 }
 
+export interface StartTokenRow {
+  token: string;
+  deviceId: string;
+  updatedAt: string;
+}
+
 export async function listStartTokens(
   env: Env,
   tenantId: string,
   attributesType: string,
-): Promise<string[]> {
+): Promise<StartTokenRow[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT token FROM start_tokens
+    `SELECT token, device_id, updated_at FROM start_tokens
      WHERE tenant_id = ? AND attributes_type = ?
      ORDER BY device_id`,
   )
     .bind(tenantId, attributesType)
-    .all<TokenRow>();
-  return rows.results.map((row) => row.token);
+    .all<{ token: string; device_id: string; updated_at: string }>();
+  return rows.results.map((row) => ({
+    token: row.token,
+    deviceId: row.device_id,
+    updatedAt: row.updated_at,
+  }));
+}
+
+// Drops start tokens not refreshed since `cutoffIso` (see
+// startTokenFreshness.ts). Bounded by the tenant and type the start path has
+// just listed, so it deletes only rows that call already read.
+export async function deleteStartTokensUpdatedBefore(
+  env: Env,
+  tenantId: string,
+  attributesType: string,
+  cutoffIso: string,
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `DELETE FROM start_tokens
+     WHERE tenant_id = ? AND attributes_type = ? AND updated_at < ?`,
+  )
+    .bind(tenantId, attributesType, cutoffIso)
+    .run();
 }
 
 export async function getStartTokenForDevice(

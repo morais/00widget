@@ -27,6 +27,7 @@ import { parseJson } from "./cards";
 import { isSharingEnabled, listAcceptedShares } from "./shares";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
 import { liveActivityWarnings } from "./liveActivityAdvice";
+import { partitionStartTokens } from "./startTokenFreshness";
 
 // The Swift attributes type the iOS app declares. iOS 18+ rejects start
 // pushes whose attributes-type doesn't match a registered ActivityAttributes.
@@ -186,7 +187,48 @@ export async function registerLiveActivity(
       updatedAt: now,
     },
   });
+  await replayCurrentState(env, instance, d.pushToken);
   return json({ ok: true, activityInstanceId: instance.activityInstanceId });
+}
+
+/// Brings a device that registered late up to the activity's current state.
+///
+/// An update is pushed only to devices already registered, and is otherwise
+/// just stored. A device that registers after one — because iOS was slow to
+/// hand the app its token, or the first attempt failed and the app retried on
+/// its next launch — would keep the state its push-to-start carried until the
+/// *next* update, and forever if there is none. So registration sends the
+/// stored state straight to that one token.
+///
+/// Skipped when nothing has changed since the start: the device already holds
+/// exactly that state, and an update push spends ActivityKit's budget for
+/// high-priority updates to say nothing. A re-registration after an update
+/// (token rotation) does replay, which is harmless — the content is identical.
+export async function replayCurrentState(
+  env: Env,
+  instance: LiveActivitySession,
+  pushToken: string,
+): Promise<boolean> {
+  const startedMs = instance.startedAt ? Date.parse(instance.startedAt) : NaN;
+  const updatedMs = Date.parse(instance.updatedAt);
+  if (!Number.isFinite(startedMs) || !Number.isFinite(updatedMs) || updatedMs <= startedMs) {
+    return false;
+  }
+  const result = await sendLiveActivityUpdate(env, pushToken, {
+    contentState: activityKitContentState(initialContentState(instance, instance.updatedAt)),
+    staleAt: instance.staleAt,
+    relevanceScore: instance.relevanceScore,
+  });
+  if (result.status !== 200) {
+    // Best effort: the registration itself succeeded and the next update will
+    // reach this device regardless, so a failed replay is logged, not raised.
+    console.log("live activity replay on registration failed", {
+      activityInstanceId: instance.activityInstanceId,
+      status: result.status,
+      reason: result.reason,
+    });
+  }
+  return true;
 }
 
 export async function registerLiveActivityStartToken(
@@ -401,9 +443,25 @@ export async function startLiveActivity(
   }
 
   const startTokens: StartTokenEntry[] = [];
+  let pushToStartRecentlyActive = 0;
+  let pushToStartPrunedStale = 0;
   for (const target of targets) {
-    const tokens = await storage.listStartTokens(env, target.tenantId, DEFAULT_ATTRIBUTES_TYPE);
-    for (const token of tokens) startTokens.push({ token, tenantId: target.tenantId });
+    const rows = await storage.listStartTokens(env, target.tenantId, DEFAULT_ATTRIBUTES_TYPE);
+    const { live, stale, recentlyActive, staleCutoff } = partitionStartTokens(rows);
+    // A device that has not run the app in a month is not sent the start, and
+    // its row goes. The delete costs a write only when there is something to
+    // remove, which is once per abandoned device rather than once per start.
+    if (stale.length > 0) {
+      await storage.deleteStartTokensUpdatedBefore(
+        env,
+        target.tenantId,
+        DEFAULT_ATTRIBUTES_TYPE,
+        staleCutoff,
+      );
+      pushToStartPrunedStale += stale.length;
+    }
+    pushToStartRecentlyActive += recentlyActive;
+    for (const row of live) startTokens.push({ token: row.token, tenantId: target.tenantId });
   }
   const apnsResults: unknown[] = [];
   if (startTokens.length > 0) {
@@ -457,6 +515,11 @@ export async function startLiveActivity(
     restarted: existing !== null,
     pending: true,
     pushToStartAttempted: startTokens.length,
+    // Of those, how many belong to a device that has run the app this week. A
+    // gap between the two is a device that is sent every start and will likely
+    // never register one, which is what `pendingUpdated` later reports.
+    pushToStartRecentlyActive,
+    pushToStartPrunedStale,
     apnsResults,
     warnings: liveActivityWarnings(session, { isStart: true, staleAtPushed: d.staleAt }),
   });
@@ -623,6 +686,10 @@ export async function updateLiveActivity(
     apnsResult,
     recipientResults,
     pendingUpdated: deliveries.length === 0,
+    // This account's own devices holding a token for this activity, to set
+    // against `pushToStartAttempted`: the difference is the devices that were
+    // sent the start and have not registered it.
+    registeredDevices: deliveries.filter((delivery) => delivery.targetTenantId === auth.tenantId).length,
     secondsSincePreviousUpdate,
     // What *this push* carried, which is not always what the row now holds.
     // The stored value is `merge(d.staleAt, instance.staleAt)` and persists,

@@ -11,6 +11,7 @@ import {
   readSubscriptionState,
 } from "./subscription";
 import { listVisibleActivities } from "./liveActivities";
+import { partitionStartTokens } from "./startTokenFreshness";
 import {
   WIDGET_PUSH_BURST,
   WIDGET_PUSH_MIN_SPACING_SECONDS,
@@ -56,6 +57,10 @@ export async function getStatus(
       : Promise.resolve([]),
   ]);
 
+  // Read-only: stale start tokens are left out of the counts here and removed
+  // by the next start, which is the path that would otherwise push to them.
+  const startTokenFreshness = partitionStartTokens(startTokens);
+
   // Reuses the token list already fetched above; asking by tenant would list
   // them a second time for the same answer.
   const secondsUntilReload = await widgetPushWaitForTokens(env, widgetTokens);
@@ -82,12 +87,15 @@ export async function getStatus(
     delivery: {
       devices: devices.length,
       widgetPushTokens: widgetTokens.length,
-      liveActivityStartTokens: startTokens.length,
+      liveActivityStartTokens: startTokenFreshness.live.length,
+      // Devices that have run the app this week. Fewer than the line above
+      // means some devices are sent every start and may never show it.
+      liveActivityStartTokensRecentlyActive: startTokenFreshness.recentlyActive,
       // The two questions a producer actually has. `false` for either means
       // what you publish is stored correctly and seen by nobody — the operator
       // has not installed the app, or has not allowed notifications.
       canPushWidgets: widgetTokens.length > 0,
-      canStartLiveActivities: startTokens.length > 0,
+      canStartLiveActivities: startTokenFreshness.live.length > 0,
       // The shortest gap between two reload pushes to the same widget, and how
       // many a widget gets per rolling day. Publishes in between are stored
       // immediately and coalesced into the next reload, so a card is never out

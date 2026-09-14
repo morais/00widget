@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import handler from "../src/index";
 import { FieldLimits, StartLiveActivitySchema, UpdateLiveActivitySchema } from "../src/types";
 import { makeEnv, authedRequest, seedApiKey } from "./helpers";
@@ -1882,6 +1882,201 @@ describe("live activities", () => {
     expect(start.status).toBe(200);
     const body = (await start.json()) as { pushToStartAttempted: number };
     expect(body.pushToStartAttempted).toBe(0);
+  });
+});
+
+// Only `Date` is faked: every timestamp these tests compare comes from it, and
+// faking timers too would stall the async work inside the handler.
+function atTime(ms: number) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(ms));
+}
+
+async function post(env: ReturnType<typeof makeEnv>, path: string, body: unknown) {
+  return (handler.fetch as any)(
+    authedRequest(`https://x${path}`, { method: "POST", body: JSON.stringify(body) }),
+    env,
+    executionCtx,
+  );
+}
+
+const ATTRIBUTES_TYPE = "ZeroZeroWidgetActivityAttributes";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+describe("a device that registers after the activity has moved on", () => {
+  afterEach(() => vi.useRealTimers());
+
+  function apnsEnv() {
+    __resetApnsJwtCache();
+    return makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+  }
+
+  async function capturingApns<T>(run: (sent: Array<{ url: string; aps: Record<string, any> }>) => Promise<T>) {
+    const sent: Array<{ url: string; aps: Record<string, any> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      sent.push({ url: String(input), ...JSON.parse(String(init?.body)) });
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      return await run(sent);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+
+  const register = (env: ReturnType<typeof makeEnv>, pushToken: string) =>
+    post(env, "/v1/live-activities/register", {
+      deviceId: "dev-late",
+      localActivityId: "local-late",
+      externalActivityId: "washer-late",
+      kind: "appliance",
+      pushToken,
+    });
+
+  it("is sent the current state as soon as it registers", async () => {
+    // The failure this closes: an update stored while no device held a token
+    // reached nobody, and the device that registered a moment later kept its
+    // push-to-start state until the next update — or forever, if none came.
+    const env = apnsEnv();
+    const t0 = Date.now();
+    await capturingApns(async (sent) => {
+      atTime(t0);
+      await post(env, "/v1/live-activities/register-start-token", {
+        deviceId: "dev-late",
+        attributesType: ATTRIBUTES_TYPE,
+        pushToken: "cafef00dcafef00d",
+      });
+      await post(env, "/v1/live-activities/start", {
+        externalActivityId: "washer-late",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+        subtitle: "Washing",
+      });
+
+      atTime(t0 + 60_000);
+      const pending = await post(env, "/v1/live-activities/update", {
+        externalActivityId: "washer-late",
+        subtitle: "Rinsing",
+        staleAt: new Date(t0 + 30 * 60_000).toISOString(),
+      });
+      expect(await pending.json()).toMatchObject({ pendingUpdated: true, registeredDevices: 0 });
+      expect(sent).toHaveLength(1);
+
+      atTime(t0 + 90_000);
+      expect((await register(env, "feedfacefeedface")).status).toBe(200);
+
+      expect(sent).toHaveLength(2);
+      const replay = sent[1];
+      expect(replay.url).toContain("feedfacefeedface");
+      expect(replay.aps.event).toBe("update");
+      expect(replay.aps.alert).toBeUndefined();
+      expect(replay.aps["content-state"]).toMatchObject({ state: "running", subtitle: "Rinsing" });
+      // The state carries the time it was published, not the time it was
+      // replayed, so it reads as exactly as old as it is.
+      expect(replay.aps["content-state"].updatedAt).toBe(Math.floor((t0 + 60_000) / 1000) - 978_307_200);
+      expect(replay.aps["stale-date"]).toBe(Math.floor((t0 + 30 * 60_000) / 1000));
+
+      atTime(t0 + 120_000);
+      const delivered = await post(env, "/v1/live-activities/update", {
+        externalActivityId: "washer-late",
+        subtitle: "Spinning",
+      });
+      expect(await delivered.json()).toMatchObject({ pendingUpdated: false, registeredDevices: 1 });
+    });
+  });
+
+  it("is sent nothing extra when the activity has not changed since it started", async () => {
+    // The device already holds the push-to-start state, and an update push
+    // spends ActivityKit's high-priority budget to repeat it.
+    const env = apnsEnv();
+    await capturingApns(async (sent) => {
+      atTime(Date.now());
+      await post(env, "/v1/live-activities/register-start-token", {
+        deviceId: "dev-late",
+        attributesType: ATTRIBUTES_TYPE,
+        pushToken: "cafef00dcafef00d",
+      });
+      await post(env, "/v1/live-activities/start", {
+        externalActivityId: "washer-late",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+      });
+      expect((await register(env, "feedfacefeedface")).status).toBe(200);
+      expect(sent.map((push) => push.aps.event)).toEqual(["start"]);
+    });
+  });
+});
+
+describe("start tokens a device has stopped refreshing", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const registerStartToken = (env: ReturnType<typeof makeEnv>, deviceId: string, pushToken: string) =>
+    post(env, "/v1/live-activities/register-start-token", {
+      deviceId,
+      attributesType: ATTRIBUTES_TYPE,
+      pushToken,
+    });
+
+  const start = async (env: ReturnType<typeof makeEnv>, externalActivityId: string) =>
+    (await (await post(env, "/v1/live-activities/start", {
+      externalActivityId,
+      kind: "job",
+      title: "Build",
+      state: "running",
+    })).json()) as {
+      pushToStartAttempted: number;
+      pushToStartRecentlyActive: number;
+      pushToStartPrunedStale: number;
+    };
+
+  it("are not sent a start after 30 days, and are removed", async () => {
+    // A reinstall's abandoned device id keeps a token APNs answers 200 for, so
+    // dead-token pruning never catches it and every start fans out to a device
+    // that will never register the activity.
+    const env = makeEnv();
+    const now = Date.now();
+    atTime(now - 31 * DAY_MS);
+    await registerStartToken(env, "dev-abandoned", "aaaa");
+    atTime(now - 10 * DAY_MS);
+    await registerStartToken(env, "dev-quiet", "bbbb");
+    atTime(now);
+    await registerStartToken(env, "dev-active", "cccc");
+
+    expect(await start(env, "build-1")).toEqual(expect.objectContaining({
+      pushToStartAttempted: 2,
+      pushToStartRecentlyActive: 1,
+      pushToStartPrunedStale: 1,
+    }));
+    const remaining = await storage.listStartTokens(env, "test-tenant", ATTRIBUTES_TYPE);
+    expect(remaining.map((row) => row.deviceId)).toEqual(["dev-active", "dev-quiet"]);
+
+    // Removed once, so the next start has nothing to prune.
+    expect((await start(env, "build-2")).pushToStartPrunedStale).toBe(0);
+  });
+
+  it("come back the next time the app registers", async () => {
+    // What makes pruning safe: the app re-sends its token on every launch.
+    const env = makeEnv();
+    const now = Date.now();
+    atTime(now - 31 * DAY_MS);
+    await registerStartToken(env, "dev-drawer", "aaaa");
+    atTime(now);
+    expect((await start(env, "build-1")).pushToStartAttempted).toBe(0);
+
+    await registerStartToken(env, "dev-drawer", "aaaa");
+    expect(await start(env, "build-2")).toEqual(expect.objectContaining({
+      pushToStartAttempted: 1,
+      pushToStartRecentlyActive: 1,
+      pushToStartPrunedStale: 0,
+    }));
   });
 });
 

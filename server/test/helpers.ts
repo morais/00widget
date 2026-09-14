@@ -694,6 +694,23 @@ export class FakeD1 {
       }
       return count;
     }
+    // Mirrors deleteStartTokensUpdatedBefore in storage.ts. Must precede the
+    // catch-all below, which would read the cutoff as a device id.
+    if (normalized === "DELETE FROM start_tokens WHERE tenant_id = ? AND attributes_type = ? AND updated_at < ?") {
+      const [tenant_id, attributes_type, cutoff] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.startTokens.entries()) {
+        if (
+          row.tenant_id === tenant_id
+          && row.attributes_type === attributes_type
+          && String(row.updated_at) < cutoff
+        ) {
+          this.startTokens.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
     if (normalized.startsWith("DELETE FROM start_tokens")) {
       const [tenant_id, device_id, attributes_type] = values.map(String);
       this.startTokens.delete(`${tenant_id}:${device_id}:${attributes_type}`);
@@ -1400,12 +1417,12 @@ export class FakeD1 {
       const [tenant_id, external_id] = values.map(String);
       return pick(this.pendingActivities.get(`${tenant_id}:${external_id}`), ["json"]);
     }
-    if (normalized === "SELECT token FROM start_tokens WHERE tenant_id = ? AND attributes_type = ? ORDER BY device_id") {
+    if (normalized === "SELECT token, device_id, updated_at FROM start_tokens WHERE tenant_id = ? AND attributes_type = ? ORDER BY device_id") {
       const [tenant_id, attributes_type] = values.map(String);
       return byTenant(this.startTokens, tenant_id)
         .filter((row) => row.attributes_type === attributes_type)
         .sort(by("device_id"))
-        .map((row) => ({ token: row.token }));
+        .map((row) => ({ token: row.token, device_id: row.device_id, updated_at: row.updated_at }));
     }
     if (normalized === "SELECT token FROM start_tokens WHERE tenant_id = ? AND device_id = ? AND attributes_type = ?") {
       const [tenant_id, device_id, attributes_type] = values.map(String);

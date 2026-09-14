@@ -168,6 +168,7 @@ curl -s -H "Authorization: Bearer $00WIDGET_API_KEY" "$00WIDGET_BASE_URL/v1/stat
     "devices": 1,
     "widgetPushTokens": 3,
     "liveActivityStartTokens": 1,
+    "liveActivityStartTokensRecentlyActive": 1,
     "canPushWidgets": true,
     "canStartLiveActivities": true,
     "widgetReloadMinSpacingSeconds": 300,
@@ -202,6 +203,12 @@ reporting a problem:
   publish is stored correctly and seen by nobody, because no device has
   registered to receive it. Tell the operator to open the 00Widget app and
   allow notifications; no amount of publishing will fix it.
+- **`liveActivityStartTokens` / `liveActivityStartTokensRecentlyActive`.** The
+  devices a Live Activity start is sent to, and how many of them have run the
+  app in the last 7 days. A device that has not run it in 30 days is neither
+  counted nor sent starts, and returns on its own when the app next launches.
+  A gap between the two numbers is a device that is sent every start and may
+  never show one.
 - **`scopes`.** What this credential may do, without discovering it through a
   `403`.
 - **`secondsUntilNextWidgetReload`.** How long before a Home Screen widget
@@ -1204,6 +1211,8 @@ The response:
   "restarted": false,
   "pending": true,
   "pushToStartAttempted": 1,
+  "pushToStartRecentlyActive": 1,
+  "pushToStartPrunedStale": 0,
   "apnsResults": [{ "status": 200, "apnsId": "…" }]
 }
 ```
@@ -1214,6 +1223,14 @@ token — the operator has not installed the app, or has not allowed
 notifications. Nothing you publish will be seen, and no later call will tell you
 so any more clearly. Say that to the operator instead of continuing to publish
 into nothing.
+
+`pushToStartRecentlyActive` is how many of those devices have run the 00Widget
+app in the last 7 days. APNs accepts a start for a device that will never show
+it — an old install, a phone in a drawer — so `status: 200` alone cannot tell
+you, and fewer recently active devices than attempted is the hint.
+`pushToStartPrunedStale` counts devices that had not run the app in 30 days:
+they were not sent this start and are no longer counted, until the app next
+launches on them.
 
 `restarted` is `true` when an activity was already running under this id, so
 this call replaced it. `apnsResults` carries one entry per device;
@@ -1487,6 +1504,7 @@ The response:
   "apnsResult": { "status": 200, "apnsId": "…" },
   "recipientResults": [],
   "pendingUpdated": false,
+  "registeredDevices": 1,
   "secondsSincePreviousUpdate": 47,
   "staleAtPushed": "2026-04-26T19:00:00Z",
   "warnings": []
@@ -1509,7 +1527,11 @@ set none: nothing marks the activity out of date if you stop here.
 nowhere: no device holds a token for this activity yet. Right after a `start`
 that is normal and resolves within seconds, as the device registers the token
 iOS hands it. Still true minutes later, it means the activity never appeared —
-check `pushToStartAttempted` from the start. `recipientResults` is non-empty
+check `pushToStartAttempted` from the start. Nothing needs re-sending either
+way: a device that registers late is sent the activity's current state at that
+moment. `registeredDevices` is how many of the operator's devices hold a token
+for this activity; set it against `pushToStartAttempted` to see how many were
+sent the start and have not registered it. `recipientResults` is non-empty
 only when the activity has been shared with another account.
 
 An update accepts a `title`, and it does change what `GET /v1/live-activities`
