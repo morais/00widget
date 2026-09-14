@@ -2080,6 +2080,111 @@ describe("start tokens a device has stopped refreshing", () => {
   });
 });
 
+describe("the final frame of an ended activity", () => {
+  // The frame starts from the activity's last state, so without these a run
+  // ended at "2/3" with a progress bar and a countdown kept all three on the
+  // Lock Screen for as long as its dismissal window held it there.
+  async function endAndCapture(finalFields: Record<string, unknown>) {
+    __resetApnsJwtCache();
+    const env = makeEnv({
+      APNS_TEAM_ID: "TEAMID1234",
+      APNS_KEY_ID: "KEYID12345",
+      APNS_PRIVATE_KEY: TEST_P8,
+      APNS_BUNDLE_ID: "com.example.zerozerowidget",
+    });
+    const sent: Array<{ aps: Record<string, any> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input, init) => {
+      sent.push(JSON.parse(String(init?.body)));
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      await post(env, "/v1/live-activities/start", {
+        externalActivityId: "deploy-final",
+        kind: "job",
+        title: "Deploy",
+        state: "running",
+        value: "2/3",
+        unit: "steps",
+        progress: 0.66,
+        statusIcon: "hammer.fill",
+        endsAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        chart: { points: [1, 2, 3] },
+      });
+      await post(env, "/v1/live-activities/register", {
+        deviceId: "dev-final",
+        localActivityId: "local-final",
+        externalActivityId: "deploy-final",
+        kind: "job",
+        pushToken: "cafef00dcafef00d",
+      });
+      const res = await post(env, "/v1/live-activities/end", {
+        externalActivityId: "deploy-final",
+        finalState: "deployed",
+        ...finalFields,
+      });
+      return { env, res, end: sent.find((push) => push.aps.event === "end")?.aps };
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+
+  it("replaces the fields the end names and keeps the ones it omits", async () => {
+    const { res, end } = await endAndCapture({ finalValue: "3/3", finalProgress: 1 });
+    expect(res.status).toBe(200);
+    expect(end?.["content-state"]).toMatchObject({
+      state: "deployed",
+      value: "3/3",
+      unit: "steps",
+      progress: 1,
+      statusIcon: "hammer.fill",
+      chart: { points: [1, 2, 3] },
+    });
+    expect(typeof end?.["content-state"].endsAt).toBe("number");
+  });
+
+  it("removes a field the end sends as null, and a countdown with its granularity", async () => {
+    const { res, end } = await endAndCapture({
+      finalValue: null,
+      finalUnit: null,
+      finalProgress: null,
+      finalStatusIcon: null,
+      finalEndsAt: null,
+      finalChart: null,
+    });
+    expect(res.status).toBe(200);
+    const state = end?.["content-state"] ?? {};
+    for (const key of ["value", "unit", "progress", "statusIcon", "endsAt", "countdownGranularity", "chart"]) {
+      expect(state).not.toHaveProperty(key);
+    }
+    expect(state.state).toBe("deployed");
+  });
+
+  it("refuses a final frame too large for ActivityKit, and keeps the activity to retry", async () => {
+    // APNs accepts an oversized payload and the device drops it, so an end that
+    // answered 200 here would leave the last update on screen.
+    // Every row field at its own limit plus a full chart: each value is valid
+    // alone, so only the combined size can be what is refused.
+    const longRow = (id: string) => ({
+      id,
+      title: "t".repeat(FieldLimits.title),
+      subtitle: "s".repeat(FieldLimits.subtitle),
+      icon: "i".repeat(FieldLimits.icon),
+      statusIcon: "j".repeat(FieldLimits.icon),
+      value: "v".repeat(FieldLimits.value),
+      unit: "u".repeat(FieldLimits.unit),
+    });
+    const { env, res, end } = await endAndCapture({
+      finalItems: ["a", "b", "c", "d", "e", "f"].map(longRow),
+      finalChart: { points: Array.from({ length: 60 }, (_, i) => 1_234_567.891 + i) },
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("exceed");
+    expect(end).toBeUndefined();
+    expect(await storage.getActivityInstanceByOwnerExternal(env, "test-tenant", "deploy-final")).not.toBeNull();
+  });
+});
+
 async function createAcceptedActivityShare(
   env: ReturnType<typeof makeEnv>,
   ownerKey: string,

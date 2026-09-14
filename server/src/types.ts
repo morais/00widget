@@ -1224,6 +1224,36 @@ export const EndLiveActivitySchema = z.object({
   finalSignal: MetricSignalSchema.nullish().describe(
     "Contextual signal for the final frame. Omitted keeps the current signal; `null` clears it.",
   ),
+  // The final frame starts from the activity's last state, so each of these
+  // follows update semantics: omitted keeps the current value, `null` clears
+  // it. Without them a producer that wanted "3/3" or no countdown on the last
+  // frame had to spend a whole update push first.
+  finalValue: z.string().max(FieldLimits.value).nullish().describe(
+    "Headline on the final frame — \"3/3\". Omitted keeps the current value; `null` removes it.",
+  ),
+  finalUnit: z.string().max(FieldLimits.unit).nullish().describe(
+    "Unit after `finalValue`. Omitted keeps the current unit; `null` removes it.",
+  ),
+  finalProgress: z.number().min(0).max(1).nullish().describe(
+    "Progress on the final frame: `1` for a run that completed, `null` to remove the bar. "
+    + "Omitted keeps the current progress, which is right for a run cancelled part-way.",
+  ),
+  finalItems: LiveActivityItemsSchema.nullish().describe(
+    "The complete final row list. Omitted keeps the current rows; `[]` or `null` removes them.",
+  ),
+  finalChart: DashboardChartSchema.nullish().describe(
+    "The final plot window. Omitted keeps the current chart, which is usually worth keeping — "
+    + "the history is still true once the work is done; `null` removes it.",
+  ),
+  finalEndsAt: IsoDate.nullish().describe(
+    "Send `null` to remove the countdown: a finished activity otherwise keeps it, and the "
+    + "Lock Screen timer counts up past zero until the frame is dismissed. It does not "
+    + "control dismissal — `dismissalDate` does.",
+  ),
+  finalStatusIcon: z.string().max(FieldLimits.icon).nullish().describe(
+    "Runtime glyph on the final frame. `null` removes it, which is what an activity that "
+    + "has stopped doing the thing should send.",
+  ),
   dismissalDate: IsoDate.optional().describe(
     "Keeps the final frame on the Lock Screen until this time, within Apple's "
     + "four-hour window. Omitted, the activity is dismissed immediately.",

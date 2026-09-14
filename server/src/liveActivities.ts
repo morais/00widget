@@ -87,6 +87,13 @@ function merge<T>(incoming: T | null | undefined, current: T | undefined): T | u
   return incoming ?? current;
 }
 
+/// The end's counterpart to `merge`: an omitted final field keeps what the
+/// last frame had, `null` removes it, and anything else replaces it.
+function applyFinal(state: ContentStateRecord, key: string, value: unknown): void {
+  if (value === null) delete state[key];
+  else if (value !== undefined) state[key] = value;
+}
+
 function activityKitContentState(state: ContentStateRecord): ContentStateRecord {
   const encoded = { ...state };
   for (const key of ["updatedAt", "endsAt", "staleAt"] as const) {
@@ -734,10 +741,38 @@ export async function endLiveActivity(
     ? initialContentState(instance, instance.updatedAt)
     : {};
   Object.assign(completeFinalState, finalContentState);
-  if (d.finalSignal === null) delete completeFinalState.signal;
-  else if (d.finalSignal !== undefined) completeFinalState.signal = d.finalSignal;
+  applyFinal(completeFinalState, "signal", d.finalSignal);
+  applyFinal(completeFinalState, "statusIcon", d.finalStatusIcon);
+  applyFinal(completeFinalState, "value", d.finalValue);
+  applyFinal(completeFinalState, "unit", d.finalUnit);
+  applyFinal(completeFinalState, "progress", d.finalProgress);
+  applyFinal(completeFinalState, "items", d.finalItems);
+  applyFinal(completeFinalState, "chart", d.finalChart);
+  // Clearing the deadline takes the granularity with it, as on update.
+  if (d.finalEndsAt === null) {
+    delete completeFinalState.endsAt;
+    delete completeFinalState.countdownGranularity;
+  } else if (d.finalEndsAt !== undefined) {
+    completeFinalState.endsAt = d.finalEndsAt;
+    completeFinalState.countdownGranularity ??= "second";
+  }
   if (typeof completeFinalState.state !== "string") completeFinalState.state = "finished";
   completeFinalState.updatedAt = new Date().toISOString();
+  if (instance) {
+    // A final chart or row list can push the frame past ActivityKit's limit,
+    // which APNs accepts and the device then silently drops — so the end
+    // would answer 200 and leave the last update on screen.
+    const attributes: Record<string, unknown> = {
+      activityInstanceId: instance.activityInstanceId,
+      externalActivityId: instance.externalActivityId,
+      kind: instance.kind,
+      title: instance.title,
+    };
+    if (instance.icon !== undefined) attributes.icon = instance.icon;
+    if (instance.deepLink) attributes.deepLink = instance.deepLink;
+    const sizeError = liveActivityDataSizeError(attributes, completeFinalState);
+    if (sizeError) return badRequest(sizeError);
+  }
   const result = await endAndDeleteActivity(env, auth.tenantId, d.externalActivityId, {
     finalContentState: instance
       ? activityKitContentState(completeFinalState)

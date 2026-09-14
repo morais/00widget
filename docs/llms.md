@@ -1682,17 +1682,40 @@ curl -X POST "$00WIDGET_BASE_URL/v1/live-activities/end" \
     "externalActivityId": "ci-build-2026-04-26-1234",
     "finalSubtitle": "passed in 4m 12s",
     "finalState": "finished",
-    "finalSignal": "favorable"
+    "finalSignal": "favorable",
+    "finalValue": "12/12",
+    "finalProgress": 1,
+    "finalEndsAt": null
   }'
 ```
 
 Always end. Stale activities clutter the Lock Screen until iOS gives up on them.
 
-The final frame is content state too, so `finalSubtitle`, `finalState`, and
-`finalSignal` are the fields that land. Omit `finalSignal` to keep the current
-signal, or send `null` to clear it. There is no `finalTitle` — the title is an attribute and
-cannot be rewritten, not even on the last frame. Say what happened in
-`finalSubtitle`.
+The final frame is content state too, and it **starts from the activity's last
+state**: whatever the end does not name stays as it was. `finalState` and
+`finalSubtitle` set the text. `finalSignal`, `finalStatusIcon`, `finalValue`,
+`finalUnit`, `finalProgress`, `finalItems`, `finalChart`, and `finalEndsAt`
+follow update semantics — omit one to keep the current value, send `null` to
+remove it, or send a new one. There is no `finalTitle` — the title is an
+attribute and cannot be rewritten, not even on the last frame. Say what happened
+in `finalSubtitle`.
+
+What to send depends on how the run ended, which only you know:
+
+- **Completed** — `finalProgress: 1` and a final `finalValue` such as `"12/12"`;
+  an activity ended at `2/3` otherwise says `2/3` on its last frame.
+- **Cancelled or failed part-way** — omit `finalProgress`, so the bar still
+  shows how far it got.
+- **Had a countdown** — `finalEndsAt: null`. Kept, the Lock Screen timer counts
+  *up* past zero for as long as the frame stays on screen. It does not affect
+  dismissal; `dismissalDate` does.
+- **Had a chart** — usually omit `finalChart`. The history is still true once
+  the work is done, and the final curve is often the most useful thing on the
+  frame.
+
+A final frame is held to the same 4 KB ActivityKit limit as start and update,
+and one over it is rejected with `400` and the activity kept, because APNs
+would accept it and the device would silently drop it.
 
 When `dismissalDate` is omitted, 00Widget dismisses the ended Live Activity immediately. To keep the final state visible briefly, set `dismissalDate` to an ISO-8601 time within Apple's four-hour dismissal window. The free-form `state` field does not end an activity by itself, even when its value is `finished`.
 
@@ -2031,7 +2054,7 @@ struct WidgetClient {
 - **Don't** write your own name into `title` or `subtitle` to get attribution. Send `producer`, which the surfaces with room for it draw on their own line and the smaller ones drop.
 - **Don't** pick a `comparison.signal` from the sign of the change. `+18` errors is `unfavorable`; the signal is what the change means, not which way it points.
 - **Don't** publish an attention `status` with no `actions` and expect "Needs you". The badge is derived from both, and a warning nobody can act on stays an ordinary status.
-- **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it.
+- **Don't** leave a finished activity's `progress`, `endsAt`, or `chart` in place on the last update. Omitting a field keeps it; send `null` to clear it. When ending, say it on the end itself — `finalProgress`, `finalValue`, `finalEndsAt: null` — rather than spending an update push first.
 - **Don't** send `items` and `chart` on the same Live Activity expecting to see both. Items win the Lock Screen and Dynamic Island and the chart is dropped there without an error — [the rule, surface by surface](#items-and-chart-compete-for-the-same-space).
 - **Don't** send a `chart` series longer than 60 points or expect the server to keep a history. Send the current window, oldest first, on every publish.
 - **Don't** put secrets, API tokens, or PII in `value`/`subtitle`/`title`. Cards are visible on the Lock Screen.
