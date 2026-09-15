@@ -129,14 +129,10 @@ The transport is Streamable HTTP: one `POST` with a JSON-RPC body, one JSON
 response, no SSE stream and no session id. `GET <BASE_URL>/mcp.json` returns a
 ready-to-paste client config for whichever host is serving it.
 
-**Actions are not part of the MCP surface.** A token minted through the consent
-screen carries `read` and `publish` and nothing else, so an MCP client
-cannot read, register, or rotate the account's action webhook — those calls
-return `403`. You can still publish a card with `actions` over MCP, and the
-buttons work, but only if the operator has already registered the webhook with
-their API token. Registering it means running an HTTPS endpoint and storing a
-signing secret handed back exactly once; that belongs to the integration that
-owns the endpoint, not to a connector approved in a browser.
+**Webhook management is not part of MCP.** MCP tokens have `read` and `publish`,
+so they may publish actions but get `403` on webhook administration. The
+operator must register the selected named webhook (or `default`) with an API
+token and retain its one-time signing secret.
 
 Authorization is OAuth 2.1 rather than the `00WIDGET_API_KEY` used everywhere
 else, because the clients that need MCP cannot send a custom API key header.
@@ -550,6 +546,7 @@ can render.
   "role": "normal | destructive (default: normal)",
   "confirm": "boolean (default: false)",
   "confirmation": {"title": "string", "message": "string"},
+  "webhookId": "string? (write-only named destination; default when omitted)",
   "payload": "Record<string,string>? (write-only server-side context)"
 }
 ```
@@ -663,6 +660,7 @@ Registration and integration limits:
 | `appVersion` | 64 chars |
 | `platform` | 32 chars |
 | `recipientEmail` | 254 chars |
+| webhook id | 96 chars; letters, digits, `.`, `_`, `:`, and `-` only |
 | webhook URL | 2048 chars and must be public `https` |
 
 ## Choosing a template
@@ -1726,11 +1724,8 @@ An end is acknowledged with `200` only after APNs accepts the end event (or repo
 
 ## Actions
 
-If your card has buttons, define them as `actions` on the card. Any template
-can carry them — `template: action` is the one for a card that is *only*
-buttons, not a precondition for having them, so a `chart` or `list` card can
-offer buttons under its own visual. See "Buttons combine with any template"
-under "Choosing a template" for how many each surface draws.
+Define buttons as `actions`. Any template can carry them; `template: action` is
+simply the one for a card whose main purpose is its buttons.
 
 ```json
 {
@@ -1747,9 +1742,9 @@ under "Choosing a template" for how many each surface draws.
 }
 ```
 
-Before buttons can call your system, register your webhook with the same token
-you publish with. This needs the `webhook:manage` scope, which the API publisher
-token has and an MCP-minted token does not:
+Before buttons can call your system, register the account's default webhook.
+This needs the `webhook:manage` scope, which the API publisher token has and an
+MCP-minted token does not:
 
 ```sh
 curl -X PUT "$00WIDGET_BASE_URL/v1/integrations/webhook" \
@@ -1758,13 +1753,17 @@ curl -X PUT "$00WIDGET_BASE_URL/v1/integrations/webhook" \
   --data '{ "url": "https://example.com/00widget/actions" }'
 ```
 
-The first response includes a `signingSecret`. Store it once: it is write-only
-after issuance. `GET` and an ordinary `PUT` return metadata but never recover
-the stored secret. To rotate, call the same `PUT` with `"rotateSecret": true`;
-that response returns the new value once. Update your verifier immediately.
-To disable actions, call `DELETE /v1/integrations/webhook` with the same token.
+The response includes a write-only `signingSecret`; add `"rotateSecret": true`
+to a later `PUT` to receive a replacement once. The singular routes permanently
+address `default`. An account may hold ten webhooks total: use the same body at
+`PUT /v1/integrations/webhooks/<id>`, `GET`/`DELETE` that path to manage it, and
+`GET /v1/integrations/webhooks` to list metadata. Secrets are independent.
 
-When the user taps the button, 00Widget receives `POST /v1/actions/<actionId>/run` from the app/widget, resolves the stored card action, and forwards a signed `POST` to your webhook:
+Set an action's write-only `webhookId` to select a named destination, or omit it
+for `default`. Like `payload`, it never reaches reads, shares, or devices. A
+missing selection returns `409`; each action goes to one endpoint, never all.
+
+When the user taps the button, 00Widget receives `POST /v1/actions/<actionId>/run` from the app/widget, resolves the stored card action and its destination, and forwards one signed `POST` to that webhook:
 
 ```json
 {
@@ -1933,7 +1932,7 @@ What this means for you:
 - `403 {"error":"API scope '...' required"}` — the token is valid but lacks that capability. Ask the operator for the appropriate scoped credential.
 - `400 {"error":"validation failed: ..."}` — body shape is wrong. Read the message and fix the JSON; don't retry blindly.
 - `404 {"error":"not found"}` — endpoint, card id, action id, or webhook integration doesn't exist. Note the two deliberate exceptions under "Retrying is safe" below.
-- `409 {"error":"webhook integration not configured"}` — an action was run before `PUT /v1/integrations/webhook`.
+- `409 {"error":"webhook integration not configured"}` — an action's selected webhook is not configured. Omitted `webhookId` means the `default` destination.
 - `402 {"error":"...","code":"subscription_required","subscription":{...}}` — the operator's account has no active subscription, on a deployment that requires one. Only publishing and action runs return this; reads keep working. Retrying will not help and neither will a different credential: tell the operator to renew in the 00Widget iOS app, and relay the `error` string, which is written to be repeated to a person.
 - `429 {"error":"rate limit exceeded", ...}` — wait for `Retry-After` seconds before retrying that operation.
 - `502 {"error":"webhook delivery failed", ...}` — the configured action webhook returned `5xx`/failed after retries.

@@ -300,10 +300,14 @@ something to integrate against:
 | GET    | `/v1/live-activities/pending`                | Compatibility fallback for older apps. |
 | POST   | `/v1/live-activities/update`                 | Push an update via APNs.               |
 | POST   | `/v1/live-activities/end`                    | End a Live Activity via APNs.          |
-| GET    | `/v1/integrations/webhook`                   | Read the configured action webhook URL. |
-| PUT    | `/v1/integrations/webhook`                   | Create/update the action webhook; return a secret only on create/rotation. |
-| DELETE | `/v1/integrations/webhook`                   | Disable action webhook delivery.       |
-| POST   | `/v1/actions/:id/run`                        | Deliver an action to the configured webhook. |
+| GET    | `/v1/integrations/webhook`                   | Read the default action webhook. |
+| PUT    | `/v1/integrations/webhook`                   | Create/update the default webhook; return a secret only on create/rotation. |
+| DELETE | `/v1/integrations/webhook`                   | Delete the default action webhook.       |
+| GET    | `/v1/integrations/webhooks`                  | List the account's action webhooks (ten total, including `default`). |
+| GET    | `/v1/integrations/webhooks/:id`              | Read one named webhook's metadata. |
+| PUT    | `/v1/integrations/webhooks/:id`              | Create/update one named webhook. |
+| DELETE | `/v1/integrations/webhooks/:id`              | Delete one named webhook. |
+| POST   | `/v1/actions/:id/run`                        | Deliver an action to its selected webhook. |
 | POST   | `/v1/auth/apple/token`                       | Exchange native Apple identity token for a tenant API token. |
 | DELETE | `/v1/auth/token`                             | Revoke the current credential/session and device registrations. |
 | GET    | `/login`                                     | Web sign-in page (Apple + bootstrap forms). |
@@ -333,7 +337,7 @@ All `/v1/*` endpoints require `Authorization: Bearer <api-key>`. Each authentica
 | `actions:run` | Run safe, non-confirmed card actions. |
 | `actions:confirm` | Run confirmed/destructive actions; additionally requires an app credential. |
 | `shares:manage` | Create, list, accept, decline, and revoke shares. |
-| `webhook:manage` | Read, create, update, rotate, or delete the action webhook. Not granted to MCP-minted tokens. |
+| `webhook:manage` | List, read, create, update, rotate, or delete action webhooks. Not granted to MCP-minted tokens. |
 
 A bare verb spans resources; a prefix names the one thing the scope touches. `read` and `publish` both cover cards and Live Activities, so neither carries a prefix; everything narrower or administrative does. Keep a new scope on that rule.
 
@@ -451,6 +455,7 @@ Tables:
 | `api_keys` | `id` | Hashed bearer tokens mapped to tenants. |
 | `cards` | `(tenant_id, id)` | Public dashboard-card rendering state. |
 | `action_payloads` | `(tenant_id, card_id, action_id)` | Write-only action context, omitted from card APIs and device caches. |
+| `action_webhook_routes` | `(tenant_id, card_id, action_id)` | Write-only named webhook routing, omitted from card APIs and device caches. |
 | `devices` | `(tenant_id, device_id)` | Registered iOS app devices. |
 | `widget_tokens` | `(tenant_id, device_id, widget_kind)` | WidgetKit push tokens, card-level subscriptions, app build, and platform. |
 | `widget_push_cadence` | `token` | Last push and remaining allowance per widget, as a token bucket refilled by elapsed time. |
@@ -461,7 +466,7 @@ Tables:
 | `activity_deliveries` | `(activity_instance_id, target_tenant_id, device_id)` | Per-device ActivityKit push tokens bound to an exact instance and optional share. |
 | `start_tokens` | `(tenant_id, device_id, attributes_type)` | ActivityKit push-to-start tokens. |
 | `activity_history` | `(tenant_id, activity_instance_id)` | Live Activities that ended in the last 24 hours, so a producer can reconcile. Swept with the rate limit buckets. |
-| `webhook_integrations` | `tenant_id` | Per-tenant action webhook URL and signing secret. |
+| `webhook_integrations` | `(tenant_id, webhook_id)` | Up to ten named action webhook URLs and independent signing secrets per tenant. |
 
 The Worker uses D1 only.
 

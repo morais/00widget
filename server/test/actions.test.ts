@@ -9,6 +9,7 @@ type ActionInput = {
   label: string;
   role?: "normal" | "destructive";
   confirm?: boolean;
+  webhookId?: string;
   payload?: Record<string, string>;
 };
 
@@ -83,6 +84,111 @@ describe("webhook integrations and actions", () => {
       executionCtx,
     );
     expect(readDeleted.status).toBe(404);
+  });
+
+  it("registers, lists, reads, and deletes named webhook integrations", async () => {
+    const env = makeEnv();
+    await registerWebhook(env);
+    const home = await registerNamedWebhook(
+      env,
+      "home-assistant",
+      "https://home.example.com/actions",
+    );
+    expect(home.signingSecret).toMatch(/^[0-9a-f]{64}$/);
+
+    const list = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhooks", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(list.status).toBe(200);
+    expect(await list.json()).toEqual({
+      webhooks: [
+        expect.objectContaining({ id: "default", url: "https://example.com/actions" }),
+        expect.objectContaining({
+          id: "home-assistant",
+          url: "https://home.example.com/actions",
+        }),
+      ],
+    });
+
+    const read = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhooks/home-assistant", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    expect(read.status).toBe(200);
+    const readBody = await read.json();
+    expect(readBody).toMatchObject({
+      id: "home-assistant",
+      url: "https://home.example.com/actions",
+    });
+    expect(readBody).not.toHaveProperty("signingSecret");
+
+    const deleted = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhooks/home-assistant", { method: "DELETE" }),
+      env,
+      executionCtx,
+    );
+    expect(deleted.status).toBe(200);
+    await expect(storage.getWebhookIntegration(env, "test-tenant", "home-assistant"))
+      .resolves.toBeNull();
+    await expect(storage.getWebhookIntegration(env, "test-tenant"))
+      .resolves.not.toBeNull();
+  });
+
+  it("limits an account to ten webhook integrations", async () => {
+    const env = makeEnv();
+    for (let index = 0; index < 10; index++) {
+      const registered = await registerNamedWebhook(
+        env,
+        `hook-${index}`,
+        `https://hook-${index}.example.com/actions`,
+      );
+      expect(registered.signingSecret, String(index)).toMatch(/^[0-9a-f]{64}$/);
+    }
+
+    const overflow = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhooks/hook-10", {
+        method: "PUT",
+        body: JSON.stringify({ url: "https://hook-10.example.com/actions" }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(overflow.status).toBe(409);
+    expect(await overflow.json()).toMatchObject({
+      error: "webhook integration limit reached",
+      limit: 10,
+    });
+  });
+
+  it("rejects webhook ids that cannot round-trip as path segments", async () => {
+    const env = makeEnv();
+    const integration = await (handler.fetch as any)(
+      authedRequest("https://x/v1/integrations/webhooks/bad%20id", {
+        method: "PUT",
+        body: JSON.stringify({ url: "https://example.com/actions" }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(integration.status).toBe(400);
+
+    const card = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/upsert", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "boiler",
+          template: "action",
+          title: "Boiler",
+          actions: [{ id: "boost", label: "Boost", webhookId: "bad id" }],
+        }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(card.status).toBe(400);
   });
 
   it("rejects webhook integrations for non-public or non-https URLs", async () => {
@@ -213,6 +319,116 @@ describe("webhook integrations and actions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("routes an action to its named private webhook", async () => {
+    const env = makeEnv();
+    await registerWebhook(env);
+    const named = await registerNamedWebhook(
+      env,
+      "home-assistant",
+      "https://home.example.com/actions",
+    );
+    await upsertActionCard(env, [{
+      id: "boiler-boost-1h",
+      label: "Boost 1h",
+      webhookId: "home-assistant",
+      payload: { duration: "3600" },
+    }]);
+
+    const stored = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards/boiler", { method: "GET" }),
+      env,
+      executionCtx,
+    );
+    const storedBody = await stored.json() as { card: { actions: Array<Record<string, unknown>> } };
+    expect(storedBody.card.actions[0]).not.toHaveProperty("webhookId");
+    await expect(storage.getActionWebhookId(
+      env,
+      "test-tenant",
+      "boiler",
+      "boiler-boost-1h",
+    )).resolves.toBe("home-assistant");
+
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      expect(url).toBe("https://home.example.com/actions");
+      const headers = new Headers(init.headers);
+      expect(headers.get("x-00widget-signature")).toBe(
+        `sha256=${await hmac(
+          named.signingSecret,
+          headers.get("x-00widget-timestamp")!,
+          String(init.body),
+        )}`,
+      );
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-boost-1h/run", {
+        method: "POST",
+        body: JSON.stringify({ context: { cardId: "boiler" } }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails when a selected named webhook is not configured", async () => {
+    const env = makeEnv();
+    await upsertActionCard(env, [{
+      id: "boiler-boost-1h",
+      label: "Boost 1h",
+      webhookId: "missing",
+    }]);
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-boost-1h/run", {
+        method: "POST",
+        body: JSON.stringify({ context: { cardId: "boiler" } }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      error: "webhook integration not configured",
+    });
+  });
+
+  it("returns an action to the default webhook when republished without a route", async () => {
+    const env = makeEnv();
+    await registerWebhook(env);
+    await registerNamedWebhook(env, "named", "https://named.example.com/actions");
+    await upsertActionCard(env, [{
+      id: "boiler-boost-1h",
+      label: "Boost 1h",
+      webhookId: "named",
+    }]);
+    await upsertActionCard(env, [{ id: "boiler-boost-1h", label: "Boost 1h" }]);
+    await expect(storage.getActionWebhookId(
+      env,
+      "test-tenant",
+      "boiler",
+      "boiler-boost-1h",
+    )).resolves.toBeNull();
+
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe("https://example.com/actions");
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-boost-1h/run", {
+        method: "POST",
+        body: JSON.stringify({ context: { cardId: "boiler" } }),
+      }),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("does not follow webhook redirects", async () => {
     const env = makeEnv();
     await registerWebhook(env);
@@ -311,6 +527,34 @@ describe("webhook integrations and actions", () => {
     );
 
     expect(res.status).toBe(200);
+  });
+
+  it("resolves a named webhook for confirmed actions without card context", async () => {
+    const env = makeEnv();
+    await seedApiKey(env, "app-key", "test-tenant", "app");
+    await registerNamedWebhook(env, "home", "https://home.example.com/actions");
+    await upsertActionCard(env, [{
+      id: "boiler-reset",
+      label: "Reset",
+      role: "destructive",
+      webhookId: "home",
+    }]);
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe("https://home.example.com/actions");
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://x/v1/actions/boiler-reset/run-confirmed", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }, "app-key"),
+      env,
+      executionCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not trust a caller-supplied source on the publisher endpoint", async () => {
@@ -419,6 +663,7 @@ describe("webhook integrations and actions", () => {
 
   it("fails action runs when no webhook is configured", async () => {
     const env = makeEnv();
+    await upsertActionCard(env);
     const res = await (handler.fetch as any)(
       authedRequest("https://x/v1/actions/boiler-boost-1h/run", {
         method: "POST",
@@ -440,6 +685,23 @@ async function registerWebhook(env: ReturnType<typeof makeEnv>): Promise<{ signi
     env,
     executionCtx,
   );
+  return (await res.json()) as { signingSecret: string };
+}
+
+async function registerNamedWebhook(
+  env: ReturnType<typeof makeEnv>,
+  id: string,
+  url: string,
+): Promise<{ signingSecret: string }> {
+  const res = await (handler.fetch as any)(
+    authedRequest(`https://x/v1/integrations/webhooks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ url }),
+    }),
+    env,
+    executionCtx,
+  );
+  expect(res.status).toBe(200);
   return (await res.json()) as { signingSecret: string };
 }
 

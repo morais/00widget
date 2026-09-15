@@ -58,6 +58,7 @@ export async function getAccount(
 /// Order is content, then credentials, then the tenant itself.
 export const TENANT_SCOPED_TABLES: Readonly<Record<string, readonly string[]>> = {
   action_payloads: ["tenant_id"],
+  action_webhook_routes: ["tenant_id"],
   cards: ["tenant_id"],
   devices: ["tenant_id"],
   widget_tokens: ["tenant_id"],

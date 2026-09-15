@@ -4,6 +4,7 @@ import {
   RequestBodyLimits,
   RunActionSchema,
   WebhookIntegrationSchema,
+  WebhookIdSchema,
 } from "./types";
 import * as storage from "./storage";
 import { json, badRequest, notFound } from "./http";
@@ -16,26 +17,55 @@ const WEBHOOK_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [250, 1000];
 const WEBHOOK_TIMEOUT_MS = 5_000;
 const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
+const DEFAULT_WEBHOOK_ID = "default";
+const MAX_WEBHOOK_INTEGRATIONS = 10;
+
+function webhookMetadata(id: string, integration: storage.WebhookIntegrationRecord) {
+  return {
+    id,
+    url: integration.url,
+    createdAt: integration.createdAt,
+    updatedAt: integration.updatedAt,
+  };
+}
+
+function invalidWebhookId(id: string): Response | null {
+  const parsed = WebhookIdSchema.safeParse(id);
+  return parsed.success ? null : badRequest(`validation failed: ${parsed.error.message}`);
+}
+
+export async function listWebhookIntegrations(
+  _req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  const integrations = await storage.listWebhookIntegrations(env, auth.tenantId);
+  return json({
+    webhooks: integrations.map(({ id, integration }) => webhookMetadata(id, integration)),
+  });
+}
 
 export async function getWebhookIntegration(
   _req: Request,
   env: Env,
   auth: AuthContext,
+  webhookId = DEFAULT_WEBHOOK_ID,
 ): Promise<Response> {
-  const integration = await storage.getWebhookIntegration(env, auth.tenantId);
+  const invalid = invalidWebhookId(webhookId);
+  if (invalid) return invalid;
+  const integration = await storage.getWebhookIntegration(env, auth.tenantId, webhookId);
   if (!integration) return notFound();
-  return json({
-    url: integration.url,
-    createdAt: integration.createdAt,
-    updatedAt: integration.updatedAt,
-  });
+  return json(webhookMetadata(webhookId, integration));
 }
 
 export async function putWebhookIntegration(
   req: Request,
   env: Env,
   auth: AuthContext,
+  webhookId = DEFAULT_WEBHOOK_ID,
 ): Promise<Response> {
+  const invalid = invalidWebhookId(webhookId);
+  if (invalid) return invalid;
   const body = await parseJson(req, RequestBodyLimits.webhookIntegration);
   const parsed = WebhookIntegrationSchema.safeParse(body);
   if (!parsed.success) return badRequest(`validation failed: ${parsed.error.message}`);
@@ -45,7 +75,16 @@ export async function putWebhookIntegration(
   if (limited) return limited;
 
   const now = new Date().toISOString();
-  const existing = await storage.getWebhookIntegration(env, auth.tenantId);
+  const existing = await storage.getWebhookIntegration(env, auth.tenantId, webhookId);
+  if (!existing) {
+    const integrations = await storage.listWebhookIntegrations(env, auth.tenantId);
+    if (integrations.length >= MAX_WEBHOOK_INTEGRATIONS) {
+      return json({
+        error: "webhook integration limit reached",
+        limit: MAX_WEBHOOK_INTEGRATIONS,
+      }, 409);
+    }
+  }
   const secretCreated = !existing || parsed.data.rotateSecret;
   const signingSecret = secretCreated ? randomSecret() : existing.signingSecret;
   const record: storage.WebhookIntegrationRecord = {
@@ -54,8 +93,15 @@ export async function putWebhookIntegration(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
-  await storage.putWebhookIntegration(env, auth.tenantId, auth.apiKeyHash, record);
+  await storage.putWebhookIntegration(
+    env,
+    auth.tenantId,
+    auth.apiKeyHash,
+    record,
+    webhookId,
+  );
   const response: Record<string, unknown> = {
+    id: webhookId,
     url: record.url,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -72,12 +118,15 @@ export async function deleteWebhookIntegration(
   _req: Request,
   env: Env,
   auth: AuthContext,
+  webhookId = DEFAULT_WEBHOOK_ID,
 ): Promise<Response> {
+  const invalid = invalidWebhookId(webhookId);
+  if (invalid) return invalid;
   const limited = await enforceTenantRateLimits(env, auth, [
     { policy: "webhookTenantDay", key: tenantKey(auth.tenantId) },
   ]);
   if (limited) return limited;
-  await storage.deleteWebhookIntegration(env, auth.tenantId);
+  await storage.deleteWebhookIntegration(env, auth.tenantId, webhookId);
   return json({ ok: true });
 }
 
@@ -118,11 +167,6 @@ async function runActionWithTrust(
   ]);
   if (limited) return limited;
 
-  const integration = await storage.getWebhookIntegration(env, auth.tenantId);
-  if (!integration) {
-    return json({ error: "webhook integration not configured" }, 409);
-  }
-
   const resolved = await resolveAction(env, auth.tenantId, actionId, parsed.data.context?.cardId);
   if (!resolved) return notFound();
   if (!confirmedByApp) {
@@ -132,6 +176,18 @@ async function runActionWithTrust(
     if (!isSafeFromWidget(resolved.action)) {
       return json({ error: "action is not safe to run from widgets" }, 403);
     }
+  }
+  // The app and widget send only action + card ids. Routing metadata is kept
+  // server-side with the published action so existing clients need no update.
+  const webhookId = await storage.getActionWebhookId(
+    env,
+    auth.tenantId,
+    resolved.card.id,
+    resolved.action.id,
+  ) ?? DEFAULT_WEBHOOK_ID;
+  const integration = await storage.getWebhookIntegration(env, auth.tenantId, webhookId);
+  if (!integration) {
+    return json({ error: "webhook integration not configured" }, 409);
   }
   const actionPayload = await storage.getActionPayload(
     env,

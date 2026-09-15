@@ -65,6 +65,7 @@ export const FieldLimits = {
   platform: 32,
   source: 32,
   email: 254,
+  webhookId: 96,
   webhookUrl: 2048,
   appleIdentityToken: 12 * KiB,
   apiKeyLabel: 80,
@@ -87,6 +88,10 @@ const URL_SAFE_ID_MESSAGE =
   "must contain only letters, digits, and . _ : - (it is used as a URL path segment)";
 const CardIdInputString = CardIdString.regex(URL_SAFE_ID, URL_SAFE_ID_MESSAGE);
 const ActionIdInputString = IdString.regex(URL_SAFE_ID, URL_SAFE_ID_MESSAGE);
+export const WebhookIdSchema = z.string()
+  .min(1)
+  .max(FieldLimits.webhookId)
+  .regex(URL_SAFE_ID, URL_SAFE_ID_MESSAGE);
 const TitleString = z.string().min(1).max(FieldLimits.title);
 const OptionalSubtitleString = z.string().max(FieldLimits.subtitle).optional();
 const OptionalValueString = z.string().max(FieldLimits.value).optional();
@@ -193,6 +198,10 @@ export const ActionDefinitionSchema = z.object(ActionDefinitionFields);
 export const ActionDefinitionInputSchema = z.object({
   ...ActionDefinitionFields,
   id: ActionIdInputString,
+  webhookId: WebhookIdSchema.optional().describe(
+    "Named action webhook that receives this button press. Omit for the default webhook. "
+    + "Write-only: it is stripped from the stored card and never returned by reads or shares.",
+  ),
   payload: ActionPayloadSchema.optional().describe(
     "Private context delivered to your webhook when the button is pressed. "
     + "Write-only: it is stripped from the stored card and never returned by "
@@ -809,11 +818,12 @@ export const DashboardCardInputSchema = z.object({
     + "all on a small one). Order them most useful first, because the tail is "
     + "what gets cut. Only `role: normal` with `confirm: false` can run straight "
     + "from a widget; anything else routes through the iOS app "
-    + "for confirmation. A press is delivered to the account's action webhook, "
-    + "so one must already be registered at PUT /v1/integrations/webhook or "
-    + "every press fails with a 409. That call needs the `webhook:manage` "
+    + "for confirmation. A press is delivered to the action's private "
+    + "`webhookId`, or to the account's `default` webhook when none is set. "
+    + "The destination must already be registered under `/v1/integrations/` "
+    + "or the press fails with a 409. Registration needs the `webhook:manage` "
     + "scope, which an MCP credential does not have — the operator registers "
-    + "the webhook with their API token, from whatever runs the endpoint.",
+    + "webhooks with an API token, from whatever runs each endpoint.",
   ),
 });
 

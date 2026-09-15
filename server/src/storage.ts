@@ -127,7 +127,9 @@ function parsePublicCard(raw: string): DashboardCard {
 function publicCard(card: DashboardCardInput): DashboardCard {
   return {
     ...card,
-    actions: card.actions?.map(({ payload: _payload, ...action }) => action),
+    actions: card.actions?.map(
+      ({ payload: _payload, webhookId: _webhookId, ...action }) => action,
+    ),
   };
 }
 
@@ -143,23 +145,43 @@ function cardWriteStatements(
     env.ZW_DB.prepare(
       `DELETE FROM action_payloads WHERE tenant_id = ? AND card_id = ?`,
     ).bind(tenantId, sanitized.id),
+    env.ZW_DB.prepare(
+      `DELETE FROM action_webhook_routes WHERE tenant_id = ? AND card_id = ?`,
+    ).bind(tenantId, sanitized.id),
   ];
   for (const action of card.actions ?? []) {
-    if (action.payload === undefined) continue;
-    statements.push(
-      env.ZW_DB.prepare(
-        `INSERT OR REPLACE INTO action_payloads
-           (tenant_id, api_key_hash, card_id, action_id, json, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        tenantId,
-        apiKeyHash,
-        sanitized.id,
-        action.id,
-        json(action.payload),
-        updatedAt,
-      ),
-    );
+    if (action.payload !== undefined) {
+      statements.push(
+        env.ZW_DB.prepare(
+          `INSERT OR REPLACE INTO action_payloads
+             (tenant_id, api_key_hash, card_id, action_id, json, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          tenantId,
+          apiKeyHash,
+          sanitized.id,
+          action.id,
+          json(action.payload),
+          updatedAt,
+        ),
+      );
+    }
+    if (action.webhookId !== undefined) {
+      statements.push(
+        env.ZW_DB.prepare(
+          `INSERT OR REPLACE INTO action_webhook_routes
+             (tenant_id, api_key_hash, card_id, action_id, webhook_id, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          tenantId,
+          apiKeyHash,
+          sanitized.id,
+          action.id,
+          action.webhookId,
+          updatedAt,
+        ),
+      );
+    }
   }
   // `ON CONFLICT DO UPDATE` rather than `INSERT OR REPLACE`: the latter deletes
   // the existing row and inserts a new one, which D1 bills as two rows written
@@ -251,10 +273,28 @@ export async function getActionPayload(
   return row ? parseJson<ActionPayload>(row.json) : null;
 }
 
+export async function getActionWebhookId(
+  env: Env,
+  tenantId: string,
+  cardId: string,
+  actionId: string,
+): Promise<string | null> {
+  const row = await env.ZW_DB.prepare(
+    `SELECT webhook_id FROM action_webhook_routes
+     WHERE tenant_id = ? AND card_id = ? AND action_id = ?`,
+  )
+    .bind(tenantId, cardId, actionId)
+    .first<{ webhook_id: string }>();
+  return row?.webhook_id ?? null;
+}
+
 export async function deleteCard(env: Env, tenantId: string, id: string): Promise<void> {
   await env.ZW_DB.batch([
     env.ZW_DB.prepare(
       `DELETE FROM action_payloads WHERE tenant_id = ? AND card_id = ?`,
+    ).bind(tenantId, id),
+    env.ZW_DB.prepare(
+      `DELETE FROM action_webhook_routes WHERE tenant_id = ? AND card_id = ?`,
     ).bind(tenantId, id),
     env.ZW_DB.prepare(`DELETE FROM cards WHERE tenant_id = ? AND id = ?`).bind(tenantId, id),
   ]);
@@ -263,13 +303,30 @@ export async function deleteCard(env: Env, tenantId: string, id: string): Promis
 export async function getWebhookIntegration(
   env: Env,
   tenantId: string,
+  webhookId = "default",
 ): Promise<WebhookIntegrationRecord | null> {
   const row = await env.ZW_DB.prepare(
-    `SELECT json FROM webhook_integrations WHERE tenant_id = ?`,
+    `SELECT json FROM webhook_integrations WHERE tenant_id = ? AND webhook_id = ?`,
   )
-    .bind(tenantId)
+    .bind(tenantId, webhookId)
     .first<JsonRow>();
   return row ? parseJson<WebhookIntegrationRecord>(row.json) : null;
+}
+
+export async function listWebhookIntegrations(
+  env: Env,
+  tenantId: string,
+): Promise<Array<{ id: string; integration: WebhookIntegrationRecord }>> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT webhook_id, json FROM webhook_integrations
+     WHERE tenant_id = ? ORDER BY webhook_id`,
+  )
+    .bind(tenantId)
+    .all<{ webhook_id: string; json: string }>();
+  return rows.results.map((row) => ({
+    id: row.webhook_id,
+    integration: parseJson<WebhookIntegrationRecord>(row.json),
+  }));
 }
 
 export async function putWebhookIntegration(
@@ -277,19 +334,30 @@ export async function putWebhookIntegration(
   tenantId: string,
   apiKeyHash: string,
   record: WebhookIntegrationRecord,
+  webhookId = "default",
 ): Promise<void> {
   await env.ZW_DB.prepare(
-    `INSERT OR REPLACE INTO webhook_integrations
-     (tenant_id, api_key_hash, json, updated_at)
-     VALUES (?, ?, ?, ?)`,
+    `INSERT INTO webhook_integrations
+       (tenant_id, webhook_id, api_key_hash, json, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(tenant_id, webhook_id) DO UPDATE SET
+       api_key_hash = excluded.api_key_hash,
+       json = excluded.json,
+       updated_at = excluded.updated_at`,
   )
-    .bind(tenantId, apiKeyHash, json(record), record.updatedAt)
+    .bind(tenantId, webhookId, apiKeyHash, json(record), record.updatedAt)
     .run();
 }
 
-export async function deleteWebhookIntegration(env: Env, tenantId: string): Promise<void> {
-  await env.ZW_DB.prepare(`DELETE FROM webhook_integrations WHERE tenant_id = ?`)
-    .bind(tenantId)
+export async function deleteWebhookIntegration(
+  env: Env,
+  tenantId: string,
+  webhookId = "default",
+): Promise<void> {
+  await env.ZW_DB.prepare(
+    `DELETE FROM webhook_integrations WHERE tenant_id = ? AND webhook_id = ?`,
+  )
+    .bind(tenantId, webhookId)
     .run();
 }
 

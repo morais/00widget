@@ -145,6 +145,18 @@ const routes: Route[] = [
   authed("DELETE", /^\/v1\/integrations\/webhook\/?$/, "webhook:manage", (req, env, auth) =>
     actions.deleteWebhookIntegration(req, env, auth),
   ),
+  authed("GET", /^\/v1\/integrations\/webhooks\/?$/, "webhook:manage", (req, env, auth) =>
+    actions.listWebhookIntegrations(req, env, auth),
+  ),
+  authed("GET", /^\/v1\/integrations\/webhooks\/([^/]+)\/?$/, "webhook:manage", (req, env, auth, m) =>
+    actions.getWebhookIntegration(req, env, auth, pathParam(m[1])),
+  ),
+  authed("PUT", /^\/v1\/integrations\/webhooks\/([^/]+)\/?$/, "webhook:manage", (req, env, auth, m) =>
+    actions.putWebhookIntegration(req, env, auth, pathParam(m[1])),
+  ),
+  authed("DELETE", /^\/v1\/integrations\/webhooks\/([^/]+)\/?$/, "webhook:manage", (req, env, auth, m) =>
+    actions.deleteWebhookIntegration(req, env, auth, pathParam(m[1])),
+  ),
   authed("POST", /^\/v1\/actions\/([^/]+)\/run\/?$/, "actions:run", (req, env, auth, m, ctx) =>
     actions.runAction(req, env, auth, pathParam(m[1]), ctx),
   ),

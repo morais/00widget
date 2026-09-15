@@ -53,6 +53,7 @@ export class FakeD1 {
   private apiKeys = new Map<string, FakeApiKeyRow>();
   private cards = new Map<string, FakeRow>();
   private actionPayloads = new Map<string, FakeRow>();
+  private actionWebhookRoutes = new Map<string, FakeRow>();
   private devices = new Map<string, FakeRow>();
   private widgetTokens = new Map<string, FakeRow>();
   private activities = new Map<string, FakeRow>();
@@ -427,9 +428,39 @@ export class FakeD1 {
       }
       return count;
     }
-    if (normalized.startsWith("INSERT OR REPLACE INTO webhook_integrations")) {
-      const [tenant_id, api_key_hash, json, updated_at] = values.map(String);
-      this.webhookIntegrations.set(tenant_id, { tenant_id, api_key_hash, json, updated_at });
+    if (normalized.startsWith("INSERT OR REPLACE INTO action_webhook_routes")) {
+      const [tenant_id, api_key_hash, card_id, action_id, webhook_id, updated_at] =
+        values.map(String);
+      this.actionWebhookRoutes.set(`${tenant_id}:${card_id}:${action_id}`, {
+        tenant_id,
+        api_key_hash,
+        card_id,
+        action_id,
+        webhook_id,
+        updated_at,
+      });
+      return 1;
+    }
+    if (normalized === "DELETE FROM action_webhook_routes WHERE tenant_id = ? AND card_id = ?") {
+      const [tenant_id, card_id] = values.map(String);
+      let count = 0;
+      for (const [key, row] of this.actionWebhookRoutes.entries()) {
+        if (row.tenant_id === tenant_id && row.card_id === card_id) {
+          this.actionWebhookRoutes.delete(key);
+          count++;
+        }
+      }
+      return count;
+    }
+    if (normalized.startsWith("INSERT INTO webhook_integrations")) {
+      const [tenant_id, webhook_id, api_key_hash, json, updated_at] = values.map(String);
+      this.webhookIntegrations.set(`${tenant_id}:${webhook_id}`, {
+        tenant_id,
+        webhook_id,
+        api_key_hash,
+        json,
+        updated_at,
+      });
       return 1;
     }
     if (normalized.startsWith("INSERT OR REPLACE INTO devices")) {
@@ -620,10 +651,9 @@ export class FakeD1 {
       const [id] = values.map(String);
       return this.activityInstances.delete(id) ? 1 : 0;
     }
-    if (normalized.startsWith("DELETE FROM webhook_integrations")) {
-      const [tenant_id] = values.map(String);
-      this.webhookIntegrations.delete(tenant_id);
-      return 1;
+    if (normalized === "DELETE FROM webhook_integrations WHERE tenant_id = ? AND webhook_id = ?") {
+      const [tenant_id, webhook_id] = values.map(String);
+      return this.webhookIntegrations.delete(`${tenant_id}:${webhook_id}`) ? 1 : 0;
     }
     if (normalized.startsWith("DELETE FROM activities")) {
       const [tenant_id, external_id] = values.map(String);
@@ -994,6 +1024,7 @@ export class FakeD1 {
       apple_accounts: this.appleAccounts,
       cards: this.cards,
       action_payloads: this.actionPayloads,
+      action_webhook_routes: this.actionWebhookRoutes,
       devices: this.devices,
       widget_tokens: this.widgetTokens,
       start_tokens: this.startTokens,
@@ -1284,9 +1315,22 @@ export class FakeD1 {
       const [tenant_id, card_id, action_id] = values.map(String);
       return pick(this.actionPayloads.get(`${tenant_id}:${card_id}:${action_id}`), ["json"]);
     }
-    if (normalized === "SELECT json FROM webhook_integrations WHERE tenant_id = ?") {
+    if (normalized === "SELECT webhook_id FROM action_webhook_routes WHERE tenant_id = ? AND card_id = ? AND action_id = ?") {
+      const [tenant_id, card_id, action_id] = values.map(String);
+      return pick(
+        this.actionWebhookRoutes.get(`${tenant_id}:${card_id}:${action_id}`),
+        ["webhook_id"],
+      );
+    }
+    if (normalized === "SELECT json FROM webhook_integrations WHERE tenant_id = ? AND webhook_id = ?") {
+      const [tenant_id, webhook_id] = values.map(String);
+      return pick(this.webhookIntegrations.get(`${tenant_id}:${webhook_id}`), ["json"]);
+    }
+    if (normalized === "SELECT webhook_id, json FROM webhook_integrations WHERE tenant_id = ? ORDER BY webhook_id") {
       const [tenant_id] = values.map(String);
-      return pick(this.webhookIntegrations.get(tenant_id), ["json"]);
+      return byTenant(this.webhookIntegrations, tenant_id)
+        .sort(by("webhook_id"))
+        .map(select("webhook_id", "json"));
     }
     if (normalized === "SELECT json FROM cards WHERE tenant_id = ? ORDER BY id") {
       const [tenant_id] = values.map(String);
