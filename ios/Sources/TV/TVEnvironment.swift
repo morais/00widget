@@ -97,6 +97,64 @@ final class TVEnvironment: ObservableObject {
                     ]
                 )
             ]
+        } else if screenshotSection == "detail-chart-overflow" {
+            // A chart detail fixture shaped like the device report that found
+            // the bug: several semantic readings, a reference, and a QR panel
+            // beside them. At accessibility sizes the inspection rows become
+            // taller than the remaining viewport; the panel must keep its
+            // title fixed and let the middle content scroll.
+            let home = [0.0, 0.4, 1.1, 2.2, 2.8, 2.3, 1.4]
+            let battery = [0.0, 0.0, 1.5, 1.2, 0.8, 0.4, 0.0]
+            let export = [0.0, 0.0, 0.0, 0.3, 0.6, 0.2, 0.0]
+            let total = zip(zip(home, battery), export).map { $0.0.0 + $0.0.1 + $0.1 }
+            self.cards = [
+                DashboardCard(
+                    id: SampleDataFactory.sampleId("tv-detail-chart-overflow"),
+                    template: .chart,
+                    title: "Home energy",
+                    subtitle: "Import 362 W",
+                    value: "0",
+                    unit: "W",
+                    status: .good,
+                    icon: "bolt.house",
+                    updatedAt: Date(),
+                    deepLink: URL(string: "https://api.00widget.com/app/g#detail-layout-fixture"),
+                    chart: DashboardChart(
+                        points: total,
+                        min: 0,
+                        max: 5,
+                        reference: 3.5,
+                        referenceMetadata: DashboardChartReferenceMetadata(
+                            label: "Grid limit",
+                            semantic: MetricSemantic(role: .capacity, signal: .caution)
+                        ),
+                        semantic: MetricSemantic(role: .actual),
+                        style: .bar,
+                        labels: ["06", "09", "12", "15", "18", "21", "Now"],
+                        series: [
+                            DashboardChartSeries(
+                                id: "home",
+                                label: "Home",
+                                points: home,
+                                semantic: MetricSemantic(flow: .inbound, signal: .favorable)
+                            ),
+                            DashboardChartSeries(
+                                id: "battery",
+                                label: "Battery",
+                                points: battery,
+                                semantic: MetricSemantic(flow: .inbound, signal: .favorable)
+                            ),
+                            DashboardChartSeries(
+                                id: "export",
+                                label: "Export",
+                                points: export,
+                                semantic: MetricSemantic(role: .remainder, flow: .outbound)
+                            ),
+                        ],
+                        stacking: .stacked
+                    )
+                )
+            ]
         } else if screenshotSection == "insights" {
             let insightIds = ["trials", "support", "agent-runs"].map(SampleDataFactory.sampleId)
             self.cards = insightIds.compactMap { id in samples.first { $0.id == id } }
@@ -112,7 +170,7 @@ final class TVEnvironment: ObservableObject {
         } else {
             self.cards = samples
         }
-        self.liveActivities = screenshotSection == "widgets" || screenshotSection == "typography"
+        self.liveActivities = ["widgets", "typography", "detail-chart-overflow"].contains(screenshotSection)
             ? []
             : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]
         self.hasCompletedInitialSync = true

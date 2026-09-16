@@ -83,6 +83,55 @@ final class TVLargeTextTests: XCTestCase {
         XCTAssertTrue(app.otherElements["chart-inspector"].waitForExistence(timeout: 10))
     }
 
+    /// The title disappeared on a real television when a multi-series chart,
+    /// its selected-value panel, and a QR code grew past the available height.
+    /// Existence is not enough: SwiftUI keeps clipped views in the accessibility
+    /// tree, so assert that the fixed chrome is actually inside the screen.
+    func testComplexChartDetailKeepsHeaderVisibleAtLargeType() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--screenshot-section", "detail-chart-overflow",
+            "--large-text-preview",
+        ]
+        app.launch()
+
+        let cardTitle = app.staticTexts["Home energy"]
+        XCTAssertTrue(cardTitle.waitForExistence(timeout: 30))
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(containing: "Home energy", in: app),
+            "Expected the chart fixture to take focus, found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.select)
+
+        let close = app.buttons["Close"]
+        let inspector = app.otherElements["chart-inspector"]
+        let scroll = app.scrollViews["detail-scroll"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertTrue(inspector.waitForExistence(timeout: 10))
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+
+        let screen = app.frame
+        // The covered dashboard retains its own Home energy node briefly, so
+        // choose the upper copy: the detail header is the one nearest the
+        // screen's top edge.
+        let detailTitle = app.staticTexts.matching(identifier: "Home energy")
+            .allElementsBoundByIndex
+            .min { $0.frame.minY < $1.frame.minY }
+        XCTAssertNotNil(detailTitle)
+        for element in [detailTitle, close].compactMap({ $0 }) {
+            XCTAssertTrue(
+                screen.contains(element.frame),
+                "\(element.label) is outside the detail viewport: \(element.frame) in \(screen)."
+            )
+        }
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "tv-large-text-chart-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func waitForFocus(
         containing text: String,
         in app: XCUIApplication,

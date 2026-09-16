@@ -7,9 +7,9 @@ import XCTest
 /// for more than 1080 lines compiles, passes every unit test, and renders — and
 /// SwiftUI does not even clip it honestly. An over-tall `VStack` is *centred*
 /// in the space it was given, so the overflow comes off both ends: the header
-/// with the card's title and its Close button off the top, the action buttons
-/// off the bottom, on a column that has nothing focusable in it and therefore
-/// cannot be scrolled.
+/// with the card's title and its Close button off the top and the action
+/// buttons off the bottom. The detail now keeps its chrome fixed and lets the
+/// data-dependent middle section scroll independently.
 ///
 /// The fixture is the compound worst case — a list at its row cap, a subtitle
 /// at the API's 240-character limit, a deadline, and two actions — because each

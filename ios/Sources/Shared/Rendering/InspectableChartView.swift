@@ -185,12 +185,23 @@ public struct InspectableChartView: View {
                 selectionHeader(label: snapshot.label, signal: snapshot.signal)
             }
 
-            ForEach(Array(readings.enumerated()), id: \.element.id) { index, value in
-                readingRow(value, index: index)
-            }
-
-            if let reference {
-                referenceRow(reference, snapshot: snapshot, index: readings.count)
+            if usesFlowingSelectionLayout {
+                Grid(
+                    alignment: .leading,
+                    horizontalSpacing: compact ? 12 : 18,
+                    verticalSpacing: compact ? 8 : 12
+                ) {
+                    flowingReadingRows(readings)
+                    if let reference {
+                        referenceRow(reference, snapshot: snapshot, index: readings.count)
+                            .gridCellColumns(2)
+                    }
+                }
+            } else {
+                readingRows(readings)
+                if let reference {
+                    referenceRow(reference, snapshot: snapshot, index: readings.count)
+                }
             }
         }
         .padding(compact ? 10 : 14)
@@ -202,6 +213,29 @@ public struct InspectableChartView: View {
                     )
                 )
         )
+    }
+
+    @ViewBuilder
+    private func readingRows(_ readings: [ChartInspectionValue]) -> some View {
+        ForEach(Array(readings.enumerated()), id: \.element.id) { index, value in
+            readingRow(value, index: index)
+        }
+    }
+
+    @ViewBuilder
+    private func flowingReadingRows(_ readings: [ChartInspectionValue]) -> some View {
+        ForEach(Array(stride(from: 0, to: readings.count, by: 2)), id: \.self) { index in
+            GridRow(alignment: .top) {
+                readingRow(readings[index], index: index)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                if readings.indices.contains(index + 1) {
+                    readingRow(readings[index + 1], index: index + 1)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                } else {
+                    Color.clear
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -341,6 +375,17 @@ public struct InspectableChartView: View {
 
     private var usesStackedSelectionLayout: Bool {
         #if os(iOS) || os(tvOS)
+        dynamicTypeSize.isAccessibilitySize
+        #else
+        false
+        #endif
+    }
+
+    /// On a television there is enough horizontal room to wrap large-type
+    /// readings into a compact grid. Keeping the iPhone layout vertical avoids
+    /// squeezing the same labels into narrow columns there.
+    private var usesFlowingSelectionLayout: Bool {
+        #if os(tvOS)
         dynamicTypeSize.isAccessibilitySize
         #else
         false

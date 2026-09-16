@@ -121,15 +121,31 @@ struct TVDetailView: View {
             VStack(alignment: .leading, spacing: 36) {
                 header(for: subject)
 
-                HStack(alignment: .top, spacing: 64) {
-                    content(for: subject)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                // Detail height is data-dependent: a chart's selected values
+                // grow with its series count, and accessibility type stacks
+                // each reading. Keeping that inside this viewport prevents an
+                // over-tall middle column from centring the whole outer stack
+                // and pushing the title above the television's top edge.
+                //
+                // This also makes the lower readings reachable instead of
+                // trying to predict how many rows every future template can
+                // afford. The header and action footer remain fixed chrome.
+                ScrollView(.vertical) {
+                    HStack(alignment: .top, spacing: 64) {
+                        content(for: subject)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                    if let url = subject.deepLink {
-                        TVQRPanel(url: url)
+                        if let url = subject.deepLink {
+                            TVQRPanel(url: url)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    // Focus rings otherwise meet the viewport edge exactly
+                    // and get clipped while the chart is being inspected.
+                    .padding(.vertical, 8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .accessibilityIdentifier("detail-scroll")
 
                 footer(for: subject)
             }
@@ -372,20 +388,13 @@ private struct TVCardDetailContent: View {
     /// and fourteen history pips because nine cards share the screen; one card
     /// alone can show many more.
     ///
-    /// The counts are bounded rather than scrolled, and they are the tuned
-    /// numbers rather than round ones. tvOS scrolls by moving focus and nothing
-    /// in this column is focusable, so a row past the bottom of the screen is
-    /// not below the fold — it is unreachable, and the panel does not even
-    /// clip it honestly: an over-tall `VStack` is centred in the space it was
-    /// given, which cut the *header* off the top of a `history` card as well as
-    /// the last rows off the bottom. What fits is the 1080-line screen less
-    /// this panel's chrome and headline, divided by an 94-point row.
-    /// Enlarged type does not make the screen taller, so every one of these
-    /// counts is the standard-size figure divided by how much bigger the rows
-    /// have become — see `TVTextScale.rowLimit(standard:)`. Before that they
-    /// were constants, which meant an accessibility size drew six rows into
-    /// the room for three and lost the last of them off a panel that cannot
-    /// scroll.
+    /// The detail viewport now scrolls, so these counts are a density budget
+    /// rather than a correctness guard: they keep a 20-item payload from
+    /// turning one television panel into a long report. Enlarged type does not
+    /// make the screen taller, so the initial selection shrinks with the row
+    /// height — see `TVTextScale.rowLimit(standard:)`. Any data-dependent
+    /// content that still grows past the viewport remains reachable without
+    /// moving the fixed title or action footer.
     private var listRowLimit: Int { rowLimit(standard: 6) }
     private var breakdownRowLimit: Int { rowLimit(standard: 5) }
     private var briefingSectionLimit: Int { rowLimit(standard: 6) }
@@ -395,10 +404,8 @@ private struct TVCardDetailContent: View {
     /// that figure: the deadline line this view draws under the rows, and the
     /// panel's footer of action buttons. Each costs about a row — and at
     /// accessibility sizes the footer stacks its buttons, so it costs one for
-    /// each of them. A card carrying both used to draw its full six rows into
-    /// the room for four, and a panel that overruns is centred rather than
-    /// clipped: the header goes off the top and the buttons off the bottom, on
-    /// a column nothing can scroll. Verified against exactly that card.
+    /// each of them. Accounting for those blocks keeps the most useful rows in
+    /// the initial viewport; scrolling handles any remaining vertical growth.
     private func rowLimit(standard: Int) -> Int {
         var chrome = card.deadline != nil ? 1 : 0
         let actions = card.actions?.count ?? 0
@@ -491,11 +498,10 @@ private struct TVCardDetailContent: View {
                     // counts below are a budget computed against a headline of
                     // a known height, and the subtitle was the one part of it
                     // a producer controls: it accepts 240 characters, which
-                    // wrap to about two rows' worth of height the budget does
-                    // not know it has lost. A panel that overruns is centred
-                    // rather than clipped, so the cost is the header off the
-                    // top as well as the last rows off the bottom, on a column
-                    // nothing can scroll.
+                    // wrap to about two rows' worth of height the density
+                    // budget does not know it has lost. The detail viewport
+                    // scrolls, but bounding publisher-controlled prose keeps
+                    // the chart or rows close enough to discover.
                     .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 3)
             }
         }
