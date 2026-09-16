@@ -136,7 +136,11 @@ struct TVDetailView: View {
                             content(for: subject)
                                 .frame(
                                     maxWidth: .infinity,
-                                    minHeight: max(0, viewport.size.height - 16),
+                                    // Leave a small focus-safe inset beyond
+                                    // the 8-point scroll padding. Without it,
+                                    // the legend's last baseline lands a few
+                                    // pixels beyond a 1080-line screen.
+                                    minHeight: max(0, viewport.size.height - 28),
                                     alignment: .topLeading
                                 )
 
@@ -470,7 +474,13 @@ private struct TVCardDetailContent: View {
                 .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 0)
+            // Charts consume the remaining viewport themselves so the plot
+            // can grow without pushing its legend below the fold. Every
+            // other template keeps the spacer that pins short content to the
+            // top of the panel.
+            if card.template != .chart {
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -557,19 +567,35 @@ private struct TVCardDetailContent: View {
     @ViewBuilder
     private var chart: some View {
         if let chart = card.chart, chart.isRenderable {
+            let lastIndex = max(0, chart.points.count - 1)
+            let readingCount = chart.inspection(at: lastIndex, unit: card.unit)?.values.count ?? 0
+            let canGrowPlot = !dynamicTypeSize.usesTVLargeTextLayout || readingCount <= 1
+
             // One focus target for the whole plot. Sixty focusable columns
             // would trap remote navigation; left/right changes the shared
             // selection while up/down remains available to the focus engine.
-            InspectableChartView(
+            // At accessibility sizes, only a simple one-reading chart may
+            // spend spare height on the plot. Multi-series and range charts
+            // reserve it for their selection legend instead of hiding all
+            // but its first row below the viewport.
+            let inspector = InspectableChartView(
                 chart: chart,
                 tint: card.status.tint,
                 title: card.title,
                 unit: card.unit,
                 plotHeight: 230,
                 lineWidth: 6,
-                growsToFill: true
+                growsToFill: canGrowPlot
             )
-            .layoutPriority(1)
+
+            if canGrowPlot {
+                inspector
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .layoutPriority(1)
+            } else {
+                inspector
+                    .layoutPriority(1)
+            }
         }
     }
 
@@ -689,6 +715,7 @@ private struct TVDetailRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         let rowLayout = dynamicTypeSize.usesTVLargeTextLayout
@@ -708,6 +735,16 @@ private struct TVDetailRow: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.secondary.opacity(0.12))
             }
+        }
+        // Static rows still need to participate in tvOS focus navigation:
+        // moving between them is what scrolls an over-tall list or breakdown
+        // and makes every value reachable with the Siri Remote.
+        .accessibilityElement(children: .combine)
+        .focusable()
+        .focused($isFocused)
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.white.opacity(isFocused ? 0.85 : 0), lineWidth: 4)
         }
     }
 
@@ -878,18 +915,25 @@ private struct TVActivityDetailContent: View {
 /// accessibility label, where it is the one way to hear where the code goes.
 struct TVQRPanel: View {
     let url: URL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var isFocused: Bool
 
     var body: some View {
+        let largeText = dynamicTypeSize.usesTVLargeTextLayout
+        let imageSize: CGFloat = largeText ? 260 : 360
+        let imagePadding: CGFloat = largeText ? 18 : 28
+
         VStack(spacing: 20) {
             if let image = TVQRCode.image(for: url.absoluteString) {
                 image
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
-                    .padding(28)
+                    .padding(imagePadding)
+                    .frame(width: imageSize, height: imageSize)
                     .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .frame(width: 360, height: 360)
+                    .clipShape(RoundedRectangle(cornerRadius: largeText ? 20 : 28, style: .continuous))
+                    .accessibilityIdentifier("detail-qr")
                     .accessibilityLabel("QR code for \(url.absoluteString)")
             } else {
                 ContentUnavailableView(
@@ -897,7 +941,7 @@ struct TVQRPanel: View {
                     systemImage: "qrcode",
                     description: Text(url.absoluteString)
                 )
-                .frame(width: 360, height: 360)
+                .frame(width: imageSize, height: imageSize)
             }
 
             // Icon above rather than beside: an inline `Label` leaves the text
@@ -907,13 +951,28 @@ struct TVQRPanel: View {
                 Image(systemName: "iphone.gen3.radiowaves.left.and.right")
                     .tvScaledSystemFont(size: 40, relativeTo: .title3)
                     .accessibilityHidden(true)
-                Text("Scan to open on your phone")
+                Text(largeText ? "Scan with phone" : "Scan to open on your phone")
                     .multilineTextAlignment(.center)
+                    .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 2)
             }
             .font(.title3)
             .foregroundStyle(.secondary)
         }
-        .frame(width: 360)
+        .frame(width: imageSize)
+        .padding(12)
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(.white.opacity(isFocused ? 0.85 : 0), lineWidth: 4)
+        }
+        // The Close button is directly above this column. Making the panel a
+        // focus stop gives Down a geometrically natural destination; Left can
+        // then enter the chart, whose legend is the next Down stop.
+        .focusable()
+        .focused($isFocused)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("detail-qr-panel")
+        .accessibilityLabel("Scan with phone")
+        .accessibilityValue(url.absoluteString)
     }
 }
 

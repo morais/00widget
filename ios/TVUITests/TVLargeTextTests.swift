@@ -106,10 +106,14 @@ final class TVLargeTextTests: XCTestCase {
 
         let close = app.buttons["Close"]
         let inspector = app.otherElements["chart-inspector"]
+        let reference = app.descendants(matching: .any)["chart-legend-reference"]
         let scroll = app.scrollViews["detail-scroll"]
+        let qrCode = app.otherElements["detail-qr-panel"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         XCTAssertTrue(inspector.waitForExistence(timeout: 10))
+        XCTAssertTrue(reference.waitForExistence(timeout: 10))
         XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        XCTAssertTrue(qrCode.waitForExistence(timeout: 10))
 
         for _ in 0..<3 where !close.hasFocus {
             XCUIRemote.shared.press(.up)
@@ -117,11 +121,36 @@ final class TVLargeTextTests: XCTestCase {
         XCTAssertTrue(close.hasFocus, "The Close button could not take focus from the detail body.")
         XCUIRemote.shared.press(.down)
         XCTAssertTrue(
-            waitForFocus(containing: "Chart values", in: app),
-            "Down from Close did not enter the scrollable chart content; found: \(focusedLabel(in: app))"
+            waitForFocus(containing: "Scan with phone", in: app),
+            "Down from Close did not enter the QR column; found: \(focusedLabel(in: app))"
         )
 
         let screen = app.frame
+        XCTAssertTrue(
+            screen.contains(qrCode.frame),
+            "The QR code is clipped by the initial detail viewport: \(qrCode.frame)."
+        )
+
+        XCUIRemote.shared.press(.left)
+        XCTAssertTrue(
+            waitForFocus(containing: "Chart values", in: app),
+            "Left from the QR panel did not enter the chart; found: \(focusedLabel(in: app))"
+        )
+
+        XCUIRemote.shared.press(.down)
+        let legendLabels = ["Home", "Battery", "Export", "Total", "Grid limit"]
+        XCTAssertTrue(
+            waitForFocus(containingAny: legendLabels, in: app),
+            "Down from the plot did not enter its legend; found: \(focusedLabel(in: app))"
+        )
+        for _ in 0..<4 where !focusedLabel(in: app).contains("Grid limit") {
+            XCUIRemote.shared.press(.down)
+        }
+        XCTAssertTrue(
+            waitForFocus(containing: "Grid limit", in: app),
+            "The chart's final reference row was not reachable; found: \(focusedLabel(in: app))"
+        )
+
         // The covered dashboard retains its own Home energy node briefly, so
         // choose the upper copy: the detail header is the one nearest the
         // screen's top edge.
@@ -140,6 +169,11 @@ final class TVLargeTextTests: XCTestCase {
         attachment.name = "tv-large-text-chart-detail"
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        XCTAssertTrue(
+            screen.contains(reference.frame),
+            "Focusing the chart's final legend row did not scroll it into view: \(reference.frame)."
+        )
     }
 
     private func waitForFocus(
@@ -153,6 +187,19 @@ final class TVLargeTextTests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.1)
         }
         return focusedLabel(in: app).contains(text)
+    }
+
+    private func waitForFocus(
+        containingAny texts: [String],
+        in app: XCUIApplication,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if texts.contains(where: { focusedLabel(in: app).contains($0) }) { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return texts.contains(where: { focusedLabel(in: app).contains($0) })
     }
 
     private func focusedLabel(in app: XCUIApplication) -> String {

@@ -152,7 +152,8 @@ final class TVEnvironment: ObservableObject {
                             ),
                         ],
                         stacking: .stacked
-                    )
+                    ),
+                    actions: [ActionDefinition(id: "inspect", label: "Inspect layout")]
                 )
             ]
         } else if screenshotSection == "insights" {

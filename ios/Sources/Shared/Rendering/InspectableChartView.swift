@@ -28,6 +28,7 @@ public struct InspectableChartView: View {
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     #if os(tvOS)
     @FocusState private var isFocused: Bool
+    @FocusState private var focusedLegendID: String?
     #endif
 
     public init(
@@ -56,7 +57,7 @@ public struct InspectableChartView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+        let content = VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             GeometryReader { proxy in
                 interactivePlot(width: proxy.size.width, height: proxy.size.height)
             }
@@ -73,6 +74,17 @@ public struct InspectableChartView: View {
         .onChange(of: chart.points.count) { _, count in
             selectedIndex = min(max(0, selectedIndex), max(0, count - 1))
         }
+
+        #if os(tvOS)
+        // The plot and its value panel are separate remote destinations. A
+        // single accessibility element spanning both can be taller than the
+        // viewport, which makes the focus engine reject it entirely and
+        // strands focus on the Close button.
+        content
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("chart-inspector")
+        #else
+        content
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("chart-inspector")
         .accessibilityLabel("Chart values")
@@ -94,6 +106,7 @@ public struct InspectableChartView: View {
         .accessibilityChartDescriptor(
             ChartAudioGraph(chart: chart, title: title, unit: unit)
         )
+        #endif
     }
 
     @ViewBuilder
@@ -129,6 +142,21 @@ public struct InspectableChartView: View {
                 default: break
                 }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("chart-plot")
+            .accessibilityLabel("Chart values")
+            .accessibilityInputLabels(["Chart", "Chart values"])
+            .accessibilityValue(snapshot?.accessibilityDescription(unit: unit) ?? "No chart data")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: move(by: 1)
+                case .decrement: move(by: -1)
+                @unknown default: break
+                }
+            }
+            .accessibilityChartDescriptor(
+                ChartAudioGraph(chart: chart, title: title, unit: unit)
+            )
         #else
         plot
             .overlay {
@@ -213,6 +241,10 @@ public struct InspectableChartView: View {
                     )
                 )
         )
+        #if os(tvOS)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chart-legend")
+        #endif
     }
 
     @ViewBuilder
@@ -277,12 +309,30 @@ public struct InspectableChartView: View {
                 readingValue(value)
                     .padding(.leading, selectionValueIndent)
             }
+            .modifier(ChartLegendFocus(identifier: "chart-legend-\(value.id)"))
+            #if os(tvOS)
+            .focused($focusedLegendID, equals: value.id)
+            .onMoveCommand { direction in
+                if direction == .down, value.kind == .total {
+                    focusedLegendID = "reference"
+                }
+            }
+            #endif
         } else {
             HStack(spacing: 8) {
                 readingDescriptor(value, index: index)
                 Spacer(minLength: 8)
                 readingValue(value)
             }
+            .modifier(ChartLegendFocus(identifier: "chart-legend-\(value.id)"))
+            #if os(tvOS)
+            .focused($focusedLegendID, equals: value.id)
+            .onMoveCommand { direction in
+                if direction == .down, value.kind == .total {
+                    focusedLegendID = "reference"
+                }
+            }
+            #endif
         }
     }
 
@@ -326,6 +376,15 @@ public struct InspectableChartView: View {
                 }
                 .padding(.leading, selectionValueIndent)
             }
+            .modifier(ChartLegendFocus(identifier: "chart-legend-reference"))
+            #if os(tvOS)
+            .focused($focusedLegendID, equals: "reference")
+            .onMoveCommand { direction in
+                if direction == .up {
+                    focusedLegendID = "total"
+                }
+            }
+            #endif
         } else {
             HStack(spacing: 8) {
                 referenceDescriptor(reference, index: index)
@@ -333,6 +392,15 @@ public struct InspectableChartView: View {
                 Spacer(minLength: 6)
                 referenceComparison(snapshot)
             }
+            .modifier(ChartLegendFocus(identifier: "chart-legend-reference"))
+            #if os(tvOS)
+            .focused($focusedLegendID, equals: "reference")
+            .onMoveCommand { direction in
+                if direction == .up {
+                    focusedLegendID = "total"
+                }
+            }
+            #endif
         }
     }
 
@@ -502,6 +570,21 @@ public struct InspectableChartView: View {
         selectedIndex = clamped
         #if os(iOS)
         UISelectionFeedbackGenerator().selectionChanged()
+        #endif
+    }
+}
+
+private struct ChartLegendFocus: ViewModifier {
+    let identifier: String
+
+    func body(content: Content) -> some View {
+        #if os(tvOS)
+        content
+            .focusable()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(identifier)
+        #else
+        content
         #endif
     }
 }

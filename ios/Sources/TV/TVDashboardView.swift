@@ -197,6 +197,12 @@ struct TVDashboardView: View {
         .fullScreenCover(item: $selectedDetail) { subject in
             TVDetailView(subject: subject)
                 .environmentObject(env)
+                // Presentation hosts can otherwise fall back to the system
+                // default even while their dashboard is using tvOS Dynamic
+                // Type. That leaves enlarged text inside the detail panel's
+                // standard geometry — the source of the clipped QR and
+                // unreachable chart legend at accessibility sizes.
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         // The header's sync error is not focusable and nothing draws attention
         // to it appearing — on a television left running on a wall, a
