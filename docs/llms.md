@@ -25,7 +25,7 @@ software integration.
 - `POST <BASE_URL>/v1/cards/upsert` with `Authorization: Bearer <API_KEY>` and a card body to push state.
 - If one producer snapshot creates multiple cards, send them together to `POST <BASE_URL>/v1/cards/upsert-batch`. Do not loop over the single-card endpoint.
 - Use a **stable `id`** per card so re-publishing updates instead of duplicating.
-- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`, `breakdown`, `briefing`) that matches the shape of the data you're surfacing.
+- Pick a `template` (`summary`, `progress`, `list`, `action`, `chart`, `history`, `breakdown`, `briefing`, `timeline`) that matches the shape of the data you're surfacing.
 - If the project has a dashboard, admin page, or useful detail page, set `deepLink` so a card tap opens it.
 - Don't add a heavy SDK. A single `fetch` is enough.
 
@@ -243,7 +243,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
 ```json
 {
   "id": "string (stable per logical thing)",
-  "template": "summary | progress | list | action | chart | history | breakdown | briefing",
+  "template": "summary | progress | list | action | chart | history | breakdown | briefing | timeline",
   "title": "string",
   "subtitle": "short string? (one line; truncates rather than wraps; essential context first)",
   "value": "string? (headline already formatted for a person, including any prefix such as $)",
@@ -261,6 +261,7 @@ A **DashboardCard** is one tile on a widget. Wire format:
   "deepLink": "HTTPS URL? (tapping the card opens this destination)",
   "items": "DashboardItem[]? (list rows, history pips, breakdown segments)",
   "chart": "DashboardChart? (drawn by template=chart; ignored by other templates except in a grid cell)",
+  "timeline": "DashboardTimeline? (irregular timestamped events and spans inside a fixed observation window)",
   "briefing": "DashboardBriefing? (ordered plain-text details revealed as room permits)",
   "actions": "ActionDefinition[]? (buttons on any template, not just action; safe-only from widgets)"
 }
@@ -382,6 +383,66 @@ the last 10 and the Lock Screen accessory the last 12; a history longer than
 that loses its oldest entries first. Give each item a `title` (`"#482"`,
 `"Tue"`) and optionally a `value` (`"4m 12s"`) — the app lists them under the
 strip, and the widget uses only the statuses.
+
+**DashboardTimeline** (the events behind a `timeline` card):
+
+```json
+{
+  "startAt": "ISO-8601 beginning of the observation window",
+  "endAt": "ISO-8601 end of the observation window",
+  "lanes": "1-3 entries ({id, label})",
+  "series": "1-4 event kinds ({id, label, icon?})",
+  "entries": "1-60 events ({id, laneId, seriesId, at, endAt?, label?, status?})"
+}
+```
+
+A timeline is for facts that are separated by real elapsed time: motion,
+doors opening, incidents, deploys, charging sessions, manual overrides, or
+machine state changes. `at` alone is an instant; adding `endAt` makes it a
+duration. A chart is different: its numeric points are evenly spaced, and a
+history strip is different again: it preserves outcome order but not time.
+
+Publish one fixed window and replace the whole thing on every upsert. 00Widget
+sorts entries oldest first and never appends history. Events may touch either
+edge and spans may begin before or finish after the window; renderers clip
+them. An entry wholly outside the window is rejected. `laneId` and `seriesId`
+must reference declared unique ids, and a span's `endAt` cannot precede `at`.
+
+Lanes name the subjects being observed; series name what happened. Keep both
+generic and semantic. Do not encode colours, dash patterns, coordinates, or a
+provider-specific UI in the payload. The renderer assigns a stable colour and
+marker from series order and adds non-colour differentiation. Put the current
+conclusion in the card's `value`, `subtitle`, and `status` — older clients treat
+the unknown template as a summary, and the smallest accessories intentionally
+show that fallback rather than an unreadable plot.
+
+```json
+{
+  "id": "home-activity",
+  "template": "timeline",
+  "title": "Home activity",
+  "value": "Likely home",
+  "subtitle": "Last motion 29 min ago",
+  "status": "good",
+  "timeline": {
+    "startAt": "2026-09-15T10:00:00Z",
+    "endAt": "2026-09-15T16:00:00Z",
+    "lanes": [
+      {"id":"override","label":"Override"},
+      {"id":"house","label":"Whole house"}
+    ],
+    "series": [
+      {"id":"motion","label":"Motion","icon":"figure.walk"},
+      {"id":"front-door","label":"Front door","icon":"door.left.hand.open"},
+      {"id":"quiet","label":"Quiet","icon":"moon.zzz.fill"}
+    ],
+    "entries": [
+      {"id":"motion-1","laneId":"house","seriesId":"motion","at":"2026-09-15T10:31:00Z"},
+      {"id":"quiet-1","laneId":"override","seriesId":"quiet","at":"2026-09-15T11:12:00Z","endAt":"2026-09-15T12:25:00Z","label":"No movement"}
+    ]
+  }
+}
+```
 
 A `breakdown` card draws `items` as one bar split into proportional segments —
 where the month's spend went, what is filling the disk, how a vote split. Each
@@ -601,6 +662,10 @@ Card field limits:
 | `chart.ranges` | 2–60 entries; `low <= high`, optional `value` inside the interval |
 | `chart.rangeValueLabel` | 60 chars; requires at least one `ranges[].value` |
 | `chart.min`, `chart.max`, `chart.reference` | finite numbers |
+| `timeline.lanes` | 1–3 entries with unique ids |
+| `timeline.series` | 1–4 entries with unique ids |
+| `timeline.entries` | 1–60 entries with unique ids and ISO-8601 dates |
+| timeline labels | 60 chars |
 | `actions` | 8 buttons |
 
 Dashboard item limits match card text limits: `id` 96 chars, `title` 120 chars, `subtitle` 240 chars, `value` 80 chars, and `unit` 24 chars. An item `deepLink` is an HTTPS URL up to 2048 chars, like a card's.
@@ -689,6 +754,7 @@ Then pick one based on the *shape* of the data, not the domain:
 | A run of pass/fail outcomes           | `history`  | `title`, `items[]` each with a `status`    |
 | A whole split into parts               | `breakdown`| `title`, `items[]` each with an `amount`   |
 | A conclusion with explanatory prose    | `briefing` | `value`, `subtitle`, `briefing.sections[]` |
+| Irregular events or duration spans      | `timeline` | `value`, `subtitle`, `timeline`            |
 
 If unsure, default to `summary` — it degrades gracefully on every widget size.
 

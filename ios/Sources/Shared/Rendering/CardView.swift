@@ -45,7 +45,7 @@ public struct CardView: View {
     public let card: DashboardCard
     public let context: CardRenderContext
     public let density: CardRenderDensity
-    private let showsAppChart: Bool
+    private let showsAppPrimaryVisual: Bool
     /// When true the card stretches its background to fill the height its
     /// parent offers, matching a taller neighbour. Opt-in because the offer
     /// means different things in different parents: in a grid row it is the
@@ -88,7 +88,7 @@ public struct CardView: View {
         card: DashboardCard,
         context: CardRenderContext = .app,
         density: CardRenderDensity = .automatic,
-        showsAppChart: Bool = true,
+        showsAppPrimaryVisual: Bool = true,
         growsToFill: Bool = false,
         appActionIsBusy: ((ActionDefinition) -> Bool)? = nil,
         appActionHandler: ((ActionDefinition) -> Void)? = nil
@@ -96,7 +96,7 @@ public struct CardView: View {
         self.card = card
         self.context = context
         self.density = density
-        self.showsAppChart = showsAppChart
+        self.showsAppPrimaryVisual = showsAppPrimaryVisual
         self.growsToFill = growsToFill
         self.appActionIsBusy = appActionIsBusy
         self.appActionHandler = appActionHandler
@@ -344,6 +344,13 @@ public struct CardView: View {
             case .chart:
                 chartHeadline
                 sparkline(height: 30, lineWidth: 1.8, maxPoints: 32)
+            case .timeline:
+                if dynamicTypeSize.isAccessibilitySize {
+                    eventTimeline(height: 52)
+                } else {
+                    chartHeadline
+                    eventTimeline(height: 38)
+                }
             case .history:
                 chartHeadline
                 statusStrip(limit: 10, height: 12)
@@ -391,6 +398,17 @@ public struct CardView: View {
                 sparkline(height: density == .compact ? 32 : 46)
                 if density != .compact {
                     chartSupplement(legendLimit: 2, labelLimit: 0)
+                }
+            case .timeline:
+                if dynamicTypeSize.isAccessibilitySize {
+                    eventTimeline(height: 44)
+                } else {
+                    chartHeadline
+                    eventTimeline(
+                        height: density == .compact ? 38 : 50,
+                        axisLabelCount: density == .compact ? 0 : 2,
+                        legendLimit: density == .compact ? 0 : 2
+                    )
                 }
             case .history:
                 chartHeadline
@@ -445,6 +463,19 @@ public struct CardView: View {
                     legendLimit: density == .compact ? 2 : 4,
                     labelLimit: density == .compact ? 0 : 5
                 )
+            case .timeline:
+                if dynamicTypeSize.isAccessibilitySize {
+                    eventTimeline(minHeight: 110, lineWidth: 1.5)
+                } else {
+                    chartHeadline
+                    eventTimeline(
+                        minHeight: density == .compact ? 60 : 90,
+                        showsLaneLabels: density != .compact,
+                        axisLabelCount: density == .compact ? 0 : 3,
+                        legendLimit: density == .compact ? 2 : 4,
+                        lineWidth: 1.5
+                    )
+                }
             case .history:
                 chartHeadline
                 statusStrip(limit: 20, height: 16)
@@ -544,7 +575,8 @@ public struct CardView: View {
     private var largePlotFillsHeight: Bool {
         switch context {
         case .widgetLarge, .widgetExtraLarge, .widgetExtraLargePortrait:
-            return card.template == .chart && (card.chart?.isRenderable ?? false)
+            return (card.template == .chart && (card.chart?.isRenderable ?? false))
+                || (card.template == .timeline && (card.timeline?.isRenderable ?? false))
         default:
             return false
         }
@@ -615,6 +647,22 @@ public struct CardView: View {
                         labelLimit: density == .compact ? 0 : 6
                     )
                 }
+                .frame(maxWidth: .infinity)
+            }
+        case .timeline:
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    chartHeadline
+                    actionButtons(max: density == .compact ? 2 : 4)
+                }
+                .frame(maxWidth: 200, alignment: .leading)
+                eventTimeline(
+                    minHeight: density == .compact ? 70 : 110,
+                    showsLaneLabels: density != .compact,
+                    axisLabelCount: density == .compact ? 0 : 3,
+                    legendLimit: density == .compact ? 2 : 4,
+                    lineWidth: 1.5
+                )
                 .frame(maxWidth: .infinity)
             }
         case .history:
@@ -690,6 +738,19 @@ public struct CardView: View {
                     legendLimit: density == .compact ? 2 : 4,
                     labelLimit: density == .compact ? 0 : 6
                 )
+            case .timeline:
+                if dynamicTypeSize.isAccessibilitySize {
+                    eventTimeline(minHeight: 160, lineWidth: 1.5)
+                } else {
+                    chartHeadline
+                    eventTimeline(
+                        minHeight: density == .compact ? 100 : 150,
+                        showsLaneLabels: density != .compact,
+                        axisLabelCount: density == .compact ? 0 : 3,
+                        legendLimit: density == .compact ? 2 : 4,
+                        lineWidth: 1.5
+                    )
+                }
             case .history:
                 chartHeadline
                 statusStrip(limit: 30, height: 18)
@@ -767,6 +828,9 @@ public struct CardView: View {
                     maxPoints: 24
                 )
                 .frame(height: 14)
+            } else if card.template == .timeline, let timeline = card.timeline, timeline.isRenderable {
+                EventTimelineView(timeline: timeline, tint: .primary, lineWidth: 1)
+                    .frame(height: 14)
             } else if let subtitle = card.subtitle {
                 Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -932,12 +996,26 @@ public struct CardView: View {
             if let subtitle = card.subtitle {
                 appSubtitle(subtitle)
             }
-            if showsAppChart {
+            if showsAppPrimaryVisual {
                 sparkline(height: density == .compact ? 56 : 110, lineWidth: 2.5)
                 chartSupplement(
                     legendLimit: density == .compact ? 2 : 4,
                     labelLimit: density == .compact ? 0 : 6,
                     font: .caption
+                )
+            }
+        case .timeline:
+            appValue
+            if let subtitle = card.subtitle {
+                appSubtitle(subtitle)
+            }
+            if showsAppPrimaryVisual {
+                eventTimeline(
+                    height: density == .compact ? 64 : 120,
+                    showsLaneLabels: density != .compact,
+                    axisLabelCount: density == .compact ? 2 : 3,
+                    legendLimit: density == .compact ? 2 : 4,
+                    lineWidth: 1.5
                 )
             }
         case .history:
@@ -1386,6 +1464,50 @@ public struct CardView: View {
             )
             .frame(maxWidth: .infinity)
             .frame(height: height)
+        }
+    }
+
+    @ViewBuilder
+    private func eventTimeline(
+        height: CGFloat,
+        showsLaneLabels: Bool = false,
+        axisLabelCount: Int = 0,
+        legendLimit: Int = 0,
+        lineWidth: CGFloat = 1
+    ) -> some View {
+        if let timeline = card.timeline, timeline.isRenderable {
+            EventTimelineView(
+                timeline: timeline,
+                tint: card.status.tint,
+                showsLaneLabels: showsLaneLabels,
+                axisLabelCount: axisLabelCount,
+                legendLimit: legendLimit,
+                lineWidth: lineWidth
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+        }
+    }
+
+    @ViewBuilder
+    private func eventTimeline(
+        minHeight: CGFloat,
+        showsLaneLabels: Bool = false,
+        axisLabelCount: Int = 0,
+        legendLimit: Int = 0,
+        lineWidth: CGFloat = 1
+    ) -> some View {
+        if let timeline = card.timeline, timeline.isRenderable {
+            EventTimelineView(
+                timeline: timeline,
+                tint: card.status.tint,
+                showsLaneLabels: showsLaneLabels,
+                axisLabelCount: axisLabelCount,
+                legendLimit: legendLimit,
+                lineWidth: lineWidth
+            )
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: minHeight, maxHeight: .infinity)
         }
     }
 

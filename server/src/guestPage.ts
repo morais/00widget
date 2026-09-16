@@ -71,6 +71,14 @@ h1{font-size:1.05rem;font-weight:600;margin:0 0 1.25rem;color:var(--muted)}
 .dot.role-forecast{opacity:.48}.dot.role-baseline{opacity:.55}.dot.role-target{opacity:.72}
 .dot.role-capacity{opacity:.35}.dot.role-remainder{opacity:.45}
 .chart-legend small{opacity:.8}
+.timeline{display:block;width:100%;height:88px;margin:.75rem 0 .25rem}
+.timeline .lane{stroke:var(--muted);stroke-opacity:.25;stroke-width:1}
+.timeline .span{fill:var(--accent);fill-opacity:.24;rx:2px}
+.timeline .point{fill:var(--accent)}
+.timeline .s1{fill:#af52de}.timeline .s2{fill:#30b0c7}.timeline .s3{fill:#ff9f0a}
+.timeline .g{fill:#34c759}.timeline .w{fill:#ff9f0a}.timeline .c{fill:#ff3b30}.timeline .r{fill:#0a84ff}
+.timeline-legend,.timeline-axis{display:flex;gap:.75rem;color:var(--muted);font-size:.75rem;margin:.25rem 0}
+.timeline-legend{flex-wrap:wrap}.timeline-axis{justify-content:space-between}
 .pips{display:flex;gap:3px;margin:.75rem 0}
 .pip{flex:1;height:12px;border-radius:4px;background:var(--muted);opacity:.35}
 .pip.g{background:#34c759;opacity:1}
@@ -274,6 +282,49 @@ const GUEST_SCRIPT = `
     }
     return '<svg class="spark" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" aria-hidden="true">'+categoryBands(ch,n,w,ht)+ref+body+'</svg>'+extra;
   };
+  var timeline=function(t){
+    if(!t||!t.lanes||!t.series||!t.entries||!t.lanes.length||!t.series.length||!t.entries.length){return ''}
+    var start=Date.parse(t.startAt),end=Date.parse(t.endAt);
+    if(!(end>start)){return ''}
+    var w=100,laneHeight=24,ht=laneHeight*t.lanes.length;
+    var laneIndex={},seriesIndex={},i;
+    for(i=0;i<t.lanes.length;i++){laneIndex[t.lanes[i].id]=i}
+    for(i=0;i<t.series.length;i++){seriesIndex[t.series[i].id]=i}
+    var x=function(date){return Math.max(0,Math.min(1,(Date.parse(date)-start)/(end-start)))*w};
+    var body='';
+    for(i=0;i<t.lanes.length;i++){
+      var ly=(i+.5)*laneHeight;
+      body+='<line class="lane" x1="0" x2="'+w+'" y1="'+ly+'" y2="'+ly+'"/>';
+    }
+    var counts=[];for(i=0;i<t.series.length;i++){counts.push(0)}
+    for(i=0;i<t.entries.length;i++){
+      var entry=t.entries[i],li=laneIndex[entry.laneId],si=seriesIndex[entry.seriesId];
+      if(li==null||si==null){continue}
+      counts[si]++;
+      var px=x(entry.at),py=(li+.5)*laneHeight,cls='s'+si+' '+(PIP[entry.status]||'');
+      if(entry.endAt){
+        var ex=x(entry.endAt);
+        body+='<rect class="span '+cls+'" x="'+px.toFixed(2)+'" y="'+(py-6).toFixed(2)+'" width="'+Math.max(.8,ex-px).toFixed(2)+'" height="12"/>';
+      }else if(si%4===0){
+        body+='<circle class="point '+cls+'" cx="'+px.toFixed(2)+'" cy="'+py.toFixed(2)+'" r="2.2"/>';
+      }else if(si%4===1){
+        body+='<rect class="point '+cls+'" x="'+(px-1.8).toFixed(2)+'" y="'+(py-1.8).toFixed(2)+'" width="3.6" height="3.6"/>';
+      }else if(si%4===2){
+        body+='<polygon class="point '+cls+'" points="'+px.toFixed(2)+','+(py-2.5).toFixed(2)+' '+(px+2.4).toFixed(2)+','+(py+2).toFixed(2)+' '+(px-2.4).toFixed(2)+','+(py+2).toFixed(2)+'"/>';
+      }else{
+        body+='<polygon class="point '+cls+'" points="'+px.toFixed(2)+','+(py-2.5).toFixed(2)+' '+(px+2.5).toFixed(2)+','+py.toFixed(2)+' '+px.toFixed(2)+','+(py+2.5).toFixed(2)+' '+(px-2.5).toFixed(2)+','+py.toFixed(2)+'"/>';
+      }
+    }
+    var summary=[];
+    for(i=0;i<t.series.length;i++){if(counts[i]){summary.push(counts[i]+' '+t.series[i].label)}}
+    var legend='<div class="timeline-legend">';
+    for(i=0;i<t.series.length;i++){legend+='<span><i class="dot s'+i+'"></i>'+esc(t.series[i].label)+'</span>'}
+    legend+='</div>';
+    var startLabel=new Date(start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    var endLabel=new Date(end).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    return '<svg class="timeline" viewBox="0 0 '+w+' '+ht+'" preserveAspectRatio="none" role="img" aria-label="'+attr(summary.join(', '))+'">'+body+'</svg>'
+      +'<div class="timeline-axis"><span>'+esc(startLabel)+'</span><span>'+esc(endLabel)+'</span></div>'+legend;
+  };
   // Status names are mapped to fixed class names rather than interpolated:
   // esc() escapes text, not attribute values, and this lands in a class.
   var PIP={good:'g',finished:'g',warning:'w',paused:'w',critical:'c',running:'r'};
@@ -369,10 +420,10 @@ const GUEST_SCRIPT = `
       +'</p>';
   };
   // Text-node serialization escapes &, < and >, and NOT quotes — a text node
-  // never needs them escaped. Every use of esc() below is text context except
-  // the anchor's href, which is why that one is built through the DOM instead:
-  // see link() and the note above it.
+  // never needs them escaped. attr() adds the missing quote escaping for the
+  // small number of values concatenated into double-quoted attributes.
   var esc=function(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
+  var attr=function(s){return esc(s).replace(/"/g,'&quot;')};
   // An item's deepLink is producer-supplied, and https is not the property that
   // matters here — a URL may legitimately contain a double quote, and zod's
   // z.url() stores what it was given rather than a normalised form. Built as an
@@ -411,6 +462,7 @@ const GUEST_SCRIPT = `
       var pf=fraction(c);
       if(pf!=null){h+=progressBar(pf,c.status)}
       if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
+      if(c.template==='timeline'&&c.timeline){h+=timeline(c.timeline)}
       if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
       if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
       if(c.template==='briefing'&&c.briefing){

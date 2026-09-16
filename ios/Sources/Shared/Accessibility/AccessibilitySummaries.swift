@@ -85,6 +85,10 @@ enum CardAccessibilitySummary {
             parts.append(contentsOf: (card.briefing?.sections ?? []).prefix(rowLimit).map { section in
                 [section.label, section.text].compactMap { $0 }.joined(separator: ": ")
             })
+        case .timeline:
+            if let timeline = card.timeline, timeline.isRenderable {
+                parts.append(timeline.accessibilityDescription)
+            }
         case .chart, .progress, .summary, .action:
             break
         }

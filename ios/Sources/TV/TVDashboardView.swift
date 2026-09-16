@@ -868,6 +868,8 @@ struct TVDashboardCardContent: View {
                 }
             case .chart:
                 chartContent
+            case .timeline:
+                timelineContent
             case .history, .breakdown:
                 chartContent
             case .briefing:
@@ -1119,6 +1121,23 @@ struct TVDashboardCardContent: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var timelineContent: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            headline
+            // The timeline itself is this template's supporting evidence.
+            // Keep the producer attribution and exact comparison in the cell;
+            // the descriptive subtitle remains one Select press away in the
+            // detail panel. Drawing all three silently shrinks the whole card.
+            comparisonLine
+        }
+        if let timeline = card.timeline, timeline.isRenderable {
+            EventTimelineView(timeline: timeline, tint: card.status.tint, lineWidth: 2)
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
         }
     }
 

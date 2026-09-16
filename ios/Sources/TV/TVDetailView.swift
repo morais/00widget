@@ -447,6 +447,8 @@ private struct TVCardDetailContent: View {
                 rows(Array((card.items ?? []).prefix(listRowLimit)), ranked: true)
             case .chart:
                 chart
+            case .timeline:
+                timeline
             case .history:
                 history
             case .breakdown:
@@ -568,6 +570,17 @@ private struct TVCardDetailContent: View {
                 growsToFill: true
             )
             .layoutPriority(1)
+        }
+    }
+
+    @ViewBuilder
+    private var timeline: some View {
+        if let timeline = card.timeline, timeline.isRenderable {
+            InspectableTimelineView(
+                timeline: timeline,
+                tint: card.status.tint,
+                plotHeight: 230
+            )
         }
     }
 

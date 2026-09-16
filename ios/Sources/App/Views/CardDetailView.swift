@@ -54,7 +54,7 @@ struct CardDetailView: View {
                     CardView(
                         card: currentCard,
                         context: .app,
-                        showsAppChart: currentCard.chart == nil,
+                        showsAppPrimaryVisual: currentCard.chart == nil && currentCard.timeline == nil,
                         appActionIsBusy: { runningActionIds.contains($0.id) }
                     ) { action in
                         if action.confirm || action.role == .destructive {
@@ -79,6 +79,15 @@ struct CardDetailView: View {
                             unit: currentCard.unit,
                             plotHeight: 180,
                             lineWidth: 3,
+                            growsToFill: true
+                        )
+                    }
+
+                    if let timeline = currentCard.timeline, timeline.isRenderable {
+                        InspectableTimelineView(
+                            timeline: timeline,
+                            tint: currentCard.status.tint,
+                            plotHeight: 180,
                             growsToFill: true
                         )
                     }

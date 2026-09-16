@@ -13,6 +13,8 @@ public enum DashboardTemplate: String, Codable, CaseIterable, Sendable {
     case breakdown
     /// A short conclusion followed by ordered, progressively disclosed prose.
     case briefing
+    /// Irregular timestamped events and spans inside a fixed observation window.
+    case timeline
 }
 
 public struct SharedByInfo: Codable, Hashable, Sendable {
@@ -86,6 +88,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
     public private(set) var deepLink: URL?
     public var items: [DashboardItem]?
     public var chart: DashboardChart?
+    public var timeline: DashboardTimeline?
     public var briefing: DashboardBriefing?
     public var actions: [ActionDefinition]?
     public var sharedBy: SharedByInfo?
@@ -110,6 +113,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         deepLink: URL? = nil,
         items: [DashboardItem]? = nil,
         chart: DashboardChart? = nil,
+        timeline: DashboardTimeline? = nil,
         briefing: DashboardBriefing? = nil,
         actions: [ActionDefinition]? = nil,
         sharedBy: SharedByInfo? = nil
@@ -133,6 +137,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         self.deepLink = ZeroZeroWidgetDeepLinkPolicy.sanitize(deepLink)
         self.items = items
         self.chart = chart
+        self.timeline = timeline
         self.briefing = briefing
         self.actions = actions
         self.sharedBy = sharedBy
@@ -166,6 +171,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
         )
         items = try c.decodeIfPresent([DashboardItem].self, forKey: .items)
         chart = try c.decodeIfPresent(DashboardChart.self, forKey: .chart)
+        timeline = try c.decodeIfPresent(DashboardTimeline.self, forKey: .timeline)
         briefing = try c.decodeIfPresent(DashboardBriefing.self, forKey: .briefing)
         actions = try c.decodeIfPresent([ActionDefinition].self, forKey: .actions)
         sharedBy = try c.decodeIfPresent(SharedByInfo.self, forKey: .sharedBy)
@@ -173,7 +179,7 @@ public struct DashboardCard: Codable, Hashable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, template, title, subtitle, value, unit, status, icon, statusIcon, producer, comparison
-        case priority, progress, updatedAt, staleAfter, deadline, deepLink, items, chart, briefing, actions, sharedBy
+        case priority, progress, updatedAt, staleAfter, deadline, deepLink, items, chart, timeline, briefing, actions, sharedBy
     }
 
     public var isStale: Bool {

@@ -37,6 +37,10 @@ export const FieldLimits = {
   chartSeriesCount: 4,
   chartSeriesLabel: 60,
   chartAxisLabel: 40,
+  timelineLaneCount: 3,
+  timelineSeriesCount: 4,
+  timelineEntryCount: 60,
+  timelineLabel: 60,
   briefingSectionCount: 8,
   briefingLabel: 60,
   briefingText: 500,
@@ -142,6 +146,7 @@ export const DashboardTemplateSchema = z.enum([
   "history",
   "breakdown",
   "briefing",
+  "timeline",
 ]);
 
 export const ActionRoleSchema = z.enum(["normal", "destructive"]);
@@ -669,6 +674,114 @@ export const CardComparisonSchema = z.object({
   ),
 });
 
+export const DashboardTimelineLaneSchema = z.object({
+  id: IdString.describe("Stable lane id, referenced by every timeline entry."),
+  label: z.string().min(1).max(FieldLimits.timelineLabel).describe(
+    "Short label for one observed subject, such as Whole house, Garage, or Production.",
+  ),
+});
+
+export const DashboardTimelineSeriesSchema = z.object({
+  id: IdString.describe("Stable event-series id, referenced by every timeline entry."),
+  label: z.string().min(1).max(FieldLimits.timelineLabel).describe(
+    "Short legend label for this kind of event or span.",
+  ),
+  icon: OptionalIconString.describe(
+    "Optional SF Symbol for the series. Renderers own its colour and marker treatment.",
+  ),
+});
+
+export const DashboardTimelineEntrySchema = z.object({
+  id: IdString.describe("Stable id for this event within the published window."),
+  laneId: IdString.describe("The lane on which this entry is drawn."),
+  seriesId: IdString.describe("The event series this entry belongs to."),
+  at: IsoDate.describe("When the event happened, or when a duration began."),
+  endAt: IsoDate.optional().describe(
+    "When a duration ended. Omit for an instantaneous event.",
+  ),
+  label: z.string().min(1).max(FieldLimits.timelineLabel).optional().describe(
+    "Optional entry-specific detail. The series label already names the event kind.",
+  ),
+  status: DashboardStatusSchema.optional().describe(
+    "Optional health or lifecycle meaning for this entry. Never use it merely to choose a colour.",
+  ),
+});
+
+export const DashboardTimelineSchema = z.object({
+  startAt: IsoDate.describe("Beginning of the fixed observation window."),
+  endAt: IsoDate.describe("End of the fixed observation window."),
+  lanes: z.array(DashboardTimelineLaneSchema)
+    .min(1)
+    .max(FieldLimits.timelineLaneCount)
+    .describe("One to three horizontal subjects, in display order."),
+  series: z.array(DashboardTimelineSeriesSchema)
+    .min(1)
+    .max(FieldLimits.timelineSeriesCount)
+    .describe("One to four event kinds, in stable legend order."),
+  entries: z.array(DashboardTimelineEntrySchema)
+    .min(1)
+    .max(FieldLimits.timelineEntryCount)
+    .describe(
+      "Events and spans in the window. The server stores them oldest first; republish the complete window.",
+    ),
+}).superRefine((timeline, ctx) => {
+  const start = Date.parse(timeline.startAt);
+  const end = Date.parse(timeline.endAt);
+  if (start >= end) {
+    ctx.addIssue({ code: "custom", path: ["endAt"], message: "must be after startAt" });
+  }
+
+  const laneIds = new Set(timeline.lanes.map((lane) => lane.id));
+  const seriesIds = new Set(timeline.series.map((series) => series.id));
+  if (laneIds.size !== timeline.lanes.length) {
+    ctx.addIssue({ code: "custom", path: ["lanes"], message: "lane ids must be unique" });
+  }
+  if (seriesIds.size !== timeline.series.length) {
+    ctx.addIssue({ code: "custom", path: ["series"], message: "series ids must be unique" });
+  }
+
+  const entryIds = new Set<string>();
+  timeline.entries.forEach((entry, index) => {
+    if (entryIds.has(entry.id)) {
+      ctx.addIssue({ code: "custom", path: ["entries", index, "id"], message: "entry ids must be unique" });
+    }
+    entryIds.add(entry.id);
+    if (!laneIds.has(entry.laneId)) {
+      ctx.addIssue({ code: "custom", path: ["entries", index, "laneId"], message: "must reference a declared lane" });
+    }
+    if (!seriesIds.has(entry.seriesId)) {
+      ctx.addIssue({ code: "custom", path: ["entries", index, "seriesId"], message: "must reference a declared series" });
+    }
+
+    const at = Date.parse(entry.at);
+    const entryEnd = entry.endAt === undefined ? at : Date.parse(entry.endAt);
+    if (entryEnd < at) {
+      ctx.addIssue({ code: "custom", path: ["entries", index, "endAt"], message: "must not be before at" });
+    }
+    if (at > end || entryEnd < start) {
+      ctx.addIssue({ code: "custom", path: ["entries", index], message: "must overlap the observation window" });
+    }
+  });
+}).overwrite((timeline) => ({
+  ...timeline,
+  entries: [...timeline.entries].sort((lhs, rhs) => {
+    const difference = Date.parse(lhs.at) - Date.parse(rhs.at);
+    return difference === 0 ? lhs.id.localeCompare(rhs.id) : difference;
+  }),
+}));
+
+function validateCardTimeline(
+  card: { template: string; timeline?: unknown },
+  ctx: z.RefinementCtx,
+): void {
+  if (card.template === "timeline" && card.timeline === undefined) {
+    ctx.addIssue({ code: "custom", path: ["timeline"], message: "timeline template requires timeline data" });
+  }
+  if (card.template !== "timeline" && card.timeline !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["timeline"], message: "timeline data requires template timeline" });
+  }
+}
+
 const DashboardCardFields = {
   id: CardIdString.describe(
     "Stable identity of the thing being shown, reused on every publish so the "
@@ -681,7 +794,8 @@ const DashboardCardFields = {
     + "something filling up; `list` for 2-6 things with their own values; "
     + "`action` for buttons; `chart` for one number moving over time; "
     + "`history` for a run of pass/fail outcomes; `breakdown` for a whole split "
-    + "into parts; `briefing` for a conclusion followed by ordered prose. When "
+    + "into parts; `briefing` for a conclusion followed by ordered prose; "
+    + "`timeline` for irregular timestamped events and duration spans. When "
     + "unsure, `summary` degrades best at every widget size.",
   ),
   title: TitleString.describe(
@@ -780,6 +894,10 @@ const DashboardCardFields = {
     "The series behind a `chart` card. Republish the whole window every time — "
     + "nothing is appended and no history is kept.",
   ),
+  timeline: DashboardTimelineSchema.optional().describe(
+    "Timestamped events and spans behind a `timeline` card. Republish the complete fixed window; "
+    + "the server sorts entries and does not append history.",
+  ),
   briefing: DashboardBriefingSchema.optional().describe(
     "Ordered prose behind a `briefing` card. Keep `value` as the compact "
     + "conclusion and `subtitle` as its first explanation: old clients render "
@@ -798,7 +916,7 @@ export const DashboardCardSchema = z.object({
   actions: z.array(ActionDefinitionSchema).max(FieldLimits.actionCount).optional(),
   // Set only on cards returned via ?include=shared.
   sharedBy: SharedByInfoSchema.optional(),
-});
+}).superRefine(validateCardTimeline);
 
 export const DashboardCardInputSchema = z.object({
   ...DashboardCardFields,
@@ -825,7 +943,7 @@ export const DashboardCardInputSchema = z.object({
     + "scope, which an MCP credential does not have — the operator registers "
     + "webhooks with an API token, from whatever runs each endpoint.",
   ),
-});
+}).superRefine(validateCardTimeline);
 
 export const BatchUpsertCardsSchema = z
   .object({
@@ -1457,6 +1575,7 @@ export type DashboardCardInput = z.infer<typeof DashboardCardInputSchema>;
 export type BatchUpsertCards = z.infer<typeof BatchUpsertCardsSchema>;
 export type DashboardItem = z.infer<typeof DashboardItemSchema>;
 export type DashboardChart = z.infer<typeof DashboardChartSchema>;
+export type DashboardTimeline = z.infer<typeof DashboardTimelineSchema>;
 export type ChartStyle = z.infer<typeof ChartStyleSchema>;
 export type MetricSignal = z.infer<typeof MetricSignalSchema>;
 export type ActionDefinition = z.infer<typeof ActionDefinitionSchema>;

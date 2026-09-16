@@ -587,6 +587,79 @@ public enum SampleDataFactory {
         ]
     }
 
+    /// A dedicated fixture for the timestamped timeline template. Kept out of
+    /// the marketing decks so adding the renderer does not silently change an
+    /// approved screenshot inventory.
+    public static func makeTimelineCard(referenceDate: Date = Date()) -> DashboardCard {
+        let startAt = referenceDate.addingTimeInterval(-6 * 3600)
+        func minute(_ value: Double) -> Date {
+            startAt.addingTimeInterval(value * 60)
+        }
+
+        let motionMinutes: [Double] = [18, 23, 27, 31, 59, 63, 128, 132, 146, 151, 176, 181, 186, 204, 208, 213, 219, 246, 251, 278, 283, 288, 294, 326, 331]
+        var entries = motionMinutes.enumerated().map { index, minuteValue in
+            DashboardTimelineEntry(
+                id: "motion-\(index)",
+                laneId: "house",
+                seriesId: "motion",
+                at: minute(minuteValue)
+            )
+        }
+        entries += [
+            DashboardTimelineEntry(id: "front-1", laneId: "house", seriesId: "front-door", at: minute(12)),
+            DashboardTimelineEntry(id: "front-2", laneId: "house", seriesId: "front-door", at: minute(55)),
+            DashboardTimelineEntry(id: "front-3", laneId: "house", seriesId: "front-door", at: minute(140)),
+            DashboardTimelineEntry(id: "front-4", laneId: "house", seriesId: "front-door", at: minute(144)),
+            DashboardTimelineEntry(id: "garage-1", laneId: "house", seriesId: "garage", at: minute(68)),
+            DashboardTimelineEntry(id: "garage-2", laneId: "house", seriesId: "garage", at: minute(90)),
+            DashboardTimelineEntry(id: "garage-3", laneId: "house", seriesId: "garage", at: minute(236)),
+            DashboardTimelineEntry(id: "garage-4", laneId: "house", seriesId: "garage", at: minute(338)),
+            DashboardTimelineEntry(
+                id: "quiet-1",
+                laneId: "override",
+                seriesId: "quiet",
+                at: minute(68),
+                endAt: minute(140),
+                label: "No movement for 15+ min"
+            ),
+            DashboardTimelineEntry(
+                id: "manual-home",
+                laneId: "override",
+                seriesId: "quiet",
+                at: minute(357),
+                label: "Marked home manually",
+                status: .good
+            ),
+        ]
+
+        return DashboardCard(
+            id: sampleId("home-activity"),
+            template: .timeline,
+            title: "Home activity",
+            subtitle: "Last motion 29 min ago",
+            value: "Likely home",
+            status: .good,
+            icon: "house.and.flag.fill",
+            producer: CardProducer(label: "Presence Agent", icon: "sensor.fill"),
+            updatedAt: referenceDate,
+            timeline: DashboardTimeline(
+                startAt: startAt,
+                endAt: referenceDate,
+                lanes: [
+                    DashboardTimelineLane(id: "override", label: "Override"),
+                    DashboardTimelineLane(id: "house", label: "Whole house"),
+                ],
+                series: [
+                    DashboardTimelineSeries(id: "motion", label: "Motion", icon: "figure.walk"),
+                    DashboardTimelineSeries(id: "front-door", label: "Front door", icon: "door.left.hand.open"),
+                    DashboardTimelineSeries(id: "garage", label: "Garage", icon: "door.garage.open"),
+                    DashboardTimelineSeries(id: "quiet", label: "Quiet / override", icon: "moon.zzz.fill"),
+                ],
+                entries: entries
+            )
+        )
+    }
+
 
     #if ZW_SCREENSHOTS
     /// The four mutually exclusive compact-trailing renderers. The simulator

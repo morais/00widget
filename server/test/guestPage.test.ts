@@ -124,6 +124,44 @@ describe("guest page — card fields it must not silently drop", () => {
     expect(h).toContain('<span class="cmp-label">vs Monday</span>');
   });
 
+  it("renders timestamped timeline events, spans, labels, and an accessible summary", async () => {
+    const h = await renderGuestCard(card({
+      template: "timeline",
+      timeline: {
+        startAt: "2026-09-15T10:00:00Z",
+        endAt: "2026-09-15T12:00:00Z",
+        lanes: [{ id: "house", label: "Whole house" }],
+        series: [
+          { id: "motion", label: "Motion" },
+          { id: "door", label: "Front door" },
+        ],
+        entries: [
+          { id: "m", laneId: "house", seriesId: "motion", at: "2026-09-15T10:15:00Z" },
+          { id: "d", laneId: "house", seriesId: "door", at: "2026-09-15T10:30:00Z", endAt: "2026-09-15T11:00:00Z" },
+        ],
+      },
+    }));
+    expect(h).toContain('class="timeline"');
+    expect(h).toContain('class="span s1');
+    expect(h).toContain('aria-label="1 Motion, 1 Front door"');
+    expect(h).toContain("Front door");
+  });
+
+  it("escapes timeline series labels in text and accessibility attributes", async () => {
+    const h = await renderGuestCard(card({
+      template: "timeline",
+      timeline: {
+        startAt: "2026-09-15T10:00:00Z",
+        endAt: "2026-09-15T12:00:00Z",
+        lanes: [{ id: "house", label: "Whole house" }],
+        series: [{ id: "motion", label: '\" onload=\"alert(1)' }],
+        entries: [{ id: "m", laneId: "house", seriesId: "motion", at: "2026-09-15T10:15:00Z" }],
+      },
+    }));
+    expect(h).not.toContain('aria-label="1 \" onload=');
+    expect(h).toContain("&quot; onload=&quot;alert(1)");
+  });
+
   it("colours a comparison by meaning rather than by sign", async () => {
     const h = await renderGuestCard(
       card({ value: "31", comparison: { value: "+18", label: "vs Monday", signal: "unfavorable" } }),

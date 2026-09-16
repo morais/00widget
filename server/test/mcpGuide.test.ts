@@ -24,12 +24,15 @@ describe("MCP integration guide", () => {
   /// shipped fields undocumented, which is the failure this file exists to
   /// prevent — an agent cannot publish what the guide never mentions, and
   /// "Needs you" has no field to discover from the schema at all.
+  /// Raised again for the timeline template: its lane/series/event contract,
+  /// fixed-window semantics, clipping rules, and compatibility guidance add
+  /// about 2.6k characters to every card-bearing section.
   const BUDGETS: Record<McpGuideSection, number> = {
-    essentials: 70_000,
-    cards: 38_000,
+    essentials: 73_000,
+    cards: 41_000,
     "live-activities": 34_000,
     actions: 9_000,
-    everything: 105_000,
+    everything: 108_000,
   };
 
   it.each(sections)("%s stays inside its context budget", (section) => {

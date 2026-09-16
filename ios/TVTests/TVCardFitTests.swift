@@ -49,7 +49,7 @@ struct TVCardFitTests {
 
     @Test("No sample card draws outside the cell it is given")
     func sampleCardsStayInsideTheirBox() {
-        for card in SampleDataFactory.makeCards() {
+        for card in SampleDataFactory.makeCards() + [SampleDataFactory.makeTimelineCard()] {
             guard let ink = TVRenderProbe.inkBounds(
                 of: boxedCard(card),
                 canvas: CGSize(width: cardWidth, height: TVCardMetrics.height + margin * 2)
@@ -95,7 +95,9 @@ struct TVCardFitTests {
     /// were judged on rather than against this number — see `shrinkAllowance`.
     @Test("No sample card's content has to shrink to fit its cell")
     func sampleCardsFitWithoutShrinking() {
-        for card in SampleDataFactory.makeCards() + SampleDataFactory.makeHomeEnergyCards() {
+        for card in SampleDataFactory.makeCards()
+            + SampleDataFactory.makeHomeEnergyCards()
+            + [SampleDataFactory.makeTimelineCard()] {
             let ideal = TVRenderProbe.height(
                 of: TVDashboardCardContent(card: card),
                 width: contentWidth

@@ -25,6 +25,7 @@ chmod +x *.sh
 - `upsert-tariff-periods.sh` — category-level semantic signals for favorable, caution, and unfavorable price periods.
 - `upsert-weather-range.sh` — floating min/max bars with an optional value marker and an old-client fallback line.
 - `upsert-grid-delta.sh` — a `chart` card in `delta` style: signed bars around a zero rule.
+- `upsert-home-timeline.sh` — a `timeline` card combining irregular point events and a duration span across two lanes.
 - `upsert-ci-history.sh` — a `history` card drawing the last 10 CI runs as status pips.
 - `upsert-disk-breakdown.sh` — a `breakdown` card splitting one bar by item `amount`.
 - `upsert-release-briefing.sh` — a text-first `briefing` whose ordered sections reveal progressively on larger surfaces.

@@ -50,6 +50,7 @@ struct CardGridCell: View {
     /// value, if the card carries what one needs.
     enum InlineVisual {
         case plot(DashboardChart)
+        case timeline(DashboardTimeline)
         case history([DashboardItem])
         case breakdown([DashboardItem])
         case progress(Double)
@@ -59,6 +60,7 @@ struct CardGridCell: View {
         /// above them.
         var fillsBand: Bool {
             if case .plot = self { return true }
+            if case .timeline = self { return true }
             return false
         }
     }
@@ -127,6 +129,7 @@ struct CardGridCell: View {
     private var inlineVisual: InlineVisual? {
         guard style.showsInlineVisual else { return nil }
         if let chart = card.chart, chart.isRenderable { return .plot(chart) }
+        if let timeline = card.timeline, timeline.isRenderable { return .timeline(timeline) }
         if let items = card.items, !items.isEmpty {
             switch card.template {
             case .history: return .history(items)
@@ -149,6 +152,9 @@ struct CardGridCell: View {
                 maxPoints: style.plotPointLimit
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .timeline(let timeline):
+            EventTimelineView(timeline: timeline, tint: card.status.tint, lineWidth: 1)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .history(let items):
             StatusStripView(items: items, limit: style.historyLimit, height: style.barHeight)
         case .breakdown(let items):

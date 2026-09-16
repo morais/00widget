@@ -207,6 +207,89 @@ describe("DashboardCardSchema", () => {
     if (parsed.success) expect(parsed.data.briefing?.sections).toHaveLength(2);
   });
 
+  it("accepts and chronologically canonicalizes a timestamped timeline", () => {
+    const parsed = DashboardCardInputSchema.safeParse({
+      id: "home-activity",
+      template: "timeline",
+      title: "Home activity",
+      value: "Likely home",
+      timeline: {
+        startAt: "2026-09-15T10:00:00Z",
+        endAt: "2026-09-15T16:00:00Z",
+        lanes: [
+          { id: "override", label: "Override" },
+          { id: "house", label: "Whole house" },
+        ],
+        series: [
+          { id: "motion", label: "Motion", icon: "figure.walk.motion" },
+          { id: "door", label: "Front door" },
+        ],
+        entries: [
+          { id: "later", laneId: "house", seriesId: "motion", at: "2026-09-15T14:00:00Z" },
+          {
+            id: "quiet",
+            laneId: "override",
+            seriesId: "door",
+            at: "2026-09-15T11:00:00Z",
+            endAt: "2026-09-15T12:30:00Z",
+            label: "No movement",
+          },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.timeline?.entries.map((entry) => entry.id)).toEqual(["quiet", "later"]);
+  });
+
+  it("keeps the timeline field paired with the timeline template", () => {
+    const timeline = {
+      startAt: "2026-09-15T10:00:00Z",
+      endAt: "2026-09-15T11:00:00Z",
+      lanes: [{ id: "main", label: "Main" }],
+      series: [{ id: "event", label: "Event" }],
+      entries: [{ id: "1", laneId: "main", seriesId: "event", at: "2026-09-15T10:30:00Z" }],
+    };
+    expect(DashboardCardInputSchema.safeParse({
+      id: "missing", template: "timeline", title: "Missing",
+    }).success).toBe(false);
+    expect(DashboardCardInputSchema.safeParse({
+      id: "wrong", template: "summary", title: "Wrong", timeline,
+    }).success).toBe(false);
+  });
+
+  it("rejects invalid timeline windows, references, spans, and out-of-window events", () => {
+    const card = (timeline: Record<string, unknown>) => ({
+      id: "timeline", template: "timeline" as const, title: "Timeline", timeline,
+    });
+    const base = {
+      startAt: "2026-09-15T10:00:00Z",
+      endAt: "2026-09-15T11:00:00Z",
+      lanes: [{ id: "main", label: "Main" }],
+      series: [{ id: "event", label: "Event" }],
+    };
+    expect(DashboardCardInputSchema.safeParse(card({
+      ...base,
+      endAt: base.startAt,
+      entries: [{ id: "1", laneId: "main", seriesId: "event", at: "2026-09-15T10:30:00Z" }],
+    }))).toMatchObject({ success: false });
+    expect(DashboardCardInputSchema.safeParse(card({
+      ...base,
+      entries: [{ id: "1", laneId: "missing", seriesId: "event", at: "2026-09-15T10:30:00Z" }],
+    }))).toMatchObject({ success: false });
+    expect(DashboardCardInputSchema.safeParse(card({
+      ...base,
+      entries: [{ id: "1", laneId: "main", seriesId: "missing", at: "2026-09-15T10:30:00Z" }],
+    }))).toMatchObject({ success: false });
+    expect(DashboardCardInputSchema.safeParse(card({
+      ...base,
+      entries: [{ id: "1", laneId: "main", seriesId: "event", at: "2026-09-15T10:30:00Z", endAt: "2026-09-15T10:29:00Z" }],
+    }))).toMatchObject({ success: false });
+    expect(DashboardCardInputSchema.safeParse(card({
+      ...base,
+      entries: [{ id: "1", laneId: "main", seriesId: "event", at: "2026-09-15T12:00:00Z" }],
+    }))).toMatchObject({ success: false });
+  });
+
   it("derives legacy totals for labeled multi-series bars", () => {
     const parsed = DashboardCardInputSchema.safeParse({
       id: "energy",
