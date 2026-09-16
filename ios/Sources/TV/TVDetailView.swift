@@ -130,22 +130,33 @@ struct TVDetailView: View {
                 // This also makes the lower readings reachable instead of
                 // trying to predict how many rows every future template can
                 // afford. The header and action footer remain fixed chrome.
-                ScrollView(.vertical) {
-                    HStack(alignment: .top, spacing: 64) {
-                        content(for: subject)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                GeometryReader { viewport in
+                    ScrollView(.vertical) {
+                        HStack(alignment: .top, spacing: 64) {
+                            content(for: subject)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    minHeight: max(0, viewport.size.height - 16),
+                                    alignment: .topLeading
+                                )
 
-                        if let url = subject.deepLink {
-                            TVQRPanel(url: url)
+                            if let url = subject.deepLink {
+                                TVQRPanel(url: url)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        // Focus rings otherwise meet the viewport edge exactly
+                        // and get clipped while the chart is being inspected.
+                        .padding(.vertical, 8)
+                        // The fixed header is a separate focus section. Without
+                        // a matching section here, geometry alone can fail to
+                        // find the chart below a trailing Close button — exactly
+                        // the dead end seen on a physical Siri Remote.
+                        .focusSection()
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    // Focus rings otherwise meet the viewport edge exactly
-                    // and get clipped while the chart is being inspected.
-                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("detail-scroll")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .accessibilityIdentifier("detail-scroll")
 
                 footer(for: subject)
             }
@@ -553,8 +564,10 @@ private struct TVCardDetailContent: View {
                 title: card.title,
                 unit: card.unit,
                 plotHeight: 230,
-                lineWidth: 6
+                lineWidth: 6,
+                growsToFill: true
             )
+            .layoutPriority(1)
         }
     }
 

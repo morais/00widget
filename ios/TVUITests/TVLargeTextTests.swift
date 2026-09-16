@@ -111,6 +111,16 @@ final class TVLargeTextTests: XCTestCase {
         XCTAssertTrue(inspector.waitForExistence(timeout: 10))
         XCTAssertTrue(scroll.waitForExistence(timeout: 10))
 
+        for _ in 0..<3 where !close.hasFocus {
+            XCUIRemote.shared.press(.up)
+        }
+        XCTAssertTrue(close.hasFocus, "The Close button could not take focus from the detail body.")
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(containing: "Chart values", in: app),
+            "Down from Close did not enter the scrollable chart content; found: \(focusedLabel(in: app))"
+        )
+
         let screen = app.frame
         // The covered dashboard retains its own Home energy node briefly, so
         // choose the upper copy: the detail header is the one nearest the
