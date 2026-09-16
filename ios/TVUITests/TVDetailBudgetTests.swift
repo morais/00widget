@@ -56,20 +56,25 @@ final class TVDetailBudgetTests: XCTestCase {
         }
 
         // A detail without a QR still needs a route out of the fixed Close
-        // button and into its scrollable rows. Before static rows joined the
-        // focus system, Down was a dead end and the lower rows could never be
-        // brought on screen with the remote.
+        // button, through its metric, and into its scrollable rows. The metric
+        // is deliberately a waypoint so a viewer can navigate back to it after
+        // the middle section has scrolled it off screen.
         for _ in 0..<4 where !close.hasFocus {
             XCUIRemote.shared.press(.up)
         }
         XCTAssertTrue(close.hasFocus, "Expected Close to accept focus before testing Down navigation.")
         XCUIRemote.shared.press(.down)
         XCTAssertTrue(
+            waitForFocus(containing: "8 checks", in: app),
+            "Down from Close did not reach the detail metric; found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
             waitForFocus(
                 containingAny: ["Edge cache", "Origin", "Database", "Queue", "Webhooks", "Search", "Billing", "Auth"],
                 in: app
             ),
-            "Down from Close did not enter the scrollable detail rows; found: \(focusedLabel(in: app))"
+            "Down from the metric did not enter the scrollable detail rows; found: \(focusedLabel(in: app))"
         )
     }
 

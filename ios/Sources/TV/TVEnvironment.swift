@@ -156,6 +156,27 @@ final class TVEnvironment: ObservableObject {
                     actions: [ActionDefinition(id: "inspect", label: "Inspect layout")]
                 )
             ]
+        } else if screenshotSection == "detail-timeline-action" {
+            // The second physical-TV report combined every focus boundary in
+            // the panel: headline, interactive timeline, QR, and footer
+            // action. Keep that exact shape as a navigation regression fixture.
+            let sample = SampleDataFactory.makeTimelineCard()
+            self.cards = [
+                DashboardCard(
+                    id: SampleDataFactory.sampleId("tv-detail-timeline-action"),
+                    template: .timeline,
+                    title: "House",
+                    subtitle: "Roller Optimizer",
+                    value: "Home",
+                    status: .running,
+                    icon: "house.fill",
+                    producer: sample.producer,
+                    updatedAt: Date(),
+                    deepLink: URL(string: "https://api.00widget.com/app/g#timeline-layout-fixture"),
+                    timeline: sample.timeline,
+                    actions: [ActionDefinition(id: "empty", label: "Mark empty")]
+                )
+            ]
         } else if screenshotSection == "insights" {
             let insightIds = ["trials", "support", "agent-runs"].map(SampleDataFactory.sampleId)
             self.cards = insightIds.compactMap { id in samples.first { $0.id == id } }
@@ -171,7 +192,9 @@ final class TVEnvironment: ObservableObject {
         } else {
             self.cards = samples
         }
-        self.liveActivities = ["widgets", "typography", "detail-chart-overflow"].contains(screenshotSection)
+        self.liveActivities = [
+            "widgets", "typography", "detail-chart-overflow", "detail-timeline-action",
+        ].contains(screenshotSection)
             ? []
             : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]
         self.hasCompletedInitialSync = true

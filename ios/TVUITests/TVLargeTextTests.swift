@@ -91,7 +91,7 @@ final class TVLargeTextTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--screenshot-section", "detail-chart-overflow",
-            "--large-text-preview",
+            "--large-text-preview", "accessibility5",
         ]
         app.launch()
 
@@ -109,11 +109,13 @@ final class TVLargeTextTests: XCTestCase {
         let reference = app.descendants(matching: .any)["chart-legend-reference"]
         let scroll = app.scrollViews["detail-scroll"]
         let qrCode = app.otherElements["detail-qr-panel"]
+        let headline = app.descendants(matching: .any)["detail-headline"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         XCTAssertTrue(inspector.waitForExistence(timeout: 10))
         XCTAssertTrue(reference.waitForExistence(timeout: 10))
         XCTAssertTrue(scroll.waitForExistence(timeout: 10))
         XCTAssertTrue(qrCode.waitForExistence(timeout: 10))
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
 
         for _ in 0..<3 where !close.hasFocus {
             XCUIRemote.shared.press(.up)
@@ -130,12 +132,25 @@ final class TVLargeTextTests: XCTestCase {
             screen.contains(qrCode.frame),
             "The QR code is clipped by the initial detail viewport: \(qrCode.frame)."
         )
+        XCTAssertGreaterThan(
+            qrCode.frame.height,
+            260,
+            "The QR panel accepted a compressed height proposal: \(qrCode.frame)."
+        )
 
         XCUIRemote.shared.press(.left)
         XCTAssertTrue(
             waitForFocus(containing: "Chart values", in: app),
             "Left from the QR panel did not enter the chart; found: \(focusedLabel(in: app))"
         )
+
+        XCUIRemote.shared.press(.up)
+        XCTAssertTrue(
+            waitForFocus(on: headline),
+            "Up from the chart did not return to the headline metric; found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(waitForFocus(containing: "Chart values", in: app))
 
         XCUIRemote.shared.press(.down)
         let legendLabels = ["Home", "Battery", "Export", "Total", "Grid limit"]
@@ -174,6 +189,84 @@ final class TVLargeTextTests: XCTestCase {
             screen.contains(reference.frame),
             "Focusing the chart's final legend row did not scroll it into view: \(reference.frame)."
         )
+
+        for _ in 0..<8 where !headline.hasFocus {
+            XCUIRemote.shared.press(.up)
+        }
+        XCTAssertTrue(
+            headline.hasFocus,
+            "The remote could not navigate back from the legend to the headline metric."
+        )
+    }
+
+    func testTimelineActionDetailHasOneWorkingFocusPath() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--screenshot-section", "detail-timeline-action",
+            "--large-text-preview", "accessibility5",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["House"].waitForExistence(timeout: 30))
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(containing: "House", in: app),
+            "Expected the timeline fixture to take focus, found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.select)
+
+        let close = app.buttons["Close"]
+        let qrCode = app.otherElements["detail-qr-panel"]
+        let headline = app.descendants(matching: .any)["detail-headline"]
+        let plot = app.descendants(matching: .any)["timeline-plot"]
+        let action = app.buttons["Mark empty"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertTrue(qrCode.waitForExistence(timeout: 10))
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
+        XCTAssertTrue(plot.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+
+        for _ in 0..<5 where !close.hasFocus {
+            XCUIRemote.shared.press(.up)
+        }
+        XCTAssertTrue(close.hasFocus)
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(waitForFocus(containing: "Scan with phone", in: app))
+        XCUIRemote.shared.press(.left)
+        XCTAssertTrue(
+            waitForFocus(on: headline),
+            "Left from QR did not reach the metric; found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(on: plot),
+            "Down from the metric did not reach the timeline; found: \(focusedLabel(in: app))"
+        )
+
+        let initialValue = plot.value as? String
+        XCUIRemote.shared.press(.left)
+        XCTAssertTrue(
+            waitForValueChange(of: plot, from: initialValue),
+            "Left did not change the selected timeline event."
+        )
+
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(on: action),
+            "Down from the timeline did not reach its action; found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.up)
+        XCTAssertTrue(waitForFocus(on: plot))
+        XCUIRemote.shared.press(.up)
+        XCTAssertTrue(
+            waitForFocus(on: headline),
+            "Up through the action and timeline did not return to the metric."
+        )
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "tv-large-text-timeline-action-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func waitForFocus(
@@ -200,6 +293,31 @@ final class TVLargeTextTests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.1)
         }
         return texts.contains(where: { focusedLabel(in: app).contains($0) })
+    }
+
+    private func waitForFocus(
+        on element: XCUIElement,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.hasFocus { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return element.hasFocus
+    }
+
+    private func waitForValueChange(
+        of element: XCUIElement,
+        from initialValue: String?,
+        timeout: TimeInterval = 10
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.value as? String != initialValue { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return element.value as? String != initialValue
     }
 
     private func focusedLabel(in app: XCUIApplication) -> String {

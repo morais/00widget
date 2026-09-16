@@ -35,7 +35,7 @@ public struct InspectableTimelineView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+        let content = VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             GeometryReader { proxy in
                 interactivePlot(width: proxy.size.width)
             }
@@ -48,6 +48,17 @@ public struct InspectableTimelineView: View {
         .onChange(of: timeline.entries.count) { _, count in
             selectedIndex = min(max(0, selectedIndex), max(0, count - 1))
         }
+
+        #if os(tvOS)
+        // Keep the plot as the actual focus target. Ignoring its children at
+        // this level turns the whole timeline into a second, overlapping
+        // focus element; the focus engine can then highlight the container
+        // while left/right commands never reach `interactivePlot`.
+        content
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("timeline-inspector")
+        #else
+        content
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("timeline-inspector")
         .accessibilityLabel("Timeline events")
@@ -59,6 +70,7 @@ public struct InspectableTimelineView: View {
             @unknown default: break
             }
         }
+        #endif
     }
 
     @ViewBuilder
@@ -94,6 +106,17 @@ public struct InspectableTimelineView: View {
                 case .left: move(by: -1)
                 case .right: move(by: 1)
                 default: break
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("timeline-plot")
+            .accessibilityLabel("Timeline events")
+            .accessibilityValue(selectedEntry.map(accessibilityDescription) ?? "No timeline events")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: move(by: 1)
+                case .decrement: move(by: -1)
+                @unknown default: break
                 }
             }
         #else

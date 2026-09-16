@@ -213,7 +213,7 @@ public struct InspectableChartView: View {
                 selectionHeader(label: snapshot.label, signal: snapshot.signal)
             }
 
-            if usesFlowingSelectionLayout {
+            if usesFlowingSelectionLayout, readings.count > 1 {
                 Grid(
                     alignment: .leading,
                     horizontalSpacing: compact ? 12 : 18,
@@ -225,6 +225,7 @@ public struct InspectableChartView: View {
                             .gridCellColumns(2)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 readingRows(readings)
                 if let reference {
@@ -233,6 +234,7 @@ public struct InspectableChartView: View {
             }
         }
         .padding(compact ? 10 : 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
                 .fill(
@@ -580,6 +582,7 @@ private struct ChartLegendFocus: ViewModifier {
     func body(content: Content) -> some View {
         #if os(tvOS)
         content
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .focusable()
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(identifier)

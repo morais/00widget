@@ -398,6 +398,7 @@ private struct TVCardDetailContent: View {
     let card: DashboardCard
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var headlineIsFocused: Bool
 
     /// What the grid cell had no room for. The dashboard draws three list rows
     /// and fourteen history pips because nine cards share the screen; one card
@@ -528,6 +529,26 @@ private struct TVCardDetailContent: View {
                     .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 3)
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        // The headline is a useful remote waypoint, not an action. Without a
+        // focus target above the plot, a viewer can move down into a chart or
+        // footer button but the focus engine has nowhere in the scroll view
+        // to return to, so the metric itself stays scrolled offscreen.
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("detail-headline")
+        .focusable(headlineHasContent)
+        .focused($headlineIsFocused)
+        .focusEffectDisabled()
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.white.opacity(headlineIsFocused ? 0.85 : 0), lineWidth: 4)
+        }
+    }
+
+    private var headlineHasContent: Bool {
+        card.value != nil || card.unit != nil || card.comparison != nil || card.subtitle != nil
     }
 
     private var briefing: some View {
@@ -728,6 +749,7 @@ private struct TVDetailRow: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) {
             if let fraction {
                 RankedRowBar(fraction: fraction, tint: RankedRows.tint(for: item, base: tint))
@@ -920,10 +942,13 @@ struct TVQRPanel: View {
 
     var body: some View {
         let largeText = dynamicTypeSize.usesTVLargeTextLayout
-        let imageSize: CGFloat = largeText ? 260 : 360
-        let imagePadding: CGFloat = largeText ? 18 : 28
+        let imageSize: CGFloat = largeText ? 200 : 360
+        let imagePadding: CGFloat = largeText ? 14 : 28
+        let instructionLayout = largeText
+            ? AnyLayout(HStackLayout(spacing: 10))
+            : AnyLayout(VStackLayout(spacing: 10))
 
-        VStack(spacing: 20) {
+        VStack(spacing: largeText ? 12 : 20) {
             if let image = TVQRCode.image(for: url.absoluteString) {
                 image
                     .interpolation(.none)
@@ -933,6 +958,10 @@ struct TVQRPanel: View {
                     .frame(width: imageSize, height: imageSize)
                     .background(.white)
                     .clipShape(RoundedRectangle(cornerRadius: largeText ? 20 : 28, style: .continuous))
+                    // A footer action reduces the middle viewport. The QR is
+                    // allowed to scroll in that case, never to accept the
+                    // compressed height proposal that turns it into a strip.
+                    .fixedSize(horizontal: true, vertical: true)
                     .accessibilityIdentifier("detail-qr")
                     .accessibilityLabel("QR code for \(url.absoluteString)")
             } else {
@@ -947,19 +976,21 @@ struct TVQRPanel: View {
             // Icon above rather than beside: an inline `Label` leaves the text
             // about 300 points wide inside this column, which wraps "Scan to
             // open on your phone" onto three ragged lines.
-            VStack(spacing: 10) {
+            instructionLayout {
                 Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                    .tvScaledSystemFont(size: 40, relativeTo: .title3)
+                    .tvScaledSystemFont(size: largeText ? 32 : 40, relativeTo: .title3)
                     .accessibilityHidden(true)
-                Text(largeText ? "Scan with phone" : "Scan to open on your phone")
+                Text(largeText ? "Scan" : "Scan to open on your phone")
                     .multilineTextAlignment(.center)
-                    .tvReadableText(standardLineLimit: 2, largeTextLineLimit: 2)
+                    .tvReadableText(standardLineLimit: 2, largeTextLineLimit: largeText ? 1 : 2)
             }
             .font(.title3)
             .foregroundStyle(.secondary)
         }
         .frame(width: imageSize)
         .padding(12)
+        .fixedSize(horizontal: true, vertical: true)
+        .layoutPriority(2)
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(.white.opacity(isFocused ? 0.85 : 0), lineWidth: 4)
@@ -969,6 +1000,7 @@ struct TVQRPanel: View {
         // then enter the chart, whose legend is the next Down stop.
         .focusable()
         .focused($isFocused)
+        .focusEffectDisabled()
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("detail-qr-panel")
         .accessibilityLabel("Scan with phone")
