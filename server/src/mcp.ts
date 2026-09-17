@@ -386,6 +386,14 @@ const DashboardOutput = z.object({
   activities: z.array(LiveActivitySessionSchema),
 });
 const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchema) });
+const SubscriptionStateOutputSchema = z.object({
+  status: z.enum(["active", "trial", "grace", "expired", "revoked", "none"]),
+  active: z.boolean(),
+  productId: z.string().optional(),
+  expiresAt: z.string().optional(),
+  autoRenew: z.boolean().optional(),
+  environment: z.string().optional(),
+});
 /// Rendering advice on a request that succeeded. Never an error, never a reason
 /// to retry — but the only way a producer learns that the Lock Screen it cannot
 /// see is truncating its title or drawing no progress bar.
@@ -800,7 +808,7 @@ const TOOLS: McpTool[] = [
       subscription: z.object({
         enabled: z.boolean(),
         required: z.boolean().describe("Whether writes are refused without an active subscription."),
-        state: z.unknown().optional(),
+        state: SubscriptionStateOutputSchema.optional(),
       }),
       rateLimits: z.array(z.object({
         label: z.string(),
@@ -910,7 +918,7 @@ export const STRICT_TOOL_OUTPUT_SCHEMAS: Record<string, unknown> = Object.fromEn
   TOOLS.map((tool) => {
     const converted = z.toJSONSchema(tool.outputSchema, { io: "output" }) as Record<string, unknown>;
     delete converted.$schema;
-    return [tool.name, converted];
+    return [tool.name, portableTypeUnions(converted)];
   }),
 );
 
@@ -938,7 +946,7 @@ function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   // MCP wants a bare JSON Schema object; the $schema declaration is noise that
   // some clients reject outright.
   delete converted.$schema;
-  return converted;
+  return portableTypeUnions(converted) as Record<string, unknown>;
 }
 
 /// `io: "output"` rather than "input": a field carrying a zod default is
@@ -964,7 +972,30 @@ function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
 function toolOutputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
   delete converted.$schema;
-  return openObjects(converted);
+  return openObjects(portableTypeUnions(converted));
+}
+
+/// JSON Schema permits `type` to be an array, and Zod uses that compact form
+/// for nullable scalars. Some MCP clients implement the older, narrower shape
+/// where `type` must be one string, then reject the whole tool descriptor or
+/// silently discard the nullable constraint. `anyOf` expresses the identical
+/// contract without relying on array-valued `type` support.
+function portableTypeUnions(node: unknown): unknown {
+  if (!node || typeof node !== "object") return node;
+  if (Array.isArray(node)) {
+    return node.map(portableTypeUnions);
+  }
+
+  const schema = Object.fromEntries(
+    Object.entries(node as Record<string, unknown>)
+      .map(([key, value]) => [key, portableTypeUnions(value)]),
+  );
+  if (Array.isArray(schema.type) && schema.type.every((type) => typeof type === "string")) {
+    const types = schema.type as string[];
+    delete schema.type;
+    schema.anyOf = types.map((type) => ({ type }));
+  }
+  return schema;
 }
 
 /// Recursively allows unknown properties on every object in a JSON Schema and

@@ -590,6 +590,57 @@ describe("tool input schemas", () => {
     expect(delivery?.required).not.toContain("widgetReloadIntervalSeconds");
   });
 
+  it("publishes portable nullable output schemas", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as Array<{ name: string; outputSchema?: unknown }>;
+
+    const arrayTypes: string[] = [];
+    const findArrayTypes = (node: unknown, path: string): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach((child, index) => findArrayTypes(child, `${path}[${index}]`));
+        return;
+      }
+      const schema = node as Record<string, unknown>;
+      if (Array.isArray(schema.type)) arrayTypes.push(`${path}.type`);
+      for (const [key, value] of Object.entries(schema)) {
+        findArrayTypes(value, `${path}.${key}`);
+      }
+    };
+    for (const tool of tools) findArrayTypes(tool.outputSchema, tool.name);
+
+    expect(arrayTypes).toEqual([]);
+  });
+
+  it("describes the get_status subscription state", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const body = (await res.json()) as JsonRpcResult;
+    const tools = body.result?.tools as Array<{
+      name: string;
+      outputSchema?: {
+        properties?: Record<string, {
+          properties?: Record<string, {
+            type?: string;
+            properties?: Record<string, unknown>;
+            required?: string[];
+          }>;
+        }>;
+      };
+    }>;
+    const state = tools.find((tool) => tool.name === "get_status")
+      ?.outputSchema?.properties?.subscription?.properties?.state;
+
+    expect(state?.type).toBe("object");
+    expect(state?.required).toEqual(expect.arrayContaining(["status", "active"]));
+    expect(state?.properties).toHaveProperty("status");
+    expect(state?.properties).toHaveProperty("active");
+  });
+
   it("returns structured content matching what it declared", async () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
