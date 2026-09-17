@@ -413,7 +413,11 @@ private struct TVCardDetailContent: View {
     /// moving the fixed title or action footer.
     private var listRowLimit: Int { rowLimit(standard: 6) }
     private var breakdownRowLimit: Int { rowLimit(standard: 5) }
-    private var briefingSectionLimit: Int { rowLimit(standard: 6) }
+    // A section is a semantic unit, not a density row. Reducing this with the
+    // type-size ratio silently removed the end of a real four-section Daily
+    // Briefing at accessibility sizes. Keep a bounded payload prefix, but let
+    // the scroll view and focusable sections handle its height.
+    private let briefingSectionLimit = 6
 
     /// The budget above is the room a panel has for rows when a headline is
     /// the only other thing in it. Two blocks are optional and neither is in
@@ -554,19 +558,41 @@ private struct TVCardDetailContent: View {
     private var briefing: some View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach((card.briefing?.sections ?? []).prefix(briefingSectionLimit)) { section in
-                VStack(alignment: .leading, spacing: 4) {
-                    if let label = section.label, !label.isEmpty {
-                        Text(label)
-                            .font(.headline)
-                            .foregroundStyle(card.status.tint)
+                let chunks = briefingChunks(section.text)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(chunks.indices, id: \.self) { index in
+                        TVBriefingChunkView(
+                            label: index == 0 ? section.label : nil,
+                            text: chunks[index],
+                            tint: card.status.tint,
+                            identifier: "briefing-section-\(section.id)-chunk-\(index)"
+                        )
                     }
-                    Text(section.text)
-                        .font(.title3)
-                        .foregroundStyle(.primary)
-                        .tvReadableText(standardLineLimit: 3, largeTextLineLimit: 6)
                 }
             }
         }
+    }
+
+    /// A focus target taller than the scroll viewport makes tvOS pan the
+    /// entire detail panel in an attempt to reveal it, including the header
+    /// that is meant to stay fixed. Keep each stop to roughly three wrapped
+    /// accessibility lines while preserving all publisher text.
+    private func briefingChunks(_ text: String, characterBudget: Int = 180) -> [String] {
+        var result: [String] = []
+        for paragraph in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            var line = ""
+            for word in paragraph.split(whereSeparator: \.isWhitespace) {
+                let candidate = line.isEmpty ? String(word) : "\(line) \(word)"
+                if candidate.count > characterBudget, !line.isEmpty {
+                    result.append(line)
+                    line = String(word)
+                } else {
+                    line = candidate
+                }
+            }
+            if !line.isEmpty { result.append(line) }
+        }
+        return result.isEmpty ? [text] : result
     }
 
     @ViewBuilder
@@ -717,6 +743,43 @@ private struct TVCardDetailContent: View {
                     )
                 }
             }
+        }
+    }
+}
+
+/// One bounded piece of briefing prose is one remote stop. Briefings are not
+/// actions, but focus movement is how a Siri Remote scrolls through them.
+private struct TVBriefingChunkView: View {
+    let label: String?
+    let text: String
+    let tint: Color
+    let identifier: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let label, !label.isEmpty {
+                Text(label)
+                    .font(.headline)
+                    .foregroundStyle(tint)
+            }
+            Text(text)
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .tvReadableText(standardLineLimit: nil, largeTextLineLimit: nil)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(identifier)
+        .focusable()
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.white.opacity(isFocused ? 0.85 : 0), lineWidth: 4)
         }
     }
 }

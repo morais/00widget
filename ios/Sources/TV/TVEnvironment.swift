@@ -177,6 +177,46 @@ final class TVEnvironment: ObservableObject {
                     actions: [ActionDefinition(id: "empty", label: "Mark empty")]
                 )
             ]
+        } else if screenshotSection == "detail-briefing-large-type" {
+            // Mirrors the operator's real Daily Briefing payload. It is long
+            // enough to require scrolling at accessibility sizes and includes
+            // the redundant overview plus the individually addressable
+            // Calendar, Tasks, and Tomorrow sections used on iOS.
+            self.cards = [
+                DashboardCard(
+                    id: SampleDataFactory.sampleId("tv-detail-briefing-large-type"),
+                    template: .briefing,
+                    title: "Daily Briefing",
+                    subtitle: "Thursday, 17 September",
+                    value: "5 events · 2 tasks",
+                    status: .good,
+                    icon: "calendar",
+                    producer: CardProducer(label: "Daily Briefing"),
+                    updatedAt: Date(),
+                    briefing: DashboardBriefing(sections: [
+                        DashboardBriefingSection(
+                            id: "briefing",
+                            label: "Briefing",
+                            text: "Calendar 📅\n08:15-09:15 Vanda: Coffee morning Y7\n10:15-11:15 IMT — Troca da carta de condução estrangeira, Loja de Cidadão Santarém\n16:10-17:15 Model UN João, St Julian's School Quinta Nova\n16:10-17:30 Football Julia, St Julian's School Quinta Nova\n18:00-19:30 Kayak Polo João, Jamor\n✅ Action Items\n- Follow up ropenak ejection\n- Build 00widget quest app?\n\n🌅 Tomorrow\n- Debug wc temperature unit"
+                        ),
+                        DashboardBriefingSection(
+                            id: "calendar",
+                            label: "Calendar",
+                            text: "08:15-09:15 Vanda: Coffee morning Y7\n10:15-11:15 IMT — Troca da carta de condução estrangeira, Loja de Cidadão Santarém\n16:10-17:15 Model UN João, St Julian's School Quinta Nova\n16:10-17:30 Football Julia, St Julian's School Quinta Nova\n18:00-19:30 Kayak Polo João, Jamor"
+                        ),
+                        DashboardBriefingSection(
+                            id: "tasks",
+                            label: "Tasks",
+                            text: "- Follow up ropenak ejection\n- Build 00widget quest app?"
+                        ),
+                        DashboardBriefingSection(
+                            id: "tomorrow",
+                            label: "Tomorrow",
+                            text: "- Debug wc temperature unit"
+                        ),
+                    ])
+                )
+            ]
         } else if screenshotSection == "insights" {
             let insightIds = ["trials", "support", "agent-runs"].map(SampleDataFactory.sampleId)
             self.cards = insightIds.compactMap { id in samples.first { $0.id == id } }
@@ -194,6 +234,7 @@ final class TVEnvironment: ObservableObject {
         }
         self.liveActivities = [
             "widgets", "typography", "detail-chart-overflow", "detail-timeline-action",
+            "detail-briefing-large-type",
         ].contains(screenshotSection)
             ? []
             : [TVEnvironment.screenshotLiveActivity(section: screenshotSection)]

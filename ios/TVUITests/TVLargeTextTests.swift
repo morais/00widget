@@ -269,6 +269,78 @@ final class TVLargeTextTests: XCTestCase {
         add(attachment)
     }
 
+    func testBriefingDetailAtLargestType() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--screenshot-section", "detail-briefing-large-type",
+            "--large-text-preview", "accessibility5",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Daily Briefing"].waitForExistence(timeout: 30))
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(containing: "Daily Briefing", in: app),
+            "Expected the briefing fixture to take focus, found: \(focusedLabel(in: app))"
+        )
+        XCUIRemote.shared.press(.select)
+
+        let close = app.buttons["Close"]
+        let headline = app.descendants(matching: .any)["detail-headline"]
+        let overview = app.descendants(matching: .any)["briefing-section-briefing-chunk-0"]
+        let calendar = app.descendants(matching: .any)["briefing-section-calendar-chunk-0"]
+        let tasks = app.descendants(matching: .any)["briefing-section-tasks-chunk-0"]
+        let tomorrow = app.descendants(matching: .any)["briefing-section-tomorrow-chunk-0"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertTrue(headline.waitForExistence(timeout: 10))
+        for section in [overview, calendar, tasks, tomorrow] {
+            XCTAssertTrue(section.waitForExistence(timeout: 10))
+        }
+
+        for _ in 0..<3 where !close.hasFocus {
+            XCUIRemote.shared.press(.up)
+        }
+        XCTAssertTrue(close.hasFocus)
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(waitForFocus(on: headline))
+        XCUIRemote.shared.press(.down)
+        XCTAssertTrue(
+            waitForFocus(on: overview),
+            "Down from the headline did not enter the briefing; found: \(focusedLabel(in: app))"
+        )
+        for section in [calendar, tasks, tomorrow] {
+            for _ in 0..<16 where !section.hasFocus {
+                XCUIRemote.shared.press(.down)
+            }
+            XCTAssertTrue(
+                waitForFocus(on: section),
+                "The remote could not reach \(section.identifier); found: \(focusedLabel(in: app))"
+            )
+        }
+
+        XCTAssertTrue(
+            app.frame.contains(tomorrow.frame),
+            "Focusing Tomorrow did not scroll the final briefing section on screen: \(tomorrow.frame)."
+        )
+        XCTAssertTrue(
+            app.frame.contains(close.frame),
+            "Scrolling the briefing moved the fixed Close button off screen: \(close.frame)."
+        )
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "tv-large-text-briefing-detail"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        for _ in 0..<32 where !headline.hasFocus {
+            XCUIRemote.shared.press(.up)
+        }
+        XCTAssertTrue(
+            headline.hasFocus,
+            "The remote could not return from the briefing to its headline."
+        )
+    }
+
     private func waitForFocus(
         containing text: String,
         in app: XCUIApplication,
