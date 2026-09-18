@@ -5,6 +5,7 @@ import com.example.zerozerowidget.hzos.auth.HorizonAuth
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.data.DashboardRepository
 import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
+import com.example.zerozerowidget.hzos.ui.PanelPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,6 +25,8 @@ class ZeroZeroWidgetApp : Application() {
         private set
     lateinit var horizonAuth: HorizonAuth
         private set
+    lateinit var panelPrefs: PanelPrefs
+        private set
 
     /** Process-wide scope for work that outlives any one panel. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -31,6 +34,7 @@ class ZeroZeroWidgetApp : Application() {
     override fun onCreate() {
         super.onCreate()
         connectionStore = ConnectionStore(this)
+        panelPrefs = PanelPrefs(this)
         http = OkHttpClient.Builder().build()
         // The API client resolves base URL + key per call from the store, so
         // editing them in the settings panel takes effect without a restart.

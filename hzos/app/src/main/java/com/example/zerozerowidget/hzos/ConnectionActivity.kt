@@ -9,6 +9,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.zerozerowidget.hzos.ui.settings.ConnectionPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
+import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 import kotlinx.coroutines.launch
 
 /** Connection panel: phone sign-in + manual URL/key entry. Singleton. */
@@ -26,6 +27,7 @@ class ConnectionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
+        trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
                 ConnectionPanel(

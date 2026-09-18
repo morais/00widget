@@ -18,7 +18,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +57,9 @@ fun DashboardPanel(
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
     var selectedId by remember { mutableStateOf<String?>(null) }
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
@@ -70,9 +75,9 @@ fun DashboardPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = { app.repository.refresh() }) { Text("⟳") }
-            IconButton(onClick = onOpenActivities) { Text("◉") }
-            IconButton(onClick = onOpenSettings) { Text("⚙") }
+            IconButton(onClick = { app.repository.refresh() }) { Text("Refresh", style = MaterialTheme.typography.labelLarge) }
+            TextButton(onClick = onOpenActivities) { Text("Activities") }
+            TextButton(onClick = onOpenSettings) { Text("Settings") }
         }
 
         when {
@@ -97,6 +102,7 @@ fun DashboardPanel(
                     items(state.cards, key = { it.id }) { card ->
                         DashboardRow(
                             card = card,
+                            cardAlpha = cardAlpha,
                             expanded = selectedId == card.id,
                             onToggle = { selectedId = if (selectedId == card.id) null else card.id },
                             onPopOut = { onPopOut(card.id) },
@@ -128,6 +134,7 @@ fun DashboardPanel(
 @Composable
 private fun DashboardRow(
     card: DashboardCard,
+    cardAlpha: Float,
     expanded: Boolean,
     onToggle: () -> Unit,
     onPopOut: () -> Unit,
@@ -135,7 +142,9 @@ private fun DashboardRow(
     actionSlot: @Composable () -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+        ),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
     ) {
         Column(Modifier.padding(14.dp)) {
@@ -180,6 +189,9 @@ fun CardDetailPanel(
     onOpenLink: (String?) -> Unit,
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -194,7 +206,7 @@ fun CardDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            IconButton(onClick = onClose) { Text("✕") }
+            TextButton(onClick = onClose) { Text("Close") }
         }
         Spacer(Modifier.height(8.dp))
         if (card == null) {
@@ -203,7 +215,7 @@ fun CardDetailPanel(
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            DetailCard(card)
+            DetailCard(card, cardAlpha)
             Spacer(Modifier.height(10.dp))
             ActionButtons(
                 card = card,

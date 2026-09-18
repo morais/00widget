@@ -8,12 +8,14 @@ import com.example.zerozerowidget.hzos.ui.openActivitiesPanel
 import com.example.zerozerowidget.hzos.ui.openConnectionPanel
 import com.example.zerozerowidget.hzos.ui.openDetailPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
+import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 
 /** Launcher panel: the card list. Entry point of the app. */
 class DashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
+        trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
                 DashboardPanel(

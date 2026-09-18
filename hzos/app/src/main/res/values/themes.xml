@@ -1,9 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Opaque dark theme for shell panels. The system draws the panel
-         chrome; the app fills its window normally (no translucency). -->
+    <!-- Opaque dark theme. Only used as the application default; every
+         panel activity below overrides it with the translucent variant. -->
     <style name="PanelAppTheme" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- Every panel activity uses this (see manifest). windowIsTranslucent
+         is load-bearing: it makes the window surface alpha-capable FROM
+         CREATION. Flipping PixelFormat at runtime instead leaves an opaque
+         surface showing transparent content, which renders as black smears
+         on scroll and black flashes on focus changes. Opaque mode is then
+         just a black background *drawable* (see trackPanelTransparency),
+         never an opaque surface — so the toggle can't destabilize anything.
+         Matches StarterSample's PanelAppThemeTransparent field-for-field. -->
+    <style name="PanelAppTheme.Transparent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
     </style>
 </resources>

@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import com.example.zerozerowidget.hzos.ui.dashboard.CardDetailPanel
 import com.example.zerozerowidget.hzos.ui.openDeepLink
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
+import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 
 /**
  * One card's detail. Launched with MULTIPLE_TASK, so every pop-out is its
@@ -17,6 +18,7 @@ class CardDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
+        trackPanelTransparency(app)
         val cardId = intent.getStringExtra(EXTRA_CARD_ID)
         setContent {
             ZeroZeroWidgetTheme {

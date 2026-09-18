@@ -391,9 +391,11 @@ fun ActionButtons(
 }
 
 @Composable
-fun DetailCard(card: DashboardCard) {
+fun DetailCard(card: DashboardCard, cardAlpha: Float) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+        ),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp)) {

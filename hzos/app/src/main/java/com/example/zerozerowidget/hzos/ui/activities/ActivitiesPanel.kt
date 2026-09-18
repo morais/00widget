@@ -13,11 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,11 +41,14 @@ import com.example.zerozerowidget.hzos.ui.relativeTime
 @Composable
 fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings: () -> Unit) {
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Live Activities", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClose) { Text("✕") }
+            TextButton(onClick = onClose) { Text("Close") }
         }
         when {
             !state.isConfigured -> {
@@ -63,7 +67,7 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
             }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(state.activities, key = { it.externalActivityId }) { session ->
-                    ActivityRow(session)
+                    ActivityRow(session, cardAlpha)
                 }
             }
         }
@@ -71,9 +75,11 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
 }
 
 @Composable
-private fun ActivityRow(session: LiveActivitySession) {
+private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+        ),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(14.dp)) {

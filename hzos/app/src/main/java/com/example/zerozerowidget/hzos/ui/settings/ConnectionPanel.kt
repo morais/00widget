@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +76,7 @@ fun ConnectionPanel(
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Connection", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClose) { Text("✕") }
+            TextButton(onClick = onClose) { Text("Close") }
         }
 
         if (!loaded) {
@@ -168,7 +171,68 @@ fun ConnectionPanel(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        LookSection(app)
     }
+}
+
+/**
+ * Panel look: opaque black windows or transparent ones with passthrough
+ * showing through. Applies to every open panel immediately, no restart.
+ * Cards stay opaque dark surfaces either way, which is what keeps light
+ * text readable over a bright room.
+ */
+@Composable
+private fun LookSection(app: ZeroZeroWidgetApp) {
+    val scope = rememberCoroutineScope()
+    val transparent by app.panelPrefs.transparent.collectAsState(initial = false)
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
+    var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Transparent panels", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Passthrough shows through the window; cards stay solid.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = transparent,
+            onCheckedChange = { checked ->
+                scope.launch { app.panelPrefs.setTransparent(checked) }
+            },
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Card opacity", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    Slider(
+        value = sliderAlpha,
+        onValueChange = { sliderAlpha = it },
+        onValueChangeFinished = {
+            scope.launch { app.panelPrefs.setCardAlpha(sliderAlpha) }
+        },
+        valueRange = 0.5f..1f,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 /**

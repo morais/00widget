@@ -6,12 +6,14 @@ import androidx.activity.compose.setContent
 import com.example.zerozerowidget.hzos.ui.activities.ActivitiesPanel
 import com.example.zerozerowidget.hzos.ui.openConnectionPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
+import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 
 /** Live Activities panel. Singleton: reopening reuses this instance. */
 class ActivitiesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
+        trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
                 ActivitiesPanel(

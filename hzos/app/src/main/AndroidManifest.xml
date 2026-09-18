@@ -17,6 +17,7 @@
 
         <!-- Dashboard: the launcher panel. -->
         <activity
+            android:theme="@style/PanelAppTheme.Transparent"
             android:name=".DashboardActivity"
             android:exported="true"
             android:screenOrientation="landscape">
@@ -34,6 +35,7 @@
         <!-- Singleton panels: reopening reuses the open instance (singleTask
              + NEW_TASK without MULTIPLE_TASK — see PanelLauncher). -->
         <activity
+            android:theme="@style/PanelAppTheme.Transparent"
             android:name=".ActivitiesActivity"
             android:exported="false"
             android:launchMode="singleTask"
@@ -46,6 +48,7 @@
         </activity>
 
         <activity
+            android:theme="@style/PanelAppTheme.Transparent"
             android:name=".ConnectionActivity"
             android:exported="false"
             android:launchMode="singleTask"
@@ -60,6 +63,7 @@
         <!-- Card detail: one instance per popped-out card (MULTIPLE_TASK),
              so N cards sit side by side as N shell panels. -->
         <activity
+            android:theme="@style/PanelAppTheme.Transparent"
             android:name=".CardDetailActivity"
             android:exported="false"
             android:screenOrientation="landscape">
