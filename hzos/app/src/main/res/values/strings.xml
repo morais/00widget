@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">00Widget</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="activities_title">Live Activities</string>
+    <string name="settings_title">Connection</string>
+    <string name="open_detail">Open details</string>
+    <string name="close_panel">Close panel</string>
+    <string name="pop_out">Pop out panel</string>
+    <string name="refresh">Refresh</string>
+</resources>

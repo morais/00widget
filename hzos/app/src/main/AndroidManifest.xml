@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".ZeroZeroWidgetApp"
+        android:label="@string/app_name"
+        android:theme="@style/PanelAppTheme"
+        android:allowBackup="true"
+        android:supportsRtl="true">
+
+        <meta-data
+            android:name="com.oculus.supportedDevices"
+            android:value="quest2|questpro|quest3|quest3s" />
+
+        <!-- Dashboard: the launcher panel. -->
+        <activity
+            android:name=".DashboardActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <layout
+                android:defaultWidth="1280dp"
+                android:defaultHeight="800dp"
+                android:minWidth="800dp"
+                android:minHeight="500dp" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Singleton panels: reopening reuses the open instance (singleTask
+             + NEW_TASK without MULTIPLE_TASK — see PanelLauncher). -->
+        <activity
+            android:name=".ActivitiesActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape">
+            <layout
+                android:defaultWidth="1024dp"
+                android:defaultHeight="700dp"
+                android:minWidth="700dp"
+                android:minHeight="450dp" />
+        </activity>
+
+        <activity
+            android:name=".ConnectionActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape">
+            <layout
+                android:defaultWidth="900dp"
+                android:defaultHeight="700dp"
+                android:minWidth="600dp"
+                android:minHeight="450dp" />
+        </activity>
+
+        <!-- Card detail: one instance per popped-out card (MULTIPLE_TASK),
+             so N cards sit side by side as N shell panels. -->
+        <activity
+            android:name=".CardDetailActivity"
+            android:exported="false"
+            android:screenOrientation="landscape">
+            <layout
+                android:defaultWidth="1024dp"
+                android:defaultHeight="700dp"
+                android:minWidth="700dp"
+                android:minHeight="450dp" />
+        </activity>
+    </application>
+</manifest>

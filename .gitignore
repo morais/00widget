@@ -89,3 +89,13 @@ ios/Resources/*/*.entitlements
 
 # Python bytecode from the marketing tooling
 __pycache__/
+
+# Horizon OS (Gradle / Android)
+hzos/build/
+hzos/.gradle/
+hzos/app/build/
+hzos/local.properties
+hzos/defaults.properties
+*.ap_
+*.apk
+*.aab
