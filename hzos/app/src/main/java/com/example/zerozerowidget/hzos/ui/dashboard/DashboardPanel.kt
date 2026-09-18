@@ -144,6 +144,10 @@ private fun DashboardRow(
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+            // Explicit: an alpha-modified container no longer matches any
+            // theme color, so contentColorFor() can't derive this and text
+            // falls back to ambient black. See ChartColors.kt note.
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
     ) {

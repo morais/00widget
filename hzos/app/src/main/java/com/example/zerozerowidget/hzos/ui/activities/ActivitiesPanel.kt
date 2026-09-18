@@ -29,6 +29,7 @@ import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.LiveActivitySession
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
+import com.example.zerozerowidget.hzos.ui.cards.activityTint
 import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.relativeTime
 
@@ -79,6 +80,8 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+            // Explicit: see DashboardRow — alpha breaks contentColorFor().
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -115,7 +118,15 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
             }
             session.chart?.let {
                 Spacer(Modifier.height(6.dp))
-                Sparkline(it, Modifier.fillMaxWidth().height(64.dp))
+                Sparkline(
+                    it,
+                    activityTint(
+                        session.kind,
+                        session.signal,
+                        MaterialTheme.colorScheme.primary,
+                    ),
+                    Modifier.fillMaxWidth().height(64.dp),
+                )
             }
             session.items.orEmpty().take(4).forEach { item ->
                 Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
