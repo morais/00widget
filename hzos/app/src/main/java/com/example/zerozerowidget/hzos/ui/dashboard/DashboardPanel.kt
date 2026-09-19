@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos.ui.dashboard
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -126,44 +130,61 @@ fun DashboardPanel(
                 state.error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(visible, key = { it.id }) { card ->
-                        val isSample = card.isSample()
-                        DashboardRow(
-                            card = card,
-                            cardAlpha = cardAlpha,
-                            isSample = isSample,
-                            expanded = selectedId == card.id,
-                            onToggle = { selectedId = if (selectedId == card.id) null else card.id },
-                            onPopOut = { onPopOut(card.id) },
-                            onOpenLink = { openDeepLink(context, card.deepLink) },
-                            actionSlot = {
-                                // Sample cards are local demos: their buttons
-                                // address nothing, so they don't run.
-                                if (isSample) {
-                                    Text(
-                                        "Demo card — buttons don't run on samples.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                } else {
-                                    ActionButtons(
-                                        card = card,
-                                        runningId = runningId,
-                                        runError = if (runningId != null) null else runError,
-                                        onRun = { action ->
-                                            scope.launch {
-                                                runningId = action.id
-                                                runError = null
-                                                val result = app.repository.runAction(action.id, card.id)
-                                                runningId = null
-                                                runError = result.exceptionOrNull()?.message?.take(200)
-                                            }
-                                        },
-                                    )
-                                }
-                            },
-                        )
+                val cardRow: @Composable (DashboardCard) -> Unit = { card ->
+                    val isSample = card.isSample()
+                    DashboardRow(
+                        card = card,
+                        cardAlpha = cardAlpha,
+                        isSample = isSample,
+                        expanded = selectedId == card.id,
+                        onToggle = { selectedId = if (selectedId == card.id) null else card.id },
+                        onPopOut = { onPopOut(card.id) },
+                        onOpenLink = { openDeepLink(context, card.deepLink) },
+                        actionSlot = {
+                            // Sample cards are local demos: their buttons
+                            // address nothing, so they don't run.
+                            if (isSample) {
+                                Text(
+                                    "Demo card — buttons don't run on samples.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                ActionButtons(
+                                    card = card,
+                                    runningId = runningId,
+                                    runError = if (runningId != null) null else runError,
+                                    onRun = { action ->
+                                        scope.launch {
+                                            runningId = action.id
+                                            runError = null
+                                            val result = app.repository.runAction(action.id, card.id)
+                                            runningId = null
+                                            runError = result.exceptionOrNull()?.message?.take(200)
+                                        }
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
+                // Width-driven columns, mirroring iOS DashboardView: one
+                // column below 728dp, exactly two above — never three. iOS
+                // counts a Duo hinge as a column boundary; Quest has no
+                // hinge, so the width rule is the whole story.
+                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                    if (maxWidth >= 728.dp) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(visible, key = { it.id }) { card -> cardRow(card) }
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(visible, key = { it.id }) { card -> cardRow(card) }
+                        }
                     }
                 }
             }
