@@ -32,21 +32,8 @@
             </intent-filter>
         </activity>
 
-        <!-- Singleton panels: reopening reuses the open instance (singleTask
+        <!-- Singleton panel: reopening reuses the open instance (singleTask
              + NEW_TASK without MULTIPLE_TASK — see PanelLauncher). -->
-        <activity
-            android:theme="@style/PanelAppTheme.Transparent"
-            android:name=".ActivitiesActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape">
-            <layout
-                android:defaultWidth="1024dp"
-                android:defaultHeight="700dp"
-                android:minWidth="700dp"
-                android:minHeight="450dp" />
-        </activity>
-
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".ConnectionActivity"

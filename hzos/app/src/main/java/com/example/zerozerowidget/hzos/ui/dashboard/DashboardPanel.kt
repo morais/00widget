@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos.ui.dashboard
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,14 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,31 +36,37 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.DashboardCard
+import com.example.zerozerowidget.hzos.data.LiveActivitySession
+import com.example.zerozerowidget.hzos.data.SampleData
 import com.example.zerozerowidget.hzos.data.isSample
 import com.example.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.example.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
+import com.example.zerozerowidget.hzos.ui.cards.Sparkline
+import com.example.zerozerowidget.hzos.ui.cards.StatusDot
+import com.example.zerozerowidget.hzos.ui.cards.activityTint
 import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.openDeepLink
 import com.example.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.launch
 
 /**
- * Main dashboard panel: card list + inline expansion + pop-out. Tapping a
- * card expands it in place; "Pop out" opens it in its own shell panel (a
+ * Main dashboard panel, mirroring the Apple TV layout: an "Ongoing
+ * Activities" section above the "Widgets" grid, one scroll. Tapping a card
+ * expands it in place; "Pop out" opens it in its own shell panel (a
  * separate activity instance — pop out twice and you get two panels).
  */
 @Composable
 fun DashboardPanel(
     app: ZeroZeroWidgetApp,
-    onOpenActivities: () -> Unit,
     onOpenSettings: () -> Unit,
     onPopOut: (cardId: String) -> Unit,
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
     val samples by app.sampleStore.cards.collectAsState()
+    val sampleActivities by app.sampleStore.activities.collectAsState()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
@@ -80,7 +86,6 @@ fun DashboardPanel(
                 )
             }
             FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
-            FilledTonalButton(onClick = onOpenActivities) { Text("Activities") }
             FilledTonalButton(onClick = onOpenSettings) { Text("Settings") }
         }
         if (samples.isNotEmpty()) {
@@ -97,8 +102,10 @@ fun DashboardPanel(
 
         // Server cards first, local samples after — never mixed, never sent.
         val visible = state.cards + samples
+        val visibleActivities = state.activities + sampleActivities
+        val nothingToShow = visible.isEmpty() && visibleActivities.isEmpty()
         when {
-            !state.isConfigured && samples.isEmpty() -> {
+            !state.isConfigured && nothingToShow -> {
                 Text(
                     "Not connected. Open the Connection panel (Settings) and enter your Worker URL + API key — " +
                         "or explore with demo data, no account needed.",
@@ -110,7 +117,7 @@ fun DashboardPanel(
                     FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
                 }
             }
-            state.error != null && visible.isEmpty() -> {
+            state.error != null && nothingToShow -> {
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,7 +125,7 @@ fun DashboardPanel(
                     FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
                 }
             }
-            visible.isEmpty() -> {
+            nothingToShow -> {
                 Text(
                     "No cards yet. Publish one from an agent, or explore with demo data.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -171,19 +178,47 @@ fun DashboardPanel(
                 // Width-driven columns, mirroring iOS DashboardView: one
                 // column below 728dp, exactly two above — never three. iOS
                 // counts a Duo hinge as a column boundary; Quest has no
-                // hinge, so the width rule is the whole story.
+                // hinge, so the width rule is the whole story. One scroll
+                // for both sections: the grid is chunked into rows because
+                // a lazy grid cannot live inside a lazy list.
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                    if (maxWidth >= 728.dp) {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            items(visible, key = { it.id }) { card -> cardRow(card) }
+                    val twoCol = maxWidth >= 728.dp
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (visibleActivities.isNotEmpty()) {
+                            item(key = "activities-title") {
+                                SectionTitle("Ongoing Activities")
+                            }
+                            items(
+                                visibleActivities,
+                                key = { "act-" + it.externalActivityId },
+                            ) { session ->
+                                ActivityRow(session, cardAlpha)
+                            }
                         }
-                    } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(visible, key = { it.id }) { card -> cardRow(card) }
+                        if (visible.isNotEmpty()) {
+                            item(key = "widgets-title") {
+                                SectionTitle("Widgets")
+                            }
+                            if (twoCol) {
+                                items(
+                                    visible.chunked(2),
+                                    key = { row -> "row-" + row.first().id },
+                                ) { row ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Box(Modifier.weight(1f)) { cardRow(row[0]) }
+                                        if (row.size > 1) {
+                                            Box(Modifier.weight(1f)) { cardRow(row[1]) }
+                                        } else {
+                                            Spacer(Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(visible, key = { it.id }) { card -> cardRow(card) }
+                            }
+                        }
+                        item(key = "demo-activities") {
+                            SampleActivityButtons(app)
                         }
                     }
                 }
@@ -337,6 +372,124 @@ fun CardDetailPanel(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Both iOS demo sessions, mirroring LiveActivitySample. One runs at a
+ * time (generating replaces), cleared with the cards via Clear samples.
+ */
+@Composable
+private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
+    Column {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Demo activities",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleData.LiveActivitySample.entries.forEach { sample ->
+                FilledTonalButton(
+                    onClick = { app.sampleStore.generateActivity(sample) },
+                ) { Text(sample.title) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+            // Explicit: see DashboardRow — alpha breaks contentColorFor().
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            if (session.isSample()) {
+                Text(
+                    "SAMPLE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                session.progress?.let {
+                    Text(
+                        "${(it * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                } ?: StatusDot(
+                    com.example.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
+                    Modifier.padding(end = 8.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(session.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(session.state, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            session.subtitle?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            session.value?.let {
+                Text(
+                    it + (session.unit?.let { u -> " $u" } ?: ""),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            session.progress?.let {
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(progress = { it.toFloat() }, modifier = Modifier.fillMaxWidth())
+            }
+            session.chart?.let {
+                Spacer(Modifier.height(6.dp))
+                Sparkline(
+                    it,
+                    activityTint(
+                        session.kind,
+                        session.signal,
+                        MaterialTheme.colorScheme.primary,
+                    ),
+                    Modifier.fillMaxWidth().height(64.dp),
+                )
+            }
+            session.items.orEmpty().take(4).forEach { item ->
+                Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                    Text(item.title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    item.value?.let { v ->
+                        Text(v, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                session.endsAt?.let { endsAt ->
+                    Text(
+                        "Ends ${relativeTime(endsAt) ?: endsAt}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                } ?: Spacer(Modifier.weight(1f))
+                if (isStale(session.updatedAt, session.staleAt)) {
+                    Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
