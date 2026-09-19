@@ -13,8 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,7 +53,7 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Live Activities", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Close") }
+            FilledTonalButton(onClick = onClose) { Text("Close") }
         }
         when {
             !state.isConfigured && samples.isEmpty() -> {
@@ -62,7 +61,7 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onOpenSettings) { Text("Open Connection") }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = { app.sampleStore.generateActivity(SampleData.LiveActivitySample.APP_LAUNCH) },
                     ) { Text("Demo activity") }
                 }
@@ -76,7 +75,7 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { app.repository.refresh() }) { Text("Refresh") }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = { app.sampleStore.generateActivity(SampleData.LiveActivitySample.APP_LAUNCH) },
                     ) { Text("Demo activity") }
                 }
@@ -109,7 +108,7 @@ private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SampleData.LiveActivitySample.entries.forEach { sample ->
-                OutlinedButton(
+                FilledTonalButton(
                     onClick = { app.sampleStore.generateActivity(sample) },
                 ) { Text(sample.title) }
             }

@@ -14,11 +14,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,9 +75,9 @@ fun DashboardPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = { app.repository.refresh() }) { Text("Refresh", style = MaterialTheme.typography.labelLarge) }
-            TextButton(onClick = onOpenActivities) { Text("Activities") }
-            TextButton(onClick = onOpenSettings) { Text("Settings") }
+            FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
+            FilledTonalButton(onClick = onOpenActivities) { Text("Activities") }
+            FilledTonalButton(onClick = onOpenSettings) { Text("Settings") }
         }
         if (samples.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -89,7 +87,7 @@ fun DashboardPanel(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { app.sampleStore.clearSamples() }) { Text("Clear samples") }
+                FilledTonalButton(onClick = { app.sampleStore.clearSamples() }) { Text("Clear samples") }
             }
         }
 
@@ -105,7 +103,7 @@ fun DashboardPanel(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onOpenSettings) { Text("Open Connection") }
-                    OutlinedButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
                 }
             }
             state.error != null && visible.isEmpty() -> {
@@ -113,7 +111,7 @@ fun DashboardPanel(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { app.repository.refresh() }) { Text("Retry") }
-                    OutlinedButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
                 }
             }
             visible.isEmpty() -> {
@@ -221,9 +219,9 @@ private fun DashboardRow(
                 actionSlot()
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onPopOut) { Text("Pop out panel") }
+                    FilledTonalButton(onClick = onPopOut) { Text("Pop out panel") }
                     card.deepLink?.let {
-                        OutlinedButton(onClick = onOpenLink) { Text("Open link") }
+                        FilledTonalButton(onClick = onOpenLink) { Text("Open link") }
                     }
                 }
             }
@@ -263,7 +261,7 @@ fun CardDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            TextButton(onClick = onClose) { Text("Close") }
+            FilledTonalButton(onClick = onClose) { Text("Close") }
         }
         Spacer(Modifier.height(8.dp))
         if (card == null) {
@@ -307,9 +305,9 @@ fun CardDetailPanel(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 card.deepLink?.let {
-                    OutlinedButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
+                    FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
                 }
-                OutlinedButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
+                FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
             }
             card.deadline?.let { deadline ->
                 Spacer(Modifier.height(6.dp))

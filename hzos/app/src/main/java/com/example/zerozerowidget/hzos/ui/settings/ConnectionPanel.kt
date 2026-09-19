@@ -10,9 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -76,7 +75,7 @@ fun ConnectionPanel(
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Connection", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Close") }
+            FilledTonalButton(onClick = onClose) { Text("Close") }
         }
 
         if (!loaded) {
@@ -152,7 +151,7 @@ fun ConnectionPanel(
                 },
                 enabled = !testing,
             ) { Text(if (testing) "Saving…" else "Save + connect") }
-            OutlinedButton(
+            FilledTonalButton(
                 onClick = {
                     scope.launch {
                         app.connectionStore.clear()
@@ -312,7 +311,7 @@ private fun PhoneSignInSection(
         }
         SignInPhase.REQUESTING -> {
             Text("Requesting a sign-in code…", style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(onClick = ::cancel) { Text("Cancel") }
+            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
         }
         SignInPhase.WAITING -> {
             Text("Approve on your phone", style = MaterialTheme.typography.titleSmall)
@@ -333,7 +332,7 @@ private fun PhoneSignInSection(
                 Text(verifyUri, style = MaterialTheme.typography.bodySmall)
             }
             Text("Waiting for approval…", style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(onClick = ::cancel) { Text("Cancel") }
+            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
         }
     }
 }

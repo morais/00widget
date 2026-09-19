@@ -13,11 +13,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -575,7 +574,7 @@ fun ActionButtons(
                     Text(if (runningId == action.id) "Running…" else action.label)
                 }
             } else {
-                OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
                     Text("${action.label} — confirm in app")
                 }
             }
@@ -608,7 +607,7 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float) {
 fun NeedsYouBadge(modifier: Modifier = Modifier) {
     // Mirrors the derived "Needs you" rule in llms.md: attention status +
     // actionable button. Callers decide; this only draws the pill.
-    TextButton(onClick = {}, modifier = modifier) {
+    FilledTonalButton(onClick = {}, modifier = modifier) {
         Text("Needs you", color = MaterialTheme.colorScheme.error)
     }
 }
