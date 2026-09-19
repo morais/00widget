@@ -263,11 +263,6 @@ struct DashboardView: View {
             dashboardRow(sampleNotice)
         }
 
-        // Shared across all three grids below: they all read the same
-        // `width`/`hinge`, so one signature drives one animation decision
-        // for all of them rather than three that could disagree.
-        let gridLayoutSignature = Self.columnsLayoutSignature(forWidth: width, hinge: hinge)
-
         // Exactly one column below the break, exactly two above — never
         // three (see `columns(forWidth:)`). The grid lives in a single row
         // capped at `maxDashboardWidth` so wide windows centre two readable
@@ -306,11 +301,6 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
-                // See `columnsLayoutSignature` — animates a genuine column
-                // count/gap change (a width breakpoint crossed, a hinge
-                // engaging or disengaging) without restarting on every
-                // sub-pixel a continuous window resize reports.
-                .animation(.default, value: gridLayoutSignature)
             )
         }
 
@@ -344,11 +334,6 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
-                // See `columnsLayoutSignature` — animates a genuine column
-                // count/gap change (a width breakpoint crossed, a hinge
-                // engaging or disengaging) without restarting on every
-                // sub-pixel a continuous window resize reports.
-                .animation(.default, value: gridLayoutSignature)
             )
         }
 
@@ -380,11 +365,6 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
-                // See `columnsLayoutSignature` — animates a genuine column
-                // count/gap change (a width breakpoint crossed, a hinge
-                // engaging or disengaging) without restarting on every
-                // sub-pixel a continuous window resize reports.
-                .animation(.default, value: gridLayoutSignature)
             )
         }
     }
@@ -594,18 +574,6 @@ struct DashboardView: View {
         }
         let count = width >= twoColumnBreak ? 2 : 1
         return Array(repeating: GridItem(.flexible(), spacing: cardSpacing), count: count)
-    }
-
-    /// A coarse fingerprint of `columns(forWidth:hinge:)`'s decision, used
-    /// only to decide when to animate the grid (see the `.animation(_:value:)`
-    /// call sites below) — never to size anything. Column count plus each
-    /// column's rounded gap is enough to notice a genuine change of shape
-    /// (1 → 2 columns, or the gap widening to a hinge) without retriggering
-    /// on every sub-pixel `width` reports during a continuous window drag,
-    /// which comparing raw geometry directly would do.
-    static func columnsLayoutSignature(forWidth width: CGFloat, hinge: CGRect?) -> [Int] {
-        let columns = Self.columns(forWidth: width, hinge: hinge)
-        return [columns.count] + columns.map { Int(($0.spacing ?? cardSpacing).rounded()) }
     }
 
     private var macSearchField: some View {
