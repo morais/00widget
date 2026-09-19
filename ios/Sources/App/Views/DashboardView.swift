@@ -177,19 +177,25 @@ struct DashboardView: View {
         //
         // Width-driven columns need the window width, which only an
         // ancestor reader sees: size class doesn't track resizable or
-        // split widths, and a reader inside the list collapses.
+        // split widths, and a reader inside the list collapses. The hinge
+        // probe sits at the same ancestor level for the same reason — its
+        // reported frame is in this GeometryReader's own coordinate space,
+        // which is what `cardsBranch` needs to line the grid's column break
+        // up with the seam rather than guessing from width alone.
         GeometryReader { proxy in
-            List {
-                if showsEmptyState {
-                    emptyBranch
-                } else {
-                    cardsBranch(width: proxy.size.width)
+            DuoHingeReader { hinge in
+                List {
+                    if showsEmptyState {
+                        emptyBranch
+                    } else {
+                        cardsBranch(width: proxy.size.width, hinge: hinge)
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(Color.primary.opacity(0.025))
+                .refreshable { await env.fetchCards() }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color.primary.opacity(0.025))
-            .refreshable { await env.fetchCards() }
         }
     }
 
@@ -234,7 +240,7 @@ struct DashboardView: View {
     }
 
     @ViewBuilder
-    private func cardsBranch(width: CGFloat) -> some View {
+    private func cardsBranch(width: CGFloat, hinge: CGRect?) -> some View {
         if Self.isMac {
             dashboardRow(macSearchField)
         }
@@ -257,13 +263,18 @@ struct DashboardView: View {
             dashboardRow(sampleNotice)
         }
 
+        // Shared across all three grids below: they all read the same
+        // `width`/`hinge`, so one signature drives one animation decision
+        // for all of them rather than three that could disagree.
+        let gridLayoutSignature = Self.columnsLayoutSignature(forWidth: width, hinge: hinge)
+
         // Exactly one column below the break, exactly two above — never
         // three (see `columns(forWidth:)`). The grid lives in a single row
         // capped at `maxDashboardWidth` so wide windows centre two readable
         // columns instead of stretching cards.
         if !visibleCards.isEmpty {
             dashboardRow(
-                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleCards) { card in
                         // A button appending to the navigation path rather
                         // than a NavigationLink: inside a List a link draws a
@@ -295,6 +306,11 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
+                // See `columnsLayoutSignature` — animates a genuine column
+                // count/gap change (a width breakpoint crossed, a hinge
+                // engaging or disengaging) without restarting on every
+                // sub-pixel a continuous window resize reports.
+                .animation(.default, value: gridLayoutSignature)
             )
         }
 
@@ -307,7 +323,7 @@ struct DashboardView: View {
             )
 
             dashboardRow(
-                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleSharedCards) { card in
                         Button {
                             path.append("shared:\(card.id)")
@@ -328,6 +344,11 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
+                // See `columnsLayoutSignature` — animates a genuine column
+                // count/gap change (a width breakpoint crossed, a hinge
+                // engaging or disengaging) without restarting on every
+                // sub-pixel a continuous window resize reports.
+                .animation(.default, value: gridLayoutSignature)
             )
         }
 
@@ -340,7 +361,7 @@ struct DashboardView: View {
             )
 
             dashboardRow(
-                LazyVGrid(columns: Self.columns(forWidth: width), spacing: 16) {
+                LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleGuestCards) { card in
                         Button {
                             path.append("guest:\(card.id)")
@@ -359,6 +380,11 @@ struct DashboardView: View {
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
                 .frame(maxWidth: .infinity)
+                // See `columnsLayoutSignature` — animates a genuine column
+                // count/gap change (a width breakpoint crossed, a hinge
+                // engaging or disengaging) without restarting on every
+                // sub-pixel a continuous window resize reports.
+                .animation(.default, value: gridLayoutSignature)
             )
         }
     }
@@ -508,9 +534,78 @@ struct DashboardView: View {
     /// cannot do this because it doesn't track resizable or split widths.
     /// Adaptive is the wrong tool here for the same reason in reverse: it
     /// would keep adding columns on wide Mac windows.
-    static func columns(forWidth width: CGFloat) -> [GridItem] {
+    ///
+    /// `hinge`, when given, always wins over the width heuristic below it:
+    /// a device spanning its seam (`DuoHingeReader`/`DuoSupport`) gets
+    /// exactly two columns, with the gap between them widened to the
+    /// hinge's own width rather than the ordinary `cardSpacing` — so a card
+    /// is never drawn straddling the seam regardless of what
+    /// `twoColumnBreak` would otherwise pick. Falls back to the width-only
+    /// rule when either resulting leaf would be narrower than half a
+    /// minimum card, which also covers every device without a hinge at
+    /// all, since `hinge` is nil there.
+    ///
+    /// Both columns stay `.flexible()` even in the hinge branch — earlier
+    /// revisions sized them with `.fixed()` to the hinge's exact leaf
+    /// widths, and that was the bug behind a card clipped past the screen
+    /// edge after rotation. `hinge` and `width` come from two independent
+    /// reactive sources (an ancestor `GeometryReader` for `width`, a
+    /// `UIViewRepresentable`'s `layoutSubviews` callback for `hinge`, one
+    /// SwiftUI render behind it — see `DuoHingeReader`), so a rotation or
+    /// fold transition can land a frame where one has caught up to the new
+    /// orientation and the other hasn't. A `.fixed()` column bakes in
+    /// whatever absolute number was true at that moment and has no way to
+    /// self-correct once it's wrong; a `.flexible()` one is handed
+    /// whatever width `LazyVGrid` actually measures on *every* layout
+    /// pass, so a stale `hinge` can still pick the wrong moment to switch
+    /// column *count*, but can never produce a column wider than the space
+    /// it was actually given. `hinge`'s coordinates only decide the split
+    /// (via `leading`/`trailing` below) and the gap width now, never a
+    /// column's own size.
+    ///
+    /// `width` is the outer GeometryReader's full width; the grid itself
+    /// lives inside a row inset by `edgeInsets` on each side (see
+    /// `dashboardRow`), so `hinge`'s coordinates — reported in that same
+    /// outer space — are shifted left by one `edgeInsets` to land in the
+    /// row's own coordinate space before being compared against it.
+    ///
+    /// Confirmed reachable in practice, correcting what an earlier revision
+    /// of this comment claimed: a scripted single launch on the iPhone Duo
+    /// simulator never saw `hinge` go non-nil (`isActive` stayed false for
+    /// an ordinary, non-spanning scene), which read as this branch being
+    /// unreachable without the app adopting `UIArrangementViewController`.
+    /// A real interactive fold/rotate pass on device showed otherwise — the
+    /// two-column split above did engage — so `isActive` becoming true is
+    /// not exclusive to that opt-in API the way it first appeared. Exactly
+    /// which interactive gesture flips it is still unconfirmed; treat it as
+    /// reachable and keep this branch held to the same no-overflow bar as
+    /// everything else in this file rather than as a theoretical path.
+    static func columns(forWidth width: CGFloat, hinge: CGRect?) -> [GridItem] {
+        if let hinge {
+            let gridWidth = width - edgeInsets * 2
+            let leading = hinge.minX - edgeInsets
+            let trailing = gridWidth - (hinge.maxX - edgeInsets)
+            if leading >= minCardWidth / 2 && trailing >= minCardWidth / 2 {
+                return [
+                    GridItem(.flexible(), spacing: hinge.width),
+                    GridItem(.flexible(), spacing: cardSpacing),
+                ]
+            }
+        }
         let count = width >= twoColumnBreak ? 2 : 1
         return Array(repeating: GridItem(.flexible(), spacing: cardSpacing), count: count)
+    }
+
+    /// A coarse fingerprint of `columns(forWidth:hinge:)`'s decision, used
+    /// only to decide when to animate the grid (see the `.animation(_:value:)`
+    /// call sites below) — never to size anything. Column count plus each
+    /// column's rounded gap is enough to notice a genuine change of shape
+    /// (1 → 2 columns, or the gap widening to a hinge) without retriggering
+    /// on every sub-pixel `width` reports during a continuous window drag,
+    /// which comparing raw geometry directly would do.
+    static func columnsLayoutSignature(forWidth width: CGFloat, hinge: CGRect?) -> [Int] {
+        let columns = Self.columns(forWidth: width, hinge: hinge)
+        return [columns.count] + columns.map { Int(($0.spacing ?? cardSpacing).rounded()) }
     }
 
     private var macSearchField: some View {
