@@ -55,17 +55,40 @@ android {
             "DEFAULT_BASE_URL",
             "\"$defaultBaseUrl\"",
         )
-        // Dev-only token prefill. Local builds only, never the store.
+        // Default Worker URL (public production endpoint, safe to ship).
         buildConfigField(
             "String",
-            "DEVICE_TOKEN",
-            "\"$deviceToken\"",
+            "DEFAULT_BASE_URL",
+            "\"$defaultBaseUrl\"",
         )
     }
 
+    // Store signing. Keystore lives OUTSIDE the repo; point at it with env
+    // (see hzos/README.md "Store submission"). Without these vars the
+    // release build assembles unsigned — installable nowhere that matters.
+    val hasReleaseKeystore = System.getenv("ZW_KEYSTORE_FILE") != null
+    signingConfigs {
+        create("release") {
+            storeFile = System.getenv("ZW_KEYSTORE_FILE")?.let(::file)
+            storePassword = System.getenv("ZW_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ZW_KEY_ALIAS")
+            keyPassword = System.getenv("ZW_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
+        debug {
+            // Dev conveniences. DEVICE_TOKEN pre-fills the key field from
+            // gitignored defaults.properties — local headsets only.
+            buildConfigField("String", "DEVICE_TOKEN", "\"$deviceToken\"")
+        }
         release {
             isMinifyEnabled = false
+            // No dev values ship: empty URL/token/app-id fallbacks force the
+            // real login + settings path. A release APK assembled without
+            // the keystore below is unsigned and not submittable.
+            buildConfigField("String", "DEVICE_TOKEN", "\"\"")
+            if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -73,8 +96,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
     buildFeatures {
         compose = true

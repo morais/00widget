@@ -154,18 +154,30 @@ against today's Worker 404s and the UI says so, falling back to paste.
   stay out of the account-deletion table in `server/src/account.ts`.
   Brute-forceable user codes need strict attempt limits + short expiry.
 
-## Publishing to the Horizon Store (later)
+## Publishing to the Horizon Store
 
-- Replace `com.example.zerozerowidget.hzos` with an owned reverse-DNS id;
-  `com.example.*` is rejected at submission.
-- Provide store icons, listing copy, privacy policy URL (the app talks to an
-  operator-run Worker; say what it sends: bearer token + card reads).
-- Keep `usesCleartextTraffic` off — release builds stay https-only; the
-  http exception is localhost-shaped and validated in code.
-- Declare data use: API key in app-private DataStore, never logged.
-- Declare the `uses-horizonos-sdk` manifest stanza with the min version that
-  carries the Login API, so the store gates installation instead of the app
-  failing at runtime (manual-code fallback covers old OS, not a missing API).
+In-repo readiness is done; the rest is portal work:
+
+Done in the tree:
+
+- Reverse-DNS app id from gitignored `defaults.properties`
+  (`com.zerozerowidget.hzos`; `com.example.*` never ships).
+- Brand adaptive icon (`ic_launcher`, round variant) generated from
+  `docs/brand/mark-transparent-1024.png` over deep navy.
+- `allowBackup=false` so bearer tokens never enter cloud backups.
+- Release build carries **no dev values**: `DEVICE_TOKEN` is empty in
+  release (debug pre-fills from the gitignored file), so a store build
+  cannot leak a credential. The production Worker URL stays — it's public.
+- `usesCleartextTraffic` off (localhost-shaped http exception only).
+- minSdk 32 / targetSdk 36, landscape panels with default + min sizes.
+
+To cut a submission build:
+
+1. `keytool -genkeypair -keystore ~/secure/00widget.jks -alias upload -keyalg RSA -keysize 2048 -validity 9125` (outside the repo, back it up — losing it means a new app listing).
+2. `export ZW_KEYSTORE_FILE=~/secure/00widget.jks ZW_KEYSTORE_PASSWORD=… ZW_KEY_ALIAS=upload ZW_KEY_PASSWORD=…`
+3. Bump `versionCode` in `app/build.gradle.kts` (must rise with every upload).
+4. `./gradlew :app:assembleRelease` → signed AAB/APK under `app/build/outputs/`.
+5. Developer portal: new app, upload, content-rating questionnaire, privacy policy URL (say what the app sends: bearer token + card reads to the operator's own Worker), listing copy + screenshots, `uses-horizonos-sdk` min version for the Login API once its floor is confirmed (manual-code fallback covers older OS regardless).
 
 ## Verification
 
