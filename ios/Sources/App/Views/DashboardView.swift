@@ -561,7 +561,15 @@ struct DashboardView: View {
     /// reachable and keep this branch held to the same no-overflow bar as
     /// everything else in this file rather than as a theoretical path.
     static func columns(forWidth width: CGFloat, hinge: CGRect?) -> [GridItem] {
-        if let hinge {
+        // Only a seam that actually runs top-to-bottom is a column boundary.
+        // Measured on an iPhone Duo: unfolded in portrait the device is a
+        // clamshell and its division arrives as a *horizontal* band spanning
+        // the full width — `(0, 321.5, 669, 40)` — which splits top from
+        // bottom and says nothing about columns. Reading that as a vertical
+        // divider puts both leaves at a negative width, and the guard below
+        // then rejects it for arithmetic reasons rather than on purpose;
+        // this says it on purpose instead.
+        if let hinge, hinge.height > hinge.width {
             let gridWidth = width - edgeInsets * 2
             let leading = hinge.minX - edgeInsets
             let trailing = gridWidth - (hinge.maxX - edgeInsets)

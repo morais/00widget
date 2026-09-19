@@ -72,10 +72,27 @@ struct DuoHingeReader<Content: View>: View {
     /// `DashboardView.content`).
     private final class ProbeView: UIView {
         var onChange: ((CGRect?) -> Void)?
+        private var reported: CGRect?
+        private var hasReported = false
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            onChange?(DuoSupport.hingeFrame(in: self))
+            let frame = DuoSupport.hingeFrame(in: self)
+
+            // Two things this must not do, both seen on a device. Reporting
+            // the same frame twice loops: the state write re-renders, the
+            // re-render lays out, and layout lands back here. And writing
+            // SwiftUI state *during* a layout pass is undefined — SwiftUI
+            // either drops the update (the hinge never arrives, and the grid
+            // silently keeps the width-only split) or applies it against a
+            // layout already in flight, which after a rotation leaves the
+            // List sized for the orientation it just left and runs the
+            // second column off the screen. Hand it to the next runloop turn
+            // instead, where it is an ordinary state change.
+            guard !hasReported || frame != reported else { return }
+            hasReported = true
+            reported = frame
+            DispatchQueue.main.async { [weak self] in self?.onChange?(frame) }
         }
     }
 
