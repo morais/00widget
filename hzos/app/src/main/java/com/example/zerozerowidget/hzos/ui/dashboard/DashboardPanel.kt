@@ -278,7 +278,7 @@ fun CardDetailPanel(
                 )
                 Spacer(Modifier.height(4.dp))
             }
-            DetailCard(card, cardAlpha)
+            DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
             if (isSample) {
                 Text(

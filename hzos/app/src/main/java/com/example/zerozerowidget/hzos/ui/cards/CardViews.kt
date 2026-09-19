@@ -89,14 +89,14 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {
  * `else` + comment below is the backstop, so check it when adding a template.
  */
 @Composable
-fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier) {
+fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier, interactiveCharts: Boolean = false) {
     Column(modifier) {
         when (card.template) {
             com.example.zerozerowidget.hzos.data.DashboardTemplate.SUMMARY -> SummaryBody(card)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.PROGRESS -> ProgressBody(card)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.LIST -> ListBody(card)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.ACTION -> ActionHintBody()
-            com.example.zerozerowidget.hzos.data.DashboardTemplate.CHART -> ChartBody(card)
+            com.example.zerozerowidget.hzos.data.DashboardTemplate.CHART -> ChartBody(card, interactiveCharts)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.HISTORY -> HistoryBody(card)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.BREAKDOWN -> BreakdownBody(card)
             com.example.zerozerowidget.hzos.data.DashboardTemplate.BRIEFING -> BriefingBody(card)
@@ -203,18 +203,28 @@ private fun ActionHintBody() {
 }
 
 @Composable
-private fun ChartBody(card: DashboardCard) {
+private fun ChartBody(card: DashboardCard, interactive: Boolean) {
     CardMetaLine(card)
     val chart = card.chart ?: return
     Spacer(Modifier.height(8.dp))
     // Base tint is the card's status tint, exactly like iOS (SparklineView
     // takes the card tint as its `tint` argument).
     val unknown = MaterialTheme.colorScheme.onSurfaceVariant
-    Sparkline(
-        chart = chart,
-        baseTint = statusColor(card.status, unknown),
-        modifier = Modifier.fillMaxWidth().height(120.dp),
-    )
+    val base = statusColor(card.status, unknown)
+    if (interactive) {
+        InspectableChart(
+            chart = chart,
+            unit = card.unit,
+            baseTint = base,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    } else {
+        Sparkline(
+            chart = chart,
+            baseTint = base,
+            modifier = Modifier.fillMaxWidth().height(120.dp),
+        )
+    }
     chart.referenceMetadata?.label?.let {
         Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -729,7 +739,7 @@ fun ActionButtons(
 }
 
 @Composable
-fun DetailCard(card: DashboardCard, cardAlpha: Float) {
+fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
@@ -741,7 +751,7 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float) {
         Column(Modifier.padding(16.dp)) {
             CardHeadline(card)
             Spacer(Modifier.height(8.dp))
-            CardTemplateBody(card)
+            CardTemplateBody(card, interactiveCharts = interactiveCharts)
         }
     }
 }
