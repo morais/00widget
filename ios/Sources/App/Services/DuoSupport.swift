@@ -48,21 +48,34 @@ enum DuoSupport {
     }
 }
 
-/// Bridges `DuoSupport.hingeFrame(in:)` into SwiftUI the way `GeometryReader`
-/// bridges a view's size: `content` is handed the hinge's frame, in the
-/// coordinate space of whatever this wraps, or nil on every device without
-/// one. Needs a live `UIView` to ask, which is why this is a representable
-/// probe rather than a plain function — there is no SwiftUI environment
-/// value for it in this SDK (checked: the 27.1 SwiftUI interface carries no
-/// hinge-related additions, only the UIKit ones this type wraps).
-struct DuoHingeReader<Content: View>: View {
-    @State private var hinge: CGRect?
-    @ViewBuilder var content: (CGRect?) -> Content
+/// Reports the hinge's frame, in its own coordinate space, into a binding the
+/// *caller* owns. Needs a live `UIView` to ask, which is why this is a
+/// representable probe rather than a plain function — there is no SwiftUI
+/// environment value for it in this SDK (checked: the 27.1 SwiftUI interface
+/// carries no hinge-related additions, only the UIKit ones this type wraps).
+///
+/// Attach it as a `.background`, and keep the state in the view that reads
+/// geometry. It deliberately wraps nothing and holds no `@State` of its own:
+/// an earlier version was a wrapper view that took the content as a closure
+/// and owned the hinge itself, which broke device rotation outright — and on
+/// every device, not just a folding one. A view between a `GeometryReader`
+/// and its content, re-rendering on its own state, re-invokes a closure that
+/// captured a `GeometryProxy` from an earlier pass, so the content is rebuilt
+/// against the size the screen used to be. Verified by A/B on an iPhone 17
+/// Pro: the same rotation that left the wrapper build rendering portrait
+/// produced a correct landscape layout with the wrapper gone.
+struct DuoHingeProbe: UIViewRepresentable {
+    @Binding var hinge: CGRect?
 
-    var body: some View {
-        content(hinge)
-            .background(Probe(hinge: $hinge))
+    func makeUIView(context: Context) -> ProbeView {
+        let view = ProbeView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.onChange = { hinge = $0 }
+        return view
     }
+
+    func updateUIView(_ uiView: ProbeView, context: Context) {}
 
     /// `layoutSubviews`, not `updateUIView`: the hinge query needs the
     /// probe's own frame to be final, and `updateUIView` runs on every
@@ -70,7 +83,7 @@ struct DuoHingeReader<Content: View>: View {
     /// distinction that keeps a `GeometryReader` out of this List's rows
     /// elsewhere in this file (see the comment on the outer reader in
     /// `DashboardView.content`).
-    private final class ProbeView: UIView {
+    final class ProbeView: UIView {
         var onChange: ((CGRect?) -> Void)?
         private var reported: CGRect?
         private var hasReported = false
@@ -82,31 +95,15 @@ struct DuoHingeReader<Content: View>: View {
             // Two things this must not do, both seen on a device. Reporting
             // the same frame twice loops: the state write re-renders, the
             // re-render lays out, and layout lands back here. And writing
-            // SwiftUI state *during* a layout pass is undefined — SwiftUI
-            // either drops the update (the hinge never arrives, and the grid
-            // silently keeps the width-only split) or applies it against a
-            // layout already in flight, which after a rotation leaves the
-            // List sized for the orientation it just left and runs the
-            // second column off the screen. Hand it to the next runloop turn
-            // instead, where it is an ordinary state change.
+            // SwiftUI state *during* a layout pass is undefined — observed
+            // on an iPhone Duo dropping the update outright, so the hinge
+            // never arrived and the grid silently kept the width-only split.
+            // Hand it to the next runloop turn instead, where it is an
+            // ordinary state change.
             guard !hasReported || frame != reported else { return }
             hasReported = true
             reported = frame
             DispatchQueue.main.async { [weak self] in self?.onChange?(frame) }
         }
-    }
-
-    private struct Probe: UIViewRepresentable {
-        @Binding var hinge: CGRect?
-
-        func makeUIView(context: Context) -> ProbeView {
-            let view = ProbeView()
-            view.backgroundColor = .clear
-            view.isUserInteractionEnabled = false
-            view.onChange = { hinge = $0 }
-            return view
-        }
-
-        func updateUIView(_ uiView: ProbeView, context: Context) {}
     }
 }

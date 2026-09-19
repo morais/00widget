@@ -11,6 +11,9 @@ struct DashboardView: View {
     @State private var path: [String] = []
     @State private var searchText = ""
     @State private var removalNotice: String?
+    /// Owned here, beside the reader that supplies the width it is used with,
+    /// rather than inside the probe — see `DuoHingeProbe`.
+    @State private var hinge: CGRect?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -178,25 +181,52 @@ struct DashboardView: View {
         // Width-driven columns need the window width, which only an
         // ancestor reader sees: size class doesn't track resizable or
         // split widths, and a reader inside the list collapses. The hinge
-        // probe sits at the same ancestor level for the same reason — its
-        // reported frame is in this GeometryReader's own coordinate space,
-        // which is what `cardsBranch` needs to line the grid's column break
-        // up with the seam rather than guessing from width alone.
+        // probe reports in this same coordinate space, which is what
+        // `cardsBranch` needs to line the grid's column break up with the
+        // seam rather than guessing from width alone.
+        //
+        // Nothing stateful may sit between this reader and the List. The
+        // probe is a background and writes to state owned above, so a hinge
+        // change re-runs this reader and `proxy` is always the size the
+        // screen is now; a wrapper view owning that state instead rebuilt
+        // the List from a captured, stale proxy and broke rotation on every
+        // device.
         GeometryReader { proxy in
-            DuoHingeReader { hinge in
-                List {
-                    if showsEmptyState {
-                        emptyBranch
-                    } else {
-                        cardsBranch(width: proxy.size.width, hinge: hinge)
-                    }
+            List {
+                if showsEmptyState {
+                    emptyBranch
+                } else {
+                    cardsBranch(width: proxy.size.width, hinge: hinge)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .background(Color.primary.opacity(0.025))
-                .refreshable { await env.fetchCards() }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.primary.opacity(0.025))
+            .background(DuoHingeProbe(hinge: $hinge))
+            .refreshable { await env.fetchCards() }
         }
+    }
+
+    /// A grid row, identified by the shape of the grid inside it.
+    ///
+    /// `List` caches the geometry it measured for a cell and does not
+    /// re-measure it when only an ambient value — here the width the grid
+    /// divides — changes. A `LazyVGrid` in that cell therefore keeps
+    /// rendering the layout it was first given: after a rotation the body
+    /// re-runs with the new width and computes one column, while the cell on
+    /// screen still shows two at the old width, with the second running off
+    /// the edge. Repeated rotations compound it, because the stale height is
+    /// cached too, until a card is clipped away entirely.
+    ///
+    /// Tying the row's identity to the column count makes the change of
+    /// shape a change of row, which is the thing `List` does re-measure.
+    /// It is deliberately the count and not the width: an identity that
+    /// moved with every pixel would rebuild the row throughout a resize.
+    ///
+    /// This is not part of the Duo work — it reproduces identically on an
+    /// ordinary iPhone, and on a build from before any of it.
+    private func gridRow<Content: View>(_ content: Content, columns: Int) -> some View {
+        dashboardRow(content.id(columns))
     }
 
     /// One dashboard row: no separator, no row chrome, 16pt gutters, 8pt
@@ -263,12 +293,16 @@ struct DashboardView: View {
             dashboardRow(sampleNotice)
         }
 
+        // Every grid below divides the same width, so one count identifies
+        // all three rows — see `gridRow`.
+        let gridColumnCount = Self.columns(forWidth: width, hinge: hinge).count
+
         // Exactly one column below the break, exactly two above — never
         // three (see `columns(forWidth:)`). The grid lives in a single row
         // capped at `maxDashboardWidth` so wide windows centre two readable
         // columns instead of stretching cards.
         if !visibleCards.isEmpty {
-            dashboardRow(
+            gridRow(
                 LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleCards) { card in
                         // A button appending to the navigation path rather
@@ -300,7 +334,8 @@ struct DashboardView: View {
                     }
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity),
+                columns: gridColumnCount
             )
         }
 
@@ -312,7 +347,7 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             )
 
-            dashboardRow(
+            gridRow(
                 LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleSharedCards) { card in
                         Button {
@@ -333,7 +368,8 @@ struct DashboardView: View {
                     }
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity),
+                columns: gridColumnCount
             )
         }
 
@@ -345,7 +381,7 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             )
 
-            dashboardRow(
+            gridRow(
                 LazyVGrid(columns: Self.columns(forWidth: width, hinge: hinge), spacing: 16) {
                     ForEach(visibleGuestCards) { card in
                         Button {
@@ -364,7 +400,8 @@ struct DashboardView: View {
                     }
                 }
                 .frame(maxWidth: Self.maxDashboardWidth)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity),
+                columns: gridColumnCount
             )
         }
     }
