@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos.ui.cards
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -539,17 +540,159 @@ private fun BriefingBody(card: DashboardCard) {
 @Composable
 private fun TimelineBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(4.dp))
     val timeline = card.timeline ?: return
-    timeline.entries.take(12).forEach { entry ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(entry.status, Modifier.padding(end = 6.dp))
-            Text(
-                entry.label ?: timeline.series.firstOrNull { it.id == entry.seriesId }?.label.orEmpty(),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    val unknown = MaterialTheme.colorScheme.onSurfaceVariant
+    val base = statusColor(card.status, unknown)
+    Spacer(Modifier.height(4.dp))
+    // Legend: series dot + label, like iOS (limit to what fits one row).
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        timeline.series.take(4).forEachIndexed { index, series ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Canvas(Modifier.size(7.dp)) {
+                    drawCircle(chartTint(index, base, null))
+                }
+                Text(
+                    series.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    Row {
+        if (timeline.lanes.size > 1) {
+            Column(Modifier.width(72.dp)) {
+                timeline.lanes.forEach { lane ->
+                    Box(
+                        Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        Text(
+                            lane.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+        TimelinePlot(
+            timeline = timeline,
+            baseTint = base,
+            selectedFraction = null,
+            modifier = Modifier.weight(1f).height(120.dp),
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+    Row(Modifier.fillMaxWidth()) {
+        Text(
+            formatHourMinute(timeline.startAt),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            formatHourMinute(timeline.endAt),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun parseEpochMs(iso: String): Long? = try {
+    java.time.Instant.parse(iso).toEpochMilli()
+} catch (_: Exception) {
+    null
+}
+
+private fun formatHourMinute(iso: String): String = try {
+    val zdt = java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault())
+    "%02d:%02d".format(zdt.hour, zdt.minute)
+} catch (_: Exception) {
+    iso.take(16)
+}
+
+/**
+ * Fixed-window event plot mirroring EventTimelineView: one baseline rule
+ * per lane, duration spans as translucent rounded bars, instants as dots —
+ * all positioned by elapsed time within [startAt, endAt], never evenly
+ * spaced. [selectedFraction] draws the inspection rule (F4 hooks it up).
+ */
+@Composable
+fun TimelinePlot(
+    timeline: com.example.zerozerowidget.hzos.data.DashboardTimeline,
+    baseTint: Color,
+    selectedFraction: Float?,
+    modifier: Modifier = Modifier,
+) {
+    val secondary = IosChartColors.SECONDARY
+    Canvas(modifier) {
+        val start = parseEpochMs(timeline.startAt) ?: return@Canvas
+        val end = parseEpochMs(timeline.endAt)?.takeIf { it > start } ?: return@Canvas
+        val spanMs = (end - start).toFloat()
+        fun fractionOf(iso: String): Float? =
+            parseEpochMs(iso)?.let { ((it - start) / spanMs).coerceIn(0f, 1f) }
+        val laneCount = maxOf(1, timeline.lanes.size)
+        val laneH = size.height / laneCount
+        // Lane baselines.
+        timeline.lanes.indices.forEach { i ->
+            val y = laneH * (i + 0.5f)
+            drawLine(
+                color = secondary.copy(alpha = 0.20f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 2f,
+            )
+        }
+        fun laneOf(laneId: String): Int =
+            timeline.lanes.indexOfFirst { it.id == laneId }
+        fun seriesTintOf(seriesId: String, status: com.example.zerozerowidget.hzos.data.DashboardStatus): Color {
+            status.takeIf { it != com.example.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN }
+                ?.let { return statusColor(it, secondary) }
+            val si = timeline.series.indexOfFirst { it.id == seriesId }.takeIf { it >= 0 } ?: 0
+            return chartTint(si, baseTint, null)
+        }
+        // Duration spans first, instant markers over them.
+        timeline.entries.forEach { e ->
+            val endAt = e.endAt ?: return@forEach
+            val lane = laneOf(e.laneId).takeIf { it >= 0 } ?: return@forEach
+            val x1 = fractionOf(e.at) ?: return@forEach
+            val x2 = fractionOf(endAt) ?: return@forEach
+            val barH = maxOf(4.dp.toPx(), laneH * 0.62f)
+            val radius = minOf(3.dp.toPx(), barH / 3)
+            drawRoundRect(
+                color = seriesTintOf(e.seriesId, e.status).copy(alpha = 0.24f),
+                topLeft = Offset(x1 * size.width, laneH * (lane + 0.5f) - barH / 2),
+                size = androidx.compose.ui.geometry.Size(maxOf(2f, (x2 - x1) * size.width), barH),
+                cornerRadius = CornerRadius(radius, radius),
+            )
+        }
+        timeline.entries.forEach { e ->
+            if (e.endAt != null) return@forEach
+            val lane = laneOf(e.laneId).takeIf { it >= 0 } ?: return@forEach
+            val rawX = fractionOf(e.at) ?: return@forEach
+            val r = minOf(maxOf(5f, laneH * 0.42f), 11f) / 2
+            val x = rawX * size.width
+            drawCircle(
+                color = seriesTintOf(e.seriesId, e.status),
+                radius = r,
+                center = Offset(x.coerceIn(r, maxOf(r, size.width - r)), laneH * (lane + 0.5f)),
+            )
+        }
+        selectedFraction?.let { f ->
+            val x = (f * size.width).coerceIn(1f, size.width - 1f)
+            drawLine(
+                color = baseTint.copy(alpha = 0.9f),
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 2f,
             )
         }
     }
