@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand deep navy: AdaptiveIcon background behind the mark cut-out.
+     Matches docs/brand Deep navy #06152A; do not recolor the mark. -->
+<resources>
+    <color name="ic_launcher_background">#06152A</color>
+</resources>
