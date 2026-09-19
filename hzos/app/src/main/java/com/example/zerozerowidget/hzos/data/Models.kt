@@ -260,6 +260,7 @@ data class LiveActivitySession(
     val items: List<LiveActivityItem>? = null,
     val chart: DashboardChart? = null,
     val endsAt: String? = null,
+    val startedAt: String? = null,
     val updatedAt: String? = null,
     val staleAt: String? = null,
     val deepLink: String? = null,

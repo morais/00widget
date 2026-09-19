@@ -74,6 +74,22 @@ To add a panel type: add an activity + `<layout>` entry, and a launcher in
 (`summary`/`unknown`) instead of failing the list decode — one newer-server
 card must not blank the dashboard, same rule as the Swift decoders.
 
+## Sample data
+
+`data/SampleData.kt` ports iOS `SampleDataFactory`'s user-facing deck
+field-for-field: the 7 `makeCards()` widgets (launch, production, trials,
+support, AI spend, agent runs, open PRs) plus both demo Live Activities
+(app launch, screenshot capture), all under the reserved `sample-` id
+namespace. The home-energy set and timeline fixture are excluded on
+purpose, matching iOS — they belong to other campaigns, not the default
+deck.
+
+Samples are generated on-device into `SampleStore` (app-private DataStore,
+survives relaunch), never published, and render alongside server cards
+with a SAMPLE badge. Their buttons don't run — demo actions address
+nothing. "Generate sample widgets" works offline with no account, and
+"Clear samples" removes cards and demo activities together.
+
 ## Setup
 
 1. Quest 3/3S/Pro with developer mode + USB debugging (Meta Horizon phone

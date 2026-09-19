@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.DashboardCard
+import com.example.zerozerowidget.hzos.data.isSample
 import com.example.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.example.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
@@ -57,6 +58,7 @@ fun DashboardPanel(
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val samples by app.sampleStore.cards.collectAsState()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
@@ -79,49 +81,89 @@ fun DashboardPanel(
             TextButton(onClick = onOpenActivities) { Text("Activities") }
             TextButton(onClick = onOpenSettings) { Text("Settings") }
         }
-
-        when {
-            !state.isConfigured -> {
+        if (samples.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Not connected. Open the Connection panel (⚙) and enter your Worker URL + API key.",
+                    "Showing demo data",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { app.sampleStore.clearSamples() }) { Text("Clear samples") }
+            }
+        }
+
+        // Server cards first, local samples after — never mixed, never sent.
+        val visible = state.cards + samples
+        when {
+            !state.isConfigured && samples.isEmpty() -> {
+                Text(
+                    "Not connected. Open the Connection panel (Settings) and enter your Worker URL + API key — " +
+                        "or explore with demo data, no account needed.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = onOpenSettings) { Text("Open Connection") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpenSettings) { Text("Open Connection") }
+                    OutlinedButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                }
             }
-            state.error != null && state.cards.isEmpty() -> {
+            state.error != null && visible.isEmpty() -> {
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { app.repository.refresh() }) { Text("Retry") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { app.repository.refresh() }) { Text("Retry") }
+                    OutlinedButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                }
+            }
+            visible.isEmpty() -> {
+                Text(
+                    "No cards yet. Publish one from an agent, or explore with demo data.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
             }
             else -> {
                 state.error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(state.cards, key = { it.id }) { card ->
+                    items(visible, key = { it.id }) { card ->
+                        val isSample = card.isSample()
                         DashboardRow(
                             card = card,
                             cardAlpha = cardAlpha,
+                            isSample = isSample,
                             expanded = selectedId == card.id,
                             onToggle = { selectedId = if (selectedId == card.id) null else card.id },
                             onPopOut = { onPopOut(card.id) },
                             onOpenLink = { openDeepLink(context, card.deepLink) },
                             actionSlot = {
-                                ActionButtons(
-                                    card = card,
-                                    runningId = runningId,
-                                    runError = if (runningId != null) null else runError,
-                                    onRun = { action ->
-                                        scope.launch {
-                                            runningId = action.id
-                                            runError = null
-                                            val result = app.repository.runAction(action.id, card.id)
-                                            runningId = null
-                                            runError = result.exceptionOrNull()?.message?.take(200)
-                                        }
-                                    },
-                                )
+                                // Sample cards are local demos: their buttons
+                                // address nothing, so they don't run.
+                                if (isSample) {
+                                    Text(
+                                        "Demo card — buttons don't run on samples.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                } else {
+                                    ActionButtons(
+                                        card = card,
+                                        runningId = runningId,
+                                        runError = if (runningId != null) null else runError,
+                                        onRun = { action ->
+                                            scope.launch {
+                                                runningId = action.id
+                                                runError = null
+                                                val result = app.repository.runAction(action.id, card.id)
+                                                runningId = null
+                                                runError = result.exceptionOrNull()?.message?.take(200)
+                                            }
+                                        },
+                                    )
+                                }
                             },
                         )
                     }
@@ -135,6 +177,7 @@ fun DashboardPanel(
 private fun DashboardRow(
     card: DashboardCard,
     cardAlpha: Float,
+    isSample: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
     onPopOut: () -> Unit,
@@ -152,6 +195,13 @@ private fun DashboardRow(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
     ) {
         Column(Modifier.padding(14.dp)) {
+            if (isSample) {
+                Text(
+                    "SAMPLE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             CardHeadline(card)
             card.subtitle?.let {
                 Text(
@@ -193,6 +243,7 @@ fun CardDetailPanel(
     onOpenLink: (String?) -> Unit,
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val samples by app.sampleStore.cards.collectAsState()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
@@ -200,6 +251,8 @@ fun CardDetailPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val card = state.cards.firstOrNull { it.id == cardId }
+        ?: samples.firstOrNull { it.id == cardId }
+    val isSample = card?.isSample() == true
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -219,22 +272,38 @@ fun CardDetailPanel(
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
+            if (isSample) {
+                Text(
+                    "SAMPLE · demo data",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             DetailCard(card, cardAlpha)
             Spacer(Modifier.height(10.dp))
-            ActionButtons(
-                card = card,
-                runningId = runningId,
-                runError = runError,
-                onRun = { action ->
-                    scope.launch {
-                        runningId = action.id
-                        runError = null
-                        val result = app.repository.runAction(action.id, card.id)
-                        runningId = null
-                        runError = result.exceptionOrNull()?.message?.take(200)
-                    }
-                },
-            )
+            if (isSample) {
+                Text(
+                    "Demo card — buttons don't run on samples.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                ActionButtons(
+                    card = card,
+                    runningId = runningId,
+                    runError = runError,
+                    onRun = { action ->
+                        scope.launch {
+                            runningId = action.id
+                            runError = null
+                            val result = app.repository.runAction(action.id, card.id)
+                            runningId = null
+                            runError = result.exceptionOrNull()?.message?.take(200)
+                        }
+                    },
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 card.deepLink?.let {

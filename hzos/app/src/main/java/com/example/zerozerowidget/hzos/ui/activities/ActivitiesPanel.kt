@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.LiveActivitySession
+import com.example.zerozerowidget.hzos.data.SampleData
+import com.example.zerozerowidget.hzos.data.isSample
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
@@ -42,9 +45,11 @@ import com.example.zerozerowidget.hzos.ui.relativeTime
 @Composable
 fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings: () -> Unit) {
     val state by app.repository.state.collectAsStateWithLifecycle()
+    val samples by app.sampleStore.activities.collectAsState()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
+    val visible = state.activities + samples
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -52,24 +57,61 @@ fun ActivitiesPanel(app: ZeroZeroWidgetApp, onClose: () -> Unit, onOpenSettings:
             TextButton(onClick = onClose) { Text("Close") }
         }
         when {
-            !state.isConfigured -> {
-                Text("Not connected — set up the Connection panel first.")
+            !state.isConfigured && samples.isEmpty() -> {
+                Text("Not connected — set up the Connection panel first, or preview a demo activity.")
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = onOpenSettings) { Text("Open Connection") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpenSettings) { Text("Open Connection") }
+                    OutlinedButton(
+                        onClick = { app.sampleStore.generateActivity(SampleData.LiveActivitySample.APP_LAUNCH) },
+                    ) { Text("Demo activity") }
+                }
             }
-            state.activities.isEmpty() -> {
+            visible.isEmpty() -> {
                 Text(
                     "No live activities running.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { app.repository.refresh() }) { Text("Refresh") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { app.repository.refresh() }) { Text("Refresh") }
+                    OutlinedButton(
+                        onClick = { app.sampleStore.generateActivity(SampleData.LiveActivitySample.APP_LAUNCH) },
+                    ) { Text("Demo activity") }
+                }
             }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(state.activities, key = { it.externalActivityId }) { session ->
+                items(visible, key = { it.externalActivityId }) { session ->
                     ActivityRow(session, cardAlpha)
                 }
+                item {
+                    SampleActivityButtons(app)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Both iOS demo sessions, mirroring LiveActivitySample. One runs at a
+ * time (generating replaces), cleared with the cards via Clear samples.
+ */
+@Composable
+private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
+    Column {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Demo activities",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SampleData.LiveActivitySample.entries.forEach { sample ->
+                OutlinedButton(
+                    onClick = { app.sampleStore.generateActivity(sample) },
+                ) { Text(sample.title) }
             }
         }
     }
@@ -86,6 +128,13 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(14.dp)) {
+            if (session.isSample()) {
+                Text(
+                    "SAMPLE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 session.progress?.let {
                     Text(
