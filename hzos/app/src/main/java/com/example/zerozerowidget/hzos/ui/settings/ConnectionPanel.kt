@@ -1,5 +1,6 @@
 package com.example.zerozerowidget.hzos.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,8 +14,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -55,6 +54,7 @@ private enum class SignInPhase { IDLE, REQUESTING, WAITING }
 fun ConnectionPanel(
     app: ZeroZeroWidgetApp,
     onClose: () -> Unit,
+    onOpenOptions: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -177,69 +177,38 @@ fun ConnectionPanel(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        LookSection(app)
+        Spacer(Modifier.height(8.dp))
+        VersionRow(onOpenOptions = onOpenOptions)
             }
         }
     }
 }
 
 /**
- * Panel look: opaque black windows or transparent ones with passthrough
- * showing through. Applies to every open panel immediately, no restart.
- * Cards stay opaque dark surfaces either way, which is what keeps light
- * text readable over a bright room.
+ * App version row. Tapping it opens the additional options panel — the
+ * iOS pattern of hiding secondary switches behind the version tap.
  */
 @Composable
-private fun LookSection(app: ZeroZeroWidgetApp) {
-    val scope = rememberCoroutineScope()
-    val transparent by app.panelPrefs.transparent.collectAsState(initial = false)
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
-    )
-    var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
-    Spacer(Modifier.height(8.dp))
+private fun VersionRow(onOpenOptions: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenOptions),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text("Transparent panels", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                "Passthrough shows through the window; cards stay solid.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(
-            checked = transparent,
-            onCheckedChange = { checked ->
-                scope.launch { app.panelPrefs.setTransparent(checked) }
-            },
+        Text(
+            "Version ${com.example.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
+                "(${com.example.zerozerowidget.hzos.BuildConfig.VERSION_CODE})",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            ">",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    Spacer(Modifier.height(4.dp))
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Card opacity", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-    Slider(
-        value = sliderAlpha,
-        onValueChange = { sliderAlpha = it },
-        onValueChangeFinished = {
-            scope.launch { app.panelPrefs.setCardAlpha(sliderAlpha) }
-        },
-        valueRange = 0.5f..1f,
-        modifier = Modifier.fillMaxWidth(),
-    )
 }
 
 /**

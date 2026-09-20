@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.zerozerowidget.hzos.CardDetailActivity
 import com.example.zerozerowidget.hzos.ConnectionActivity
+import com.example.zerozerowidget.hzos.OptionsActivity
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import kotlinx.coroutines.launch
 
@@ -25,6 +26,15 @@ import kotlinx.coroutines.launch
 fun Context.openConnectionPanel() {
     startActivity(
         Intent(this, ConnectionActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+        },
+    )
+}
+
+/** Additional options. Singleton like settings. */
+fun Context.openOptionsPanel() {
+    startActivity(
+        Intent(this, OptionsActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
         },
     )

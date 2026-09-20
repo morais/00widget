@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.zerozerowidget.hzos.ui.settings.ConnectionPanel
+import com.example.zerozerowidget.hzos.ui.openOptionsPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
 import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 import kotlinx.coroutines.launch
@@ -33,6 +34,7 @@ class ConnectionActivity : ComponentActivity() {
                 ConnectionPanel(
                     app = app,
                     onClose = { finishAndRemoveTask() },
+                    onOpenOptions = { openOptionsPanel() },
                     onSendAuthUrl = { authUrl, onSent ->
                         sendAuthUrl(authUrl, onSent)
                     },
