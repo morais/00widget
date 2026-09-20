@@ -19,7 +19,9 @@
             android:name="com.oculus.supportedDevices"
             android:value="quest2|questpro|quest3|quest3s" />
 
-        <!-- Dashboard: the launcher panel. -->
+        <!-- Dashboard: the launcher panel. minWidth lets the shell shrink
+             it below the 728dp two-column break (minus 40dp padding) so a
+             narrow panel genuinely drops to one column. -->
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".DashboardActivity"
@@ -28,7 +30,7 @@
             <layout
                 android:defaultWidth="1280dp"
                 android:defaultHeight="800dp"
-                android:minWidth="800dp"
+                android:minWidth="520dp"
                 android:minHeight="500dp" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
