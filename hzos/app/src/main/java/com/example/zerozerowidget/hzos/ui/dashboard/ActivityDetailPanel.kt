@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +44,9 @@ fun ActivityDetailPanel(
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
     val samples by app.sampleStore.activities.collectAsState()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
     val session = state.activities.firstOrNull { it.externalActivityId == externalActivityId }
         ?: samples.firstOrNull { it.externalActivityId == externalActivityId }
 
@@ -71,6 +76,16 @@ fun ActivityDetailPanel(
                 )
                 Spacer(Modifier.height(4.dp))
             }
+            // Same glass container as widget details, so activity panels
+            // read as the same object family rather than naked text.
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 session.progress?.let {
                     Text(
@@ -164,6 +179,8 @@ fun ActivityDetailPanel(
                 }
                 session.deepLink?.let {
                     FilledTonalButton(onClick = { onOpenLink(session.deepLink) }) { Text("Open link") }
+                }
+            }
                 }
             }
         }
