@@ -224,22 +224,29 @@ fun DashboardPanel(
                                 SampleActivityButtons(app)
                             }
                         }
-                        if (visible.isNotEmpty()) {
-                            item(key = "widgets-title") {
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    SectionTitle("Widgets")
-                                    Spacer(Modifier.weight(1f))
-                                    if (samples.isEmpty()) {
-                                        FilledTonalButton(
-                                            onClick = { app.sampleStore.generateCards() },
-                                        ) { Text("Demo") }
-                                    }
+                        item(key = "widgets-title") {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SectionTitle("Widgets")
+                                Spacer(Modifier.weight(1f))
+                                if (samples.isEmpty() && visible.isNotEmpty()) {
+                                    FilledTonalButton(
+                                        onClick = { app.sampleStore.generateCards() },
+                                    ) { Text("Demo") }
                                 }
                             }
-                            if (twoCol) {
+                        }
+                        if (visible.isEmpty()) {
+                            // No widgets: like the activities section, the
+                            // Widgets section becomes its own demo picker.
+                            item(key = "demo-widgets") {
+                                FilledTonalButton(
+                                    onClick = { app.sampleStore.generateCards() },
+                                ) { Text("Generate sample widgets") }
+                            }
+                        } else if (twoCol) {
                                 items(
                                     visible.chunked(2),
                                     key = { row -> "row-" + row.first().id },
@@ -256,7 +263,6 @@ fun DashboardPanel(
                             } else {
                                 items(visible, key = { it.id }) { card -> cardRow(card) }
                             }
-                        }
                     }
                 }
             }
