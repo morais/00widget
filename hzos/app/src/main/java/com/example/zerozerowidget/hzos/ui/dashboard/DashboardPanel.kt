@@ -51,6 +51,7 @@ import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
 import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
+import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
@@ -297,11 +298,7 @@ private fun DashboardRow(
     ) {
         Column(Modifier.padding(14.dp)) {
             if (isSample) {
-                Text(
-                    "SAMPLE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                SampleBadge()
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardHeadline(card, Modifier.weight(1f))
@@ -388,11 +385,7 @@ fun CardDetailPanel(
             )
         } else {
             if (isSample) {
-                Text(
-                    "SAMPLE · demo data",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                SampleBadge()
                 Spacer(Modifier.height(4.dp))
             }
             DetailCard(card, cardAlpha, interactiveCharts = true)
@@ -505,11 +498,7 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
     ) {
         Column(Modifier.padding(14.dp)) {
             if (session.isSample()) {
-                Text(
-                    "SAMPLE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                SampleBadge()
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 session.progress?.let {

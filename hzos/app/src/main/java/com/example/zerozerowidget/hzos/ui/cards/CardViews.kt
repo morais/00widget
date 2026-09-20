@@ -1,6 +1,7 @@
 package com.example.zerozerowidget.hzos.ui.cards
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,30 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
     val unknown = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(modifier = modifier.size(10.dp)) {
         drawCircle(statusColor(status, unknown))
+    }
+}
+
+/**
+ * Demo-data pill. Solid primary lozenge, white text, fixed padding — an
+ * inline element that can sit anywhere a label sits, so it never disturbs
+ * the surrounding layout (no rotation, no overflow, no offsets).
+ */
+@Composable
+fun SampleBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.primary,
+                androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "SAMPLE",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+        )
     }
 }
 

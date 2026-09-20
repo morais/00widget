@@ -36,6 +36,7 @@ import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.isSample
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.InspectableChart
+import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
@@ -93,11 +94,7 @@ fun ActivityDetailPanel(
             )
         } else {
             if (session.isSample()) {
-                Text(
-                    "SAMPLE · demo data",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                SampleBadge()
                 Spacer(Modifier.height(4.dp))
             }
             // Same glass container as widget details, so activity panels
