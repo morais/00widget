@@ -96,6 +96,7 @@ hzos/.gradle/
 hzos/app/build/
 hzos/local.properties
 hzos/defaults.properties
+hzos/store.properties
 *.ap_
 *.apk
 *.aab
