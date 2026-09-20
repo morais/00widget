@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -346,7 +348,16 @@ fun CardDetailPanel(
         ?: samples.firstOrNull { it.id == cardId }
     val isSample = card?.isSample() == true
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
+    // Shell panels have one fixed window height each; tall content (long
+    // briefings, full item lists, inspection panels) scrolls inside it.
+    // The OS cannot size a panel to its content, so scroll is the whole
+    // answer — sizing the window to content is not an API that exists.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 card?.title ?: "Card",
