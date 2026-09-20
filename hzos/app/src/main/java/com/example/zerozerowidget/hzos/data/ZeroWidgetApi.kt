@@ -58,6 +58,26 @@ class ZeroWidgetApi(
         postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
     }
 
+    /**
+     * Deletes a card / ends an activity. Both routes require the `publish`
+     * scope, which a device-preset token does NOT have — callers surface
+     * the 403 honestly instead of hiding the button's limits.
+     */
+    suspend fun deleteCard(id: String) {
+        val req = authed("/v1/cards/${pathSegment(id)}").delete().build()
+        http.newCall(req).execute().use { resp ->
+            if (resp.code !in 200..299) {
+                val msg = resp.body?.string().orEmpty()
+                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+            }
+        }
+    }
+
+    suspend fun endActivity(externalActivityId: String) {
+        val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
+        postEmpty("/v1/live-activities/end", body)
+    }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =

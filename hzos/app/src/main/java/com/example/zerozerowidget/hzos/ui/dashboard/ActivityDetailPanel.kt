@@ -21,6 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,11 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.isSample
+import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.InspectableChart
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
+import com.example.zerozerowidget.hzos.ui.describeDeleteError
 import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.relativeTime
+import kotlinx.coroutines.launch
 
 /**
  * Full activity detail, hosted by CardDetailActivity alongside cards: every
@@ -53,6 +60,10 @@ fun ActivityDetailPanel(
     )
     val session = state.activities.firstOrNull { it.externalActivityId == externalActivityId }
         ?: samples.firstOrNull { it.externalActivityId == externalActivityId }
+    val isSample = session?.isSample() == true
+    var ending by remember { mutableStateOf(false) }
+    var endError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -187,6 +198,27 @@ fun ActivityDetailPanel(
                     FilledTonalButton(onClick = { onOpenLink(session.deepLink) }) { Text("Open link") }
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            DeleteRow(
+                label = if (isSample) "Remove sample" else "End activity",
+                busy = ending,
+                error = endError,
+                onDelete = {
+                    scope.launch {
+                        ending = true
+                        endError = null
+                        if (isSample) {
+                            app.sampleStore.removeActivity(externalActivityId)
+                        } else {
+                            val result = app.repository.endActivity(externalActivityId)
+                            ending = false
+                            endError = result.exceptionOrNull()?.let(::describeDeleteError)
+                            return@launch
+                        }
+                        ending = false
+                    }
+                },
+            )
                 }
             }
         }

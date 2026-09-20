@@ -71,6 +71,18 @@ class SampleStore(context: Context) {
         }
     }
 
+    /** Removes one sample card (no server involved, by definition). */
+    fun removeCard(id: String) {
+        _cards.value = _cards.value.filterNot { it.id == id }
+        scope.launch { writeList(CARDS_JSON, _cards.value, DashboardCard.serializer()) }
+    }
+
+    /** Removes one sample activity. */
+    fun removeActivity(externalActivityId: String) {
+        _activities.value = _activities.value.filterNot { it.externalActivityId == externalActivityId }
+        scope.launch { writeList(ACTIVITIES_JSON, _activities.value, LiveActivitySession.serializer()) }
+    }
+
     private suspend fun <T> readList(
         key: androidx.datastore.preferences.core.Preferences.Key<String>,
         serializer: kotlinx.serialization.KSerializer<T>,

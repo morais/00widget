@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -22,6 +23,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -813,9 +818,48 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
     }
 }
 
+/**
+ * Destructive action with inline two-tap confirm, iOS detail-screen style.
+ * First tap arms ("Tap again to confirm"), second fires. Red container,
+ * white text — unmissable as destructive on a dark panel.
+ */
 @Composable
-fun NeedsYouBadge(modifier: Modifier = Modifier) {
-    // Mirrors the derived "Needs you" rule in llms.md: attention status +
+fun DeleteRow(
+    label: String,
+    busy: Boolean,
+    error: String?,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var armed by remember { mutableStateOf(false) }
+    Column(modifier) {
+        Button(
+            onClick = {
+                if (armed) {
+                    armed = false
+                    onDelete()
+                } else {
+                    armed = true
+                }
+            },
+            enabled = !busy,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = Color.White,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (busy) "Working…" else if (armed) "Tap again to confirm" else label)
+        }
+        error?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+fun NeedsYouBadge(modifier: Modifier = Modifier) {    // Mirrors the derived "Needs you" rule in llms.md: attention status +
     // actionable button. Callers decide; this only draws the pill.
     FilledTonalButton(onClick = {}, modifier = modifier) {
         Text("Needs you", color = MaterialTheme.colorScheme.error)

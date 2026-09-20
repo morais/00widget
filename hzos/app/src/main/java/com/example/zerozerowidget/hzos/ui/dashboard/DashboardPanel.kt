@@ -46,8 +46,10 @@ import com.example.zerozerowidget.hzos.data.isSample
 import com.example.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.example.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
+import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
 import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
+import com.example.zerozerowidget.hzos.ui.describeDeleteError
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
@@ -337,6 +339,8 @@ fun CardDetailPanel(
     )
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
+    var deleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val card = state.cards.firstOrNull { it.id == cardId }
         ?: samples.firstOrNull { it.id == cardId }
@@ -399,7 +403,28 @@ fun CardDetailPanel(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
                 }
+                Spacer(Modifier.height(8.dp))
             }
+            DeleteRow(
+                label = "Delete",
+                busy = deleting,
+                error = deleteError,
+                onDelete = {
+                    scope.launch {
+                        deleting = true
+                        deleteError = null
+                        if (isSample) {
+                            app.sampleStore.removeCard(cardId)
+                        } else {
+                            val result = app.repository.deleteCard(cardId)
+                            deleting = false
+                            deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
+                            return@launch
+                        }
+                        deleting = false
+                    }
+                },
+            )
             card.deadline?.let { deadline ->
                 Spacer(Modifier.height(6.dp))
                 Text(

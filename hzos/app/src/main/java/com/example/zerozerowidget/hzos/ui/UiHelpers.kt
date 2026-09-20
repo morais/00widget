@@ -3,6 +3,7 @@ package com.example.zerozerowidget.hzos.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
 import java.time.Duration
 import java.time.Instant
 
@@ -47,4 +48,18 @@ fun isStale(updatedAt: String?, staleAfter: String?, now: Instant = Instant.now(
         // Unparseable dates never mark a card stale on their own.
     }
     return false
+}
+
+/**
+ * Honest delete/end failure text. Server deletes need the `publish` scope,
+ * which a device-preset token does not have — say so instead of showing a
+ * bare 403.
+ */
+fun describeDeleteError(e: Throwable): String {
+    val api = e as? ZeroWidgetApi.ApiException
+    if (api != null && (api.status == 401 || api.status == 403)) {
+        return "This token can't delete (needs the publish scope). " +
+            "Delete from the iOS app or /admin instead."
+    }
+    return (e.message ?: e.javaClass.simpleName).take(200)
 }

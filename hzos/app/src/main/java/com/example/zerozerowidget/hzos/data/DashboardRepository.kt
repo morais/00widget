@@ -78,6 +78,23 @@ class DashboardRepository(
         }
     }
 
+    suspend fun deleteCard(id: String): Result<Unit> = writeOp { api, _ -> api.deleteCard(id) }
+
+    suspend fun endActivity(externalActivityId: String): Result<Unit> =
+        writeOp { api, _ -> api.endActivity(externalActivityId) }
+
+    private suspend fun writeOp(op: suspend (ZeroWidgetApi, ConnectionStore.Connection) -> Unit): Result<Unit> {
+        val connection = store.current()
+        if (!connection.isConfigured) return Result.failure(IllegalStateException("Not connected"))
+        return try {
+            op(apiFactory(connection.baseUrl, connection.apiKey), connection)
+            refreshNow(connection)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
 
     private suspend fun refreshNow(connection: ConnectionStore.Connection) {
