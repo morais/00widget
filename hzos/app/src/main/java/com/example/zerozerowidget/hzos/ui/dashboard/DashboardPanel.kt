@@ -16,8 +16,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -92,8 +96,12 @@ fun DashboardPanel(
                     modifier = Modifier.padding(end = 4.dp),
                 )
             }
-            FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
-            FilledTonalButton(onClick = onOpenSettings) { Text("Settings") }
+            IconButton(onClick = { app.repository.refresh() }) {
+                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+            }
         }
         if (samples.isNotEmpty() || sampleActivities.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -343,7 +351,9 @@ fun CardDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
+            IconButton(onClick = { app.repository.refresh() }) {
+                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+            }
         }
         Spacer(Modifier.height(8.dp))
         if (card == null) {
