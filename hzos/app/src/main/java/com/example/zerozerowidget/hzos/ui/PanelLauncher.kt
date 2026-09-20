@@ -43,6 +43,20 @@ fun Context.openDetailPanel(cardId: String) {
     )
 }
 
+/** Same pop-out story for activities: every one gets its own panel. */
+fun Context.openActivityDetailPanel(externalActivityId: String) {
+    startActivity(
+        Intent(this, CardDetailActivity::class.java).apply {
+            putExtra(CardDetailActivity.EXTRA_ACTIVITY_ID, externalActivityId)
+            addFlags(
+                Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
+                    or Intent.FLAG_ACTIVITY_NEW_TASK
+                    or Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+            )
+        },
+    )
+}
+
 /**
  * Applies the transparency preference to this panel's window, live. Called
  * from every panel activity's onCreate; the Flow keeps it applied for the

@@ -63,6 +63,7 @@ fun DashboardPanel(
     app: ZeroZeroWidgetApp,
     onOpenSettings: () -> Unit,
     onPopOut: (cardId: String) -> Unit,
+    onPopOutActivity: (externalActivityId: String) -> Unit,
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
@@ -198,7 +199,11 @@ fun DashboardPanel(
                                 visibleActivities,
                                 key = { "act-" + it.externalActivityId },
                             ) { session ->
-                                ActivityRow(session, cardAlpha)
+                                ActivityRow(
+                                    session = session,
+                                    cardAlpha = cardAlpha,
+                                    onPopOut = { onPopOutActivity(session.externalActivityId) },
+                                )
                             }
                         } else {
                             // No ongoing activities: the section becomes the
@@ -420,7 +425,7 @@ private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
 }
 
 @Composable
-private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
+private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
@@ -452,6 +457,7 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float) {
                     Text(session.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(session.state, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                PopOutIconButton(onPopOut)
             }
             session.subtitle?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
