@@ -166,16 +166,19 @@ fun DashboardPanel(
                         onToggle = { selectedId = if (selectedId == card.id) null else card.id },
                         onPopOut = { onPopOut(card.id) },
                         onOpenLink = { openDeepLink(context, card.deepLink) },
-                        actionSlot = {
-                            // Sample cards are local demos: their buttons
-                            // address nothing, so they don't run.
-                            if (isSample) {
-                                Text(
-                                    "Demo card — buttons don't run on samples.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            } else {
+                            actionSlot = {
+                                // Sample cards are local demos: their buttons
+                                // address nothing, so they don't run — but
+                                // only say so when buttons exist at all.
+                                if (isSample) {
+                                    if (!card.actions.isNullOrEmpty()) {
+                                        Text(
+                                            "Demo card — buttons don't run on samples.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                } else {
                                 ActionButtons(
                                     card = card,
                                     runningId = runningId,
@@ -394,11 +397,13 @@ fun CardDetailPanel(
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
             if (isSample) {
-                Text(
-                    "Demo card — buttons don't run on samples.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!card.actions.isNullOrEmpty()) {
+                    Text(
+                        "Demo card — buttons don't run on samples.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             } else {
                 ActionButtons(
                     card = card,
