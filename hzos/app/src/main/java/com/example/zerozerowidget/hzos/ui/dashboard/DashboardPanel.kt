@@ -184,15 +184,21 @@ fun DashboardPanel(
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                     val twoCol = maxWidth >= 728.dp
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        item(key = "activities-title") {
+                            SectionTitle("Ongoing Activities")
+                        }
                         if (visibleActivities.isNotEmpty()) {
-                            item(key = "activities-title") {
-                                SectionTitle("Ongoing Activities")
-                            }
                             items(
                                 visibleActivities,
                                 key = { "act-" + it.externalActivityId },
                             ) { session ->
                                 ActivityRow(session, cardAlpha)
+                            }
+                        } else {
+                            // No ongoing activities: the section becomes the
+                            // demo picker instead of a separate block.
+                            item(key = "demo-activities") {
+                                SampleActivityButtons(app)
                             }
                         }
                         if (visible.isNotEmpty()) {
@@ -216,9 +222,6 @@ fun DashboardPanel(
                             } else {
                                 items(visible, key = { it.id }) { card -> cardRow(card) }
                             }
-                        }
-                        item(key = "demo-activities") {
-                            SampleActivityButtons(app)
                         }
                     }
                 }
