@@ -43,6 +43,7 @@ import com.example.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.example.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
+import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
@@ -264,7 +265,10 @@ private fun DashboardRow(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            CardHeadline(card)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CardHeadline(card, Modifier.weight(1f))
+                PopOutIconButton(onPopOut)
+            }
             card.subtitle?.let {
                 Text(
                     it,
@@ -283,7 +287,6 @@ private fun DashboardRow(
                 actionSlot()
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = onPopOut) { Text("Pop out panel") }
                     card.deepLink?.let {
                         FilledTonalButton(onClick = onOpenLink) { Text("Open link") }
                     }

@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -46,6 +48,34 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
     val unknown = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(modifier = modifier.size(10.dp)) {
         drawCircle(statusColor(status, unknown))
+    }
+}
+
+/**
+ * Pop-out affordance drawn with Canvas strokes, never a font glyph — the
+ * headset font lacks symbols like U+279A, which rendered prior icon
+ * buttons invisible. Open-in-new shape: box with an arrow leaving top-right.
+ */
+@Composable
+fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onPopOut, modifier = modifier) {
+        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        Canvas(Modifier.size(22.dp)) {
+            val sw = 2.dp.toPx()
+            // Box outline; the arrow overlaps its top-right corner.
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(3.dp.toPx(), 8.dp.toPx()),
+                size = Size(12.dp.toPx(), 11.dp.toPx()),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+                style = Stroke(width = sw),
+            )
+            // Arrow leaving toward top-right.
+            val tip = Offset(19.dp.toPx(), 5.dp.toPx())
+            drawLine(color, Offset(9.dp.toPx(), 15.dp.toPx()), tip, strokeWidth = sw, cap = StrokeCap.Round)
+            drawLine(color, tip, Offset(tip.x - 4.5.dp.toPx(), tip.y), strokeWidth = sw, cap = StrokeCap.Round)
+            drawLine(color, tip, Offset(tip.x, tip.y + 4.5.dp.toPx()), strokeWidth = sw, cap = StrokeCap.Round)
+        }
     }
 }
 
