@@ -31,7 +31,6 @@ class CardDetailActivity : ComponentActivity() {
                     CardDetailPanel(
                         app = app,
                         cardId = cardId,
-                        onClose = { finishAndRemoveTask() },
                         onOpenLink = { url -> openDeepLink(this, url) },
                     )
                 }

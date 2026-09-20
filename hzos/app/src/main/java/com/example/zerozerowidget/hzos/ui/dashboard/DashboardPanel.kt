@@ -304,7 +304,6 @@ private fun DashboardRow(
 fun CardDetailPanel(
     app: ZeroZeroWidgetApp,
     cardId: String,
-    onClose: () -> Unit,
     onOpenLink: (String?) -> Unit,
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
@@ -328,12 +327,12 @@ fun CardDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            FilledTonalButton(onClick = onClose) { Text("Close") }
+            FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
         }
         Spacer(Modifier.height(8.dp))
         if (card == null) {
             Text(
-                "This card is no longer on the dashboard. Close this panel.",
+                "This card is no longer on the dashboard.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
@@ -370,11 +369,10 @@ fun CardDetailPanel(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                card.deepLink?.let {
+            card.deepLink?.let {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
                 }
-                FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
             }
             card.deadline?.let { deadline ->
                 Spacer(Modifier.height(6.dp))
