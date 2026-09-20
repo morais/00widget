@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -820,8 +821,8 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
 
 /**
  * Destructive action with inline two-tap confirm, iOS detail-screen style.
- * First tap arms ("Tap again to confirm"), second fires. Red container,
- * white text — unmissable as destructive on a dark panel.
+ * Compact and right-aligned: a small red-tonal button, never a full-width
+ * banner. First tap arms ("Sure?"), second fires.
  */
 @Composable
 fun DeleteRow(
@@ -832,24 +833,30 @@ fun DeleteRow(
     modifier: Modifier = Modifier,
 ) {
     var armed by remember { mutableStateOf(false) }
-    Column(modifier) {
-        Button(
-            onClick = {
-                if (armed) {
-                    armed = false
-                    onDelete()
-                } else {
-                    armed = true
-                }
-            },
-            enabled = !busy,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = Color.White,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(if (busy) "Working…" else if (armed) "Tap again to confirm" else label)
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            FilledTonalButton(
+                onClick = {
+                    if (armed) {
+                        armed = false
+                        onDelete()
+                    } else {
+                        armed = true
+                    }
+                },
+                enabled = !busy,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                    contentColor = Color.White,
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.height(34.dp),
+            ) {
+                Text(
+                    if (busy) "Working…" else if (armed) "Sure?" else label,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
         }
         error?.let {
             Spacer(Modifier.height(4.dp))
