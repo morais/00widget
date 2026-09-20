@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -584,8 +586,12 @@ private fun TimelineBody(card: DashboardCard) {
     val unknown = MaterialTheme.colorScheme.onSurfaceVariant
     val base = statusColor(card.status, unknown)
     Spacer(Modifier.height(4.dp))
-    // Legend: series dot + label, like iOS (limit to what fits one row).
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Legend: series dot + label. FlowRow wraps long label sets onto
+    // multiple lines instead of pushing the plot off the panel.
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         timeline.series.take(4).forEachIndexed { index, series ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
