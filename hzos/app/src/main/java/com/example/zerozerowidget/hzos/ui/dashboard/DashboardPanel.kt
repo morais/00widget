@@ -218,6 +218,7 @@ fun DashboardPanel(
                                     session = session,
                                     cardAlpha = cardAlpha,
                                     onPopOut = { onPopOutActivity(session.externalActivityId) },
+                                    onOpenDetail = { onPopOutActivity(session.externalActivityId) },
                                 )
                             }
                         } else {
@@ -493,14 +494,14 @@ private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
 }
 
 @Composable
-private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit) {
+private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit, onOpenDetail: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
             // Explicit: see DashboardRow — alpha breaks contentColorFor().
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDetail),
     ) {
         Column(Modifier.padding(14.dp)) {
             if (session.isSample()) {
