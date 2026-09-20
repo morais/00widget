@@ -95,15 +95,15 @@ fun DashboardPanel(
             FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
             FilledTonalButton(onClick = onOpenSettings) { Text("Settings") }
         }
-        if (samples.isNotEmpty()) {
+        if (samples.isNotEmpty() || sampleActivities.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Showing demo data",
+                    "This is sample data",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                FilledTonalButton(onClick = { app.sampleStore.clearSamples() }) { Text("Clear samples") }
+                FilledTonalButton(onClick = { app.sampleStore.clearSamples() }) { Text("Remove all") }
             }
         }
 
@@ -214,7 +214,18 @@ fun DashboardPanel(
                         }
                         if (visible.isNotEmpty()) {
                             item(key = "widgets-title") {
-                                SectionTitle("Widgets")
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    SectionTitle("Widgets")
+                                    Spacer(Modifier.weight(1f))
+                                    if (samples.isEmpty()) {
+                                        FilledTonalButton(
+                                            onClick = { app.sampleStore.generateCards() },
+                                        ) { Text("Demo") }
+                                    }
+                                }
                             }
                             if (twoCol) {
                                 items(
