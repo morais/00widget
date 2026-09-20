@@ -774,9 +774,30 @@ fun ActionButtons(
     }
 }
 
+/**
+ * Shared glass container: the same surfaceVariant + cardAlpha + onSurface
+ * surface every card uses, for non-card content (settings bodies, detail
+ * wrappers) that should read as the same object family.
+ */
 @Composable
-fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {
+fun GlassCard(
+    cardAlpha: Float,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
     Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), content = content)
+    }
+}
+
+@Composable
+fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {    Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
             // Explicit: see DashboardRow — alpha breaks contentColorFor().

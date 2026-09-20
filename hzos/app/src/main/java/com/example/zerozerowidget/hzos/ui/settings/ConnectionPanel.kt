@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
+import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.data.DeviceAuthApi
 import com.example.zerozerowidget.hzos.data.awaitDeviceToken
 import kotlinx.coroutines.CancellationException
@@ -62,6 +63,9 @@ fun ConnectionPanel(
     var loaded by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
 
     LaunchedEffect(Unit) {
         val current = app.connectionStore.current()
@@ -83,6 +87,8 @@ fun ConnectionPanel(
             return@Column
         }
 
+        GlassCard(cardAlpha = cardAlpha) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PhoneSignInSection(
             app = app,
             baseUrl = baseUrl,
@@ -172,6 +178,8 @@ fun ConnectionPanel(
         )
 
         LookSection(app)
+            }
+        }
     }
 }
 
