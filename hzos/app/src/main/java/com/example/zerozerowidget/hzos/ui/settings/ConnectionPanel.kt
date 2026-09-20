@@ -163,16 +163,19 @@ fun ConnectionPanel(
                 },
                 enabled = !testing,
             ) { Text(if (testing) "Saving…" else "Save + connect") }
-            FilledTonalButton(
-                onClick = {
-                    scope.launch {
-                        app.connectionStore.clear()
-                        baseUrl = ""
-                        apiKey = ""
-                        message = "Cleared. Panels will show the not-connected state."
-                    }
-                },
-            ) { Text("Sign out") }
+            // No key, no session: signing out of nothing is nonsense.
+            if (apiKey.isNotBlank()) {
+                FilledTonalButton(
+                    onClick = {
+                        scope.launch {
+                            app.connectionStore.clear()
+                            baseUrl = ""
+                            apiKey = ""
+                            message = "Cleared. Panels will show the not-connected state."
+                        }
+                    },
+                ) { Text("Sign out") }
+            }
         }
 
         Spacer(Modifier.height(4.dp))
