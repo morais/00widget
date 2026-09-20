@@ -76,13 +76,18 @@ fun DashboardPanel(
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text("Dashboard", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             state.lastSyncEpochMs?.let {
                 Text(
                     "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString()) ?: ""}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 4.dp),
                 )
             }
             FilledTonalButton(onClick = { app.repository.refresh() }) { Text("Refresh") }
