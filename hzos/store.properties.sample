@@ -1,0 +1,18 @@
+## Store credentials (gitignored). Copy to store.properties and fill in.
+## Everything here is a live secret: never commit the real file.
+##
+## META_APP_SECRET: Dashboard → app → API tab (or a user token from
+##   Dashboard → Account). Used only by scripts/upload-store.sh.
+## KEYSTORE_*: release signing key. Create once with:
+##   keytool -genkeypair -keystore ~/secure/00widget.jks -alias upload \
+##     -keyalg RSA -keysize 2048 -validity 9125
+##   Back the .jks up off-machine; losing it orphans the listing.
+## Public listing metadata (not secret, but per-deployment: keep the real
+## values in this gitignored file so committed docs stay domain-free).
+## PRIVACY_URL: shown on the store listing and review form.
+# PRIVACY_URL=https://example.com/privacy
+# META_APP_SECRET=
+# KEYSTORE_FILE=
+# KEYSTORE_PASSWORD=
+# KEY_ALIAS=upload
+# KEY_PASSWORD=

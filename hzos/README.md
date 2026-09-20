@@ -171,13 +171,18 @@ Done in the tree:
 - `usesCleartextTraffic` off (localhost-shaped http exception only).
 - minSdk 32 / targetSdk 36, landscape panels with default + min sizes.
 
-To cut a submission build:
+To cut a submission build (all secrets in gitignored `store.properties`,
+copied from `store.properties.sample` — same pattern as the other
+per-developer files; env vars override the file for CI):
 
-1. `keytool -genkeypair -keystore ~/secure/00widget.jks -alias upload -keyalg RSA -keysize 2048 -validity 9125` (outside the repo, back it up — losing it means a new app listing).
-2. `export ZW_KEYSTORE_FILE=~/secure/00widget.jks ZW_KEYSTORE_PASSWORD=… ZW_KEY_ALIAS=upload ZW_KEY_PASSWORD=…`
-3. Bump `versionCode` in `app/build.gradle.kts` (must rise with every upload).
-4. `./gradlew :app:assembleRelease` → signed AAB/APK under `app/build/outputs/`.
-5. Developer portal: new app, upload, content-rating questionnaire, privacy policy URL (say what the app sends: bearer token + card reads to the operator's own Worker), listing copy + screenshots, `uses-horizonos-sdk` min version for the Login API once its floor is confirmed (manual-code fallback covers older OS regardless).
+1. `keytool -genkeypair -keystore ~/secure/00widget.jks -alias upload -keyalg RSA -keysize 2048 -validity 9125` (outside the repo, back it up — losing it means a new app listing) and record the paths/passwords plus `META_APP_SECRET` (Dashboard → app → API tab) in `store.properties`.
+2. Bump `versionCode` in `app/build.gradle.kts` (must rise with every upload).
+3. `scripts/upload-store.sh --channel ALPHA --age-group MIXED_AGES --notes "…"` — builds the signed release and uploads it. Channels `ALPHA`/`BETA`/`RC` test; `STORE` is production.
+4. Developer portal: listing copy + screenshots, content-rating
+   questionnaire, privacy policy URL (kept in gitignored `store.properties`
+   as `PRIVACY_URL`), review access notes (sample deck works offline; hand
+   reviewers a demo `device`-preset key for live data, revokable after
+   review).
 
 ## Verification
 
