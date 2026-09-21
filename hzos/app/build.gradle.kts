@@ -84,9 +84,9 @@ android {
         }
         release {
             isMinifyEnabled = false
-            // No dev values ship: empty URL/token/app-id fallbacks force the
-            // real login + settings path. A release APK assembled without
-            // the keystore below is unsigned and not submittable.
+            // No dev credential ships. The Worker URL and Platform app ID are
+            // public configuration and remain embedded; a release APK built
+            // without the keystore below is unsigned and not submittable.
             buildConfigField("String", "DEVICE_TOKEN", "\"\"")
             if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }

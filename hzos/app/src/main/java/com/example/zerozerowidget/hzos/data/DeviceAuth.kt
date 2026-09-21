@@ -16,14 +16,14 @@ import java.io.IOException
  * RFC 8628 (OAuth Device Authorization Grant) client against the 00Widget
  * Worker — the server half of the `send_auth_url` login flow.
  *
- * Server contract (NOT IMPLEMENTED YET — see hzos/README.md "Login"):
+ * Server contract (implemented in server/src/deviceAuth.ts):
  * - `POST /v1/auth/device/code` (no auth) → [DeviceCodeResponse]
  * - `POST /v1/auth/device/token` (no auth, {device_code}) → [DeviceTokenResponse]
  *   with `error: "authorization_pending" | "slow_down" | "expired" | "denied"`,
  *   or `token` (a `device`-preset API key) once approved.
  *
- * Until the server implements it, requesting a code fails (404) and the UI
- * falls back to manual paste. Nothing here depends on Meta APIs; the
+ * Older server deployments return 404 and the UI falls back to manual paste.
+ * Nothing here depends on Meta APIs; the
  * `send_auth_url` delivery call lives in [com.example.zerozerowidget.hzos.auth.HorizonAuth].
  */
 @Serializable
@@ -81,7 +81,7 @@ class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
                 val raw = resp.body?.string().orEmpty()
                 if (resp.code == 404) {
                     throw DeviceFlowUnsupportedException(
-                        "This server doesn't implement the device flow yet (404). Paste a token manually.",
+                        "This server doesn't support phone sign-in (404). Paste a token manually.",
                     )
                 }
                 if (resp.code !in 200..299) {

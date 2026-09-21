@@ -35,7 +35,7 @@ hzos/
       data/
         Models.kt            # wire-model mirror — keep in lockstep (see below)
         ZeroWidgetApi.kt     # OkHttp + kotlinx.serialization, read + safe actions
-        DeviceAuth.kt        # RFC 8628 device-code client (server pending)
+        DeviceAuth.kt        # RFC 8628 device-code client
         ConnectionStore.kt   # base URL + API key (DataStore) until login lands
         DashboardRepository.kt  # StateFlow + 60s poll + manual refresh
       auth/HorizonAuth.kt    # send_auth_url delivery wrapper
@@ -96,7 +96,7 @@ nothing. "Generate sample widgets" works offline with no account, and
    app → Devices → Developer Mode; headset Settings → System → Developer).
 2. `cd hzos && ./gradlew :app:assembleDebug` (wrapper is committed; needs a
    JDK 17+ and the Android SDK).
-3. `adb install -r app/build/outputs/apk/debug/app-debug.apk`, launch
+3. `metavr adb install -r app/build/outputs/apk/debug/app-debug.apk`, launch
    00Widget from the library. The Connection panel (⚙) arrives with the
    Worker URL pre-filled from gitignored `hzos/defaults.properties` (copy
    from `defaults.properties.sample`); paste a tenant API token with the
@@ -108,7 +108,7 @@ Polling is 60s + manual refresh — panels have no WidgetKit-style reload
 budget, but the server's rate limits still apply, so don't shorten the
 interval without a reason.
 
-## Login: device flow via `send_auth_url` (client built, server pending)
+## Login: device flow via `send_auth_url`
 
 The Connection panel offers "Sign in with phone" next to manual paste. It
 implements the headset half of an OAuth Device Authorization Grant
@@ -133,26 +133,27 @@ app): put it in `hzos/local.properties` (gitignored) as
 `platformAppId=...`. Empty means the button path is disabled and manual
 paste is the only option. The ID is public, not a secret.
 
-### Server stub contract (to build)
+### Server contract
 
-`data/DeviceAuth.kt` is written against this shape; requesting a code
-against today's Worker 404s and the UI says so, falling back to paste.
+`data/DeviceAuth.kt` and `server/src/deviceAuth.ts` implement this contract.
+Older deployments return 404 and the UI falls back to manual paste.
 
 - `POST /v1/auth/device/code` (no auth, strictly rate-limited) →
   `{device_code, user_code, verification_uri, verification_uri_complete?,
   expires_in, interval}`. Codes random per attempt, short TTL (~10 min),
   single-use. No PII in the URL query.
-- Approval page at `verification_uri` (Worker-served, mobile browser):
-  operator signs in with Apple via the existing `/login` web flow — which
-  resolves an *existing* tenant and never creates one — then Approve/Deny
-  binds the code to that tenant. Never take the tenant from the request.
+- `verification_uri_complete` is `/app/device?code=...`. The installed iOS
+  app claims it as a Universal Link, signs in with Apple when needed, and
+  requires an explicit confirmation. Without the app, the Worker serves the
+  same confirmation in the browser through its Apple web session. In both
+  cases the authenticated identity supplies the tenant; never the request.
 - `POST /v1/auth/device/token` `{device_code}` → `{token}` once approved,
   else `{error: authorization_pending | slow_down | denied | expired}`.
   The token carries the **`device` preset** (`read`, `device:register`,
   `actions:run`) — never `publisher`.
-- Codes are ephemeral with a TTL sweep (like `rate_limit_buckets`), so they
-  stay out of the account-deletion table in `server/src/account.ts`.
-  Brute-forceable user codes need strict attempt limits + short expiry.
+- Codes are ephemeral with a TTL sweep and short expiry. Approved rows carry
+  a tenant foreign key and are included in account deletion; pending rows do
+  not belong to any tenant. Code issuance and approval are rate-limited.
 
 ## Publishing to the Horizon Store
 
@@ -190,5 +191,4 @@ per-developer files; env vars override the file for CI):
   repo's iOS/Worker CI).
 - After any template change: eyeball every renderer in `CardViews.kt` on
   device — same rule as iOS, the compiler can't see a clipped card.
-- `cd ../server && npm test` still covers the API this app reads; this client
-  adds no server surface.
+- `cd ../server && npm test` covers the device-code endpoints this app reads.
