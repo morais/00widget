@@ -35,10 +35,31 @@ The data model is duplicated by design:
 
 | Need                     | Tool                              | Install                       |
 | ------------------------ | --------------------------------- | ----------------------------- |
+| Node (all server work)   | Node 26, pinned in `.node-version`| `brew install node`           |
 | iOS project generation   | XcodeGen                          | `brew install xcodegen`       |
 | iOS build                | Xcode 26+, iOS 26 SDK             | App Store / developer portal  |
 | Worker dev/deploy        | Wrangler (devDependency)          | `cd server && npm install`    |
 | Worker typecheck/test    | tsc + vitest                      | already in `package.json`     |
+
+**Node is pinned to an even-numbered line, and the pin is the only place it is
+written.** `.node-version` at the repository root is what CI reads through
+`setup-node`'s `node-version-file`, so the runner and a local checkout cannot
+disagree — the previous workflow hardcoded `node-version: 22` beside a
+`@types/node` on 26, which meant `tsc` validated against an API surface CI did
+not run. `server/package.json` carries `engines.node` for the same line so a
+wrong runtime is a warning at install time.
+
+Odd-numbered Node releases never become LTS and die about eight months in:
+25 shipped 2025-10-15 and was end-of-life by 2026-06-01. Homebrew's `node`
+formula tracks *latest*, not LTS, so `brew install node` lands on whatever is
+current and a machine can sit on a dead runtime indefinitely with nothing to
+say so. That is how this was found — vitest 5.0.1 declares
+`^22.12.0 || ^24.0.0 || >=26.0.0` and the `EBADENGINE` warning on an otherwise
+routine `npm install` was the only symptom. Nothing here runs on Node in
+production (the Worker runs on workerd), so the exposure is the toolchain
+rather than the deployed artifact — but a dead runtime gets no security
+patches either. When 26 goes end-of-life, move to the next **even** line and
+change `.node-version`, `engines.node`, and `@types/node` together.
 
 The `.xcodeproj` is **gitignored** — regenerate with `cd ios && xcodegen` whenever `project.yml` changes or files are added/removed.
 
