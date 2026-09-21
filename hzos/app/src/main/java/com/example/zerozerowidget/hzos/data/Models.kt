@@ -283,3 +283,18 @@ data class ActionRunContext(val cardId: String? = null)
 
 @Serializable
 data class ActionRunBody(val context: ActionRunContext)
+
+@Serializable
+data class MCPConnectionSummary(
+    val id: String,
+    val clientName: String,
+    val connectedAt: String,
+    val lastUsedAt: String? = null,
+    val expiresAt: String,
+    val scopes: List<String> = emptyList(),
+)
+
+@Serializable
+data class MCPConnectionsListResponse(
+    val connections: List<MCPConnectionSummary> = emptyList(),
+)

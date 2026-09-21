@@ -6,8 +6,9 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.example.zerozerowidget.hzos.AgentConnectActivity
 import com.example.zerozerowidget.hzos.CardDetailActivity
-import com.example.zerozerowidget.hzos.ConnectionActivity
+import com.example.zerozerowidget.hzos.SettingsActivity
 import com.example.zerozerowidget.hzos.OptionsActivity
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import kotlinx.coroutines.launch
@@ -17,15 +18,15 @@ import kotlinx.coroutines.launch
  * each activity in its own shell panel — no SDK involved.
  *
  * Two launch shapes, and the difference matters:
- * - [openConnectionPanel]: singleton settings. NEW_TASK without
+ * - [openSettingsPanel]: singleton settings. NEW_TASK without
  *   MULTIPLE_TASK (plus singleTask launchMode in the manifest) reuses the
  *   one open instance instead of stacking duplicates.
  * - [openDetailPanel]: one card detail. Adds MULTIPLE_TASK so every pop-out
  *   is a new panel — pop out three cards, get three panels.
  */
-fun Context.openConnectionPanel() {
+fun Context.openSettingsPanel() {
     startActivity(
-        Intent(this, ConnectionActivity::class.java).apply {
+        Intent(this, SettingsActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
         },
     )
@@ -35,6 +36,15 @@ fun Context.openConnectionPanel() {
 fun Context.openOptionsPanel() {
     startActivity(
         Intent(this, OptionsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+        },
+    )
+}
+
+/** Connect-an-agent guide. Singleton like settings. */
+fun Context.openAgentConnectPanel() {
+    startActivity(
+        Intent(this, AgentConnectActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
         },
     )

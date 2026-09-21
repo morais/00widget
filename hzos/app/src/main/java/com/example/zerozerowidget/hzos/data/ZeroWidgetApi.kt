@@ -64,18 +64,23 @@ class ZeroWidgetApi(
      * the 403 honestly instead of hiding the button's limits.
      */
     suspend fun deleteCard(id: String) {
-        val req = authed("/v1/cards/${pathSegment(id)}").delete().build()
-        http.newCall(req).execute().use { resp ->
-            if (resp.code !in 200..299) {
-                val msg = resp.body?.string().orEmpty()
-                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
-            }
-        }
+        delete("/v1/cards/${pathSegment(id)}")
     }
 
     suspend fun endActivity(externalActivityId: String) {
         val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
         postEmpty("/v1/live-activities/end", body)
+    }
+
+    /**
+     * Active MCP grants: lifecycle/display metadata only, never tokens.
+     * Mirrors APIClient.listMCPConnections / disconnectMCPConnection.
+     */
+    suspend fun listMCPConnections(): List<MCPConnectionSummary> =
+        get<MCPConnectionsListResponse>("/v1/account/mcp-connections").connections
+
+    suspend fun disconnectMCPConnection(id: String) {
+        delete("/v1/account/mcp-connections/${pathSegment(id)}")
     }
 
     // --- internals ---
@@ -105,11 +110,20 @@ class ZeroWidgetApi(
             return parse(resp.body?.string().orEmpty())
         }
     }
-
     private fun postEmpty(path: String, jsonBody: String) {
         val req = authed(path)
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
             .build()
+        http.newCall(req).execute().use { resp ->
+            if (resp.code !in 200..299) {
+                val msg = resp.body?.string().orEmpty()
+                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+            }
+        }
+    }
+
+    private fun delete(path: String) {
+        val req = authed(path).delete().build()
         http.newCall(req).execute().use { resp ->
             if (resp.code !in 200..299) {
                 val msg = resp.body?.string().orEmpty()
