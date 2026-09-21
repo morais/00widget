@@ -110,7 +110,7 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
                 color = Color.White,
             )
             Text(
-                "Sample widgets are generated on this device to show what 00Widget looks like. No agent published them.",
+                "These samples were generated on this device to show what 00Widget looks like. No agent published them.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White,
             )
