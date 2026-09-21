@@ -119,6 +119,14 @@ public struct AgentTokenRotationResponse: Codable, Sendable {
 
 public struct EmptyBody: Codable {}
 
+struct DeviceAuthorizationApprovalBody: Encodable {
+    let userCode: String
+
+    enum CodingKeys: String, CodingKey {
+        case userCode = "user_code"
+    }
+}
+
 public struct SubscriptionVerifyResponse: Codable, Sendable {
     public let subscription: SubscriptionState
     public let accepted: Int
@@ -597,11 +605,10 @@ public final class APIClient {
     /// send_auth_url flow. Call this only on the app credential: approving a
     /// new device is an account-level confirmation, not an agent capability.
     public func approveDeviceAuthorization(userCode: String) async throws {
-        struct Body: Codable { let userCode: String }
         let _: EmptyBody = try await request(
             "POST",
             path: "/v1/auth/device/approve",
-            body: Body(userCode: userCode)
+            body: DeviceAuthorizationApprovalBody(userCode: userCode)
         )
     }
 
