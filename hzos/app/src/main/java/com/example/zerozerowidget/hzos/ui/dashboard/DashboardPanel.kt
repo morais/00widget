@@ -51,6 +51,7 @@ import com.example.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
+import com.example.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.example.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
@@ -281,6 +282,9 @@ private fun DashboardRow(
             Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardHeadline(card, Modifier.weight(1f))
+                card.deepLink?.let {
+                    LinkIconButton(onOpenLink = onOpenLink)
+                }
                 PopOutIconButton(onPopOut)
             }
             card.subtitle?.let {
@@ -299,12 +303,6 @@ private fun DashboardRow(
                 Spacer(Modifier.height(8.dp))
                 CardTemplateBody(card)
                 actionSlot()
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    card.deepLink?.let {
-                        FilledTonalButton(onClick = onOpenLink) { Text("Open link") }
-                    }
-                }
             }
         }
         }

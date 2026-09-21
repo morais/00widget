@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.data.ActionDefinition
@@ -155,10 +156,46 @@ fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Link affordance, same drawn-stroke rules as [PopOutIconButton]: two
+ * interlocked rounded links. Sits left of the pop-out icon wherever both
+ * appear, so the corner reads link-then-pop-out.
+ */
+@Composable
+fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onOpenLink, modifier = modifier) {
+        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        Canvas(Modifier.size(22.dp)) {
+            val sw = 2.dp.toPx()
+            val r = CornerRadius(3.5.dp.toPx(), 3.5.dp.toPx())
+            val style = Stroke(width = sw)
+            // Two rounded links rotated against each other, overlapping in
+            // the middle like a chain.
+            rotate(-25f, pivot = Offset(8.dp.toPx(), 13.dp.toPx())) {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(4.dp.toPx(), 8.dp.toPx()),
+                    size = Size(8.dp.toPx(), 10.dp.toPx()),
+                    cornerRadius = r,
+                    style = style,
+                )
+            }
+            rotate(25f, pivot = Offset(14.dp.toPx(), 13.dp.toPx())) {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(10.dp.toPx(), 8.dp.toPx()),
+                    size = Size(8.dp.toPx(), 10.dp.toPx()),
+                    cornerRadius = r,
+                    style = style,
+                )
+            }
+        }
+    }
+}
+
 /** One-line headline used in the dashboard list for every template. */
 @Composable
-fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         StatusDot(card.status)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
