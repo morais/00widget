@@ -115,6 +115,7 @@ fun DashboardPanel(
         }
         if (samples.isNotEmpty() || sampleActivities.isNotEmpty()) {
             SampleNoticeBanner(onRemoveAll = { app.sampleStore.clearSamples() })
+            Spacer(Modifier.height(4.dp))
         }
 
         // Server cards first, local samples after — never mixed, never sent.
