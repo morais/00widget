@@ -122,7 +122,7 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
                 contentColor = MaterialTheme.colorScheme.primary,
             ),
         ) {
-            Text("Remove sample widgets", style = MaterialTheme.typography.labelMedium)
+            Text("Remove samples", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
