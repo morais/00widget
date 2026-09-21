@@ -110,19 +110,23 @@ struct ZeroZeroWidgetApp: App {
         openExternalDeepLink(url)
     }
 
-    /// Guest links are the only route so far. The token is in the fragment, so
-    /// it arrives here having never been sent to the server — the reason the
-    /// URL is shaped that way in the first place.
     private func handleUniversalLink(route: String, url: URL) {
-        guard route == "g" || route.hasPrefix("g/") else { return }
-        guard let token = GuestToken.fromURL(url) else {
-            // A /app/g link with no usable token in the fragment. Opening the
-            // browser fallback would only show the same "missing its code"
-            // message, so say it here instead of bouncing the person out.
-            env.reportGuestLinkProblem("That link is missing its code. Ask for it again.")
+        if route == "device" {
+            guard let code = DeviceAuthorizationLink.userCode(from: url) else { return }
+            env.presentDeviceAuthorization(userCode: code)
             return
         }
-        Task { await env.acceptGuestLink(token: token) }
+
+        if route == "g" || route.hasPrefix("g/") {
+            guard let token = GuestToken.fromURL(url) else {
+                // A /app/g link with no usable token in the fragment. Opening
+                // the browser fallback would only show the same "missing its
+                // code" message, so say it here instead of bouncing out.
+                env.reportGuestLinkProblem("That link is missing its code. Ask for it again.")
+                return
+            }
+            Task { await env.acceptGuestLink(token: token) }
+        }
     }
 
     private func openExternalDeepLink(_ url: URL) {
@@ -210,6 +214,10 @@ struct RootView: View {
             if key.isEmpty && env.guestLinks.isEmpty {
                 selectedTab = "settings"
             }
+        }
+        .sheet(item: $env.pendingDeviceAuthorization) { request in
+            DeviceAuthorizationApprovalView(userCode: request.userCode)
+                .environmentObject(env)
         }
     }
 

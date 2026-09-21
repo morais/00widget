@@ -9,6 +9,26 @@ import Testing
 @Suite("Internal link routing")
 struct ZeroZeroWidgetInternalLinkTests {
 
+    @Test("A Horizon approval Universal Link yields a normalized short code")
+    func deviceAuthorizationLinkParses() throws {
+        let url = try #require(URL(string: "https://api.example.com/app/device?code=abcd-2345"))
+        #expect(
+            ZeroZeroWidgetUniversalLink.route(
+                for: url,
+                serverBaseURL: "https://api.example.com"
+            ) == "device"
+        )
+        #expect(DeviceAuthorizationLink.userCode(from: url) == "ABCD-2345")
+    }
+
+    @Test("Device approval codes reject ambiguous and malformed characters")
+    func deviceAuthorizationCodeRejectsMalformedValues() {
+        #expect(DeviceAuthorizationLink.normalizeUserCode("ABCD EFGH") == "ABCD-EFGH")
+        #expect(DeviceAuthorizationLink.normalizeUserCode("ABCI-EFGH") == nil)
+        #expect(DeviceAuthorizationLink.normalizeUserCode("ABCO-EFGH") == nil)
+        #expect(DeviceAuthorizationLink.normalizeUserCode("ABC-EFGH") == nil)
+    }
+
     @Test("A card link round-trips through the builder and the router")
     func cardLinkRoundTrips() throws {
         let url = try #require(ZeroZeroWidgetInternalLink.cardURL(id: "solar"))

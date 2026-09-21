@@ -291,6 +291,35 @@ public enum ZeroZeroWidgetUniversalLink {
     }
 }
 
+/// The short, human-readable code carried by a Horizon OS approval link.
+///
+/// This is intentionally not the device's bearer secret. The headset keeps
+/// that high-entropy value and polls with it; the phone sees only the code the
+/// person can compare with the one shown in the headset.
+public enum DeviceAuthorizationLink {
+    private static let alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+    public static func userCode(from url: URL) -> String? {
+        guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "code" })?
+            .value
+        else { return nil }
+        return normalizeUserCode(raw)
+    }
+
+    public static func normalizeUserCode(_ raw: String) -> String? {
+        let compact = raw
+            .uppercased()
+            .filter { $0 != "-" && !$0.isWhitespace }
+        guard compact.count == 8, compact.allSatisfy({ alphabet.contains($0) }) else {
+            return nil
+        }
+        let split = compact.index(compact.startIndex, offsetBy: 4)
+        return "\(compact[..<split])-\(compact[split...])"
+    }
+}
+
 public enum ZeroZeroWidgetDeepLinkPolicy {
     public static func sanitize(_ url: URL?) -> URL? {
         guard

@@ -593,6 +593,18 @@ public final class APIClient {
         try await request("POST", path: "/v1/auth/agent-token/rotate")
     }
 
+    /// Approves the short-lived device authorization opened from Horizon's
+    /// send_auth_url flow. Call this only on the app credential: approving a
+    /// new device is an account-level confirmation, not an agent capability.
+    public func approveDeviceAuthorization(userCode: String) async throws {
+        struct Body: Codable { let userCode: String }
+        let _: EmptyBody = try await request(
+            "POST",
+            path: "/v1/auth/device/approve",
+            body: Body(userCode: userCode)
+        )
+    }
+
     public struct MCPConnectionSummary: Codable, Identifiable, Equatable {
         public let id: String
         public let clientName: String

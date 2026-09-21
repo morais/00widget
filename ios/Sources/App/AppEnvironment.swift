@@ -12,6 +12,15 @@ public enum ConnectionHealthStatus: Equatable {
     case failed
 }
 
+public struct PendingDeviceAuthorization: Identifiable, Equatable {
+    public let id = UUID()
+    public let userCode: String
+
+    public init(userCode: String) {
+        self.userCode = userCode
+    }
+}
+
 @MainActor
 public final class AppEnvironment: ObservableObject {
     private static let widgetPushLog = Logger(
@@ -42,6 +51,9 @@ public final class AppEnvironment: ObservableObject {
     @Published public private(set) var appleLoginEmail: String?
     @Published public private(set) var appleLoginError: String?
     @Published public private(set) var appleLoginInProgress = false
+    @Published public var pendingDeviceAuthorization: PendingDeviceAuthorization?
+    @Published public private(set) var deviceAuthorizationInProgress = false
+    @Published public private(set) var deviceAuthorizationError: String?
     @Published public private(set) var reviewLoginAvailable = false
     @Published public private(set) var reviewLoginInProgress = false
     @Published public private(set) var isReviewAccountSession: Bool
@@ -120,10 +132,11 @@ public final class AppEnvironment: ObservableObject {
         scheduleCredentialRegistration()
     }
 
-    public func signInWithAppleIdentityToken(_ identityToken: String, rawNonce: String) async {
+    @discardableResult
+    public func signInWithAppleIdentityToken(_ identityToken: String, rawNonce: String) async -> Bool {
         guard let url = APIClientConfig.validatedBaseURL(from: serverBaseURL) else {
             appleLoginError = "Server URL must use HTTPS"
-            return
+            return false
         }
         appleLoginInProgress = true
         appleLoginError = nil
@@ -138,8 +151,39 @@ public final class AppEnvironment: ObservableObject {
             )
             try installLoginResponse(response, isReviewAccount: false)
             await refreshConnectionHealth()
+            return true
         } catch {
             appleLoginError = error.localizedDescription
+            return false
+        }
+    }
+
+    public func presentDeviceAuthorization(userCode: String) {
+        guard let normalized = DeviceAuthorizationLink.normalizeUserCode(userCode) else { return }
+        appleLoginError = nil
+        deviceAuthorizationError = nil
+        pendingDeviceAuthorization = PendingDeviceAuthorization(userCode: normalized)
+    }
+
+    public func reportDeviceAuthorizationError(_ message: String) {
+        deviceAuthorizationError = message
+    }
+
+    @discardableResult
+    public func approveDeviceAuthorization(userCode: String) async -> Bool {
+        guard let client = confirmedActionClient() else {
+            deviceAuthorizationError = Self.reauthorizationMessage
+            return false
+        }
+        deviceAuthorizationInProgress = true
+        deviceAuthorizationError = nil
+        defer { deviceAuthorizationInProgress = false }
+        do {
+            try await client.approveDeviceAuthorization(userCode: userCode)
+            return true
+        } catch {
+            deviceAuthorizationError = error.localizedDescription
+            return false
         }
     }
 
