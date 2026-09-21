@@ -37,8 +37,14 @@ android {
         applicationId = configuredAppId
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // Visible version is fixed per release line; the build number is
+        // UTC date/time (ISO basic, hour precision). Full ISO doesn't fit:
+        // versionCode is a signed 32-bit int, and yyyyMMddHHmm already
+        // overflows it — yyyyMMddHH fits until 2038.
+        versionCode = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHH"))
+            .toInt()
+        versionName = "1.5"
 
         // Horizon Platform app ID, read from local.properties above.
         buildConfigField(
