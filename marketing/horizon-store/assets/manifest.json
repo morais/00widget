@@ -22,7 +22,7 @@
         900
       ],
       "mode": "RGB",
-      "sha256": "8a8d09812d6da1ffa0e4b02be2555c9aa301dc56f2b28d3d9e16ef0a64ecf977"
+      "sha256": "12427e17236b37a92baf8ba25089ef923860abc4cd6badc18efb3d43734118bb"
     },
     {
       "filename": "00widget-icon-512x512.png",
@@ -41,6 +41,24 @@
       ],
       "mode": "RGBA",
       "sha256": "5a7f90f20d8369f93a1159d5370efc769bfbf26971c58e54bba7ec9c25de6514"
+    },
+    {
+      "filename": "00widget-spatialized-background-180x180.png",
+      "dimensions": [
+        180,
+        180
+      ],
+      "mode": "RGB",
+      "sha256": "2497424fb8866dc39846edea7f0a3ab0896d932245f1998138c5a74e51387232"
+    },
+    {
+      "filename": "00widget-spatialized-foreground-180x180.png",
+      "dimensions": [
+        180,
+        180
+      ],
+      "mode": "RGBA",
+      "sha256": "2bfadc2d225081f7944bb9cd4a8be6281eaeb4e1e30cb11f941f87b47f495b90"
     }
   ]
 }

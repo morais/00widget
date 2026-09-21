@@ -30,6 +30,14 @@ UNIVERSAL_NAME = "00widget-universal-basic-2560x1440.png"
 HERO_NAME = "00widget-hero-cover-3000x900.png"
 ICON_NAME = "00widget-icon-512x512.png"
 LOGO_NAME = "00widget-logo-transparent-1254x1254.png"
+SPATIAL_BACKGROUND_NAME = "00widget-spatialized-background-180x180.png"
+SPATIAL_FOREGROUND_NAME = "00widget-spatialized-foreground-180x180.png"
+
+# Conservative inset of the blue safe rectangle shown by Meta's Developer
+# Dashboard for the 3000x900 Hero Cover. The title is the essential element
+# this build pins to it; decorative panels may continue into the bleed.
+HERO_SAFE_AREA = (560, 120, 2440, 720)
+SPATIAL_FOREGROUND_SAFE_AREA = (21, 21, 159, 159)
 
 DEEP_NAVY = (6, 21, 42, 255)
 PANEL = (8, 14, 27, 232)
@@ -70,6 +78,16 @@ def title_art(max_size: tuple[int, int]) -> Image.Image:
     # tagline. Crop only at that gap; never recreate the typography.
     title = trim_alpha(source.crop((0, 0, source.width, 520)))
     return contain(title, max_size)
+
+
+def inside(box: tuple[int, int, int, int], safe: tuple[int, int, int, int]) -> None:
+    if not (
+        box[0] >= safe[0]
+        and box[1] >= safe[1]
+        and box[2] <= safe[2]
+        and box[3] <= safe[3]
+    ):
+        raise AssertionError(f"Essential art {box} falls outside safe area {safe}")
 
 
 def rounded_mask(size: tuple[int, int], radius: int) -> Image.Image:
@@ -264,7 +282,11 @@ def build_hero() -> Image.Image:
     composite_with_shadow(canvas, dashboard, (1770, 185), blur=44, opacity=175, offset=(0, 26))
 
     title = title_art((980, 230))
-    title_xy = (390, (900 - title.height) // 2)
+    title_xy = (620, (900 - title.height) // 2)
+    inside(
+        (title_xy[0], title_xy[1], title_xy[0] + title.width, title_xy[1] + title.height),
+        HERO_SAFE_AREA,
+    )
     composite_with_shadow(canvas, title, title_xy, blur=24, opacity=130, offset=(0, 12))
     return canvas.convert("RGB")
 
@@ -283,12 +305,54 @@ def build_logo() -> Image.Image:
     return Image.open(MARK).convert("RGBA")
 
 
+def build_spatial_background() -> Image.Image:
+    # The Store needs an opaque base layer. Reusing the cover atmosphere keeps
+    # the hover tile in the same campaign without baking the mascot into both
+    # depth planes.
+    return ImageOps.fit(
+        Image.open(BACKGROUND).convert("RGB"),
+        (180, 180),
+        method=Image.Resampling.LANCZOS,
+        centering=(0.5, 0.52),
+    )
+
+
+def build_spatial_foreground() -> Image.Image:
+    # Meta supplies a 138x138 safe area inside the 180px transparent layer.
+    # Fit the exact approved U2 mark into that box and add no extra shadow;
+    # Horizon OS applies the depth shadow on hover.
+    canvas = Image.new("RGBA", (180, 180), (0, 0, 0, 0))
+    mark = contain(trim_alpha(Image.open(MARK)), (138, 138))
+    xy = ((180 - mark.width) // 2, (180 - mark.height) // 2)
+    inside(
+        (xy[0], xy[1], xy[0] + mark.width, xy[1] + mark.height),
+        SPATIAL_FOREGROUND_SAFE_AREA,
+    )
+    canvas.alpha_composite(mark, xy)
+    return canvas
+
+
 def save(image: Image.Image, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, format="PNG", optimize=True)
 
 
-def preview_crops(universal: Image.Image) -> None:
+def safe_area_preview(
+    image: Image.Image,
+    safe_area: tuple[int, int, int, int],
+) -> Image.Image:
+    preview = image.convert("RGBA")
+    dim_alpha = Image.new("L", image.size, 150)
+    ImageDraw.Draw(dim_alpha).rectangle(safe_area, fill=0)
+    dim = Image.new("RGBA", image.size, (230, 235, 242, 0))
+    dim.putalpha(dim_alpha)
+    preview.alpha_composite(dim)
+    ImageDraw.Draw(preview).rectangle(safe_area, outline=(31, 139, 255, 255), width=8)
+    return preview.convert("RGB")
+
+
+def build_previews(outputs: dict[str, Image.Image]) -> None:
+    universal = outputs[UNIVERSAL_NAME]
     # These are QA views only. Meta's Universal Basic Asset tool generates its
     # own cover variants; centered crops make the most punishing common case
     # visible before upload.
@@ -296,6 +360,14 @@ def preview_crops(universal: Image.Image) -> None:
     portrait = ImageOps.fit(universal, (1008, 1440), centering=(0.5, 0.5))
     save(square, PREVIEW_DIR / "universal-centered-square-preview.png")
     save(portrait, PREVIEW_DIR / "universal-centered-portrait-preview.png")
+    save(
+        safe_area_preview(outputs[HERO_NAME], HERO_SAFE_AREA),
+        PREVIEW_DIR / "hero-safe-area-preview.png",
+    )
+
+    spatial = outputs[SPATIAL_BACKGROUND_NAME].convert("RGBA")
+    spatial.alpha_composite(outputs[SPATIAL_FOREGROUND_NAME])
+    save(spatial.convert("RGB"), PREVIEW_DIR / "spatialized-tile-flat-preview.png")
 
 
 def validate(outputs: dict[str, Image.Image]) -> None:
@@ -304,6 +376,8 @@ def validate(outputs: dict[str, Image.Image]) -> None:
         HERO_NAME: ((3000, 900), "RGB"),
         ICON_NAME: ((512, 512), "RGB"),
         LOGO_NAME: ((1254, 1254), "RGBA"),
+        SPATIAL_BACKGROUND_NAME: ((180, 180), "RGB"),
+        SPATIAL_FOREGROUND_NAME: ((180, 180), "RGBA"),
     }
     for name, image in outputs.items():
         if (image.size, image.mode) != expected[name]:
@@ -312,6 +386,13 @@ def validate(outputs: dict[str, Image.Image]) -> None:
             )
     if outputs[LOGO_NAME].getchannel("A").getextrema() != (0, 255):
         raise AssertionError("Transparent logo must contain both clear and opaque pixels")
+    foreground = outputs[SPATIAL_FOREGROUND_NAME]
+    if foreground.getchannel("A").getextrema() != (0, 255):
+        raise AssertionError("Spatial foreground must contain both clear and opaque pixels")
+    bbox = foreground.getbbox()
+    if bbox is None:
+        raise AssertionError("Spatial foreground cannot be empty")
+    inside(bbox, SPATIAL_FOREGROUND_SAFE_AREA)
 
 
 def main() -> None:
@@ -324,11 +405,13 @@ def main() -> None:
         HERO_NAME: build_hero(),
         ICON_NAME: build_icon(),
         LOGO_NAME: build_logo(),
+        SPATIAL_BACKGROUND_NAME: build_spatial_background(),
+        SPATIAL_FOREGROUND_NAME: build_spatial_foreground(),
     }
     validate(outputs)
     for name, image in outputs.items():
         save(image, OUTPUT_DIR / name)
-    preview_crops(outputs[UNIVERSAL_NAME])
+    build_previews(outputs)
 
     manifest = {
         "sourceSha256": {

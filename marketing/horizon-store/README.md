@@ -13,12 +13,15 @@ plate under `sources/`.
 | Icon | `assets/00widget-icon-512x512.png` |
 | Logo | `assets/00widget-logo-transparent-1254x1254.png` |
 | Hero cover | `assets/00widget-hero-cover-3000x900.png` |
+| Spatialized tile — Background | `assets/00widget-spatialized-background-180x180.png` |
+| Spatialized tile — Foreground | `assets/00widget-spatialized-foreground-180x180.png` |
 
 The Universal Basic Asset is the 16:9 source Meta uses to generate the cover
 landscape, square, portrait, and mini-landscape variants. Inspect every
 generated crop in the Developer Dashboard before submitting. The centered
 square and portrait images under `previews/` are deliberately conservative QA
-crops, not additional upload assets.
+crops, not additional upload assets. `previews/hero-safe-area-preview.png`
+shows the conservative Hero safe-area guard enforced by the build.
 
 ## Design contract
 
@@ -30,6 +33,9 @@ crops, not additional upload assets.
 - The store icon is an opaque, square-cornered 24-bit PNG derived mechanically
   from `docs/brand/app-icon-master.png`.
 - The logo preserves the approved U2 mark and its real transparent alpha.
+- The optional spatialized tile uses an opaque atmosphere layer plus the exact
+  mark on a separate transparent 180×180 foreground. The mark is wholly inside
+  Meta's centered 138×138 safe area and carries no added hover shadow.
 - The dashboard panels are cover-art illustrations, not screenshots. Do not
   reuse them as Store screenshots: Meta requires five unembellished images of
   actual in-experience content for that separate field.
