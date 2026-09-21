@@ -8,10 +8,10 @@ fun LiveActivitySession.isSample(): Boolean = externalActivityId.startsWith(Samp
 
 /**
  * Kotlin port of ios/Sources/Shared/SampleDataFactory.swift's user-facing
- * deck: `makeCards()` (the "Generate sample widgets" set) plus the two
- * `LiveActivitySample` sessions. The home-energy set and timeline fixture
- * are deliberately excluded, matching iOS: they belong to other campaigns,
- * not the default deck.
+ * deck: `makeCards()` plus the App launch demo activity. The home-energy
+ * set, timeline fixture, and screenshot-capture session are deliberately
+ * excluded: the first two belong to other campaigns, and the last was
+ * dropped for a single demo with no picker.
  *
  * Same rules as iOS: ids live in the reserved `sample-` namespace so UI can
  * badge them and removal never mistakes a published card for a demo one;
@@ -165,17 +165,9 @@ object SampleData {
         ),
     )
 
-    enum class LiveActivitySample(val title: String) {
-        APP_LAUNCH("App launch"),
-        CAPTURE_WORKFLOW("Screenshot capture"),
-    }
-
-    fun makeLiveActivitySession(sample: LiveActivitySample): LiveActivitySession {
-        return when (sample) {
-            LiveActivitySample.APP_LAUNCH -> appLaunchSession()
-            LiveActivitySample.CAPTURE_WORKFLOW -> captureWorkflowSession()
-        }
-    }
+    /** The one demo activity. iOS offers two samples; the screenshot-capture
+     * shape is dropped here — one demo, one button, no picker. */
+    fun makeSampleActivity(): LiveActivitySession = appLaunchSession()
 
     private fun appLaunchSession(): LiveActivitySession {
         val now = now()
@@ -200,43 +192,6 @@ object SampleData {
             // Deliberately no endsAt: blocked on a person, and an ETA beside
             // "Waiting for approval" pretends a clock can predict a decision.
             startedAt = minusMinutes(32),
-            updatedAt = now,
-            staleAt = plusMinutes(60),
-        )
-    }
-
-    private fun captureWorkflowSession(): LiveActivitySession {
-        val now = now()
-        return LiveActivitySession(
-            externalActivityId = sampleId("screenshot-capture"),
-            kind = "job",
-            title = "Screenshots",
-            subtitle = "Four device sets",
-            state = "running",
-            signal = "neutral",
-            icon = "camera",
-            statusIcon = "play.fill",
-            value = "1/4",
-            progress = 0.25,
-            items = listOf(
-                LiveActivityItem(
-                    id = "iphone-63",
-                    title = "iPhone 6.3\"",
-                    subtitle = "UI tests running",
-                    icon = "iphone",
-                    value = "6m 30s",
-                    progress = 0.6,
-                    status = DashboardStatus.RUNNING,
-                ),
-                // No status on the queued rows: a valueless row falls back
-                // to its status label, and "Unknown" reads as a fault rather
-                // than a turn that hasn't come yet.
-                LiveActivityItem(id = "iphone-65", title = "iPhone 6.5\"", subtitle = "Queued", icon = "iphone"),
-                LiveActivityItem(id = "ipad", title = "iPad", subtitle = "Queued", icon = "ipad"),
-                LiveActivityItem(id = "apple-tv", title = "Apple TV", subtitle = "Queued", icon = "appletv"),
-            ),
-            endsAt = plusMinutes(37),
-            startedAt = now,
             updatedAt = now,
             staleAt = plusMinutes(60),
         )

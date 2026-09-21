@@ -51,11 +51,14 @@ class SampleStore(context: Context) {
         val samples = SampleData.makeCards()
         _cards.value = samples
         scope.launch { writeList(CARDS_JSON, samples, DashboardCard.serializer()) }
+        // Generating samples includes the App launch demo activity, so one
+        // tap populates both sections.
+        generateSampleActivity()
     }
 
-    /** One sample activity at a time, like iOS (replaces any previous). */
-    fun generateActivity(sample: SampleData.LiveActivitySample) {
-        val sessions = listOf(SampleData.makeLiveActivitySession(sample))
+    /** The one demo activity (generating replaces). */
+    fun generateSampleActivity() {
+        val sessions = listOf(SampleData.makeSampleActivity())
         _activities.value = sessions
         scope.launch { writeList(ACTIVITIES_JSON, sessions, LiveActivitySession.serializer()) }
     }

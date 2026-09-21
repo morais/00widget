@@ -22,8 +22,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -461,32 +459,16 @@ private fun SectionTitle(text: String) {
 }
 
 /**
- * Both iOS demo sessions as a dropdown, mirroring LiveActivitySample: a
- * menu rather than two buttons, because only one sample runs at a time —
- * two answers to one question. iOS wording verbatim, caption included.
+ * The one demo activity. Previously a dropdown over two iOS samples; the
+ * screenshot-capture shape is dropped, so one button remains.
  */
 @Composable
 private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
-    var expanded by remember { mutableStateOf(false) }
     Column {
         Spacer(Modifier.height(4.dp))
-        Box {
-            FilledTonalButton(onClick = { expanded = true }) { Text("Generate sample activity") }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                SampleData.LiveActivitySample.entries.forEach { sample ->
-                    DropdownMenuItem(
-                        text = { Text(sample.title) },
-                        onClick = {
-                            app.sampleStore.generateActivity(sample)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
+        FilledTonalButton(
+            onClick = { app.sampleStore.generateSampleActivity() },
+        ) { Text("Generate sample activity") }
         Text(
             "The sample runs only on this device and can be removed at any time.",
             style = MaterialTheme.typography.bodySmall,
