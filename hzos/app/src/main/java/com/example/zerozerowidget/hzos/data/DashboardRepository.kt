@@ -1,5 +1,6 @@
 package com.example.zerozerowidget.hzos.data
 
+import com.example.zerozerowidget.hzos.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,7 +44,7 @@ class DashboardRepository(
         if (pollJob != null) return
         pollJob = scope.launch {
             store.connection.collectLatest { connection ->
-                if (!connection.isConfigured) {
+                if (effectiveBaseUrl(connection) == null || connection.apiKey.isBlank()) {
                     _state.value = DashboardState(isLoading = false, isConfigured = false)
                     return@collectLatest
                 }
@@ -62,15 +63,20 @@ class DashboardRepository(
     fun refresh() {
         scope.launch {
             val connection = store.current()
-            if (connection.isConfigured) refreshNow(connection)
+            if (effectiveBaseUrl(connection) != null && connection.apiKey.isNotBlank()) {
+                refreshNow(connection)
+            }
         }
     }
 
     suspend fun runAction(actionId: String, cardId: String?): Result<Unit> {
         val connection = store.current()
-        if (!connection.isConfigured) return Result.failure(IllegalStateException("Not connected"))
+        val base = effectiveBaseUrl(connection)
+        if (base == null || connection.apiKey.isBlank()) {
+            return Result.failure(IllegalStateException("Not connected"))
+        }
         return try {
-            apiFactory(connection.baseUrl, connection.apiKey).runAction(actionId, cardId)
+            apiFactory(base, connection.apiKey).runAction(actionId, cardId)
             refreshNow(connection)
             Result.success(Unit)
         } catch (e: Exception) {
@@ -85,9 +91,12 @@ class DashboardRepository(
 
     private suspend fun writeOp(op: suspend (ZeroWidgetApi, ConnectionStore.Connection) -> Unit): Result<Unit> {
         val connection = store.current()
-        if (!connection.isConfigured) return Result.failure(IllegalStateException("Not connected"))
+        val base = effectiveBaseUrl(connection)
+        if (base == null || connection.apiKey.isBlank()) {
+            return Result.failure(IllegalStateException("Not connected"))
+        }
         return try {
-            op(apiFactory(connection.baseUrl, connection.apiKey), connection)
+            op(apiFactory(base, connection.apiKey), connection)
             refreshNow(connection)
             Result.success(Unit)
         } catch (e: Exception) {
@@ -95,12 +104,26 @@ class DashboardRepository(
         }
     }
 
+    /**
+     * Saved Worker URL first, build default second. A key is still required
+     * — the URL alone authenticates nothing — so `isConfigured` now means
+     * "has a key and a resolvable URL", wherever the URL came from.
+     */
+    private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? {
+        val stored = connection.baseUrl.trim().trimEnd('/')
+        if (stored.isNotEmpty()) return stored
+        return BuildConfig.DEFAULT_BASE_URL.trim().trimEnd('/').ifEmpty { null }
+    }
+
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
 
     private suspend fun refreshNow(connection: ConnectionStore.Connection) {
+        // Callers guarantee resolvability; re-check defensively since the
+        // stored values can change between guard and call.
+        val base = effectiveBaseUrl(connection) ?: return
         _state.value = _state.value.copy(isLoading = true, error = null)
         try {
-            val api = apiFactory(connection.baseUrl, connection.apiKey)
+            val api = apiFactory(base, connection.apiKey)
             val dashboard = api.fetchDashboard()
             _state.value = DashboardState(
                 cards = dashboard.cards,

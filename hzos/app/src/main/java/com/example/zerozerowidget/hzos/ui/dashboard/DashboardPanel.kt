@@ -123,7 +123,7 @@ fun DashboardPanel(
         when {
             !state.isConfigured && nothingToShow -> {
                 Text(
-                    "Not connected. Open the Connection panel (Settings) and enter your Worker URL + API key — " +
+                    "Not connected. Sign in from the Connection panel — " +
                         "or explore with demo data, no account needed.",
                     style = MaterialTheme.typography.bodyMedium,
                 )

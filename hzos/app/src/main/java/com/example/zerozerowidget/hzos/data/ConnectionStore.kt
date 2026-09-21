@@ -11,7 +11,9 @@ import kotlinx.coroutines.flow.map
 private val Context.connectionDataStore by preferencesDataStore(name = "connection")
 
 /**
- * Where the Worker URL + API key live until real login exists.
+ * Where the Worker URL + API key live until real login exists. The URL is
+ * edited on the developer screen (Options panel); the key arrives only
+ * through the device flow.
  *
  * AUTH TODO (do not grow this file into a login system — replace it):
  * Horizon OS has no Sign in with Apple equivalent to reuse, and the Worker's
