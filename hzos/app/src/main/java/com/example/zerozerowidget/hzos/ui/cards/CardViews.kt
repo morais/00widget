@@ -48,6 +48,7 @@ import com.example.zerozerowidget.hzos.data.ActionDefinition
 import com.example.zerozerowidget.hzos.data.DashboardCard
 import com.example.zerozerowidget.hzos.data.DashboardChart
 import com.example.zerozerowidget.hzos.data.DashboardStatus
+import com.example.zerozerowidget.hzos.data.isSample
 import kotlin.math.abs
 
 /** See ChartColors.kt: statusColor now mirrors DashboardStatus.tint. */
@@ -868,9 +869,11 @@ fun GlassCard(
         Column(Modifier.padding(16.dp), content = content)
     }
 }
-
 @Composable
-fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {    Card(
+fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {
+    // Overlay badge, not layout — see DashboardRow.
+    Box(Modifier.fillMaxWidth()) {
+    Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
             // Explicit: see DashboardRow — alpha breaks contentColorFor().
@@ -882,6 +885,14 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
             CardHeadline(card)
             Spacer(Modifier.height(8.dp))
             CardTemplateBody(card, interactiveCharts = interactiveCharts)
+        }
+    }
+        if (card.isSample()) {
+            SampleBadge(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+            )
         }
     }
 }

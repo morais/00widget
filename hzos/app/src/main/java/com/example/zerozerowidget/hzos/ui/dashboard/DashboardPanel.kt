@@ -3,6 +3,7 @@ package com.example.zerozerowidget.hzos.ui.dashboard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -279,20 +280,20 @@ private fun DashboardRow(
     onOpenLink: () -> Unit,
     actionSlot: @Composable () -> Unit,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-            // Explicit: an alpha-modified container no longer matches any
-            // theme color, so contentColorFor() can't derive this and text
-            // falls back to ambient black. See ChartColors.kt note.
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            if (isSample) {
-                SampleBadge()
-            }
+    // Overlay badge, not layout: the Box is exactly the card's size and the
+    // pill draws over the bottom-right corner without moving anything.
+    Box(Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
+                // Explicit: an alpha-modified container no longer matches any
+                // theme color, so contentColorFor() can't derive this and text
+                // falls back to ambient black. See ChartColors.kt note.
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        ) {
+            Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardHeadline(card, Modifier.weight(1f))
                 PopOutIconButton(onPopOut)
@@ -320,6 +321,14 @@ private fun DashboardRow(
                     }
                 }
             }
+        }
+        }
+        if (isSample) {
+            SampleBadge(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+            )
         }
     }
 }
@@ -481,6 +490,8 @@ private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
 
 @Composable
 private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit, onOpenDetail: () -> Unit) {
+    // Overlay badge, not layout — see DashboardRow.
+    Box(Modifier.fillMaxWidth()) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
@@ -490,9 +501,6 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDetail),
     ) {
         Column(Modifier.padding(14.dp)) {
-            if (session.isSample()) {
-                SampleBadge()
-            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 session.progress?.let {
                     Text(
@@ -557,6 +565,14 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                     Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
             }
+        }
+        }
+        if (session.isSample()) {
+            SampleBadge(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+            )
         }
     }
 }
