@@ -129,12 +129,6 @@ fun ConnectionPanel(
         }
 
         Spacer(Modifier.height(4.dp))
-        Text(
-            "Sign-in happens on your phone; the Worker URL lives on the " +
-                "developer screen behind the version below.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         VersionRow(onOpenOptions = onOpenOptions)
     }
