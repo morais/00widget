@@ -39,7 +39,9 @@ android {
         // Keep com.example.* out of the store.
         applicationId = configuredAppId
         minSdk = libs.versions.minSdk.get().toInt()
-        targetSdk = libs.versions.targetSdk.get().toInt()
+        // 34, not 36: the store warns that Horizon OS supports up to API 34.
+        // compileSdk stays ahead for the build; runtime behavior targets 34.
+        targetSdk = 34
         // Visible version is fixed per release line; the build number is
         // UTC date/time (ISO basic, hour precision). Full ISO doesn't fit:
         // versionCode is a signed 32-bit int, and yyyyMMddHHmm already

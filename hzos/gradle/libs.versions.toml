@@ -13,7 +13,6 @@ kotlinxSerialization = "1.9.0"
 coroutines = "1.10.2"
 horizonPlatformSdk = "0.2.2"
 minSdk = "32"
-targetSdk = "36"
 compileSdk = "36"
 
 [libraries]
