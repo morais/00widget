@@ -198,9 +198,6 @@ fun ActivityDetailPanel(
                 if (isStale(session.updatedAt, session.staleAt)) {
                     Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
-                session.deepLink?.let {
-                    FilledTonalButton(onClick = { onOpenLink(session.deepLink) }) { Text("Open link") }
-                }
             }
             Spacer(Modifier.height(8.dp))
             SampleAwareDeleteRow(
@@ -222,6 +219,11 @@ fun ActivityDetailPanel(
                         }
                         ending = false
                         if (ok) onDeleted()
+                    }
+                },
+                leading = {
+                    session.deepLink?.let {
+                        FilledTonalButton(onClick = { onOpenLink(session.deepLink) }) { Text("Open link") }
                     }
                 },
             )

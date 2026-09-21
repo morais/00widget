@@ -403,12 +403,6 @@ fun CardDetailPanel(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            card.deepLink?.let {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
             SampleAwareDeleteRow(
                 isSample = isSample,
                 serverLabel = "Delete",
@@ -428,6 +422,11 @@ fun CardDetailPanel(
                         }
                         deleting = false
                         if (ok) onDeleted()
+                    }
+                },
+                leading = {
+                    card.deepLink?.let {
+                        FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
                     }
                 },
             )

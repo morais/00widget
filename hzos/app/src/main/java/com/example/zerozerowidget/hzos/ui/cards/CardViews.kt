@@ -911,6 +911,7 @@ fun SampleAwareDeleteRow(
     error: String?,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     DeleteRow(
         label = if (isSample) "Remove sample" else serverLabel,
@@ -918,6 +919,7 @@ fun SampleAwareDeleteRow(
         error = error,
         onDelete = onDelete,
         modifier = modifier,
+        leading = leading,
     )
 }
 
@@ -933,10 +935,13 @@ fun DeleteRow(
     error: String?,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     var armed by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            leading()
+            Spacer(Modifier.weight(1f))
             FilledTonalButton(
                 onClick = {
                     if (armed) {
