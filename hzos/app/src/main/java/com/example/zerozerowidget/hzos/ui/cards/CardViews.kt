@@ -368,8 +368,39 @@ private fun ChartBody(card: DashboardCard, interactive: Boolean) {
             modifier = Modifier.fillMaxWidth().height(120.dp),
         )
     }
-    chart.referenceMetadata?.label?.let {
-        Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    chart.referenceMetadata?.label?.let { label ->
+        Spacer(Modifier.height(4.dp))
+        ReferenceLegend(chart = chart, baseTint = base, label = label)
+    }
+}
+
+/**
+ * Reference legend: a short length of the actual dashed rule in its own
+ * color beside the label — the text alone doesn't say which line it names.
+ * Same tint, opacity, and dash the plot draws.
+ */
+@Composable
+private fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: String) {
+    val semantics = chart.referenceMetadata?.semantic
+    val tint = semantics?.let { chartTint(0, baseTint, it) } ?: IosChartColors.SECONDARY
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Canvas(Modifier.width(24.dp).height(8.dp)) {
+            drawLine(
+                color = tint.copy(alpha = roleOpacity(semantics?.role)),
+                start = Offset(0f, size.height / 2),
+                end = Offset(size.width, size.height / 2),
+                strokeWidth = 2f,
+                pathEffect = PathEffect.dashPathEffect(referenceDash(semantics?.role), 0f),
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
