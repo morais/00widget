@@ -13,7 +13,43 @@
         1440
       ],
       "mode": "RGB",
-      "sha256": "1ec48cc507928dd58bc28237ab25fdb15fa2b8fb43d5c74329d4475df90ad5d8"
+      "sha256": "aba6a366d1966075f1e97c51f367d1789b1e33d7316c2f224237ff073a6d2099"
+    },
+    {
+      "filename": "00widget-cover-landscape-2560x1440.png",
+      "dimensions": [
+        2560,
+        1440
+      ],
+      "mode": "RGB",
+      "sha256": "aba6a366d1966075f1e97c51f367d1789b1e33d7316c2f224237ff073a6d2099"
+    },
+    {
+      "filename": "00widget-cover-square-1440x1440.png",
+      "dimensions": [
+        1440,
+        1440
+      ],
+      "mode": "RGB",
+      "sha256": "a0538386c9401693a7fbe084caf37f22ffb53e54db5cca76bf484756b172e46e"
+    },
+    {
+      "filename": "00widget-cover-portrait-1008x1440.png",
+      "dimensions": [
+        1008,
+        1440
+      ],
+      "mode": "RGB",
+      "sha256": "8d2a9efad8bdcee25e1587f97e2e5b86e32bcc8ef5118cec085f4712d9d65606"
+    },
+    {
+      "filename": "00widget-mini-landscape-1080x360.png",
+      "dimensions": [
+        1080,
+        360
+      ],
+      "mode": "RGB",
+      "sha256": "05e58260d02199e8384dd4a83e4067c2bb201290575e70a9dfb380f94b394b63"
     },
     {
       "filename": "00widget-hero-cover-3000x900.png",

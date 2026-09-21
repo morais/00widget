@@ -10,18 +10,23 @@ plate under `sources/`.
 | Developer Dashboard field | File |
 | --- | --- |
 | Universal basic asset | `assets/00widget-universal-basic-2560x1440.png` |
+| Cover art — Landscape | `assets/00widget-cover-landscape-2560x1440.png` |
+| Cover art — Square | `assets/00widget-cover-square-1440x1440.png` |
+| Cover art — Portrait | `assets/00widget-cover-portrait-1008x1440.png` |
+| Mini landscape | `assets/00widget-mini-landscape-1080x360.png` |
 | Icon | `assets/00widget-icon-512x512.png` |
 | Logo | `assets/00widget-logo-transparent-1254x1254.png` |
 | Hero cover | `assets/00widget-hero-cover-3000x900.png` |
 | Spatialized tile — Background | `assets/00widget-spatialized-background-180x180.png` |
 | Spatialized tile — Foreground | `assets/00widget-spatialized-foreground-180x180.png` |
 
-The Universal Basic Asset is the 16:9 source Meta uses to generate the cover
-landscape, square, portrait, and mini-landscape variants. Inspect every
-generated crop in the Developer Dashboard before submitting. The centered
-square and portrait images under `previews/` are deliberately conservative QA
-crops, not additional upload assets. `previews/hero-safe-area-preview.png`
-shows the conservative Hero safe-area guard enforced by the build.
+The Universal Basic Asset is the 16:9 source Meta can use to generate the cover
+variants. Meta's September 2026 generator moved the title outside its own safe
+area in landscape and portrait, so the format-specific files above are the
+submission source of truth: replace the generated `uba_…` variants with them.
+Every important element in those files is guarded against a conservative safe
+area in `build.py`. The matching previews under `previews/` dim the bleed and
+draw the enforced rectangle.
 
 ## Design contract
 
@@ -30,6 +35,10 @@ shows the conservative Hero safe-area guard enforced by the build.
   quote, or platform reference.
 - Universal and Hero covers use the same atmosphere, title artwork, dashboard
   language, and palette.
+- Landscape, square, portrait, and mini-landscape covers are composed for
+  their own aspect ratios. They are not mechanical crops of the Universal
+  asset, because a single composition cannot keep the title and dashboard
+  inside all four safe areas.
 - The store icon is an opaque, square-cornered 24-bit PNG derived mechanically
   from `docs/brand/app-icon-master.png`.
 - The logo preserves the approved U2 mark and its real transparent alpha.

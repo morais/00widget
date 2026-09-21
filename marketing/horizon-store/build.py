@@ -27,6 +27,10 @@ MARK = REPO_ROOT / "docs" / "brand" / "mark-transparent-master.png"
 WORDMARK = REPO_ROOT / "docs" / "brand" / "wordmark-horizontal-transparent.png"
 
 UNIVERSAL_NAME = "00widget-universal-basic-2560x1440.png"
+COVER_LANDSCAPE_NAME = "00widget-cover-landscape-2560x1440.png"
+COVER_SQUARE_NAME = "00widget-cover-square-1440x1440.png"
+COVER_PORTRAIT_NAME = "00widget-cover-portrait-1008x1440.png"
+MINI_LANDSCAPE_NAME = "00widget-mini-landscape-1080x360.png"
 HERO_NAME = "00widget-hero-cover-3000x900.png"
 ICON_NAME = "00widget-icon-512x512.png"
 LOGO_NAME = "00widget-logo-transparent-1254x1254.png"
@@ -37,6 +41,10 @@ SPATIAL_FOREGROUND_NAME = "00widget-spatialized-foreground-180x180.png"
 # Dashboard for the 3000x900 Hero Cover. The title is the essential element
 # this build pins to it; decorative panels may continue into the bleed.
 HERO_SAFE_AREA = (560, 120, 2440, 720)
+COVER_LANDSCAPE_SAFE_AREA = (300, 330, 2260, 1110)
+COVER_SQUARE_SAFE_AREA = (190, 190, 1250, 1150)
+COVER_PORTRAIT_SAFE_AREA = (170, 160, 838, 1090)
+MINI_LANDSCAPE_SAFE_AREA = (100, 50, 980, 310)
 SPATIAL_FOREGROUND_SAFE_AREA = (21, 21, 159, 159)
 
 DEEP_NAVY = (6, 21, 42, 255)
@@ -253,20 +261,128 @@ def place_rotated(
     composite_with_shadow(canvas, rotated, xy, blur=34, opacity=opacity)
 
 
-def build_universal() -> Image.Image:
+def scaled_dashboard(size: tuple[int, int]) -> Image.Image:
+    return glass_panel((1000, 590)).resize(size, Image.Resampling.LANCZOS)
+
+
+def build_cover_landscape() -> Image.Image:
     canvas = cover_background((2560, 1440))
 
-    left = mini_panel((520, 360), PURPLE, chart=True)
-    right = mini_panel((520, 360), BLUE, chart=False)
-    place_rotated(canvas, left, (570, 930), -7.0, opacity=110)
-    place_rotated(canvas, right, (1990, 915), 7.0, opacity=110)
+    left = mini_panel((460, 320), PURPLE, chart=True)
+    right = mini_panel((460, 320), BLUE, chart=False)
+    place_rotated(canvas, left, (600, 850), -7.0, opacity=105)
+    place_rotated(canvas, right, (1960, 845), 7.0, opacity=105)
 
-    dashboard = glass_panel((1000, 590))
-    composite_with_shadow(canvas, dashboard, (780, 585), blur=48, opacity=175, offset=(0, 30))
+    dashboard = scaled_dashboard((800, 472))
+    dashboard_xy = (880, 590)
+    inside(
+        (
+            dashboard_xy[0],
+            dashboard_xy[1],
+            dashboard_xy[0] + dashboard.width,
+            dashboard_xy[1] + dashboard.height,
+        ),
+        COVER_LANDSCAPE_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, dashboard, dashboard_xy, blur=46, opacity=175, offset=(0, 28))
 
-    title = title_art((960, 220))
-    title_xy = ((2560 - title.width) // 2, 205)
+    title = title_art((850, 195))
+    title_xy = ((2560 - title.width) // 2, 350)
+    inside(
+        (title_xy[0], title_xy[1], title_xy[0] + title.width, title_xy[1] + title.height),
+        COVER_LANDSCAPE_SAFE_AREA,
+    )
     composite_with_shadow(canvas, title, title_xy, blur=24, opacity=125, offset=(0, 12))
+    return canvas.convert("RGB")
+
+
+def build_cover_square() -> Image.Image:
+    canvas = cover_background((1440, 1440))
+
+    left = mini_panel((370, 255), PURPLE, chart=True)
+    right = mini_panel((370, 255), BLUE, chart=False)
+    place_rotated(canvas, left, (245, 795), -7.0, opacity=95)
+    place_rotated(canvas, right, (1195, 785), 7.0, opacity=95)
+
+    dashboard = scaled_dashboard((760, 448))
+    dashboard_xy = (340, 520)
+    inside(
+        (
+            dashboard_xy[0],
+            dashboard_xy[1],
+            dashboard_xy[0] + dashboard.width,
+            dashboard_xy[1] + dashboard.height,
+        ),
+        COVER_SQUARE_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, dashboard, dashboard_xy, blur=42, opacity=175, offset=(0, 26))
+
+    title = title_art((760, 175))
+    title_xy = ((1440 - title.width) // 2, 245)
+    inside(
+        (title_xy[0], title_xy[1], title_xy[0] + title.width, title_xy[1] + title.height),
+        COVER_SQUARE_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, title, title_xy, blur=22, opacity=125, offset=(0, 11))
+    return canvas.convert("RGB")
+
+
+def build_cover_portrait() -> Image.Image:
+    canvas = cover_background((1008, 1440))
+
+    # Bleed-only side panels preserve the multi-panel idea without competing
+    # with the title and central dashboard inside Meta's narrow safe area.
+    left = mini_panel((300, 210), PURPLE, chart=True)
+    right = mini_panel((300, 210), BLUE, chart=False)
+    place_rotated(canvas, left, (75, 750), -7.0, opacity=80)
+    place_rotated(canvas, right, (933, 745), 7.0, opacity=80)
+
+    dashboard = scaled_dashboard((620, 366))
+    dashboard_xy = (194, 520)
+    inside(
+        (
+            dashboard_xy[0],
+            dashboard_xy[1],
+            dashboard_xy[0] + dashboard.width,
+            dashboard_xy[1] + dashboard.height,
+        ),
+        COVER_PORTRAIT_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, dashboard, dashboard_xy, blur=38, opacity=175, offset=(0, 24))
+
+    title = title_art((620, 145))
+    title_xy = ((1008 - title.width) // 2, 225)
+    inside(
+        (title_xy[0], title_xy[1], title_xy[0] + title.width, title_xy[1] + title.height),
+        COVER_PORTRAIT_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, title, title_xy, blur=20, opacity=125, offset=(0, 10))
+    return canvas.convert("RGB")
+
+
+def build_mini_landscape() -> Image.Image:
+    canvas = cover_background((1080, 360))
+
+    dashboard = scaled_dashboard((420, 248))
+    dashboard_xy = (550, 56)
+    inside(
+        (
+            dashboard_xy[0],
+            dashboard_xy[1],
+            dashboard_xy[0] + dashboard.width,
+            dashboard_xy[1] + dashboard.height,
+        ),
+        MINI_LANDSCAPE_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, dashboard, dashboard_xy, blur=24, opacity=160, offset=(0, 15))
+
+    title = title_art((350, 82))
+    title_xy = (120, (360 - title.height) // 2)
+    inside(
+        (title_xy[0], title_xy[1], title_xy[0] + title.width, title_xy[1] + title.height),
+        MINI_LANDSCAPE_SAFE_AREA,
+    )
+    composite_with_shadow(canvas, title, title_xy, blur=14, opacity=115, offset=(0, 7))
     return canvas.convert("RGB")
 
 
@@ -364,6 +480,13 @@ def build_previews(outputs: dict[str, Image.Image]) -> None:
         safe_area_preview(outputs[HERO_NAME], HERO_SAFE_AREA),
         PREVIEW_DIR / "hero-safe-area-preview.png",
     )
+    for name, safe_area, preview_name in (
+        (COVER_LANDSCAPE_NAME, COVER_LANDSCAPE_SAFE_AREA, "cover-landscape-safe-area-preview.png"),
+        (COVER_SQUARE_NAME, COVER_SQUARE_SAFE_AREA, "cover-square-safe-area-preview.png"),
+        (COVER_PORTRAIT_NAME, COVER_PORTRAIT_SAFE_AREA, "cover-portrait-safe-area-preview.png"),
+        (MINI_LANDSCAPE_NAME, MINI_LANDSCAPE_SAFE_AREA, "mini-landscape-safe-area-preview.png"),
+    ):
+        save(safe_area_preview(outputs[name], safe_area), PREVIEW_DIR / preview_name)
 
     spatial = outputs[SPATIAL_BACKGROUND_NAME].convert("RGBA")
     spatial.alpha_composite(outputs[SPATIAL_FOREGROUND_NAME])
@@ -373,6 +496,10 @@ def build_previews(outputs: dict[str, Image.Image]) -> None:
 def validate(outputs: dict[str, Image.Image]) -> None:
     expected = {
         UNIVERSAL_NAME: ((2560, 1440), "RGB"),
+        COVER_LANDSCAPE_NAME: ((2560, 1440), "RGB"),
+        COVER_SQUARE_NAME: ((1440, 1440), "RGB"),
+        COVER_PORTRAIT_NAME: ((1008, 1440), "RGB"),
+        MINI_LANDSCAPE_NAME: ((1080, 360), "RGB"),
         HERO_NAME: ((3000, 900), "RGB"),
         ICON_NAME: ((512, 512), "RGB"),
         LOGO_NAME: ((1254, 1254), "RGBA"),
@@ -401,7 +528,11 @@ def main() -> None:
         raise SystemExit("Missing Horizon Store source(s):\n" + "\n".join(map(str, missing)))
 
     outputs = {
-        UNIVERSAL_NAME: build_universal(),
+        UNIVERSAL_NAME: build_cover_landscape(),
+        COVER_LANDSCAPE_NAME: build_cover_landscape(),
+        COVER_SQUARE_NAME: build_cover_square(),
+        COVER_PORTRAIT_NAME: build_cover_portrait(),
+        MINI_LANDSCAPE_NAME: build_mini_landscape(),
         HERO_NAME: build_hero(),
         ICON_NAME: build_icon(),
         LOGO_NAME: build_logo(),
