@@ -68,7 +68,10 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
  * the surrounding layout (no rotation, no overflow, no offsets).
  */
 @Composable
-fun SampleBadge(modifier: Modifier = Modifier) {    Box(
+fun SampleBadge(modifier: Modifier = Modifier) {
+    // Gated centrally so every pill obeys hide-sample-indicators together.
+    if (com.example.zerozerowidget.hzos.ui.LocalHideSampleIndicators.current) return
+    Box(
         modifier = modifier
             .background(
                 MaterialTheme.colorScheme.primary,

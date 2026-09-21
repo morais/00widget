@@ -1,5 +1,7 @@
 package com.example.zerozerowidget.hzos.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -75,12 +77,18 @@ class ZeroWidgetApi(
     /**
      * Active MCP grants: lifecycle/display metadata only, never tokens.
      * Mirrors APIClient.listMCPConnections / disconnectMCPConnection.
+     * Main-safe (IO-dispatched) so panels can call straight from compose
+     * scopes — blocking OkHttp on Main throws NetworkOnMainThreadException.
      */
     suspend fun listMCPConnections(): List<MCPConnectionSummary> =
-        get<MCPConnectionsListResponse>("/v1/account/mcp-connections").connections
+        withContext(Dispatchers.IO) {
+            get<MCPConnectionsListResponse>("/v1/account/mcp-connections").connections
+        }
 
     suspend fun disconnectMCPConnection(id: String) {
-        delete("/v1/account/mcp-connections/${pathSegment(id)}")
+        withContext(Dispatchers.IO) {
+            delete("/v1/account/mcp-connections/${pathSegment(id)}")
+        }
     }
 
     // --- internals ---

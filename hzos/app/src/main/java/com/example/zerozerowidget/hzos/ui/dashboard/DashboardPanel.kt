@@ -85,6 +85,7 @@ fun DashboardPanel(
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
+    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
     var selectedId by remember { mutableStateOf<String?>(null) }
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
