@@ -29,11 +29,13 @@ class CardDetailActivity : ComponentActivity() {
                         app = app,
                         cardId = cardId,
                         onOpenLink = { url -> openDeepLink(this, url) },
+                        onDeleted = { finishAndRemoveTask() },
                     )
                     !activityId.isNullOrBlank() -> ActivityDetailPanel(
                         app = app,
                         externalActivityId = activityId,
                         onOpenLink = { url -> openDeepLink(this, url) },
+                        onDeleted = { finishAndRemoveTask() },
                     )
                     else -> Text(
                         "Nothing to show.",

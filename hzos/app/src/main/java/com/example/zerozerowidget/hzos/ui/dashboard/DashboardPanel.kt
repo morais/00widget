@@ -344,6 +344,7 @@ fun CardDetailPanel(
     app: ZeroZeroWidgetApp,
     cardId: String,
     onOpenLink: (String?) -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
     val samples by app.sampleStore.cards.collectAsState()
@@ -433,15 +434,16 @@ fun CardDetailPanel(
                     scope.launch {
                         deleting = true
                         deleteError = null
-                        if (isSample) {
+                        val ok = if (isSample) {
                             app.sampleStore.removeCard(cardId)
+                            true
                         } else {
                             val result = app.repository.deleteCard(cardId)
-                            deleting = false
                             deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
-                            return@launch
+                            result.isSuccess
                         }
                         deleting = false
+                        if (ok) onDeleted()
                     }
                 },
             )

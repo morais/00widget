@@ -56,6 +56,7 @@ fun ActivityDetailPanel(
     app: ZeroZeroWidgetApp,
     externalActivityId: String,
     onOpenLink: (String?) -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
     val samples by app.sampleStore.activities.collectAsState()
@@ -210,15 +211,16 @@ fun ActivityDetailPanel(
                     scope.launch {
                         ending = true
                         endError = null
-                        if (isSample) {
+                        val ok = if (isSample) {
                             app.sampleStore.removeActivity(externalActivityId)
+                            true
                         } else {
                             val result = app.repository.endActivity(externalActivityId)
-                            ending = false
                             endError = result.exceptionOrNull()?.let(::describeDeleteError)
-                            return@launch
+                            result.isSuccess
                         }
                         ending = false
+                        if (ok) onDeleted()
                     }
                 },
             )
