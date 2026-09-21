@@ -35,8 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.isSample
-import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.InspectableChart
+import com.example.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
@@ -203,8 +203,9 @@ fun ActivityDetailPanel(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            DeleteRow(
-                label = if (isSample) "Remove sample" else "End activity",
+            SampleAwareDeleteRow(
+                isSample = isSample,
+                serverLabel = "End activity",
                 busy = ending,
                 error = endError,
                 onDelete = {

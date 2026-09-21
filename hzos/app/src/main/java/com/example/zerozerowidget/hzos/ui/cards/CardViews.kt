@@ -898,6 +898,30 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
 }
 
 /**
+ * Delete affordance shared by card and activity detail panels. Samples
+ * always read "Remove sample" (local removal); server items use the
+ * caller's label ("Delete", "End activity"). One place owns the wording
+ * so the two panels cannot drift apart.
+ */
+@Composable
+fun SampleAwareDeleteRow(
+    isSample: Boolean,
+    serverLabel: String,
+    busy: Boolean,
+    error: String?,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    DeleteRow(
+        label = if (isSample) "Remove sample" else serverLabel,
+        busy = busy,
+        error = error,
+        onDelete = onDelete,
+        modifier = modifier,
+    )
+}
+
+/**
  * Destructive action with inline two-tap confirm, iOS detail-screen style.
  * Compact and right-aligned: a small red-tonal button, never a full-width
  * banner. First tap arms ("Sure?"), second fires.

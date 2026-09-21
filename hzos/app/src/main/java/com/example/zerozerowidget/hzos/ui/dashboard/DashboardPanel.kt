@@ -54,6 +54,7 @@ import com.example.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
 import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
+import com.example.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.example.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
@@ -426,8 +427,9 @@ fun CardDetailPanel(
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            DeleteRow(
-                label = "Delete",
+            SampleAwareDeleteRow(
+                isSample = isSample,
+                serverLabel = "Delete",
                 busy = deleting,
                 error = deleteError,
                 onDelete = {
