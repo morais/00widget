@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos.auth
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import horizon.core.android.driver.coroutines.HorizonServiceConnection
 import horizon.platform.users.Users
 import kotlinx.coroutines.CoroutineScope
@@ -50,8 +51,13 @@ class HorizonAuth(
             // SDK-internal. Throws when init hasn't completed — caught below
             // so the UI can fall back to the manual code display.
             Users().sendAuthUrl(authUrl)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "sendAuthUrl failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
+    }
+
+    companion object {
+        private const val TAG = "HorizonAuth"
     }
 }

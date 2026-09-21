@@ -51,7 +51,15 @@ class ConnectionActivity : ComponentActivity() {
                 return@launch
             }
             pendingSendCallback = onSent
-            sendAuthLauncher.launch(intent)
+            try {
+                sendAuthLauncher.launch(intent)
+            } catch (e: Exception) {
+                // No handler for the OS dialog (old OS, no Horizon app):
+                // report not-sent instead of crashing the scope.
+                android.util.Log.e("HorizonAuth", "send dialog launch failed: ${e.javaClass.simpleName}")
+                pendingSendCallback = null
+                onSent(false)
+            }
         }
     }
 

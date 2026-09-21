@@ -288,6 +288,10 @@ private fun PhoneSignInSection(
                             phase = SignInPhase.IDLE
                             throw e
                         } catch (e: Exception) {
+                            android.util.Log.e(
+                                "HorizonAuth",
+                                "device flow failed: ${e.javaClass.simpleName}: ${e.message}",
+                            )
                             error = (e.message ?: e.javaClass.simpleName).take(200)
                             phase = SignInPhase.IDLE
                         }
@@ -308,8 +312,9 @@ private fun PhoneSignInSection(
             )
             Text(
                 when (linkSent) {
+                    null -> "Sending to your phone…"
                     true -> "Approval sent to your Horizon mobile app — tap the notification."
-                    else -> "Couldn't reach the Horizon app. Enter the code at:"
+                    false -> "Phone request wasn't sent — enter the code manually below."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
