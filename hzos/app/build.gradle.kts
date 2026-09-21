@@ -128,6 +128,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // OkHttp 5 (and okio) both ship this OSGi manifest; it is
+            // metadata only and irrelevant on Android.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
 }
