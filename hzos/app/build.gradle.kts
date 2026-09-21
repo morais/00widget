@@ -5,6 +5,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Properties
 
 // Horizon Platform app ID (developer portal → your app). Per-machine, read
@@ -41,8 +44,8 @@ android {
         // UTC date/time (ISO basic, hour precision). Full ISO doesn't fit:
         // versionCode is a signed 32-bit int, and yyyyMMddHHmm already
         // overflows it — yyyyMMddHH fits until 2038.
-        versionCode = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
-            .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHH"))
+        versionCode = ZonedDateTime.now(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
             .toInt()
         versionName = "1.5"
 
