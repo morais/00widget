@@ -132,7 +132,7 @@ fun DashboardPanel(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onOpenSettings) { Text("Open Connection") }
-                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
                 }
             }
             state.error != null && nothingToShow -> {
@@ -140,7 +140,7 @@ fun DashboardPanel(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { app.repository.refresh() }) { Text("Retry") }
-                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
                 }
             }
             nothingToShow -> {
@@ -149,7 +149,7 @@ fun DashboardPanel(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { app.sampleStore.generateCards() }) { Text("Generate sample widgets") }
+                Button(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
             }
             else -> {
                 state.error?.let {
@@ -247,7 +247,7 @@ fun DashboardPanel(
                             item(key = "demo-widgets") {
                                 FilledTonalButton(
                                     onClick = { app.sampleStore.generateCards() },
-                                ) { Text("Generate sample widgets") }
+                                ) { Text("Generate samples") }
                             }
                         } else if (twoCol) {
                                 items(
