@@ -62,32 +62,6 @@
                 android:minHeight="450dp" />
         </activity>
 
-        <activity
-            android:theme="@style/PanelAppTheme.Transparent"
-            android:name=".OptionsActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape">
-            <layout
-                android:defaultWidth="700dp"
-                android:defaultHeight="550dp"
-                android:minWidth="500dp"
-                android:minHeight="400dp" />
-        </activity>
-
-        <activity
-            android:theme="@style/PanelAppTheme.Transparent"
-            android:name=".AgentConnectActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape">
-            <layout
-                android:defaultWidth="900dp"
-                android:defaultHeight="800dp"
-                android:minWidth="600dp"
-                android:minHeight="450dp" />
-        </activity>
-
         <!-- Card detail: one instance per popped-out card (MULTIPLE_TASK),
              so N cards sit side by side as N shell panels. -->
         <activity

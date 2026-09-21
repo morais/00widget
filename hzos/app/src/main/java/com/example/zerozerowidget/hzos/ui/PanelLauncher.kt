@@ -6,10 +6,8 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
-import com.example.zerozerowidget.hzos.AgentConnectActivity
 import com.example.zerozerowidget.hzos.CardDetailActivity
 import com.example.zerozerowidget.hzos.SettingsActivity
-import com.example.zerozerowidget.hzos.OptionsActivity
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import kotlinx.coroutines.launch
 
@@ -32,24 +30,7 @@ fun Context.openSettingsPanel() {
     )
 }
 
-/** Additional options. Singleton like settings. */
-fun Context.openOptionsPanel() {
-    startActivity(
-        Intent(this, OptionsActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
-        },
-    )
-}
-
-/** Connect-an-agent guide. Singleton like settings. */
-fun Context.openAgentConnectPanel() {
-    startActivity(
-        Intent(this, AgentConnectActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
-        },
-    )
-}
-
+/** One card or activity detail per pop-out: MULTIPLE_TASK gives every pop-out its own panel. */
 fun Context.openDetailPanel(cardId: String) {
     startActivity(
         Intent(this, CardDetailActivity::class.java).apply {

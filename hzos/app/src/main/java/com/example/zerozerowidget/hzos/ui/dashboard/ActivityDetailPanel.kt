@@ -69,7 +69,11 @@ fun ActivityDetailPanel(
     var ending by remember { mutableStateOf(false) }
     var endError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.zerozerowidget.hzos.ui.LocalHideSampleIndicators provides hideIndicators,
+    ) {
     Column(
         Modifier
             .fillMaxSize()
@@ -238,5 +242,6 @@ fun ActivityDetailPanel(
             }
             }
         }
+    }
     }
 }

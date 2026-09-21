@@ -113,7 +113,10 @@ fun DashboardPanel(
                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
             }
         }
-        if (samples.isNotEmpty() || sampleActivities.isNotEmpty()) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.example.zerozerowidget.hzos.ui.LocalHideSampleIndicators provides hideIndicators,
+        ) {
+        if ((samples.isNotEmpty() || sampleActivities.isNotEmpty()) && !hideIndicators) {
             SampleNoticeBanner(onRemoveAll = { app.sampleStore.clearSamples() })
             Spacer(Modifier.height(4.dp))
         }
@@ -253,6 +256,7 @@ fun DashboardPanel(
                 }
             }
         }
+        }
     }
 }
 
@@ -333,6 +337,7 @@ fun CardDetailPanel(
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
+    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
@@ -346,6 +351,9 @@ fun CardDetailPanel(
     // briefings, full item lists, inspection panels) scrolls inside it.
     // The OS cannot size a panel to its content, so scroll is the whole
     // answer — sizing the window to content is not an API that exists.
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.zerozerowidget.hzos.ui.LocalHideSampleIndicators provides hideIndicators,
+    ) {
     Column(
         Modifier
             .fillMaxSize()
@@ -438,6 +446,7 @@ fun CardDetailPanel(
                 )
             }
         }
+    }
     }
 }
 

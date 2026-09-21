@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -16,8 +17,12 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,9 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
+import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
 import com.example.zerozerowidget.hzos.data.DeviceAuthApi
@@ -40,29 +47,62 @@ import kotlinx.coroutines.launch
 
 private enum class SignInPhase { IDLE, REQUESTING, WAITING }
 
+private enum class SettingsDestination { ROOT, AGENT, DEVELOPER }
+
 /**
- * Connection panel. Manual Worker URL + API key entry — the placeholder until
- * real login lands (see ConnectionStore AUTH TODO and hzos/README.md).
- *
- * Paste a tenant API token with the `device` preset from the Worker's
- * `/admin` page (`read` + `actions:run`: dashboard reads and safe action
- * buttons, nothing else). A `publisher` token is wrong here — it 403s on
- * action runs and needlessly grants `publish` + `webhook:manage`. Save
- * validates the URL shape (https, http only for local hosts) and immediately
- * triggers a dashboard refresh so a typo shows up as an error, not silence.
- */
-/**
- * Connection panel: sign in with the phone flow, sign out again. There is
- * deliberately no manual credential entry — the Worker URL lives on the
- * developer screen (Options · Developer, readonly when the build provides
- * one) and the API key arrives only through the device flow.
+ * Settings is one panel with drill-in destinations, not separate shell
+ * panels: the root (connection, agent doorway, about), the agent guide,
+ * and the developer screen, with a back button between them.
  */
 @Composable
 fun SettingsPanel(
     app: ZeroZeroWidgetApp,
     onClose: () -> Unit,
-    onOpenOptions: () -> Unit,
-    onOpenAgentConnect: () -> Unit,
+    onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
+) {
+    var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
+    val title = when (destination) {
+        SettingsDestination.ROOT -> "Settings"
+        SettingsDestination.AGENT -> "Connect an agent"
+        SettingsDestination.DEVELOPER -> "Developer"
+    }
+
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (destination != SettingsDestination.ROOT) {
+                FilledTonalButton(onClick = { destination = SettingsDestination.ROOT }) {
+                    Text("Back")
+                }
+                Spacer(Modifier.height(0.dp))
+            }
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onClose) {
+                Icon(Icons.Filled.Close, contentDescription = "Close")
+            }
+        }
+
+        when (destination) {
+            SettingsDestination.ROOT -> SettingsRoot(
+                app = app,
+                onOpenAgent = { destination = SettingsDestination.AGENT },
+                onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
+                onSendAuthUrl = onSendAuthUrl,
+            )
+            SettingsDestination.AGENT -> AgentConnectPanel(app = app)
+            SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
+        }
+    }
+}
+
+@Composable
+private fun SettingsRoot(
+    app: ZeroZeroWidgetApp,
+    onOpenAgent: () -> Unit,
+    onOpenDeveloper: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -75,14 +115,7 @@ fun SettingsPanel(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
 
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = "Close")
-            }
-        }
-
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (!signedIn) {
@@ -132,24 +165,24 @@ fun SettingsPanel(
         }
 
         Spacer(Modifier.height(4.dp))
-        AgentConfigSection(onOpenAgentConnect = onOpenAgentConnect)
+        AgentConfigSection(onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
-        AboutSection(onOpenOptions = onOpenOptions)
+        AboutSection(onOpenDeveloper = onOpenDeveloper)
     }
 }
 
 /**
- * About: version (tap → options), privacy, terms. URLs come from the
+ * About: version (tap → developer), privacy, terms. URLs come from the
  * gitignored store config; a blank URL hides its row, so clones without
  * listing metadata show version alone.
  */
 @Composable
-private fun AboutSection(onOpenOptions: () -> Unit) {
+private fun AboutSection(onOpenDeveloper: () -> Unit) {
     val context = LocalContext.current
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("About", style = MaterialTheme.typography.titleSmall)
-            VersionRow(onOpenOptions = onOpenOptions)
+            VersionRow(onOpenDeveloper = onOpenDeveloper)
             val privacy = com.example.zerozerowidget.hzos.BuildConfig.PRIVACY_URL
             if (privacy.isNotBlank()) {
                 LinkRow(label = "Privacy policy") { openDeepLink(context, privacy) }
@@ -186,7 +219,7 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
 
 /**
  * Agent config entry: connectors for assistants plus the token path for
- * things you run yourself. The guide lives on its own panel; this is the
+ * things you run yourself. The guide is a destination below; this is the
  * doorway, mirroring iOS Settings.
  */
 @Composable
@@ -205,11 +238,11 @@ private fun AgentConfigSection(onOpenAgentConnect: () -> Unit) {
 }
 
 @Composable
-private fun VersionRow(onOpenOptions: () -> Unit) {
+private fun VersionRow(onOpenDeveloper: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpenOptions),
+            .clickable(onClick = onOpenDeveloper),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -224,6 +257,129 @@ private fun VersionRow(onOpenOptions: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Developer destination: Worker URL, sample-indicator visibility, and panel
+ * look. No "provided by the build" note — a readonly field already says
+ * it can't be changed.
+ */
+@Composable
+private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
+    val scope = rememberCoroutineScope()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
+    val transparent by app.panelPrefs.transparent.collectAsState(initial = true)
+    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
+    val locked = com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL.isNotBlank()
+    var serverUrl by remember { mutableStateOf("") }
+    var savedNote by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        serverUrl = app.connectionStore.current().baseUrl
+    }
+
+    GlassCard(cardAlpha = cardAlpha) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Server", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(
+                value = if (locked) {
+                    com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+                } else {
+                    serverUrl
+                },
+                onValueChange = { serverUrl = it; savedNote = null },
+                label = { Text("Worker URL (https://…)") },
+                singleLine = true,
+                readOnly = locked,
+                enabled = !locked,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (!locked) {
+                savedNote?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val normalized = ConnectionStore.normalizeBaseUrl(serverUrl)
+                            if (normalized == null) {
+                                savedNote = "URL must be https (http only for localhost)."
+                                return@launch
+                            }
+                            val current = app.connectionStore.current()
+                            app.connectionStore.save(normalized, current.apiKey)
+                            app.repository.refresh()
+                            savedNote = "Saved — dashboard is refreshing."
+                        }
+                    },
+                ) { Text("Save server") }
+            }
+            Text("Samples", style = MaterialTheme.typography.titleSmall)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Hide sample indicators", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Demo data stays; badges and notice go away.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = hideIndicators,
+                    onCheckedChange = { checked ->
+                        scope.launch { app.panelPrefs.setHideSampleIndicators(checked) }
+                    },
+                )
+            }
+            Text("Look", style = MaterialTheme.typography.titleSmall)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Transparent panels", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Passthrough shows through the window; cards stay solid.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = transparent,
+                    onCheckedChange = { checked ->
+                        scope.launch { app.panelPrefs.setTransparent(checked) }
+                    },
+                )
+            }
+            Column(Modifier.fillMaxWidth()) {
+                Text("Card opacity", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Slider(
+                value = sliderAlpha,
+                onValueChange = { sliderAlpha = it },
+                onValueChangeFinished = {
+                    scope.launch { app.panelPrefs.setCardAlpha(sliderAlpha) }
+                },
+                valueRange = 0.5f..1f,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -258,7 +414,7 @@ private fun PhoneSignInSection(
     if (!app.horizonAuth.isAvailable) {
         Text(
             "Phone sign-in needs a Horizon Platform app ID " +
-                "(`platformAppId` in hzos/local.properties). Manual paste below.",
+                "(`platformAppId` in hzos/local.properties).",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -284,7 +440,7 @@ private fun PhoneSignInSection(
                             }
                             val normalized = ConnectionStore.normalizeBaseUrl(raw)
                                 ?: throw IllegalArgumentException(
-                                    "No Worker URL configured (Options · Developer).",
+                                    "No Worker URL configured (Developer screen).",
                                 )
                             val api = DeviceAuthApi(app.http, normalized)
                             val code = api.requestCode()
