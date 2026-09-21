@@ -7,14 +7,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import com.example.zerozerowidget.hzos.ui.settings.ConnectionPanel
+import com.example.zerozerowidget.hzos.ui.openAgentConnectPanel
+import com.example.zerozerowidget.hzos.ui.settings.SettingsPanel
 import com.example.zerozerowidget.hzos.ui.openOptionsPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
 import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
 import kotlinx.coroutines.launch
 
 /** Connection panel: phone sign-in + manual URL/key entry. Singleton. */
-class ConnectionActivity : ComponentActivity() {
+class SettingsActivity : ComponentActivity() {
     private var pendingSendCallback: ((Boolean) -> Unit)? = null
 
     private val sendAuthLauncher: ActivityResultLauncher<Intent> =
@@ -31,10 +32,11 @@ class ConnectionActivity : ComponentActivity() {
         trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
-                ConnectionPanel(
+                SettingsPanel(
                     app = app,
                     onClose = { finishAndRemoveTask() },
                     onOpenOptions = { openOptionsPanel() },
+                    onOpenAgentConnect = { openAgentConnectPanel() },
                     onSendAuthUrl = { authUrl, onSent ->
                         sendAuthUrl(authUrl, onSent)
                     },

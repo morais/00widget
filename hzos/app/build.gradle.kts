@@ -26,6 +26,12 @@ val developerDefaults = Properties().apply {
     val f = rootProject.file("defaults.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
+// Store listing metadata (gitignored store.properties; see the sample).
+// Public URLs, safe to embed; blank hides the row.
+val storeProps = Properties().apply {
+    val f = rootProject.file("store.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
 val defaultBaseUrl: String = developerDefaults.getProperty("defaultBaseUrl", "")
 val configuredAppId: String =
     developerDefaults.getProperty("applicationId", "com.example.zerozerowidget.hzos")
@@ -62,6 +68,17 @@ android {
             "String",
             "DEFAULT_BASE_URL",
             "\"$defaultBaseUrl\"",
+        )
+        // Listing URLs, read from store.properties above. Blank hides rows.
+        buildConfigField(
+            "String",
+            "PRIVACY_URL",
+            "\"${storeProps.getProperty("PRIVACY_URL", "")}\"",
+        )
+        buildConfigField(
+            "String",
+            "TERMS_URL",
+            "\"${storeProps.getProperty("TERMS_URL", "")}\"",
         )
         // Default Worker URL (public production endpoint, safe to ship).
         buildConfigField(

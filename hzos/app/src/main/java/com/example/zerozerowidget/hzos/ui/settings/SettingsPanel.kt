@@ -26,10 +26,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
+import com.example.zerozerowidget.hzos.ui.openDeepLink
 import com.example.zerozerowidget.hzos.data.DeviceAuthApi
 import com.example.zerozerowidget.hzos.data.awaitDeviceToken
 import kotlinx.coroutines.CancellationException
@@ -56,10 +58,11 @@ private enum class SignInPhase { IDLE, REQUESTING, WAITING }
  * one) and the API key arrives only through the device flow.
  */
 @Composable
-fun ConnectionPanel(
+fun SettingsPanel(
     app: ZeroZeroWidgetApp,
     onClose: () -> Unit,
     onOpenOptions: () -> Unit,
+    onOpenAgentConnect: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -74,7 +77,7 @@ fun ConnectionPanel(
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Connection", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             IconButton(onClick = onClose) {
                 Icon(Icons.Filled.Close, contentDescription = "Close")
             }
@@ -129,15 +132,78 @@ fun ConnectionPanel(
         }
 
         Spacer(Modifier.height(4.dp))
-
-        VersionRow(onOpenOptions = onOpenOptions)
+        AgentConfigSection(onOpenAgentConnect = onOpenAgentConnect)
+        Spacer(Modifier.height(4.dp))
+        AboutSection(onOpenOptions = onOpenOptions)
     }
 }
 
 /**
- * App version row. Tapping it opens the additional options panel — the
- * iOS pattern of hiding secondary switches behind the version tap.
+ * About: version (tap → options), privacy, terms. URLs come from the
+ * gitignored store config; a blank URL hides its row, so clones without
+ * listing metadata show version alone.
  */
+@Composable
+private fun AboutSection(onOpenOptions: () -> Unit) {
+    val context = LocalContext.current
+    GlassCard(cardAlpha = 1f) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("About", style = MaterialTheme.typography.titleSmall)
+            VersionRow(onOpenOptions = onOpenOptions)
+            val privacy = com.example.zerozerowidget.hzos.BuildConfig.PRIVACY_URL
+            if (privacy.isNotBlank()) {
+                LinkRow(label = "Privacy policy") { openDeepLink(context, privacy) }
+            }
+            val terms = com.example.zerozerowidget.hzos.BuildConfig.TERMS_URL
+            if (terms.isNotBlank()) {
+                LinkRow(label = "Terms of service") { openDeepLink(context, terms) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkRow(label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            ">",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Agent config entry: connectors for assistants plus the token path for
+ * things you run yourself. The guide lives on its own panel; this is the
+ * doorway, mirroring iOS Settings.
+ */
+@Composable
+private fun AgentConfigSection(onOpenAgentConnect: () -> Unit) {
+    GlassCard(cardAlpha = 1f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Agent config", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FilledTonalButton(onClick = onOpenAgentConnect) { Text("Connect an agent") }
+        }
+    }
+}
+
 @Composable
 private fun VersionRow(onOpenOptions: () -> Unit) {
     Row(

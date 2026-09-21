@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.example.zerozerowidget.hzos.ui.dashboard.DashboardPanel
 import com.example.zerozerowidget.hzos.ui.openActivityDetailPanel
-import com.example.zerozerowidget.hzos.ui.openConnectionPanel
+import com.example.zerozerowidget.hzos.ui.openSettingsPanel
 import com.example.zerozerowidget.hzos.ui.openDetailPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
 import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
@@ -20,7 +20,7 @@ class DashboardActivity : ComponentActivity() {
             ZeroZeroWidgetTheme {
                 DashboardPanel(
                     app = app,
-                    onOpenSettings = { openConnectionPanel() },
+                    onOpenSettings = { openSettingsPanel() },
                     onPopOut = { cardId -> openDetailPanel(cardId) },
                     onPopOutActivity = { id -> openActivityDetailPanel(id) },
                 )

@@ -9,8 +9,9 @@
 ##   Back the .jks up off-machine; losing it orphans the listing.
 ## Public listing metadata (not secret, but per-deployment: keep the real
 ## values in this gitignored file so committed docs stay domain-free).
-## PRIVACY_URL: shown on the store listing and review form.
+## Shown in Settings → About.
 # PRIVACY_URL=https://example.com/privacy
+# TERMS_URL=https://example.com/terms
 # META_APP_SECRET=
 # KEYSTORE_FILE=
 # KEYSTORE_PASSWORD=
