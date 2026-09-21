@@ -4,7 +4,7 @@
   "private": true,
   "description": "00Widget backend — Cloudflare Worker",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=26.0.0"
   },
   "scripts": {
     "sync-docs": "node scripts/sync-llms-md.mjs",
