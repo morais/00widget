@@ -203,10 +203,10 @@ fun DashboardPanel(
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                     val twoCol = maxWidth >= 728.dp
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        item(key = "activities-title") {
-                            SectionTitle("Ongoing Activities")
-                        }
                         if (visibleActivities.isNotEmpty()) {
+                            item(key = "activities-title") {
+                                SectionTitle("Ongoing Activities")
+                            }
                             items(
                                 visibleActivities,
                                 key = { "act-" + it.externalActivityId },
@@ -217,12 +217,6 @@ fun DashboardPanel(
                                     onPopOut = { onPopOutActivity(session.externalActivityId) },
                                     onOpenDetail = { onPopOutActivity(session.externalActivityId) },
                                 )
-                            }
-                        } else {
-                            // No ongoing activities: the section becomes the
-                            // demo picker instead of a separate block.
-                            item(key = "demo-activities") {
-                                SampleActivityButtons(app)
                             }
                         }
                         item(key = "widgets-title") {
@@ -456,25 +450,6 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurface,
     )
-}
-
-/**
- * The one demo activity. Previously a dropdown over two iOS samples; the
- * screenshot-capture shape is dropped, so one button remains.
- */
-@Composable
-private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
-    Column {
-        Spacer(Modifier.height(4.dp))
-        FilledTonalButton(
-            onClick = { app.sampleStore.generateSampleActivity() },
-        ) { Text("Generate sample activity") }
-        Text(
-            "The sample runs only on this device and can be removed at any time.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }
 
 @Composable
