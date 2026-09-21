@@ -77,6 +77,7 @@ export const TENANT_SCOPED_TABLES: Readonly<Record<string, readonly string[]>> =
   // rows belonging to this tenant.
   api_keys: ["tenant_id"],
   apple_accounts: ["tenant_id"],
+  device_authorizations: ["tenant_id"],
   tenants: ["id"],
 };
 

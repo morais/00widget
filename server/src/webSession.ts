@@ -365,6 +365,7 @@ export async function csrfTokenFromRequest(req: Request): Promise<string | null>
 // honoured, which is what keeps `?next=` from becoming an open redirect: no
 // scheme, no host, and no protocol-relative "//evil" form survives.
 const NEXT_PREFIXES = ["/admin", "/connect/"];
+const NEXT_EXACT_PATHS = new Set(["/app/device"]);
 
 export function safeNextPath(value: string | null | undefined): string | undefined {
   const next = value?.trim();
@@ -372,7 +373,10 @@ export function safeNextPath(value: string | null | undefined): string | undefin
   if (!/^\/[A-Za-z0-9._~\-/]*(?:\?[^#\s]*)?$/.test(next)) return undefined;
   if (next.startsWith("//")) return undefined;
   const path = next.split("?")[0];
-  if (!NEXT_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix))) return undefined;
+  if (
+    !NEXT_EXACT_PATHS.has(path)
+    && !NEXT_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix))
+  ) return undefined;
   return next;
 }
 

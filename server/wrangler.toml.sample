@@ -37,6 +37,12 @@ WIDGET_PUSH_APNS_DIAGNOSTICS = "false"
 # authenticating.
 WEB_SIGNUP_ENABLED = "false"
 
+# Horizon OS phone-assisted sign-in. When enabled, the Worker issues short-
+# lived device codes, lets an Apple-authenticated phone approve one, and mints
+# a device-scoped token for the headset. Off by default so an unconfigured
+# deployment exposes no anonymous code-issuance surface.
+HORIZON_DEVICE_AUTH_ENABLED = "false"
+
 # Master kill switch for the MCP endpoint (/mcp) and the OAuth authorization
 # server that fronts it, which together let an MCP client — a ChatGPT
 # connector, Claude, an editor — publish without anyone writing code. Anything

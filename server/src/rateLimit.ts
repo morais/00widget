@@ -27,6 +27,8 @@ export const RateLimitPolicies = {
   guestRegistrationDay: { label: "Guest registrations", limit: 60, windowSeconds: DAY },
   appleLoginIpHour: { label: "Apple login attempts per IP", limit: 60, windowSeconds: HOUR },
   appleLoginSubHour: { label: "Apple login token exchange", limit: 30, windowSeconds: HOUR },
+  deviceCodeIpHour: { label: "Horizon connection codes", limit: 20, windowSeconds: HOUR },
+  deviceApproveTenantHour: { label: "Horizon device approvals", limit: 30, windowSeconds: HOUR },
   adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
   adminAppleCallbackIpHour: { label: "Admin Apple callback attempts", limit: 60, windowSeconds: HOUR },
   // OAuth for the MCP endpoint. Both are keyed on the caller IP because

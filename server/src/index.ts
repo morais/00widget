@@ -17,6 +17,7 @@ import * as actions from "./actions";
 import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as reviewLogin from "./reviewLogin";
+import * as deviceAuth from "./deviceAuth";
 import * as appleAppSite from "./appleAppSite";
 import * as guestLinks from "./guestLinks";
 import * as guestPage from "./guestPage";
@@ -58,6 +59,15 @@ const routes: Route[] = [
   // Browser fallback for a guest link. Only reachable by people without the
   // app installed; everyone else has /app/* routed into the app by iOS.
   { method: "GET", pattern: /^\/app\/g\/?$/, handler: (req, env) => guestPage.handleGuestPage(req, env) },
+  // Horizon OS device authorization. /app/device is a Universal Link when the
+  // iOS app is installed and this browser fallback otherwise; /device is the
+  // manual-code fallback shown on headsets without send_auth_url support.
+  { method: "GET", pattern: /^\/device\/?$/, handler: (req, env) =>
+    Promise.resolve(deviceAuth.renderDeviceCodeEntry(req, env)) },
+  { method: "GET", pattern: /^\/app\/device\/?$/, handler: (req, env) =>
+    deviceAuth.renderDeviceApproval(req, env) },
+  { method: "POST", pattern: /^\/app\/device\/?$/, handler: (req, env) =>
+    deviceAuth.handleDeviceApprovalDecision(req, env) },
   // Associated domains. No trailing-slash variant: Apple fetches this exact
   // path and does not follow redirects.
   { method: "GET", pattern: /^\/\.well-known\/apple-app-site-association$/, handler: (req, env) =>
@@ -197,6 +207,12 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
   },
+  { method: "POST", pattern: /^\/v1\/auth\/device\/code\/?$/, handler: (req, env) =>
+    deviceAuth.createDeviceAuthorization(req, env) },
+  { method: "POST", pattern: /^\/v1\/auth\/device\/token\/?$/, handler: (req, env) =>
+    deviceAuth.exchangeDeviceAuthorization(req, env) },
+  authed("POST", /^\/v1\/auth\/device\/approve\/?$/, null, (req, env, auth) =>
+    deviceAuth.approveDeviceAuthorizationFromApp(req, env, auth), { credentialKind: "app" }),
   { method: "GET", pattern: /^\/v1\/auth\/review\/config\/?$/, handler: (req, env) =>
     Promise.resolve(reviewLogin.handleReviewLoginConfig(req, env)),
   },

@@ -72,6 +72,7 @@ export class FakeD1 {
   private subscriptions = new Map<string, FakeApiKeyRow>();
   private activityHistory = new Map<string, FakeApiKeyRow>();
   private mcpAuthorizationCodes = new Map<string, FakeApiKeyRow>();
+  private deviceAuthorizations = new Map<string, FakeApiKeyRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -344,6 +345,59 @@ export class FakeD1 {
         created_at: existing?.created_at ?? created_at,
         updated_at,
       });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT INTO device_authorizations")) {
+      const [id, device_code_hash, user_code_hash, created_at, expires_at] = values.map(String);
+      this.deviceAuthorizations.set(id, {
+        id,
+        device_code_hash,
+        user_code_hash,
+        status: "pending",
+        tenant_id: null,
+        created_at,
+        expires_at,
+        approved_at: null,
+        consumed_at: null,
+      });
+      return 1;
+    }
+    if (normalized === "UPDATE device_authorizations SET status = 'approved', tenant_id = ?, approved_at = ? WHERE id = ? AND status = 'pending'") {
+      const [tenant_id, approved_at, id] = values.map(String);
+      const row = this.deviceAuthorizations.get(id);
+      if (!row || row.status !== "pending") return 0;
+      row.status = "approved";
+      row.tenant_id = tenant_id;
+      row.approved_at = approved_at;
+      return 1;
+    }
+    if (normalized === "UPDATE device_authorizations SET status = 'denied' WHERE id = ? AND status = 'pending'") {
+      const [id] = values.map(String);
+      const row = this.deviceAuthorizations.get(id);
+      if (!row || row.status !== "pending") return 0;
+      row.status = "denied";
+      return 1;
+    }
+    if (normalized === "UPDATE device_authorizations SET status = 'consuming' WHERE id = ? AND status = 'approved'") {
+      const [id] = values.map(String);
+      const row = this.deviceAuthorizations.get(id);
+      if (!row || row.status !== "approved") return 0;
+      row.status = "consuming";
+      return 1;
+    }
+    if (normalized === "UPDATE device_authorizations SET status = 'consumed', consumed_at = ? WHERE id = ? AND status = 'consuming'") {
+      const [consumed_at, id] = values.map(String);
+      const row = this.deviceAuthorizations.get(id);
+      if (!row || row.status !== "consuming") return 0;
+      row.status = "consumed";
+      row.consumed_at = consumed_at;
+      return 1;
+    }
+    if (normalized === "UPDATE device_authorizations SET status = 'approved' WHERE id = ? AND status = 'consuming'") {
+      const [id] = values.map(String);
+      const row = this.deviceAuthorizations.get(id);
+      if (!row || row.status !== "consuming") return 0;
+      row.status = "approved";
       return 1;
     }
     if (normalized.startsWith("UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")) {
@@ -990,6 +1044,16 @@ export class FakeD1 {
       }
       return removed;
     }
+    if (normalized.startsWith("DELETE FROM device_authorizations WHERE rowid IN")) {
+      const [cutoff] = values.map(String);
+      let removed = 0;
+      for (const [key, row] of [...this.deviceAuthorizations.entries()]) {
+        if (removed >= 100 || String(row.expires_at) >= cutoff) continue;
+        this.deviceAuthorizations.delete(key);
+        removed++;
+      }
+      return removed;
+    }
     if (normalized === "DELETE FROM shares WHERE lower(recipient_email) = ?") {
       const [email] = values.map(String);
       let removed = 0;
@@ -1022,6 +1086,7 @@ export class FakeD1 {
       tenants: this.tenants,
       api_keys: this.apiKeys,
       apple_accounts: this.appleAccounts,
+      device_authorizations: this.deviceAuthorizations,
       cards: this.cards,
       action_payloads: this.actionPayloads,
       action_webhook_routes: this.actionWebhookRoutes,
@@ -1115,6 +1180,18 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized === "SELECT id, status, tenant_id, expires_at FROM device_authorizations WHERE device_code_hash = ?") {
+      const [hash] = values.map(String);
+      const row = [...this.deviceAuthorizations.values()]
+        .find((candidate) => candidate.device_code_hash === hash);
+      return row ? [select("id", "status", "tenant_id", "expires_at")(row)] : [];
+    }
+    if (normalized === "SELECT id, status, tenant_id, expires_at FROM device_authorizations WHERE user_code_hash = ?") {
+      const [hash] = values.map(String);
+      const row = [...this.deviceAuthorizations.values()]
+        .find((candidate) => candidate.user_code_hash === hash);
+      return row ? [select("id", "status", "tenant_id", "expires_at")(row)] : [];
+    }
     if (normalized.startsWith("SELECT token, last_sent_at, allowance FROM widget_push_cadence")) {
       const wanted = new Set(values.map(String));
       return [...this.widgetPushCadence.values()].filter((row) => wanted.has(String(row.token)));

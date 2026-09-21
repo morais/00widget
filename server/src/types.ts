@@ -13,6 +13,7 @@ export const RequestBodyLimits = {
   guestLink: 4 * KiB,
   appleLogin: 16 * KiB,
   reviewLogin: 4 * KiB,
+  deviceAuth: 2 * KiB,
   // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
   // body any tool forwards (a card batch) plus the wrapper around it.
   mcpRpc: 160 * KiB,
@@ -1642,6 +1643,12 @@ export interface Env {
   // Sign in with Apple identity token for a tenant API token.
   APPLE_APP_LOGIN_ENABLED?: string;       // set to "true" to enable
   APPLE_APP_SIGN_IN_CLIENT_ID?: string;   // native app bundle id, e.g. com.example.zerozerowidget
+
+  // OAuth Device Authorization Grant used by the Horizon OS panel app. The
+  // headset receives an approval URL through Meta's send_auth_url API; an
+  // Apple-authenticated phone approves it and the headset receives a scoped
+  // device credential. Off unless explicitly enabled.
+  HORIZON_DEVICE_AUTH_ENABLED?: string;
 
   // Master kill switch for the MCP endpoint and the OAuth authorization server
   // that fronts it. Off unless set to "true", so a deployment that has not
