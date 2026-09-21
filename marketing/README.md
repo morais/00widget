@@ -18,6 +18,7 @@ Keep each decision in one durable place:
 | Screenshot surfaces and capture behavior | [`screenshots/README.md`](screenshots/README.md) and the capture scripts beside it |
 | Promotional copy and composition | `screenshots/generate-promotional.py` |
 | iOS 27 product-page header and Search creative | [`creative-assets/README.md`](creative-assets/README.md) and `creative-assets/build.py` |
+| Meta Horizon Store branded assets | [`horizon-store/README.md`](horizon-store/README.md) and `horizon-store/build.py` |
 | Storefront screenshot order | `ios/scripts/upload-appstore-screenshots.py` |
 | App Preview story and timing | [`app-preview/README.md`](app-preview/README.md) and `app-preview/ios-main.yaml` |
 | App Store text metadata | `ios/appstore-metadata.json` |

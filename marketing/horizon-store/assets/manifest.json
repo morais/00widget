@@ -1,0 +1,46 @@
+{
+  "sourceSha256": {
+    "marketing/horizon-store/sources/cover-background.png": "129c0e0e67fa9dc7738aebe68d562f3b642c0fadc593cec994411aeca73f3808",
+    "docs/brand/app-icon-master.png": "1dd6027844edcc09d4b218b92aba0c0387a60fe769a467bc1fc0dca7d941f02d",
+    "docs/brand/mark-transparent-master.png": "5a7f90f20d8369f93a1159d5370efc769bfbf26971c58e54bba7ec9c25de6514",
+    "docs/brand/wordmark-horizontal-transparent.png": "72a4db1e51161fad0b12ecdfbe08b686f65121f9a9896020544711a68ba9d101"
+  },
+  "assets": [
+    {
+      "filename": "00widget-universal-basic-2560x1440.png",
+      "dimensions": [
+        2560,
+        1440
+      ],
+      "mode": "RGB",
+      "sha256": "1ec48cc507928dd58bc28237ab25fdb15fa2b8fb43d5c74329d4475df90ad5d8"
+    },
+    {
+      "filename": "00widget-hero-cover-3000x900.png",
+      "dimensions": [
+        3000,
+        900
+      ],
+      "mode": "RGB",
+      "sha256": "8a8d09812d6da1ffa0e4b02be2555c9aa301dc56f2b28d3d9e16ef0a64ecf977"
+    },
+    {
+      "filename": "00widget-icon-512x512.png",
+      "dimensions": [
+        512,
+        512
+      ],
+      "mode": "RGB",
+      "sha256": "951999c08905105767b5c39937f872accd594f180edec180ffd9c711a1e20867"
+    },
+    {
+      "filename": "00widget-logo-transparent-1254x1254.png",
+      "dimensions": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "sha256": "5a7f90f20d8369f93a1159d5370efc769bfbf26971c58e54bba7ec9c25de6514"
+    }
+  ]
+}
