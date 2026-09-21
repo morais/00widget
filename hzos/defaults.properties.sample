@@ -1,11 +1,7 @@
 ## Per-developer defaults (gitignored). Copy from defaults.properties.sample.
-## defaultBaseUrl pre-fills the Connection panel's Worker URL on a fresh
-## install; the stored DataStore value always wins once saved.
+## defaultBaseUrl is the fallback Worker URL when none is saved (editable
+## on the developer screen unless the build provides one).
 defaultBaseUrl=https://api.example.com
 ## applicationId is the store identity (namespace below stays fixed so R and
 ## BuildConfig imports never change). Keep com.example.* out of the store.
 applicationId=com.example.zerozerowidget.hzos
-## deviceToken pre-fills the API key field the same way. Paste a
-## `device`-preset token from /admin. NEVER commit the real file — a bearer
-## token baked into a shipped APK is a credential leak. Dev headsets only.
-# deviceToken=

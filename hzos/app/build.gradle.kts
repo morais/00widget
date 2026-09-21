@@ -26,9 +26,6 @@ val developerDefaults = Properties().apply {
 val defaultBaseUrl: String = developerDefaults.getProperty("defaultBaseUrl", "")
 val configuredAppId: String =
     developerDefaults.getProperty("applicationId", "com.example.zerozerowidget.hzos")
-// Dev-only credential prefill. Lives in the gitignored file above and is
-// baked into local builds only — never commit, never ship to the store.
-val deviceToken: String = developerDefaults.getProperty("deviceToken", "")
 
 android {
     namespace = "com.example.zerozerowidget.hzos"
@@ -77,17 +74,12 @@ android {
     }
 
     buildTypes {
-        debug {
-            // Dev conveniences. DEVICE_TOKEN pre-fills the key field from
-            // gitignored defaults.properties — local headsets only.
-            buildConfigField("String", "DEVICE_TOKEN", "\"$deviceToken\"")
-        }
         release {
             isMinifyEnabled = false
-            // No dev credential ships. The Worker URL and Platform app ID are
-            // public configuration and remain embedded; a release APK built
-            // without the keystore below is unsigned and not submittable.
-            buildConfigField("String", "DEVICE_TOKEN", "\"\"")
+            // No dev credential field exists at all outside debug. The
+            // Worker URL and Platform app ID are public configuration and
+            // remain embedded; a release APK built without the keystore
+            // below is unsigned and not submittable.
             if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
