@@ -228,18 +228,7 @@ fun DashboardPanel(
                             }
                         }
                         item(key = "widgets-title") {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                SectionTitle("Widgets")
-                                Spacer(Modifier.weight(1f))
-                                // Always present: regenerating is idempotent,
-                                // so there's no state where Demo must hide.
-                                FilledTonalButton(
-                                    onClick = { app.sampleStore.generateCards() },
-                                ) { Text("Demo") }
-                            }
+                            SectionTitle("Widgets")
                         }
                         if (visible.isEmpty()) {
                             // No widgets: like the activities section, the
