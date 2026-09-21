@@ -230,11 +230,11 @@ fun DashboardPanel(
                             ) {
                                 SectionTitle("Widgets")
                                 Spacer(Modifier.weight(1f))
-                                if (samples.isEmpty() && visible.isNotEmpty()) {
-                                    FilledTonalButton(
-                                        onClick = { app.sampleStore.generateCards() },
-                                    ) { Text("Demo") }
-                                }
+                                // Always present: regenerating is idempotent,
+                                // so there's no state where Demo must hide.
+                                FilledTonalButton(
+                                    onClick = { app.sampleStore.generateCards() },
+                                ) { Text("Demo") }
                             }
                         }
                         if (visible.isEmpty()) {
