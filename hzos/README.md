@@ -149,8 +149,9 @@ Older deployments return 404 and the UI falls back to manual paste.
   cases the authenticated identity supplies the tenant; never the request.
 - `POST /v1/auth/device/token` `{device_code}` → `{token}` once approved,
   else `{error: authorization_pending | slow_down | denied | expired}`.
-  The token carries the **`device` preset** (`read`, `device:register`,
-  `actions:run`) — never `publisher`.
+  The returned `zwa_…` token is an **`app` credential** carrying the narrowed
+  **`device` preset** (`read`, `device:register`, `actions:run`). It identifies
+  Horizon as a first-party app without granting publisher capabilities.
 - Codes are ephemeral with a TTL sweep and short expiry. Approved rows carry
   a tenant foreign key and are included in account deletion; pending rows do
   not belong to any tenant. Code issuance and approval are rate-limited.

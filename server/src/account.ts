@@ -11,11 +11,9 @@ import type { Env } from "./types";
 /// not, so a reinstall leaves a device still authenticated with nothing to
 /// show for it. This is how it asks again.
 ///
-/// Restricted to the `app` credential kind. The device token, the agent
-/// publisher token and every MCP connector token are all `kind: "publisher"`,
-/// so kind is the only thing that separates the app itself from an agent the
-/// operator handed a token to — and an agent has no business reading the
-/// operator's email address.
+/// Restricted to the `app` credential kind. First-party iOS, tvOS, and Horizon
+/// clients receive one; agent publisher and MCP connector tokens remain
+/// `kind: "publisher"`, so integrations cannot read the operator's email.
 export async function getAccount(
   _req: Request,
   env: Env,
@@ -38,9 +36,10 @@ export async function getAccount(
 /// id is freed along with its email address, and signing in again afterwards
 /// creates a genuinely new account.
 ///
-/// App-credential only, like `getAccount`. Only a Sign in with Apple round trip
-/// mints that kind, so an agent holding a publisher token — or an MCP connector
-/// approved through a browser — cannot delete the account it publishes to.
+/// App-credential only, like `getAccount`. Only a first-party app authorization
+/// round trip mints that kind, so an agent holding a publisher token — or an MCP
+/// connector approved through a browser — cannot delete the account it
+/// publishes to.
 ///
 /// Not rate limited on purpose. It succeeds once and destroys the credential
 /// that authorized it, and charging a tenant bucket would leave a counter row

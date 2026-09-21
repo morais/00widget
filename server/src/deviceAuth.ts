@@ -152,7 +152,10 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
     const created = await createApiKey(env, {
       tenantId: row.tenant_id,
       label: "Horizon OS",
-      kind: "publisher",
+      // Horizon is a first-party 00Widget app, not a publisher integration.
+      // Keep its capabilities narrowed with the device scope preset while
+      // identifying the credential as app-owned for app-only account routes.
+      kind: "app",
       purpose: "device",
       scopes: ApiScopePresets.device,
     });
@@ -243,7 +246,7 @@ export async function renderDeviceApproval(req: Request, env: Env): Promise<Resp
     `<header><h1>00Widget · Connect Horizon OS</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section class="login">
        <h2>Connect the headset showing <code>${esc(displayCode)}</code>?</h2>
-       <p class="muted">It will be able to read your dashboard and run its safe actions. It cannot publish or manage your account.</p>
+       <p class="muted">It will be able to read your dashboard, run its safe actions, and use app-only account features. It cannot publish.</p>
        <form method="post" action="/app/device?code=${encodeURIComponent(displayCode)}">
          <input type="hidden" name="csrf" value="${esc(session.csrf)}">
          <input type="hidden" name="code" value="${esc(displayCode)}">

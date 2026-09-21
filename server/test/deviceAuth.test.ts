@@ -52,7 +52,7 @@ describe("Horizon device authorization", () => {
     expect(code.interval).toBe(5);
   });
 
-  it("stays pending until an app credential approves, then mints one device token", async () => {
+  it("stays pending until an app credential approves, then mints one scoped app token", async () => {
     const env = makeEnv({ HORIZON_DEVICE_AUTH_ENABLED: "true" });
     await seedApiKey(env, "phone-app", "owner", "app");
     const code = await issue(env);
@@ -78,7 +78,16 @@ describe("Horizon device authorization", () => {
       body: JSON.stringify({ device_code: code.device_code }),
     }), env);
     const body = await exchanged.json() as { token: string };
-    expect(body.token).toMatch(/^zw_[A-Za-z0-9_-]{43}$/);
+    expect(body.token).toMatch(/^zwa_[A-Za-z0-9_-]{43}$/);
+
+    const status = await fetchWorker(new Request(`${ORIGIN}/v1/status`, {
+      headers: { authorization: `Bearer ${body.token}` },
+    }), env);
+    expect(status.status).toBe(200);
+    expect((await status.json() as any).account).toMatchObject({
+      credentialKind: "app",
+      scopes: ["read", "device:register", "actions:run"],
+    });
 
     const cards = await fetchWorker(new Request(`${ORIGIN}/v1/cards`, {
       headers: { authorization: `Bearer ${body.token}` },
