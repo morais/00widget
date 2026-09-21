@@ -52,6 +52,7 @@ import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.DetailCard
 import com.example.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
+import com.example.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
@@ -109,15 +110,7 @@ fun DashboardPanel(
             }
         }
         if (samples.isNotEmpty() || sampleActivities.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "This is sample data",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                FilledTonalButton(onClick = { app.sampleStore.clearSamples() }) { Text("Remove all") }
-            }
+            SampleNoticeBanner(onRemoveAll = { app.sampleStore.clearSamples() })
         }
 
         // Server cards first, local samples after — never mixed, never sent.

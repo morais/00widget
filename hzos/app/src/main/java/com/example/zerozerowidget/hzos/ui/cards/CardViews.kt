@@ -66,8 +66,7 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
  * the surrounding layout (no rotation, no overflow, no offsets).
  */
 @Composable
-fun SampleBadge(modifier: Modifier = Modifier) {
-    Box(
+fun SampleBadge(modifier: Modifier = Modifier) {    Box(
         modifier = modifier
             .background(
                 MaterialTheme.colorScheme.primary,
@@ -81,6 +80,49 @@ fun SampleBadge(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
         )
+    }
+}
+
+/**
+ * Demo-data banner. Same pill pattern at full width: primary background,
+ * white text, iOS wording verbatim ("These are samples" + the generated-
+ * on-device sentence + "Remove sample widgets"). Answers the user's
+ * question directly: no, "This is sample data" was ours — this is iOS's.
+ */
+@Composable
+fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.primary,
+                androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "These are samples",
+                style = MaterialTheme.typography.titleSmall,
+                color = Color.White,
+            )
+            Text(
+                "Sample widgets are generated on this device to show what 00Widget looks like. No agent published them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+            )
+        }
+        Button(
+            onClick = onRemoveAll,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
+        ) {
+            Text("Remove sample widgets", style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 
