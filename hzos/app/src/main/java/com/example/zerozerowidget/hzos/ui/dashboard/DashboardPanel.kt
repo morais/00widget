@@ -22,6 +22,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -465,26 +467,37 @@ private fun SectionTitle(text: String) {
 }
 
 /**
- * Both iOS demo sessions, mirroring LiveActivitySample. One runs at a
- * time (generating replaces), cleared with the cards via Clear samples.
+ * Both iOS demo sessions as a dropdown, mirroring LiveActivitySample: a
+ * menu rather than two buttons, because only one sample runs at a time —
+ * two answers to one question. iOS wording verbatim, caption included.
  */
 @Composable
 private fun SampleActivityButtons(app: ZeroZeroWidgetApp) {
+    var expanded by remember { mutableStateOf(false) }
     Column {
         Spacer(Modifier.height(4.dp))
-        Text(
-            "Demo activities",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SampleData.LiveActivitySample.entries.forEach { sample ->
-                FilledTonalButton(
-                    onClick = { app.sampleStore.generateActivity(sample) },
-                ) { Text(sample.title) }
+        Box {
+            FilledTonalButton(onClick = { expanded = true }) { Text("Generate sample activity") }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                SampleData.LiveActivitySample.entries.forEach { sample ->
+                    DropdownMenuItem(
+                        text = { Text(sample.title) },
+                        onClick = {
+                            app.sampleStore.generateActivity(sample)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
+        Text(
+            "The sample runs only on this device and can be removed at any time.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
