@@ -45,6 +45,9 @@ interface DeviceTokenRequest {
 
 interface DeviceApprovalRequest {
   user_code?: string;
+  // Compatibility with the first iOS beta, whose local Codable body used
+  // Swift's property name before it gained an explicit snake-case key.
+  userCode?: string;
 }
 
 export function deviceAuthorizationEnabled(env: Env): boolean {
@@ -194,7 +197,11 @@ export async function approveDeviceAuthorizationFromApp(
     { policy: "deviceApproveTenantHour", key: tenantKey(auth.tenantId) },
   ], auth);
   if (limited) return limited;
-  return approvalJson(await approveByUserCode(env, input?.user_code, auth.tenantId));
+  return approvalJson(await approveByUserCode(
+    env,
+    input?.user_code ?? input?.userCode,
+    auth.tenantId,
+  ));
 }
 
 /// GET /device — manual fallback shown by the Horizon client when the Login API

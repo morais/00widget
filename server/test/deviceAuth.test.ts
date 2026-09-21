@@ -117,6 +117,19 @@ describe("Horizon device authorization", () => {
     expect(response.status).toBe(403);
   });
 
+  it("accepts the camel-case approval field sent by the first iOS beta", async () => {
+    const env = makeEnv({ HORIZON_DEVICE_AUTH_ENABLED: "true" });
+    await seedApiKey(env, "phone-app", "owner", "app");
+    const code = await issue(env);
+    const response = await fetchWorker(authedRequest(`${ORIGIN}/v1/auth/device/approve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userCode: code.user_code }),
+    }, "phone-app"), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+  });
+
   it("serves the browser fallback and preserves the code through Apple login", async () => {
     const env = makeEnv({
       HORIZON_DEVICE_AUTH_ENABLED: "true",
