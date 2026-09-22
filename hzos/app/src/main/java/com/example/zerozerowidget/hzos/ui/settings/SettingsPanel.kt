@@ -140,14 +140,9 @@ private fun SettingsRoot(
                         },
                     )
                 } else {
+                    // Signed in is one row. The server address lives on the
+                    // Developer screen; repeating it here buys nothing.
                     Text("Signed in.", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        connection.baseUrl.ifBlank {
-                            com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
 
                 message?.let {
