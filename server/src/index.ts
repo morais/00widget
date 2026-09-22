@@ -19,6 +19,7 @@ import * as appLogin from "./appLogin";
 import * as reviewLogin from "./reviewLogin";
 import * as deviceAuth from "./deviceAuth";
 import * as horizonIdentity from "./horizonIdentity";
+import * as horizonBrowserLogin from "./horizonBrowserLogin";
 import * as appleAppSite from "./appleAppSite";
 import * as guestLinks from "./guestLinks";
 import * as guestPage from "./guestPage";
@@ -67,6 +68,10 @@ const routes: Route[] = [
   // manual-code fallback shown on headsets without send_auth_url support.
   { method: "GET", pattern: /^\/device\/?$/, handler: (req, env) =>
     Promise.resolve(deviceAuth.renderDeviceCodeEntry(req, env)) },
+  { method: "GET", pattern: /^\/login\/horizon\/?$/, handler: (req, env) =>
+    horizonBrowserLogin.startHorizonBrowserLogin(req, env) },
+  { method: "GET", pattern: /^\/login\/horizon\/complete\/?$/, handler: (req, env) =>
+    horizonBrowserLogin.completeHorizonBrowserLogin(req, env) },
   { method: "GET", pattern: /^\/app\/device\/?$/, handler: (req, env) =>
     deviceAuth.renderDeviceApproval(req, env) },
   { method: "POST", pattern: /^\/app\/device\/?$/, handler: (req, env) =>
@@ -219,6 +224,8 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/horizon\/?$/, handler: (req, env) =>
     horizonIdentity.signInWithHorizon(req, env),
   },
+  authed("POST", /^\/v1\/auth\/horizon\/browser\/approve\/?$/, null, (req, env, auth) =>
+    horizonBrowserLogin.approveHorizonBrowserLogin(req, env, auth), { credentialKind: "app" }),
   { method: "POST", pattern: /^\/v1\/auth\/device\/code\/?$/, handler: (req, env) =>
     deviceAuth.createDeviceAuthorization(req, env) },
   { method: "POST", pattern: /^\/v1\/auth\/device\/token\/?$/, handler: (req, env) =>

@@ -1,4 +1,5 @@
 import { isValidEmail, type Env } from "./types";
+import { horizonIdentityEnabled } from "./horizonIdentity";
 import {
   buildAuthorizeURL,
   isAppleEmailVerified,
@@ -76,8 +77,11 @@ export async function handleLogin(req: Request, env: Env): Promise<Response> {
   const apiToken = apiTokenLoginConfigured(env);
   const next = safeNextPath(new URL(req.url).searchParams.get("next"));
   const review = reviewWebLoginConfigured(env) && isMcpAuthorizeNext(next);
-  if (!apple && !apiToken && !review) return htmlResponse(renderConfigError(env), 500);
-  return htmlResponse(renderLoginPage({ apple, apiToken, review, next }));
+  const horizon = horizonIdentityEnabled(env)
+    && Boolean(env.META_APP_ID?.trim())
+    && isSecureAdminSecret(env.SESSION_SECRET);
+  if (!apple && !apiToken && !review && !horizon) return htmlResponse(renderConfigError(env), 500);
+  return htmlResponse(renderLoginPage({ apple, apiToken, review, horizon, next }));
 }
 
 export async function handleLoginApple(req: Request, env: Env): Promise<Response> {
@@ -286,12 +290,17 @@ function renderLoginPage(opts: {
   apple: boolean;
   apiToken: boolean;
   review: boolean;
+  horizon: boolean;
   next?: string;
 }): string {
   const appleHref = opts.next ? `/login/apple?next=${enc(opts.next)}` : "/login/apple";
   const appleBlock = opts.apple
     ? `<a class="button button-apple" href="${esc(appleHref)}">Sign in with Apple</a>`
     : `<p class="muted">Sign in with Apple is not configured.</p>`;
+  const horizonHref = opts.next ? `/login/horizon?next=${enc(opts.next)}` : "/login/horizon";
+  const horizonBlock = opts.horizon
+    ? `<a class="button" href="${esc(horizonHref)}">Sign in with Horizon OS</a>`
+    : "";
 
   const nextField = opts.next
     ? `<input type="hidden" name="next" value="${esc(opts.next)}">`
@@ -318,7 +327,7 @@ function renderLoginPage(opts: {
        </details>`
     : "";
 
-  const separator = opts.apple && (opts.apiToken || opts.review)
+  const separator = opts.apple && (opts.apiToken || opts.review || opts.horizon)
     ? `<div class="divider"><span>or</span></div>`
     : "";
 
@@ -327,9 +336,10 @@ function renderLoginPage(opts: {
     `<header><h1>00Widget</h1></header>
      <section class="login">
        <h2>Sign in</h2>
-       <p class="muted">Use the same Apple ID you signed in with on the 00Widget app.</p>
+       <p class="muted">Choose the account you use with 00Widget.</p>
        ${appleBlock}
        ${separator}
+       ${horizonBlock}
        ${apiTokenBlock}
        ${reviewBlock}
      </section>`,

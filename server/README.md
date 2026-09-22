@@ -191,13 +191,17 @@ endpoint does not become a tenant by visiting a URL. Set
 `WEB_SIGNUP_ENABLED = "true"` to let web sign-in create a tenant as well. It is
 off by default.
 
-Two sign-in methods, either is sufficient:
+Available sign-in methods (each can stand alone):
 
 - **Sign in with Apple** — the normal path, for everyone. Setup below.
 - **API-token bootstrap** — uses one of the `API_KEYS` values, grants admin
   capabilities without an identity, and owns no tenant. It exists for a
   deployment with no accounts yet. Disabled by default; enable with
   `ADMIN_API_TOKEN_LOGIN=true`.
+- **Horizon browser approval** — an existing Horizon account approves a short
+  code in the headset, then the browser receives an ordinary web session for
+  MCP consent. Requires `HORIZON_IDENTITY_ENABLED=true`, `META_APP_ID`, and
+  `SESSION_SECRET`; see the Horizon identity section below.
 
 What a signed-in person can do today is sign in, sign out, and approve an MCP
 connector for their own account. There is no user-facing dashboard yet; `/admin`
@@ -279,6 +283,60 @@ The app-only credential also manages the account's MCP approvals. `GET
 token or token hash, and `DELETE /v1/account/mcp-connections/:id` revokes one
 grant belonging to that account. Revocation stops 00Widget access immediately;
 it cannot remove the connector entry from the remote host's own UI.
+
+## Horizon identity (server contract)
+
+Horizon-only accounts do not need a synthetic email. The tenant has
+`owner_email = NULL` and a display name of **Horizon account**; the Meta user ID
+is stored only in `horizon_accounts`, keyed by the configured app ID. Admin
+lists append a short tenant ID to distinguish accounts with the same label.
+The Meta user ID is app-scoped, not a global email or a user-chosen name.
+
+Apply migrations `0036` and `0037` before enabling the flow. Set
+`HORIZON_IDENTITY_ENABLED = "true"` in the deployment's local `wrangler.toml`
+only after the headset and iOS clients implement the new contract. The flag is
+off by default, so existing phone-assisted pairing continues unchanged. Keep
+`META_APP_SECRET` as a Wrangler secret, never in the client.
+
+The headset obtains `Users().getLoggedInUser().id` and a fresh
+`Users().getUserProof().nonce` from the Meta Platform SDK. It sends both to
+`POST /v1/auth/horizon` as `{ "userId": "...", "userProof": "..." }`.
+The Worker validates the proof with Meta's `user_nonce_validate` endpoint and
+rejects nonce replay. A known Meta identity receives a new 90-day app-kind
+`zwa_…` credential with the device preset (`read`, `device:register`,
+`actions:run`). For an unknown identity the response is
+`{ "status": "choice_required", "choices": ["create", "join_apple"] }`;
+the headset must ask the user which path they want. Each subsequent attempt
+needs a **new** UserProof:
+
+- `choice: "create"` creates an email-less tenant, binds this Meta identity,
+  and returns its app credential. It never searches by email.
+- `choice: "join_apple"` returns the existing device-authorization code for
+  Apple approval. The iOS app's `POST /v1/auth/device/approve` must include
+  `confirmHorizonLink: true` when the user explicitly accepts permanent
+  identity linking. Browser approval also requires an explicit confirmation.
+  Approval atomically binds the verified Meta identity to the Apple tenant;
+  the headset then exchanges the device code for its app credential. A tenant
+  that already has another Horizon identity cannot be joined.
+
+The older `POST /v1/auth/device/code` flow remains available for unverified,
+phone-assisted sign-in. It gives the headset an app-kind credential but does
+not establish a Meta identity, and therefore cannot create an email-less
+account. Once the flag is on, Meta subscription sync also requires the
+request's `userId` to match the tenant's linked Meta identity. A legacy-paired
+headset should sign in through the verified flow before syncing purchases.
+
+For an MCP browser consent without an iPhone, `GET /login` offers **Sign in
+with Horizon OS**. `GET /login/horizon` creates a ten-minute, single-use code
+shown in the browser; the browser also receives a separate HttpOnly secret
+cookie. The headset calls `POST /v1/auth/horizon/browser/approve` with its
+app-kind bearer token and `{ "code": "XXXX-XXXX", "decision": "approve" }`
+(or `"deny"`) after the user confirms the matching code. The browser's
+**Check connection** button polls `GET /login/horizon/complete`, which issues
+a signed web session and returns the user to the MCP authorization page.
+Approval cannot choose a tenant: the Worker's Meta identity binding supplies
+it, and the resulting session rechecks that binding on every request. This
+requires a headset approval UI; the current client does not yet call it.
 
 Required Worker secrets:
 

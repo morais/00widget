@@ -81,6 +81,7 @@ export const TENANT_SCOPED_TABLES: Readonly<Record<string, readonly string[]>> =
   api_keys: ["tenant_id"],
   apple_accounts: ["tenant_id"],
   horizon_accounts: ["tenant_id"],
+  horizon_browser_logins: ["tenant_id"],
   device_authorizations: ["tenant_id"],
   tenants: ["id"],
 };

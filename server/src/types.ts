@@ -15,6 +15,7 @@ export const RequestBodyLimits = {
   reviewLogin: 4 * KiB,
   deviceAuth: 2 * KiB,
   horizonAuth: 4 * KiB,
+  horizonBrowserApproval: 2 * KiB,
   // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
   // body any tool forwards (a card batch) plus the wrapper around it.
   mcpRpc: 160 * KiB,

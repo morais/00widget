@@ -24,7 +24,7 @@ export interface TenantEmailRecord {
 
 export interface ResolvedIdentity {
   tenantId: string;
-  ownerEmail: string;
+  ownerEmail: string | null;
 }
 
 /// The tenant this person already owns, or null if they have never signed up.

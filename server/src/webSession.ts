@@ -31,10 +31,10 @@ import type { Env } from "./types";
 // The session never carries authority of its own: it names an identity, and the
 // handler re-resolves what that identity may touch. See `identity.ts`.
 
-export type WebAuthMethod = "apple" | "api-token" | "review-token";
+export type WebAuthMethod = "apple" | "api-token" | "review-token" | "horizon";
 
 export interface WebSession {
-  /// For "apple": Apple's email claim. For "api-token": a label like "api-token".
+  /// For "apple": Apple's email claim. For other methods: a display label.
   email: string;
   method: WebAuthMethod;
   iat: number;
@@ -51,6 +51,8 @@ export interface WebSession {
   /// code is never placed in the cookie.
   reviewTokenHash?: string;
   tenantId?: string;
+  horizonAppId?: string;
+  horizonUserId?: string;
 }
 
 /// A session plus the capability decision made at read time, so rotating
@@ -132,6 +134,8 @@ export async function makeSessionCookie(
     appleSub?: string;
     reviewTokenHash?: string;
     tenantId?: string;
+    horizonAppId?: string;
+    horizonUserId?: string;
   } = {},
 ): Promise<string> {
   if (!isSecureAdminSecret(env.SESSION_SECRET)) {
@@ -142,6 +146,9 @@ export async function makeSessionCookie(
   }
   if (method === "review-token" && (!options.reviewTokenHash || !options.tenantId)) {
     throw new Error("review-token sessions require reviewTokenHash and tenantId");
+  }
+  if (method === "horizon" && (!options.horizonAppId || !options.horizonUserId || !options.tenantId)) {
+    throw new Error("Horizon sessions require a bound Meta identity and tenant");
   }
   const now = Math.floor(Date.now() / 1000);
   const session: WebSession = {
@@ -154,6 +161,13 @@ export async function makeSessionCookie(
     ...(method === "api-token" ? { apiTokenHash: options.apiTokenHash } : {}),
     ...(method === "review-token"
       ? { reviewTokenHash: options.reviewTokenHash, tenantId: options.tenantId }
+      : {}),
+    ...(method === "horizon"
+      ? {
+          horizonAppId: options.horizonAppId,
+          horizonUserId: options.horizonUserId,
+          tenantId: options.tenantId,
+        }
       : {}),
   };
   const payload = b64url(JSON.stringify(session));
@@ -211,6 +225,21 @@ export async function readSessionCookie(env: Env, req: Request): Promise<WebPrin
       isAdmin: false,
     };
   }
+  if (session.method === "horizon") {
+    if (env.HORIZON_IDENTITY_ENABLED !== "true" || session.horizonAppId !== env.META_APP_ID?.trim()) return null;
+    if (!session.horizonAppId || !session.horizonUserId || !session.tenantId) return null;
+    const linked = await env.ZW_DB.prepare(
+      `SELECT horizon_accounts.tenant_id
+       FROM horizon_accounts
+       JOIN tenants ON tenants.id = horizon_accounts.tenant_id
+       WHERE horizon_accounts.app_id = ? AND horizon_accounts.user_id = ?
+         AND tenants.disabled_at IS NULL`,
+    )
+      .bind(session.horizonAppId, session.horizonUserId)
+      .first<{ tenant_id: string }>();
+    if (!linked || linked.tenant_id !== session.tenantId) return null;
+    return { ...session, isAdmin: false };
+  }
   if (session.method !== "apple") return null;
   return { ...session, isAdmin: isAdminEmail(env, session.email) };
 }
@@ -224,6 +253,12 @@ export async function resolveWebTenantIdentity(
 ): Promise<ResolvedIdentity | null> {
   if (session.method === "review-token" && session.tenantId) {
     return { tenantId: session.tenantId, ownerEmail: session.email };
+  }
+  if (session.method === "horizon" && session.tenantId) {
+    const row = await env.ZW_DB.prepare(`SELECT owner_email FROM tenants WHERE id = ?`)
+      .bind(session.tenantId)
+      .first<{ owner_email: string | null }>();
+    return row ? { tenantId: session.tenantId, ownerEmail: row.owner_email } : null;
   }
   if (session.method !== "apple") return null;
   return resolveIdentity(env, { appleSub: session.appleSub, email: session.email });

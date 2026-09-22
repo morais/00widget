@@ -76,6 +76,7 @@ export class FakeD1 {
   private deviceAuthorizations = new Map<string, FakeApiKeyRow>();
   private horizonAccounts = new Map<string, FakeRow>();
   private horizonProofUses = new Map<string, FakeRow>();
+  private horizonBrowserLogins = new Map<string, FakeApiKeyRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -314,6 +315,46 @@ export class FakeD1 {
         removed++;
       }
       return removed;
+    }
+    if (normalized.startsWith("INSERT INTO horizon_browser_logins")) {
+      const [id, code_hash, browser_hash, next_path, created_at, expires_at] = values;
+      this.horizonBrowserLogins.set(String(id), {
+        id: String(id),
+        code_hash: String(code_hash),
+        browser_hash: String(browser_hash),
+        status: "pending",
+        app_id: null,
+        user_id: null,
+        tenant_id: null,
+        next_path: next_path == null ? null : String(next_path),
+        created_at: String(created_at),
+        expires_at: String(expires_at),
+      });
+      return 1;
+    }
+    if (normalized === "DELETE FROM horizon_browser_logins WHERE expires_at < ?") {
+      const [now] = values.map(String);
+      let removed = 0;
+      for (const [key, row] of this.horizonBrowserLogins) {
+        if (String(row.expires_at) >= now) continue;
+        this.horizonBrowserLogins.delete(key);
+        removed++;
+      }
+      return removed;
+    }
+    if (normalized === "UPDATE horizon_browser_logins SET status = ?, app_id = ?, user_id = ?, tenant_id = ? WHERE id = ? AND status = 'pending'") {
+      const [status, app_id, user_id, tenant_id, id] = values.map(String);
+      const row = this.horizonBrowserLogins.get(id);
+      if (!row || row.status !== "pending") return 0;
+      Object.assign(row, { status, app_id, user_id, tenant_id });
+      return 1;
+    }
+    if (normalized === "UPDATE horizon_browser_logins SET status = 'consumed' WHERE id = ? AND status = 'approved'") {
+      const [id] = values.map(String);
+      const row = this.horizonBrowserLogins.get(id);
+      if (!row || row.status !== "approved") return 0;
+      row.status = "consumed";
+      return 1;
     }
     if (normalized.startsWith("UPDATE tenants SET owner_email = ? WHERE id = ?")) {
       const [owner_email, id] = values.map(String);
@@ -1148,6 +1189,7 @@ export class FakeD1 {
       api_keys: this.apiKeys,
       apple_accounts: this.appleAccounts,
       horizon_accounts: this.horizonAccounts,
+      horizon_browser_logins: this.horizonBrowserLogins,
       device_authorizations: this.deviceAuthorizations,
       cards: this.cards,
       action_payloads: this.actionPayloads,
@@ -1337,6 +1379,27 @@ export class FakeD1 {
       const [id] = values.map(String);
       return pick(this.tenants.get(id), ["name"]);
     }
+    if (normalized === "SELECT owner_email FROM tenants WHERE id = ?") {
+      const [id] = values.map(String);
+      const row = this.tenants.get(id);
+      return row ? [{ owner_email: row.owner_email || null }] : [];
+    }
+    if (normalized === "SELECT horizon_accounts.tenant_id FROM horizon_accounts JOIN tenants ON tenants.id = horizon_accounts.tenant_id WHERE horizon_accounts.app_id = ? AND horizon_accounts.user_id = ? AND tenants.disabled_at IS NULL") {
+      const [app_id, user_id] = values.map(String);
+      const row = this.horizonAccounts.get(`${app_id}:${user_id}`);
+      if (!row || this.tenants.get(row.tenant_id)?.disabled_at) return [];
+      return [{ tenant_id: row.tenant_id }];
+    }
+    if (normalized === "SELECT id, code_hash, status, app_id, user_id, tenant_id, next_path, expires_at FROM horizon_browser_logins WHERE browser_hash = ?") {
+      const [hash] = values.map(String);
+      const row = [...this.horizonBrowserLogins.values()].find((candidate) => candidate.browser_hash === hash);
+      return row ? [select("id", "code_hash", "status", "app_id", "user_id", "tenant_id", "next_path", "expires_at")(row)] : [];
+    }
+    if (normalized === "SELECT id, code_hash, status, app_id, user_id, tenant_id, next_path, expires_at FROM horizon_browser_logins WHERE code_hash = ?") {
+      const [hash] = values.map(String);
+      const row = [...this.horizonBrowserLogins.values()].find((candidate) => candidate.code_hash === hash);
+      return row ? [select("id", "code_hash", "status", "app_id", "user_id", "tenant_id", "next_path", "expires_at")(row)] : [];
+    }
     if (normalized.startsWith("SELECT token, last_sent_at, allowance FROM widget_push_cadence")) {
       const wanted = new Set(values.map(String));
       return [...this.widgetPushCadence.values()].filter((row) => wanted.has(String(row.token)));
@@ -1449,7 +1512,8 @@ export class FakeD1 {
           }]
         : [];
     }
-    if (normalized === "SELECT id, name, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
+    if (normalized === "SELECT id, name, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email"
+      || normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
       return [...this.tenants.values()].sort(by("created_at", "owner_email")).reverse();
     }
     if (normalized === "SELECT id, name, owner_email, created_at, disabled_at FROM tenants WHERE id = ?") {

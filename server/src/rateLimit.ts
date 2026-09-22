@@ -30,6 +30,8 @@ export const RateLimitPolicies = {
   deviceCodeIpHour: { label: "Horizon connection codes", limit: 20, windowSeconds: HOUR },
   deviceApproveTenantHour: { label: "Horizon device approvals", limit: 30, windowSeconds: HOUR },
   horizonLoginIpHour: { label: "Horizon identity attempts per IP", limit: 60, windowSeconds: HOUR },
+  horizonBrowserIpHour: { label: "Horizon browser sign-ins per IP", limit: 20, windowSeconds: HOUR },
+  horizonBrowserApproveTenantHour: { label: "Horizon browser approvals", limit: 30, windowSeconds: HOUR },
   adminApiTokenLoginIpHour: { label: "Admin API-token login attempts", limit: 10, windowSeconds: HOUR },
   adminAppleCallbackIpHour: { label: "Admin Apple callback attempts", limit: 60, windowSeconds: HOUR },
   // OAuth for the MCP endpoint. Both are keyed on the caller IP because
