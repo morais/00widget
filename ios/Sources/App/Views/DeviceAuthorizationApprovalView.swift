@@ -45,6 +45,7 @@ struct DeviceAuthorizationApprovalView: View {
                                 .foregroundStyle(.secondary)
                             Button("Done") { dismiss() }
                                 .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
                         } else if env.apiKey.isEmpty {
                             Text("Sign in with the Apple Account you use for 00Widget. After signing in, you’ll confirm this headset separately.")
                                 .multilineTextAlignment(.center)
@@ -72,7 +73,14 @@ struct DeviceAuthorizationApprovalView: View {
                             // decoration: the credential is minted `kind:
                             // "app"`, which is the whole gate on the app-only
                             // account routes, deleting the account included.
-                            Text("This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account. It cannot publish widgets.")
+                            //
+                            // It deliberately claims no limit. "It cannot
+                            // publish widgets" was true of the scopes and
+                            // false in effect: agent-token rotation is one of
+                            // those ungated routes, and it answers with a
+                            // fresh producer token in plaintext. One call and
+                            // the headset holds `publish`.
+                            Text("This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account.")
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(.secondary)
 
@@ -89,7 +97,12 @@ struct DeviceAuthorizationApprovalView: View {
                                         .frame(maxWidth: .infinity)
                                 }
                             }
+                            // Matches the 48pt Sign in with Apple button that
+                            // fills this same slot in the signed-out branch;
+                            // at the default size it read as a thin strip
+                            // beside everything else on the sheet.
                             .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
                             .disabled(env.deviceAuthorizationInProgress)
                         }
 

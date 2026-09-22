@@ -164,6 +164,11 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       // of which Horizon never calls. Both consent strings (the approval
       // page below and DeviceAuthorizationApprovalView on iOS) describe
       // that whole set and have to move with it.
+      //
+      // Neither claims a limit, deliberately. Saying it cannot publish was
+      // true of these scopes and false in effect: agent-token rotation is
+      // one of the ungated routes above, and it answers with a fresh
+      // producer token in plaintext.
       kind: "app",
       purpose: "device",
       scopes: ApiScopePresets.device,
@@ -255,7 +260,7 @@ export async function renderDeviceApproval(req: Request, env: Env): Promise<Resp
     `<header><h1>00Widget · Connect Horizon OS</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section class="login">
        <h2>Connect the headset showing <code>${esc(displayCode)}</code>?</h2>
-       <p class="muted">This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account. It cannot publish widgets.</p>
+       <p class="muted">This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account.</p>
        <form method="post" action="/app/device?code=${encodeURIComponent(displayCode)}">
          <input type="hidden" name="csrf" value="${esc(session.csrf)}">
          <input type="hidden" name="code" value="${esc(displayCode)}">
