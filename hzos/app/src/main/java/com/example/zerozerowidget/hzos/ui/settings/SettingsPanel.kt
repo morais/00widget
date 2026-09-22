@@ -129,7 +129,6 @@ private fun SettingsRoot(
         initial = ConnectionStore.Connection("", ""),
     )
     val signedIn = connection.apiKey.isNotBlank()
-    var message by remember { mutableStateOf<String?>(null) }
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
@@ -145,7 +144,6 @@ private fun SettingsRoot(
                             scope.launch {
                                 app.connectionStore.save(base, token)
                                 app.repository.refresh()
-                                message = "Connected — dashboard is refreshing."
                             }
                         },
                         signInRequest = signInRequest,
@@ -156,26 +154,12 @@ private fun SettingsRoot(
                     Text("Signed in.", style = MaterialTheme.typography.bodyMedium)
                 }
 
-                message?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (it.startsWith("Connected") || it.startsWith("Signed"))
-                            MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error,
-                    )
-                }
-
                 if (signedIn) {
                     FilledTonalButton(
                         onClick = {
-                            scope.launch {
-                                app.connectionStore.clear()
-                                // Back to the signed-out rows silently: the
-                                // sign-in section replacing this button says
-                                // everything about the new state.
-                                message = null
-                            }
+                            // Silent: the sign-in section replacing this
+                            // button says everything about the new state.
+                            scope.launch { app.connectionStore.clear() }
                         },
                     ) { Text("Sign out") }
                 }
