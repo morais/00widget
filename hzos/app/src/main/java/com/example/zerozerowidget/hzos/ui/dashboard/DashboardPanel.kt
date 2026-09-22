@@ -1,5 +1,6 @@
 package com.example.zerozerowidget.hzos.ui.dashboard
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -466,6 +469,14 @@ private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Brand mark, same transparent master the launcher icon is
+        // generated from. nodpi bucket: sized here, never by density.
+        Image(
+            painter = painterResource(id = com.example.zerozerowidget.hzos.R.drawable.zw_mark),
+            contentDescription = "00Widget",
+            modifier = Modifier.size(96.dp),
+        )
+        Spacer(Modifier.height(12.dp))
         Text(
             "00Widget",
             style = MaterialTheme.typography.headlineMedium,
