@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -295,6 +296,9 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+            // The token path and the connector doorway are the two ways in;
+            // the rule keeps them from reading as one paragraph.
+            HorizontalDivider()
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = MaterialTheme.typography.bodySmall,
