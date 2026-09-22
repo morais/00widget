@@ -73,6 +73,7 @@ fun SettingsPanel(
     onClose: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
+    onSignInRequestConsumed: () -> Unit = {},
 ) {
     var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
     val title = when (destination) {
@@ -111,6 +112,7 @@ fun SettingsPanel(
                 onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
                 onSendAuthUrl = onSendAuthUrl,
                 signInRequest = signInRequest,
+                onSignInRequestConsumed = onSignInRequestConsumed,
             )
             SettingsDestination.AGENT -> AgentConnectPanel(app = app)
             SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
@@ -125,6 +127,7 @@ private fun SettingsRoot(
     onOpenDeveloper: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
+    onSignInRequestConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
@@ -149,6 +152,7 @@ private fun SettingsRoot(
                             }
                         },
                         signInRequest = signInRequest,
+                        onSignInRequestConsumed = onSignInRequestConsumed,
                     )
                 } else {
                     AccountSection(app = app)
@@ -679,6 +683,7 @@ private fun PhoneSignInSection(
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     onSignedIn: (baseUrl: String, token: String) -> Unit,
     signInRequest: Int = 0,
+    onSignInRequestConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf(SignInPhase.IDLE) }
@@ -750,7 +755,10 @@ private fun PhoneSignInSection(
     // the device flow without waiting for another tap. Once per request —
     // after a cancel the button is the way back in.
     LaunchedEffect(signInRequest) {
-        if (signInRequest > 0) start()
+        if (signInRequest > 0) {
+            start()
+            onSignInRequestConsumed()
+        }
     }
 
     when (phase) {

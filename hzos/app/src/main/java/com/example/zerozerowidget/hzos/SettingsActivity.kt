@@ -52,6 +52,7 @@ class SettingsActivity : ComponentActivity() {
                         sendAuthUrl(authUrl, onSent)
                     },
                     signInRequest = signInRequest,
+                    onSignInRequestConsumed = { signInRequest = 0 },
                 )
             }
         }
