@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos
 
 import android.app.Application
 import com.example.zerozerowidget.hzos.auth.HorizonAuth
+import com.example.zerozerowidget.hzos.auth.HorizonIap
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.data.DashboardRepository
 import com.example.zerozerowidget.hzos.data.SampleStore
@@ -26,6 +27,8 @@ class ZeroZeroWidgetApp : Application() {
         private set
     lateinit var horizonAuth: HorizonAuth
         private set
+    lateinit var horizonIap: HorizonIap
+        private set
     lateinit var panelPrefs: PanelPrefs
         private set
     lateinit var sampleStore: SampleStore
@@ -48,6 +51,7 @@ class ZeroZeroWidgetApp : Application() {
         repository = DashboardRepository(connectionStore, apiFactory)
         horizonAuth = HorizonAuth(this, appScope, BuildConfig.PLATFORM_APP_ID)
         horizonAuth.connect()
+        horizonIap = HorizonIap(appScope, BuildConfig.PLATFORM_APP_ID)
         repository.start()
     }
 }

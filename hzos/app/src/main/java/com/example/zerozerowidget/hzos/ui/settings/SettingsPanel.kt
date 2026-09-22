@@ -182,6 +182,12 @@ private fun SettingsRoot(
         }
 
         Spacer(Modifier.height(4.dp))
+        // Gated at build time: ordinary builds neither show nor link the
+        // purchase flow, mirroring iOS ZW_SUBSCRIPTIONS_ENABLED.
+        if (signedIn && com.example.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
+            SubscriptionSection(app = app)
+            Spacer(Modifier.height(4.dp))
+        }
         AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
         AboutSection(onOpenDeveloper = onOpenDeveloper)

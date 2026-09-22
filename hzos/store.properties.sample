@@ -12,6 +12,15 @@
 ## Shown in Settings → About.
 # PRIVACY_URL=https://example.com/privacy
 # TERMS_URL=https://example.com/terms
+## Subscriptions (Meta IAP). Create the monthly + yearly subscription
+## products in the developer dashboard, then put their exact SKU strings
+## here — subscription SKUs carry a :SUBSCRIPTION__TERM suffix
+## (e.g. mysub:SUBSCRIPTION__MONTHLY), so copy them verbatim rather than
+## guessing. Nothing here is committed; the committed tree stays
+## domain-free. Off until SUBSCRIPTIONS_ENABLED is literally "true".
+# SUBSCRIPTIONS_ENABLED=false
+# SUBSCRIPTION_MONTHLY_SKU=
+# SUBSCRIPTION_YEARLY_SKU=
 # META_APP_SECRET=
 # KEYSTORE_FILE=
 # KEYSTORE_PASSWORD=

@@ -86,6 +86,26 @@ android {
             "DEFAULT_BASE_URL",
             "\"$defaultBaseUrl\"",
         )
+        // Subscriptions (Meta IAP). Everything here comes from gitignored
+        // store.properties (see store.properties.sample) — real SKU strings
+        // must never be committed. Off unless explicitly enabled, so
+        // ordinary builds neither show nor link the purchase flow.
+        // Expected values for the flag are literally "true"/"false".
+        buildConfigField(
+            "boolean",
+            "SUBSCRIPTIONS_ENABLED",
+            "${storeProps.getProperty("SUBSCRIPTIONS_ENABLED", "false")}",
+        )
+        buildConfigField(
+            "String",
+            "SUBSCRIPTION_MONTHLY_SKU",
+            "\"${storeProps.getProperty("SUBSCRIPTION_MONTHLY_SKU", "")}\"",
+        )
+        buildConfigField(
+            "String",
+            "SUBSCRIPTION_YEARLY_SKU",
+            "\"${storeProps.getProperty("SUBSCRIPTION_YEARLY_SKU", "")}\"",
+        )
     }
 
     // Store signing. Keystore lives OUTSIDE the repo; point at it with env
@@ -157,4 +177,5 @@ dependencies {
     // plain activities; unrelated to any 3D SDK.
     implementation(libs.horizon.platform.core.kotlin)
     implementation(libs.horizon.platform.users.kotlin)
+    implementation(libs.horizon.platform.iap.kotlin)
 }

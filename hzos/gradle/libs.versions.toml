@@ -29,6 +29,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp-jvm", version.ref = "okhttp" }
 horizon-platform-core-kotlin = { module = "com.meta.horizon.platform.sdk:core-kotlin", version.ref = "horizonPlatformSdk" }
 horizon-platform-users-kotlin = { module = "com.meta.horizon.platform.sdk:users-kotlin", version.ref = "horizonPlatformSdk" }
+horizon-platform-iap-kotlin = { module = "com.meta.horizon.platform.sdk:iap-kotlin", version.ref = "horizonPlatformSdk" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 

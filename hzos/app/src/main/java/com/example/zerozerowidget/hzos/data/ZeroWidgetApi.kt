@@ -128,6 +128,30 @@ class ZeroWidgetApi(
             }
         }
 
+    /**
+     * Hands a completed Meta purchase to the Worker for verification.
+     *
+     * Proposed client→server contract (server implements
+     * `POST /v1/meta/subscription/sync`):
+     * - Request `{ "userId", "sku" }`: the *app-scoped* Meta user id (stable
+     *   for this app, meaningless outside it) plus the purchased SKU verbatim,
+     *   subscription terms included (`…:SUBSCRIPTION__MONTHLY`).
+     * - Response is the same [SubscriptionResponse] shape as
+     *   `GET /v1/subscription`; the Worker verifies via Meta S2S
+     *   (`viewer_purchases`/`verify_entitlement`) and answers with the merged
+     *   entitlement. Unknown fields are ignored, so the server may extend it.
+     * - 404 while the endpoint does not exist yet surfaces as [ApiException];
+     *   callers map that to "update the Worker", not to a purchase failure.
+     */
+    suspend fun syncMetaSubscription(userId: String, sku: String): SubscriptionState =
+        withContext(Dispatchers.IO) {
+            val body = json.encodeToString(
+                MetaSubscriptionSyncRequest.serializer(),
+                MetaSubscriptionSyncRequest(userId, sku),
+            )
+            post<SubscriptionResponse>("/v1/meta/subscription/sync", body).subscription
+        }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =
@@ -222,6 +246,13 @@ data class AccountInfo(
 data class SubscriptionResponse(
     val subscription: SubscriptionState = SubscriptionState(),
     val required: Boolean = false,
+)
+
+/** Body of POST /v1/meta/subscription/sync. See [ZeroWidgetApi.syncMetaSubscription]. */
+@Serializable
+data class MetaSubscriptionSyncRequest(
+    val userId: String,
+    val sku: String,
 )
 
 @Serializable
