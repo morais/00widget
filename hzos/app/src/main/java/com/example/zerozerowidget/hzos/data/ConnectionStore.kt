@@ -11,33 +11,25 @@ import kotlinx.coroutines.flow.map
 private val Context.connectionDataStore by preferencesDataStore(name = "connection")
 
 /**
- * Where the Worker URL + API key live until real login exists. The URL is
- * edited on the developer screen (Options panel); the key arrives only
- * through the device flow.
+ * Where the Worker URL, API key, and Meta user id live. The Meta id is
+ * saved alongside the token at sign-in so a later Meta account switch is
+ * detectable: same headset, different operator, old token must go.
  *
- * AUTH TODO (do not grow this file into a login system — replace it):
- * Horizon OS has no Sign in with Apple equivalent to reuse, and the Worker's
- * `/login` web flow expects an Apple identity the headset cannot mint. The
- * likely shape is a device-code / pairing flow: the headset shows a short
- * code, the operator approves it in the iOS app or `/admin`, the Worker
- * returns a tenant API token, and that token lands in these same two keys.
- * Delivery of the approval URL uses the platform `send_auth_url` Login API
- * when a Platform app ID is configured (see auth/HorizonAuth) — the manual
- * code display remains as the fallback for older OS versions.
- * Until then: paste a tenant API token with the `device` preset
- * (`/admin` → tenant → device) into the settings panel.
  * The key is stored in DataStore (app-private); never log it, never put it
  * in a panel title, and never send it anywhere but the configured base URL.
+ * The Meta user id is an opaque identity string, not a secret, but it is
+ * still only ever sent to the configured base URL.
  */
 class ConnectionStore(private val context: Context) {
 
-    data class Connection(val baseUrl: String, val apiKey: String) {
+    data class Connection(val baseUrl: String, val apiKey: String, val metaUserId: String = "") {
         val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
     }
 
     companion object {
         private val BASE_URL = stringPreferencesKey("base_url")
         private val API_KEY = stringPreferencesKey("api_key")
+        private val META_USER_ID = stringPreferencesKey("meta_user_id")
 
         /** http:// is dev-only (emulator/host tunnel); release builds require https://. */
         fun normalizeBaseUrl(raw: String): String? {
@@ -63,15 +55,21 @@ class ConnectionStore(private val context: Context) {
             Connection(
                 baseUrl = prefs[BASE_URL].orEmpty(),
                 apiKey = prefs[API_KEY].orEmpty(),
+                metaUserId = prefs[META_USER_ID].orEmpty(),
             )
         }
 
     suspend fun current(): Connection = connection.first()
 
-    suspend fun save(baseUrl: String, apiKey: String) {
+    suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "") {
         context.connectionDataStore.edit { prefs ->
             prefs[BASE_URL] = baseUrl.trim().trimEnd('/')
             prefs[API_KEY] = apiKey.trim()
+            if (metaUserId.isNotBlank()) {
+                prefs[META_USER_ID] = metaUserId.trim()
+            } else {
+                prefs.remove(META_USER_ID)
+            }
         }
     }
 
@@ -79,6 +77,7 @@ class ConnectionStore(private val context: Context) {
         context.connectionDataStore.edit { prefs ->
             prefs.remove(BASE_URL)
             prefs.remove(API_KEY)
+            prefs.remove(META_USER_ID)
         }
     }
 }

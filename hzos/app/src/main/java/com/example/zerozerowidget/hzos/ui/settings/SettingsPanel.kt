@@ -620,7 +620,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                                 return@launch
                             }
                             val current = app.connectionStore.current()
-                            app.connectionStore.save(normalized, current.apiKey)
+                            app.connectionStore.save(normalized, current.apiKey, current.metaUserId)
                             app.repository.refresh()
                             savedNote = "Saved — dashboard is refreshing."
                         }

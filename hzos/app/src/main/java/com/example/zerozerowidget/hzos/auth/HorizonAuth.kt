@@ -8,6 +8,17 @@ import horizon.platform.users.Users
 import kotlinx.coroutines.CoroutineScope
 
 /**
+ * What the Worker needs to verify the headset's Meta identity: the
+ * app-scoped user id (stable for this app, meaningless outside it — never
+ * the cross-app Oculus id) plus one single-use proof nonce. See
+ * [HorizonAuth.getMetaIdentity]; every sign-in attempt mints a fresh one.
+ */
+data class MetaIdentity(
+    val userId: String,
+    val userProof: String,
+)
+
+/**
  * Thin wrapper over the Horizon Platform SDK Login API (`send_auth_url`).
  *
  * This is the *delivery* half of login only: it pushes our verification URL
@@ -53,6 +64,28 @@ class HorizonAuth(
             Users().sendAuthUrl(authUrl)
         } catch (e: Exception) {
             Log.e(TAG, "sendAuthUrl failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * The headset's Meta identity for Worker sign-in: app-scoped user id
+     * plus a single-use proof nonce, both from the Platform SDK connection.
+     *
+     * Null when the Platform SDK is unavailable or either value is blank.
+     * Obtain a FRESH identity for every `POST /v1/auth/horizon` attempt —
+     * the server burns each proof on first use (409 on replay) and rejects
+     * a reused nonce, so caching the proof breaks the retry it exists for.
+     * Never send the Meta app secret anywhere; the client never holds it.
+     */
+    suspend fun getMetaIdentity(): MetaIdentity? {
+        if (!isAvailable) return null
+        return try {
+            val userId = Users().getLoggedInUser().id
+            val proof = Users().getUserProof().nonce
+            if (userId.isBlank() || proof.isBlank()) null else MetaIdentity(userId, proof)
+        } catch (e: Exception) {
+            Log.e(TAG, "getMetaIdentity failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
     }
