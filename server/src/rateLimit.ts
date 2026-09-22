@@ -44,6 +44,7 @@ export const RateLimitPolicies = {
   // verifying its certificate chain is real CPU. Apple's own volume for one app
   // is orders of magnitude below this.
   appleNotificationIpHour: { label: "App Store notifications", limit: 600, windowSeconds: HOUR },
+  metaNotificationIpHour: { label: "Meta subscription notifications", limit: 600, windowSeconds: HOUR },
 } as const;
 
 type RateLimitPolicyName = keyof typeof RateLimitPolicies;

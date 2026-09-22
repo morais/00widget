@@ -34,6 +34,7 @@ import * as status from "./status";
 import { sweepExpiredActivityHistory } from "./storage";
 import * as subscription from "./subscription";
 import * as metaSubscriptionSync from "./metaSubscriptionSync";
+import * as metaSubscriptionWebhook from "./metaSubscriptionWebhook";
 import { processPendingWidgetReload } from "./widgetPush";
 import { rateLimitSnapshotFor, sweepExpiredRateLimitBuckets } from "./rateLimit";
 
@@ -102,6 +103,12 @@ const routes: Route[] = [
   // `authed`.
   { method: "POST", pattern: /^\/v1\/apple\/subscription-notifications\/?$/, handler: (req, env) =>
     subscription.handleAppleNotification(req, env),
+  },
+  { method: "GET", pattern: /^\/v1\/meta\/subscription-webhooks\/?$/, handler: (req, env) =>
+    metaSubscriptionWebhook.verifyMetaSubscriptionWebhook(req, env),
+  },
+  { method: "POST", pattern: /^\/v1\/meta\/subscription-webhooks\/?$/, handler: (req, env) =>
+    metaSubscriptionWebhook.handleMetaSubscriptionWebhook(req, env),
   },
   authed("POST", /^\/v1\/cards\/upsert\/?$/, "publish", (req, env, auth, _match, ctx) =>
     cards.upsertCard(req, env, auth, ctx)),

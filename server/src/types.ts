@@ -22,6 +22,7 @@ export const RequestBodyLimits = {
   subscriptionVerify: 128 * KiB,
   metaSubscriptionSync: 20 * KiB,
   appleNotification: 64 * KiB,
+  metaWebhook: 64 * KiB,
 } as const;
 
 export const FieldLimits = {
@@ -1729,4 +1730,5 @@ export interface Env {
   META_SUBSCRIPTION_SKU?: string;
   META_APP_ID?: string;
   META_APP_SECRET?: string;
+  META_WEBHOOK_VERIFY_TOKEN?: string;
 }

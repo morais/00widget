@@ -125,8 +125,11 @@ export function parseMetaSubscriptionSnapshot(
     periodEndMs: metaTimestamp(input.period_end_time),
     cancellationMs: metaTimestamp(input.cancellation_time),
     nextRenewalMs: metaTimestamp(input.next_renewal_time),
-    currentTerm: priceTerm(input.current_price_term),
-    nextTerm: priceTerm(input.next_price_term),
+    // Renewal webhook examples use current_offer/next_offer while the status
+    // endpoint uses current_price_term/next_price_term. They carry the same
+    // shape; accepting both keeps one canonical row regardless of source.
+    currentTerm: priceTerm(input.current_price_term ?? input.current_offer),
+    nextTerm: priceTerm(input.next_price_term ?? input.next_offer),
     eventTimeMs,
   };
 }
