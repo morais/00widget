@@ -63,3 +63,28 @@ fun describeDeleteError(e: Throwable): String {
     }
     return (e.message ?: e.javaClass.simpleName).take(200)
 }
+
+/**
+ * Honest action-run failure text. The usual case is a sleeping producer:
+ * the server tried the webhook three times and heard nothing back, which
+ * arrives as a 502 with a JSON body — shown raw it reads as the button
+ * doing nothing at all. Name the cause instead.
+ */
+fun describeRunError(e: Throwable): String {
+    val api = e as? ZeroWidgetApi.ApiException
+        ?: return (e.message ?: e.javaClass.simpleName).take(200)
+    val serverError = """"error"\s*:\s*"([^"]*)""""
+        .toRegex()
+        .find(api.message ?: "")
+        ?.groupValues?.getOrNull(1)
+    return when (api.status) {
+        401 -> "Not signed in — sign in again in Settings."
+        402 -> "Publishing needs an active subscription."
+        403 -> "This action needs confirming in the app."
+        404 -> "That action is gone — refresh and try again."
+        409 -> "This action has nowhere to run yet."
+        429 -> "Rate limited — try again shortly."
+        502 -> "The producer didn't answer — it may be offline. Try again in a bit."
+        else -> (serverError ?: "Request failed (${api.status}).").take(200)
+    }
+}

@@ -62,6 +62,7 @@ import com.example.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.example.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
+import com.example.zerozerowidget.hzos.ui.describeRunError
 import com.example.zerozerowidget.hzos.ui.cards.Sparkline
 import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
@@ -195,7 +196,7 @@ fun DashboardPanel(
                                             runError = null
                                             val result = app.repository.runAction(action.id, card.id)
                                             runningId = null
-                                            runError = result.exceptionOrNull()?.message?.take(200)
+                                            runError = result.exceptionOrNull()?.let(::describeRunError)
                                         }
                                     },
                                 )
@@ -414,7 +415,7 @@ fun CardDetailPanel(
                             runError = null
                             val result = app.repository.runAction(action.id, card.id)
                             runningId = null
-                            runError = result.exceptionOrNull()?.message?.take(200)
+                            runError = result.exceptionOrNull()?.let(::describeRunError)
                         }
                     },
                 )
