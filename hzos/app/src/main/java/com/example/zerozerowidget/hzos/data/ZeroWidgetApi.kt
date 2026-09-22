@@ -152,6 +152,31 @@ class ZeroWidgetApi(
             post<SubscriptionResponse>("/v1/meta/subscription/sync", body).subscription
         }
 
+    /**
+     * One `POST /v1/auth/horizon` attempt, raw. Returns (status, body) for
+     * [classifyHorizonSignIn], which owns retries and mapping — this layer
+     * throws only on transport failure. The body comes from
+     * [horizonSignInBody]; a null choice is omitted, never sent null.
+     */
+    suspend fun postHorizonSignIn(body: String): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            // Pre-credential by definition: no Authorization header at all,
+            // not an empty Bearer one.
+            postRaw("/v1/auth/horizon", body, withAuth = false)
+        }
+
+    /**
+     * Answers a browser sign-in code (`POST
+     * /v1/auth/horizon/browser/approve`) on the app credential. Returns raw
+     * (status, body) for [describeBrowserApproval]. [decision] is "approve"
+     * or "deny".
+     */
+    suspend fun approveBrowserSignIn(code: String, decision: String): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            val body = "{\"code\":${json.encodeToString(code)},\"decision\":${json.encodeToString(decision)}}"
+            postRaw("/v1/auth/horizon/browser/approve", body)
+        }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =
@@ -190,6 +215,20 @@ class ZeroWidgetApi(
                 throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
             }
             return parse(resp.body?.string().orEmpty())
+        }
+    }
+
+    /** Raw POST: status plus body, throwing only when nothing answered. */
+    private fun postRaw(path: String, jsonBody: String, withAuth: Boolean = true): Pair<Int, String> {
+        val builder = Request.Builder()
+            .url(base + path)
+            .header("Accept", "application/json")
+        if (withAuth) builder.header("Authorization", "Bearer $apiKey")
+        val req = builder
+            .post(jsonBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        http.newCall(req).execute().use { resp ->
+            return resp.code to resp.body?.string().orEmpty()
         }
     }
     private fun postEmpty(path: String, jsonBody: String) {
@@ -238,6 +277,7 @@ data class AccountResponse(
 data class AccountInfo(
     val tenantId: String = "",
     val ownerEmail: String? = null,
+    val displayName: String? = null,
     val isReviewTenant: Boolean = false,
 )
 

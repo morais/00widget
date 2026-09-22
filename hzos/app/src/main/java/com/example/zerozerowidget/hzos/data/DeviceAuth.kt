@@ -14,15 +14,15 @@ import java.io.IOException
 
 /**
  * RFC 8628 (OAuth Device Authorization Grant) client against the 00Widget
- * Worker — the server half of the `send_auth_url` login flow.
+ * Worker — now only the *join* half of Horizon sign-in.
  *
- * Server contract (implemented in server/src/deviceAuth.ts):
- * - `POST /v1/auth/device/code` (no auth) → [DeviceCodeResponse]
- * - `POST /v1/auth/device/token` (no auth, {device_code}) → [DeviceTokenResponse]
- *   with `error: "authorization_pending" | "slow_down" | "expired" | "denied"`,
- *   or `token` (a `device`-preset API key) once approved.
+ * Sign-in starts at `POST /v1/auth/horizon` with the headset's Meta identity
+ * (see [HorizonLogin]); when that answers join_apple with a device code,
+ * this polls `POST /v1/auth/device/token` until the iPhone approval lands
+ * and mints the token. The old anonymous `POST /v1/auth/device/code` path
+ * is gone on both sides — the server answers it 404 once Horizon identity
+ * is on, and nothing here calls it.
  *
- * Older server deployments return 404 and the UI falls back to manual paste.
  * Nothing here depends on Meta APIs; the
  * `send_auth_url` delivery call lives in [com.example.zerozerowidget.hzos.auth.HorizonAuth].
  */
@@ -64,6 +64,7 @@ class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
     private val base: String = baseUrl.trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
 
+    @Deprecated("Anonymous issuance is dead; the sign-in rewrite removes this with its last caller.")
     suspend fun requestCode(): DeviceCodeResponse =
         post("/v1/auth/device/code", "{}")
 
