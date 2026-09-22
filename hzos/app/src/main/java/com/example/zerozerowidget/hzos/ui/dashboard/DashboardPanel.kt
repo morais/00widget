@@ -480,7 +480,7 @@ private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Your agents publish cards and Live Activities here — builds, " +
+            "Your agents publish cards and activities here — builds, " +
                 "deploys, balances, queues — floating around you while you work.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
