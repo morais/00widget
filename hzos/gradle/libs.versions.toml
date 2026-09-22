@@ -11,6 +11,7 @@ datastore = "1.1.7"
 okhttp = "5.5.0"
 kotlinxSerialization = "1.9.0"
 coroutines = "1.10.2"
+junit = "4.13.2"
 horizonPlatformSdk = "0.2.2"
 minSdk = "32"
 compileSdk = "36"
@@ -30,6 +31,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp-jvm", version.ref = "o
 horizon-platform-core-kotlin = { module = "com.meta.horizon.platform.sdk:core-kotlin", version.ref = "horizonPlatformSdk" }
 horizon-platform-users-kotlin = { module = "com.meta.horizon.platform.sdk:users-kotlin", version.ref = "horizonPlatformSdk" }
 horizon-platform-iap-kotlin = { module = "com.meta.horizon.platform.sdk:iap-kotlin", version.ref = "horizonPlatformSdk" }
+junit-junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 

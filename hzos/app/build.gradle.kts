@@ -178,4 +178,7 @@ dependencies {
     implementation(libs.horizon.platform.core.kotlin)
     implementation(libs.horizon.platform.users.kotlin)
     implementation(libs.horizon.platform.iap.kotlin)
+
+    // JVM unit tests (src/test): pure decision logic only, no SDK, no device.
+    testImplementation(libs.junit.junit)
 }
