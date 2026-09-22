@@ -1095,26 +1095,30 @@ public struct CardView: View {
         if max > 0, let sections = card.briefing?.sections, !sections.isEmpty {
             if fills {
                 GeometryReader { proxy in
-                    // Same bargain the row stacks make: a line spent saying
-                    // what was left out, but only when two or more sections
-                    // went and the plan can still afford them a line each.
-                    let first = briefingPlan(sections.count, ceiling: max, height: proxy.size.height)
-                    let dropped = Swift.min(sections.count, max) - first.sections
-                    let saysMore = dropped >= 2
-                    let plan = saysMore
-                        ? briefingPlan(
-                            sections.count,
-                            ceiling: max,
-                            height: proxy.size.height - truncationLineUnit
-                        )
-                        : first
-                    let hidden = sections.count - plan.sections
+                    // How many sections the canvas seats, and how many that
+                    // leaves out — the same bargain the row stacks make, a
+                    // line spent saying so only when two or more went.
+                    //
+                    // The sections themselves are drawn unbounded into a frame
+                    // of exactly this height: the stack gives each paragraph
+                    // its ideal where it fits and truncates the remainder, so
+                    // the room a short section does not use goes to the next
+                    // one rather than being left blank under the card.
+                    let fit = BriefingFill.fit(
+                        height: proxy.size.height,
+                        sectionCount: sections.count,
+                        lineHeight: briefingLineUnit,
+                        labelHeight: briefingLabelUnit,
+                        spacing: 5,
+                        ceiling: max,
+                        indicatorHeight: truncationLineUnit
+                    )
                     VStack(alignment: .leading, spacing: 5) {
-                        ForEach(sections.prefix(plan.sections)) { section in
-                            briefingSection(section, font: .caption, lineLimit: plan.lines)
+                        ForEach(sections.prefix(fit.sections)) { section in
+                            briefingSection(section, font: .caption, lineLimit: nil)
                         }
-                        if saysMore, hidden > 0 {
-                            truncationLine(hidden)
+                        if fit.hidden > 0 {
+                            truncationLine(fit.hidden)
                         }
                     }
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
@@ -1129,20 +1133,14 @@ public struct CardView: View {
         }
     }
 
-    private func briefingPlan(_ sectionCount: Int, ceiling: Int, height: CGFloat) -> BriefingFill.Plan {
-        BriefingFill.plan(
-            height: height,
-            sectionCount: Swift.min(sectionCount, ceiling),
-            lineHeight: briefingLineUnit,
-            labelHeight: briefingLabelUnit,
-            spacing: 5
-        )
-    }
-
+    /// One section. A `nil` `lineLimit` hands the paragraph to the enclosing
+    /// stack's own height distribution rather than capping it — right wherever
+    /// that stack is bounded, which is every `fills` canvas, and wrong in the
+    /// unbounded column of a two-column layout.
     private func briefingSection(
         _ section: DashboardBriefingSection,
         font: Font,
-        lineLimit: Int
+        lineLimit: Int?
     ) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             if let label = section.label, !label.isEmpty {
