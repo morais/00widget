@@ -48,8 +48,11 @@ import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.data.DummyAccountData
+import com.example.zerozerowidget.hzos.data.HorizonOutcome
 import com.example.zerozerowidget.hzos.data.SubscriptionState
 import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
+import com.example.zerozerowidget.hzos.data.horizonSignInBody
+import com.example.zerozerowidget.hzos.data.runHorizonSignIn
 import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
@@ -60,7 +63,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class SignInPhase { IDLE, REQUESTING, WAITING }
+private enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 
 private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION }
 
@@ -157,12 +160,12 @@ private fun SettingsRoot(
                 // "Server", as on iOS.
                 Text("Server", style = MaterialTheme.typography.titleSmall)
                 if (!signedIn) {
-                    PhoneSignInSection(
+                    HorizonSignInSection(
                         app = app,
                         onSendAuthUrl = onSendAuthUrl,
-                        onSignedIn = { base, token ->
+                        onSignedIn = { base, token, metaUserId ->
                             scope.launch {
-                                app.connectionStore.save(base, token)
+                                app.connectionStore.save(base, token, metaUserId)
                                 app.repository.refresh()
                             }
                         },
@@ -716,80 +719,116 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
 }
 
 /**
- * Phone sign-in via the Horizon Login API (`send_auth_url`) + Worker device
- * flow. Requests a code, pushes the approval URL to the Horizon mobile app,
- * polls until approved, and hands the resulting token to [onSignedIn].
- * Every failure — no app ID, no Platform SDK, declined dialog, server
- * without the device flow — degrades to the manual code display below,
- * which is also the required fallback on older Horizon OS versions.
+ * Horizon sign-in: one button proving the headset's Meta identity to the
+ * Worker (`POST /v1/auth/horizon`), then either done, an explicit
+ * create/join choice, or iPhone approval polling for a join. Hands the
+ * resulting token plus the Meta id it was issued for to [onSignedIn], so a
+ * later account switch is detectable. Every failure names its cause; the
+ * join fallback (manual code entry) doubles as the path where
+ * `send_auth_url` is unavailable.
  */
 @Composable
-private fun PhoneSignInSection(
+private fun HorizonSignInSection(
     app: ZeroZeroWidgetApp,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
-    onSignedIn: (baseUrl: String, token: String) -> Unit,
+    onSignedIn: (baseUrl: String, token: String, metaUserId: String) -> Unit,
     signInRequest: Int = 0,
     onSignInRequestConsumed: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    var phase by remember { mutableStateOf(SignInPhase.IDLE) }
+    var phase by remember { mutableStateOf(HorizonPhase.IDLE) }
     var userCode by remember { mutableStateOf("") }
     var verifyUri by remember { mutableStateOf("") }
     var linkSent by remember { mutableStateOf<Boolean?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var pollJob by remember { mutableStateOf<Job?>(null) }
+    // The Meta id the in-flight attempt proved, saved with the token.
+    // Retries re-prove (fresh proof, same user), so this trails the latest.
+    var attemptUserId by remember { mutableStateOf("") }
 
     fun cancel() {
         pollJob?.cancel()
         pollJob = null
-        phase = SignInPhase.IDLE
+        phase = HorizonPhase.IDLE
     }
 
-    fun start() {
-        if (phase != SignInPhase.IDLE) return
+    suspend fun resolveBaseUrl(): String {
+        // Server URL resolves here, not in a text field: saved value
+        // first, build default second.
+        val stored = app.connectionStore.current()
+        val raw = stored.baseUrl.ifBlank {
+            com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+        }
+        return ConnectionStore.normalizeBaseUrl(raw)
+            ?: throw IllegalArgumentException("No Worker URL configured (Developer screen).")
+    }
+
+    fun begin(choice: String?) {
+        if (phase != HorizonPhase.IDLE && phase != HorizonPhase.CHOICE) return
         error = null
-        phase = SignInPhase.REQUESTING
+        phase = HorizonPhase.PROVING
         pollJob = scope.launch {
             try {
-                            // Server URL resolves here, not in a text field:
-                            // saved value first, build default second.
-                            val stored = app.connectionStore.current()
-                            val raw = stored.baseUrl.ifBlank {
-                                com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                            }
-                            val normalized = ConnectionStore.normalizeBaseUrl(raw)
-                                ?: throw IllegalArgumentException(
-                                    "No Worker URL configured (Developer screen).",
-                                )
-                            val api = DeviceAuthApi(app.http, normalized)
-                            val code = api.requestCode()
-                            userCode = code.userCode
-                            verifyUri = code.verificationUri
-                            linkSent = null
-                            phase = SignInPhase.WAITING
-                            onSendAuthUrl(code.completeUri) { sent -> linkSent = sent }
-                            val deadline = System.currentTimeMillis() +
-                                minOf(code.expiresInSeconds * 1000L, 600_000L)
-                            val token = awaitDeviceToken(api, code.deviceCode, code.intervalSeconds, deadline)
-                            onSignedIn(normalized, token)
-                            phase = SignInPhase.IDLE
-                        } catch (e: CancellationException) {
-                            phase = SignInPhase.IDLE
-                            throw e
-                        } catch (e: Exception) {
-                            android.util.Log.e(
-                                "HorizonAuth",
-                                "device flow failed: ${e.javaClass.simpleName}: ${e.message}",
-                            )
-                            error = (e.message ?: e.javaClass.simpleName).take(200)
-                            phase = SignInPhase.IDLE
-                        }
+                val normalized = resolveBaseUrl()
+                // Pre-credential: the key is unused, and the horizon call
+                // sends no Authorization header at all.
+                val unauthed = ZeroWidgetApi(app.http, normalized, "")
+                when (
+                    val outcome = runHorizonSignIn(
+                        identity = { app.horizonAuth.getMetaIdentity() },
+                        request = { userId, proof, ch ->
+                            attemptUserId = userId
+                            unauthed.postHorizonSignIn(horizonSignInBody(userId, proof, ch))
+                        },
+                        choice = choice,
+                    )
+                ) {
+                    is HorizonOutcome.SignedIn -> {
+                        onSignedIn(normalized, outcome.token, outcome.userId)
+                        phase = HorizonPhase.IDLE
                     }
+                    HorizonOutcome.NeedChoice -> phase = HorizonPhase.CHOICE
+                    is HorizonOutcome.JoinCode -> {
+                        val code = outcome.code
+                        userCode = code.userCode
+                        verifyUri = code.verificationUri
+                        linkSent = null
+                        phase = HorizonPhase.WAITING
+                        onSendAuthUrl(code.completeUri) { sent -> linkSent = sent }
+                        val deadline = System.currentTimeMillis() +
+                            minOf(code.expiresInSeconds * 1000L, 600_000L)
+                        val deviceApi = DeviceAuthApi(app.http, normalized)
+                        val token = awaitDeviceToken(
+                            deviceApi,
+                            code.deviceCode,
+                            code.intervalSeconds,
+                            deadline,
+                        )
+                        onSignedIn(normalized, token, attemptUserId)
+                        phase = HorizonPhase.IDLE
+                    }
+                    is HorizonOutcome.Failed -> {
+                        error = outcome.message
+                        phase = HorizonPhase.IDLE
+                    }
+                }
+            } catch (e: CancellationException) {
+                phase = HorizonPhase.IDLE
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "HorizonAuth",
+                    "sign-in failed: ${e.javaClass.simpleName}: ${e.message}",
+                )
+                error = (e.message ?: e.javaClass.simpleName).take(200)
+                phase = HorizonPhase.IDLE
+            }
+        }
     }
 
     if (!app.horizonAuth.isAvailable) {
         Text(
-            "Phone sign-in needs a Horizon Platform app ID " +
+            "Sign-in needs a Horizon Platform app ID " +
                 "(`platformAppId` in hzos/local.properties).",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -798,27 +837,45 @@ private fun PhoneSignInSection(
     }
 
     // A dashboard "Sign in" press opens this screen already asking: kick
-    // the device flow without waiting for another tap. Once per request —
+    // the sign-in flow without waiting for another tap. Once per request —
     // after a cancel the button is the way back in.
     LaunchedEffect(signInRequest) {
         if (signInRequest > 0) {
-            start()
+            begin(null)
             onSignInRequestConsumed()
         }
     }
 
     when (phase) {
-        SignInPhase.IDLE -> {
+        HorizonPhase.IDLE -> {
             error?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            Button(onClick = ::start) { Text("Sign in with phone") }
+            Button(onClick = { begin(null) }) { Text("Sign in") }
         }
-        SignInPhase.REQUESTING -> {
-            Text("Requesting a sign-in code…", style = MaterialTheme.typography.bodyMedium)
+        HorizonPhase.PROVING -> {
+            Text("Signing in…", style = MaterialTheme.typography.bodyMedium)
             FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
         }
-        SignInPhase.WAITING -> {
+        HorizonPhase.CHOICE -> {
+            // Said here rather than by choosing silently: a new account and
+            // someone else's existing one are different tenants, and only
+            // the operator knows which this headset should join.
+            Text(
+                "This headset isn't linked to an account yet.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(
+                onClick = { begin("create") },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Create a new account") }
+            FilledTonalButton(
+                onClick = { begin("join_apple") },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Join my iPhone account") }
+            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
+        }
+        HorizonPhase.WAITING -> {
             Text("Approve on your phone", style = MaterialTheme.typography.titleSmall)
             Text(
                 userCode,

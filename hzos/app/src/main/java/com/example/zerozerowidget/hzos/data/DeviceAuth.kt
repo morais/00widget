@@ -64,10 +64,6 @@ class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
     private val base: String = baseUrl.trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
 
-    @Deprecated("Anonymous issuance is dead; the sign-in rewrite removes this with its last caller.")
-    suspend fun requestCode(): DeviceCodeResponse =
-        post("/v1/auth/device/code", "{}")
-
     suspend fun pollToken(deviceCode: String): DeviceTokenResponse =
         post("/v1/auth/device/token", json.encodeToString(DeviceTokenRequest.serializer(), DeviceTokenRequest(deviceCode)))
 
