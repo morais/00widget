@@ -1,5 +1,8 @@
 package com.example.zerozerowidget.hzos.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -36,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
+import com.example.zerozerowidget.hzos.data.DummyAccountData
 import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
@@ -43,6 +50,7 @@ import com.example.zerozerowidget.hzos.data.DeviceAuthApi
 import com.example.zerozerowidget.hzos.data.awaitDeviceToken
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class SignInPhase { IDLE, REQUESTING, WAITING }
@@ -165,7 +173,7 @@ private fun SettingsRoot(
         }
 
         Spacer(Modifier.height(4.dp))
-        AgentConfigSection(onOpenAgentConnect = onOpenAgent)
+        AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
         AboutSection(onOpenDeveloper = onOpenDeveloper)
     }
@@ -218,15 +226,79 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
 }
 
 /**
- * Agent config entry: connectors for assistants plus the token path for
- * things you run yourself. The guide is a destination below; this is the
- * doorway, mirroring iOS Settings.
+ * Agent config entry: the "Dear agent" integration text iOS Settings shows,
+ * plus the connector doorway below it.
+ *
+ * Signed out, the text names the server and says the token arrives after
+ * sign-in; signed in, it names the token too. The displayed string and the
+ * copied string are deliberately the same: a copy button that quietly puts
+ * the real token on the clipboard while the screen shows a placeholder is
+ * how the token ends up pasted in front of whoever the placeholder was
+ * hiding it from.
  */
 @Composable
-private fun AgentConfigSection(onOpenAgentConnect: () -> Unit) {
+private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val connection by app.connectionStore.connection.collectAsState(
+        initial = ConnectionStore.Connection("", ""),
+    )
+    val showDummy by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
+    var copied by remember { mutableStateOf(false) }
+    val baseUrl = connection.baseUrl.ifBlank {
+        com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+    }
+    val signedIn = connection.apiKey.isNotBlank()
+    val displayedToken = if (showDummy) DummyAccountData.API_KEY else connection.apiKey
+    val agentConfig = if (!signedIn) {
+        "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
+            "use that as the base URL. You'll need an authorization token, " +
+            "which will be available after you sign in."
+    } else {
+        "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
+            "use that as the base URL, and use $displayedToken as the authorization token."
+    }
+
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Agent config", style = MaterialTheme.typography.titleSmall)
+            Row(verticalAlignment = Alignment.Top) {
+                SelectionContainer(Modifier.weight(1f)) {
+                    Text(
+                        agentConfig,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        val clipboard =
+                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("00Widget agent config", agentConfig))
+                        copied = true
+                        scope.launch {
+                            // Acknowledgement of the tap, not a running
+                            // clipboard status — matches iOS (10s there).
+                            // Unlike iOS there is no pasteboard expiry here,
+                            // so the row promises nothing about clearing.
+                            delay(10_000)
+                            copied = false
+                        }
+                    },
+                ) {
+                    Icon(
+                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription = if (copied) "Agent config copied" else "Copy agent config",
+                    )
+                }
+            }
+            if (copied) {
+                Text(
+                    "Copied",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = MaterialTheme.typography.bodySmall,
@@ -273,6 +345,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     )
     val transparent by app.panelPrefs.transparent.collectAsState(initial = true)
     val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    val showDummyAccountData by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
     val locked = com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL.isNotBlank()
     var serverUrl by remember { mutableStateOf("") }
@@ -322,7 +395,26 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     },
                 ) { Text("Save server") }
             }
-            Text("Samples", style = MaterialTheme.typography.titleSmall)
+            Text("Screenshots and recordings", style = MaterialTheme.typography.titleSmall)
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Show dummy account data", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "A visibly fake token on the Settings screen instead of your own.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = showDummyAccountData,
+                    onCheckedChange = { checked ->
+                        scope.launch { app.panelPrefs.setShowDummyAccountData(checked) }
+                    },
+                )
+            }
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -342,6 +434,14 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     },
                 )
             }
+            Text(
+                "Dummy account data shows a visibly fake token in Agent config instead of " +
+                    "your own. The real token still authorizes every request, and Copy " +
+                    "agent config copies what is on screen — so turn this off before " +
+                    "handing the token to an agent.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text("Look", style = MaterialTheme.typography.titleSmall)
             Row(
                 Modifier.fillMaxWidth(),

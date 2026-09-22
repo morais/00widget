@@ -21,6 +21,7 @@ class PanelPrefs(private val context: Context) {
         private val TRANSPARENT = booleanPreferencesKey("transparent_panels")
         private val CARD_ALPHA = floatPreferencesKey("card_alpha")
         private val HIDE_INDICATORS = booleanPreferencesKey("hide_sample_indicators")
+        private val SHOW_DUMMY_ACCOUNT_DATA = booleanPreferencesKey("show_dummy_account_data")
         /** Cards nearly solid by default — just a breath of passthrough. */
         const val DEFAULT_CARD_ALPHA = 0.85f
     }
@@ -43,6 +44,15 @@ class PanelPrefs(private val context: Context) {
     val hideSampleIndicators: Flow<Boolean> =
         context.panelPrefsStore.data.map { it[HIDE_INDICATORS] == true }
 
+    /**
+     * Shows a visibly fake token in Settings instead of the real one,
+     * mirroring iOS showDummyAccountData. Presentation-only: requests still
+     * go out on the real token, and copy copies what is on screen — so this
+     * must be off before handing the token to an agent.
+     */
+    val showDummyAccountData: Flow<Boolean> =
+        context.panelPrefsStore.data.map { it[SHOW_DUMMY_ACCOUNT_DATA] == true }
+
     suspend fun setTransparent(value: Boolean) {
         context.panelPrefsStore.edit { it[TRANSPARENT] = value }
     }
@@ -53,6 +63,10 @@ class PanelPrefs(private val context: Context) {
 
     suspend fun setHideSampleIndicators(value: Boolean) {
         context.panelPrefsStore.edit { it[HIDE_INDICATORS] = value }
+    }
+
+    suspend fun setShowDummyAccountData(value: Boolean) {
+        context.panelPrefsStore.edit { it[SHOW_DUMMY_ACCOUNT_DATA] = value }
     }
 }
 
