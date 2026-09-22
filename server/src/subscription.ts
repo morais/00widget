@@ -5,6 +5,7 @@ import { parseJson } from "./cards";
 import { badRequest, json, notFound } from "./http";
 import { enforceRateLimits } from "./rateLimit";
 import { isReviewTenant } from "./reviewAuth";
+import { readMetaSubscriptionState } from "./metaSubscription";
 import { RequestBodyLimits, type Env } from "./types";
 
 // App Store subscription entitlements.
@@ -100,10 +101,12 @@ function subscriptionEnvironmentIsConfigured(env: Env, environment: string): boo
 }
 
 export type SubscriptionStatus = "active" | "trial" | "grace" | "expired" | "revoked" | "none";
+export type SubscriptionProvider = "apple" | "meta";
 
 export interface SubscriptionState {
   status: SubscriptionStatus;
   active: boolean;
+  provider?: SubscriptionProvider;
   productId?: string;
   expiresAt?: string;
   autoRenew?: boolean;
@@ -145,6 +148,7 @@ export function evaluateSubscription(
   const base: SubscriptionState = {
     status: "expired",
     active: false,
+    provider: "apple",
     productId: row.product_id,
     expiresAt: row.expires_at_ms ? new Date(row.expires_at_ms).toISOString() : undefined,
     autoRenew: row.auto_renew === 1,
@@ -228,7 +232,24 @@ export async function readSubscriptionState(
   // id switches both off without a synthetic App Store transaction to clean
   // up or accidentally claim later.
   if (isReviewTenant(env, tenantId)) return REVIEW_SUBSCRIPTION;
-  return evaluateSubscription(await readSubscriptionRow(env, tenantId), env);
+  const [apple, meta] = await Promise.all([
+    readSubscriptionRow(env, tenantId).then((row) => evaluateSubscription(row, env)),
+    readMetaSubscriptionState(env, tenantId),
+  ]);
+  return preferredSubscriptionState(apple, meta);
+}
+
+function preferredSubscriptionState(
+  first: SubscriptionState,
+  second: SubscriptionState,
+): SubscriptionState {
+  const rank = (state: SubscriptionState): [number, number] => [
+    state.active ? 2 : state.status === "none" ? 0 : 1,
+    state.expiresAt ? Date.parse(state.expiresAt) || 0 : 0,
+  ];
+  const a = rank(first);
+  const b = rank(second);
+  return b[0] > a[0] || (b[0] === a[0] && b[1] > a[1]) ? second : first;
 }
 
 // ---------------------------------------------------------------------------

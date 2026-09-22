@@ -347,6 +347,73 @@ describe("GET /v1/subscription", () => {
 
     expect(res.status).toBe(404);
   });
+
+  it("accepts an active Meta entitlement as the same account subscription", async () => {
+    const sku = "com.example.zerozerowidget.subscription";
+    const env = subscriptionEnv({
+      META_SUBSCRIPTIONS_ENABLED: "true",
+      META_SUBSCRIPTION_SKU: sku,
+    });
+    (env.ZW_DB as unknown as FakeD1).seedMetaSubscription({ sku });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+
+    expect((await res.json() as any).subscription).toMatchObject({
+      status: "active",
+      active: true,
+      provider: "meta",
+      productId: sku,
+    });
+  });
+
+  it("ignores stored Meta rows until the provider is explicitly enabled", async () => {
+    const sku = "com.example.zerozerowidget.subscription";
+    const env = subscriptionEnv({ META_SUBSCRIPTION_SKU: sku });
+    (env.ZW_DB as unknown as FakeD1).seedMetaSubscription({ sku });
+
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+
+    expect((await res.json() as any).subscription.status).toBe("none");
+  });
+
+  it("keeps a canceled Meta term active until Meta marks it expired", async () => {
+    const sku = "com.example.zerozerowidget.subscription";
+    const env = subscriptionEnv({
+      META_SUBSCRIPTIONS_ENABLED: "true",
+      META_SUBSCRIPTION_SKU: sku,
+    });
+    const db = env.ZW_DB as unknown as FakeD1;
+    db.seedMetaSubscription({ sku, cancellationMs: Date.now() - 1_000 });
+
+    const active = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+    expect((await active.json() as any).subscription).toMatchObject({
+      active: true,
+      autoRenew: false,
+    });
+
+    db.seedMetaSubscription({ sku, isActive: false });
+    const expired = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      env,
+      executionCtx,
+    );
+    expect((await expired.json() as any).subscription).toMatchObject({
+      status: "expired",
+      active: false,
+    });
+  });
 });
 
 describe("POST /v1/apple/subscription-notifications", () => {

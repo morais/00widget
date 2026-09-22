@@ -70,6 +70,7 @@ export class FakeD1 {
   private widgetPushPending = new Map<string, FakeRow>();
   private widgetPushDeliveryDiagnostics = new Map<string, FakeApiKeyRow>();
   private subscriptions = new Map<string, FakeApiKeyRow>();
+  private metaSubscriptions = new Map<string, FakeApiKeyRow>();
   private activityHistory = new Map<string, FakeApiKeyRow>();
   private mcpAuthorizationCodes = new Map<string, FakeApiKeyRow>();
   private deviceAuthorizations = new Map<string, FakeApiKeyRow>();
@@ -991,6 +992,17 @@ export class FakeD1 {
     if (normalized.startsWith("INSERT INTO subscriptions")) {
       return this.upsertSubscription(values);
     }
+    if (normalized === "UPDATE meta_subscriptions SET tenant_id = NULL, updated_at = ? WHERE tenant_id = ?") {
+      const [updated_at, tenant_id] = values.map(String);
+      let changed = 0;
+      for (const row of this.metaSubscriptions.values()) {
+        if (String(row.tenant_id ?? "") !== tenant_id) continue;
+        row.tenant_id = null;
+        row.updated_at = updated_at;
+        changed++;
+      }
+      return changed;
+    }
     if (normalized.startsWith("UPDATE subscriptions SET tenant_id = ?, updated_at = ? WHERE original_transaction_id = ? AND tenant_id IS NULL")) {
       const [tenant_id, updated_at, original_transaction_id] = values.map(String);
       const row = this.subscriptions.get(original_transaction_id);
@@ -1178,6 +1190,41 @@ export class FakeD1 {
     });
   }
 
+  seedMetaSubscription(row: {
+    subscriptionId?: string;
+    ownerId?: string;
+    tenantId?: string | null;
+    sku?: string;
+    isActive?: boolean;
+    isTrial?: boolean;
+    periodStartMs?: number | null;
+    periodEndMs?: number | null;
+    cancellationMs?: number | null;
+    nextRenewalMs?: number | null;
+    currentTerm?: string | null;
+    nextTerm?: string | null;
+    lastEventMs?: number;
+  } = {}): void {
+    const id = row.subscriptionId ?? "meta-subscription-1";
+    this.metaSubscriptions.set(id, {
+      subscription_id: id,
+      owner_id: row.ownerId ?? "meta-owner-1",
+      tenant_id: row.tenantId === undefined ? "test-tenant" : row.tenantId,
+      sku: row.sku ?? "com.example.app.subscription",
+      is_active: row.isActive === false ? 0 : 1,
+      is_trial: row.isTrial ? 1 : 0,
+      period_start_ms: row.periodStartMs ?? Date.now() - 86400_000,
+      period_end_ms: row.periodEndMs ?? Date.now() + 30 * 86400_000,
+      cancellation_ms: row.cancellationMs ?? null,
+      next_renewal_ms: row.nextRenewalMs ?? Date.now() + 30 * 86400_000,
+      current_term: row.currentTerm ?? "MONTHLY",
+      next_term: row.nextTerm ?? "MONTHLY",
+      last_event_ms: row.lastEventMs ?? 1,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    });
+  }
+
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
     if (normalized === "SELECT id, status, tenant_id, expires_at FROM device_authorizations WHERE device_code_hash = ?") {
@@ -1215,6 +1262,16 @@ export class FakeD1 {
       return [...this.subscriptions.values()]
         .filter((row) => row.tenant_id === tenant_id)
         .sort((a, b) => Number(b.expires_at_ms ?? 0) - Number(a.expires_at_ms ?? 0));
+    }
+    if (normalized.startsWith("SELECT subscription_id, owner_id, tenant_id, sku, is_active, is_trial, period_start_ms, period_end_ms, cancellation_ms, next_renewal_ms, current_term, next_term, last_event_ms FROM meta_subscriptions WHERE tenant_id = ? AND sku = ?")) {
+      const [tenant_id, sku] = values.map(String);
+      return [...this.metaSubscriptions.values()]
+        .filter((row) => row.tenant_id === tenant_id && row.sku === sku)
+        .sort((a, b) => {
+          const active = Number(b.is_active) - Number(a.is_active);
+          return active || Number(b.period_end_ms ?? 0) - Number(a.period_end_ms ?? 0);
+        })
+        .slice(0, 1);
     }
     if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
       const [tenant_id, ...environments] = values.map(String);

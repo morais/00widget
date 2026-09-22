@@ -1720,4 +1720,10 @@ export interface Env {
   // not a lapsed payment; Apple's own billing grace period arrives in the
   // payload and is honoured separately.
   SUBSCRIPTION_GRACE_DAYS?: string;
+
+  // Meta Horizon Store subscriptions. Kept behind its own switch so the
+  // Apple flow can remain live while Meta identity linking and webhooks are
+  // being validated. Both values are required before Meta rows grant access.
+  META_SUBSCRIPTIONS_ENABLED?: string;
+  META_SUBSCRIPTION_SKU?: string;
 }

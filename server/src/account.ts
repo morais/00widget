@@ -90,6 +90,7 @@ export const ACCOUNT_DELETION_EXEMPT_TABLES: Readonly<Record<string, string>> = 
   // this one, and the row is what stops a second tenant claiming the same
   // purchase. `tenant_id` goes to NULL, leaving it unclaimed and adoptable.
   subscriptions: "detached by nulling tenant_id, not deleted",
+  meta_subscriptions: "detached by nulling tenant_id, not deleted",
   // Ephemeral counters keyed by a random tenant id, swept on expiry. Deleting
   // them would cost rows written for nothing.
   rate_limit_buckets: "ephemeral, expires on its own",
@@ -150,6 +151,11 @@ export async function deleteAccount(
   statements.push(
     db
       .prepare(`UPDATE subscriptions SET tenant_id = NULL, updated_at = ? WHERE tenant_id = ?`)
+      .bind(new Date().toISOString(), tenantId),
+  );
+  statements.push(
+    db
+      .prepare(`UPDATE meta_subscriptions SET tenant_id = NULL, updated_at = ? WHERE tenant_id = ?`)
       .bind(new Date().toISOString(), tenantId),
   );
 
