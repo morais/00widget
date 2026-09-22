@@ -112,8 +112,12 @@ fun DashboardPanel(
                     modifier = Modifier.padding(end = 4.dp),
                 )
             }
-            IconButton(onClick = { app.repository.refresh() }) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+            // Refresh only signs in states: logged out there is nothing to
+            // refetch, and the button suggests otherwise.
+            if (state.isConfigured) {
+                IconButton(onClick = { app.repository.refresh() }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                }
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings")
