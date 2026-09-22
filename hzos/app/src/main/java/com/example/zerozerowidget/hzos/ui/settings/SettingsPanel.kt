@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.data.DummyAccountData
+import com.example.zerozerowidget.hzos.data.SubscriptionState
+import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
@@ -149,9 +151,7 @@ private fun SettingsRoot(
                         signInRequest = signInRequest,
                     )
                 } else {
-                    // Signed in is one row. The server address lives on the
-                    // Developer screen; repeating it here buys nothing.
-                    Text("Signed in.", style = MaterialTheme.typography.bodyMedium)
+                    AccountSection(app = app)
                 }
 
                 if (signedIn) {
@@ -170,6 +170,76 @@ private fun SettingsRoot(
         AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
         AboutSection(onOpenDeveloper = onOpenDeveloper)
+    }
+}
+
+/**
+ * Who this device is signed in as, asked live: a reinstall authenticates
+ * with nothing cached to show, so the server is the source of truth.
+ * Email like iOS, plus the subscription status beside it when the
+ * deployment sells any — with subscriptions off the server answers 404
+ * and the row stays away. Anything failing degrades to the plain row.
+ */
+@Composable
+private fun AccountSection(app: ZeroZeroWidgetApp) {
+    var email by remember { mutableStateOf<String?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    var subscription by remember { mutableStateOf<SubscriptionState?>(null) }
+    var subscriptionAnswered by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val current = app.connectionStore.current()
+            val base = current.baseUrl.ifBlank {
+                com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+            }
+            if (current.apiKey.isBlank() || base.isBlank()) return@LaunchedEffect
+            val api = ZeroWidgetApi(app.http, base, current.apiKey)
+            email = api.fetchAccount().ownerEmail
+            loaded = true
+            subscription = api.fetchSubscription()
+            subscriptionAnswered = true
+        } catch (e: Exception) {
+            loaded = true
+            subscriptionAnswered = true
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (!loaded || email.isNullOrBlank()) {
+                Text("Signed in.", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Text(
+                    "Signed in as",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    email!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (subscriptionAnswered && subscription != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Subscription",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    subscription!!.displayLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (subscription!!.needsAttention) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
     }
 }
 

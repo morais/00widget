@@ -104,6 +104,30 @@ class ZeroWidgetApi(
             post("/v1/auth/agent-token/rotate")
         }
 
+    /**
+     * Who this device is signed in as. App-credential only, which the
+     * Horizon device token is — agent publisher tokens cannot read it.
+     * Mirrors iOS refreshAccount.
+     */
+    suspend fun fetchAccount(): AccountInfo =
+        withContext(Dispatchers.IO) {
+            get<AccountResponse>("/v1/account").account
+        }
+
+    /**
+     * Subscription status for the Settings row. Null when the server has
+     * subscriptions switched off (404) or cannot answer — the row hides
+     * itself rather than erroring.
+     */
+    suspend fun fetchSubscription(): SubscriptionState? =
+        withContext(Dispatchers.IO) {
+            try {
+                get<SubscriptionResponse>("/v1/subscription").subscription
+            } catch (e: ApiException) {
+                null
+            }
+        }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =
@@ -179,3 +203,52 @@ data class AgentTokenRotation(
     val token: String = "",
     val revokedAgentTokens: Int = 0,
 )
+
+/** Answer to GET /v1/account. Mirrors the server's account shape. */
+@Serializable
+data class AccountResponse(
+    val account: AccountInfo = AccountInfo(),
+)
+
+@Serializable
+data class AccountInfo(
+    val tenantId: String = "",
+    val ownerEmail: String? = null,
+    val isReviewTenant: Boolean = false,
+)
+
+/** Answer to GET /v1/subscription. Mirrors SubscriptionState server-side. */
+@Serializable
+data class SubscriptionResponse(
+    val subscription: SubscriptionState = SubscriptionState(),
+    val required: Boolean = false,
+)
+
+@Serializable
+data class SubscriptionState(
+    val status: String = "none",
+    val active: Boolean = false,
+    val productId: String? = null,
+    val expiresAt: String? = null,
+    val autoRenew: Boolean? = null,
+    val environment: String? = null,
+) {
+    /**
+     * One label for the Settings row. Ports iOS displayLabel: five
+     * statuses do not collapse into active/not, which told lapsed
+     * subscribers they had never subscribed. Unknown reads as none.
+     */
+    val displayLabel: String
+        get() = when (status) {
+            "active" -> "Active"
+            "trial" -> "Free trial"
+            "grace" -> "Payment issue"
+            "expired" -> "Expired"
+            "revoked" -> "Refunded"
+            else -> "Not subscribed"
+        }
+
+    /** Grace, expiry and refund are worth flagging; the rest are not. */
+    val needsAttention: Boolean
+        get() = status == "grace" || status == "expired" || status == "revoked"
+}
