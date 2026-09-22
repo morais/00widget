@@ -85,7 +85,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
         scope.launch {
             try {
                 val purchased = app.horizonIap.checkout(sku).getOrElse { throw it }
-                val userId = app.horizonIap.loggedInUserId()
+                val userId = app.horizonAuth.loggedInUserId()
                     ?: throw IllegalStateException("Signed into Meta, but the account id is unreadable.")
                 try {
                     status = api()?.syncMetaSubscription(userId, purchased)
@@ -112,7 +112,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
         error = null
         scope.launch {
             try {
-                val userId = app.horizonIap.loggedInUserId()
+                val userId = app.horizonAuth.loggedInUserId()
                     ?: throw IllegalStateException("Signed into Meta, but the account id is unreadable.")
                 val owned = app.horizonIap.ownedSkus()
                 if (owned.isEmpty()) throw IllegalStateException("No Meta purchases found for this account.")

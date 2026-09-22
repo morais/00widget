@@ -90,6 +90,22 @@ class HorizonAuth(
         }
     }
 
+    /**
+     * App-scoped id of the signed-in Meta account, for session binding and
+     * server sync — never displayed (use `/v1/account` names for that) and
+     * never the cross-app Oculus id. Null when unreadable, which callers
+     * treat as "no information", never as a switch.
+     */
+    suspend fun loggedInUserId(): String? {
+        if (!isAvailable) return null
+        return try {
+            Users().getLoggedInUser().id.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.e(TAG, "loggedInUserId failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        }
+    }
+
     companion object {
         private const val TAG = "HorizonAuth"
     }

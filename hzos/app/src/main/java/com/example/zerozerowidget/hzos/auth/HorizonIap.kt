@@ -5,14 +5,13 @@ import horizon.core.android.common.pagination.ext.initialPage
 import horizon.core.android.common.pagination.ext.nextPage
 import horizon.platform.iap.Iap
 import horizon.platform.iap.IapException
-import horizon.platform.users.Users
 import kotlinx.coroutines.CoroutineScope
 
 /**
  * Thin wrapper over the Horizon Platform SDK In-App Purchase package.
  *
- * Same shape as [HorizonAuth]: the no-arg `Iap()`/`Users()` resolve the
- * shared connection [HorizonAuth.connect] establishes, and everything here
+ * Same shape as [HorizonAuth]: the no-arg `Iap()` resolves the shared
+ * connection [HorizonAuth.connect] establishes, and everything here
  * degrades to null/empty/false when the Platform SDK is absent — the UI
  * then says subscriptions need setup instead of crashing.
  *
@@ -87,17 +86,6 @@ class HorizonIap(
         } catch (e: Exception) {
             Log.e(TAG, "ownedSkus failed: ${e.javaClass.simpleName}: ${e.message}")
             emptySet()
-        }
-    }
-
-    /** App-scoped id of the signed-in Meta account. Null when unreadable. */
-    suspend fun loggedInUserId(): String? {
-        if (!isAvailable) return null
-        return try {
-            Users().getLoggedInUser().id.takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            Log.e(TAG, "loggedInUserId failed: ${e.javaClass.simpleName}: ${e.message}")
-            null
         }
     }
 
