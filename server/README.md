@@ -88,6 +88,8 @@ npx wrangler secret put APNS_TEAM_ID
 npx wrangler secret put APNS_KEY_ID
 npx wrangler secret put APNS_PRIVATE_KEY     # paste the PEM, including \n linebreaks
 npx wrangler secret put APNS_BUNDLE_ID
+npx wrangler secret put META_APP_SECRET
+npx wrangler secret put META_WEBHOOK_VERIFY_TOKEN
 ```
 
 `APNS_ENV` lives in `wrangler.toml` as a plain var (`sandbox` or `production`).
@@ -118,6 +120,45 @@ Use the same `/v1/apple/subscription-notifications` endpoint for both App Store
 Connect notification URLs. If no Sandbox URL is configured, Apple sends both
 environments to the Production URL; the Worker still accepts Sandbox only when
 the opt-in above is enabled.
+
+### Meta Horizon Store subscriptions
+
+Meta subscriptions use the same tenant entitlement and enforcement path as
+App Store subscriptions. Configure the non-secret values in `wrangler.toml`:
+
+```toml
+SUBSCRIPTIONS_ENABLED = "true"
+META_SUBSCRIPTIONS_ENABLED = "true"
+META_APP_ID = "your-meta-app-id"
+META_SUBSCRIPTION_SKU = "com.example.zerozerowidget.subscription"
+```
+
+`META_SUBSCRIPTION_SKU` is the base SKU entered once in the Horizon dashboard.
+The headset may send a term-qualified virtual SKU such as
+`com.example.zerozerowidget.subscription:SUBSCRIPTION__MONTHLY`; the Worker
+validates the suffix and queries Meta with the configured base SKU. Keep
+`META_APP_SECRET` and an independently generated `META_WEBHOOK_VERIFY_TOKEN` as
+Wrangler secrets using the commands above.
+
+In the Meta developer dashboard, register
+`https://<api-host>/v1/meta/subscription-webhooks` as the callback and enter the
+same verify token. Subscribe the app to `subscription_started`,
+`subscription_renewal_success`, `subscription_canceled`,
+`subscription_uncanceled`, and `subscription_expired`. Complete Data Use Checkup
+for User ID, In-App Purchases, and Subscriptions before production release.
+
+After checkout, the Horizon app sends its app-scoped Meta user id and purchased
+SKU to `POST /v1/meta/subscription/sync` using its app credential. The Worker
+does not trust the client purchase result: it queries
+`https://graph.oculus.com/application/subscriptions` with
+`OC|META_APP_ID|META_APP_SECRET`, then stores the verified entitlement. Webhooks
+keep renewals, cancellations, uncancellations, and expiry current while the app
+is closed. Select the tenant in `/admin` to inspect its Meta owner, SKU, term,
+renewal, cancellation, and expiry state.
+
+Turn on `META_SUBSCRIPTIONS_ENABLED` first while leaving
+`SUBSCRIPTION_REQUIRED=false`. Once sync and webhooks are verified in production,
+set `SUBSCRIPTION_REQUIRED=true` to enforce either an Apple or Meta entitlement.
 
 ### API abuse controls
 
@@ -268,10 +309,12 @@ something to integrate against:
   links are driven from the iOS app, on credentials it holds itself. A guest
   token reaches exactly two routes and no others, which is the enforcement; see
   the note on guest links in `AGENTS.md`.
-- `/v1/subscription`, `/v1/subscription/verify`, and
-  `/v1/apple/subscription-notifications`. The first two are the app's StoreKit
-  handshake; the third is Apple's, authenticated by the JWS signature on its
-  body rather than by a credential. No integration calls any of them.
+- `/v1/subscription`, `/v1/subscription/verify`,
+  `/v1/meta/subscription/sync`, `/v1/apple/subscription-notifications`, and
+  `/v1/meta/subscription-webhooks`. These are the iOS and Horizon apps' store
+  handshake plus Apple and Meta lifecycle callbacks. The callbacks authenticate
+  their payloads rather than using a tenant credential. No integration calls
+  any of them.
 - `/v1/actions/:id/run-confirmed`. The app-only counterpart of `run`, requiring
   an app credential *and* the `actions:confirm` scope. It exists so a
   destructive or confirmed action can never be triggered from a widget.

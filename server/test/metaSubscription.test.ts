@@ -44,6 +44,22 @@ async function sync(env: Env, token = "OC-user-token", apiKey = TEST_API_KEY): P
   );
 }
 
+async function syncByUserId(
+  env: Env,
+  userId = "meta-owner-1",
+  sku = `${SKU}:SUBSCRIPTION__MONTHLY`,
+  apiKey = "meta-app-key",
+): Promise<Response> {
+  return (handler.fetch as any)(
+    authedRequest("https://api.test/v1/meta/subscription/sync", {
+      method: "POST",
+      body: JSON.stringify({ userId, sku }),
+    }, apiKey),
+    env,
+    ctx,
+  );
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe("POST /v1/meta/subscription/sync", () => {
@@ -74,6 +90,51 @@ describe("POST /v1/meta/subscription/sync", () => {
     expect(calls[1].searchParams.get("access_token")).toBe("OC|meta-app-123|meta-secret");
     expect(calls[1].searchParams.get("owner_id")).toBe("meta-owner-1");
     expect(calls[1].searchParams.get("skus")).toBe(SKU);
+  });
+
+  it("accepts the Horizon app's app-scoped user id and virtual term SKU", async () => {
+    const env = metaEnv();
+    await seedApiKey(env, "meta-app-key", "test-tenant", "app", "", "", "2099-01-01T00:00:00.000Z", ["read"]);
+    const calls: URL[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      calls.push(new URL(String(input)));
+      return Response.json({ data: [graphRow()] });
+    }));
+
+    const res = await syncByUserId(env);
+
+    expect(res.status).toBe(200);
+    expect((await res.json() as any)).toMatchObject({
+      synced: 1,
+      subscription: { active: true, provider: "meta" },
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].searchParams.get("access_token")).toBe("OC|meta-app-123|meta-secret");
+    expect(calls[0].searchParams.get("owner_id")).toBe("meta-owner-1");
+    expect(calls[0].searchParams.get("skus")).toBe(SKU);
+  });
+
+  it("requires an app credential for the client-supplied Meta user id", async () => {
+    const env = metaEnv();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await syncByUserId(env, "meta-owner-1", `${SKU}:SUBSCRIPTION__MONTHLY`, TEST_API_KEY);
+
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a term SKU outside the configured Meta product", async () => {
+    const env = metaEnv();
+    await seedApiKey(env, "meta-app-key", "test-tenant", "app", "", "", "2099-01-01T00:00:00.000Z", ["read"]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await syncByUserId(env, "meta-owner-1", "attacker.product:SUBSCRIPTION__MONTHLY");
+
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("does not grant access when our Meta app has no matching subscription", async () => {
@@ -131,5 +192,19 @@ describe("POST /v1/meta/subscription/sync", () => {
   it("fails closed when app credentials are missing", async () => {
     const res = await sync(metaEnv({ META_APP_SECRET: undefined }));
     expect(res.status).toBe(503);
+  });
+});
+
+describe("GET /v1/subscription with Meta configured", () => {
+  it("advertises the Meta base SKU without exposing app credentials", async () => {
+    const res = await (handler.fetch as any)(
+      authedRequest("https://api.test/v1/subscription"),
+      metaEnv(),
+      ctx,
+    );
+
+    const body = await res.json() as any;
+    expect(body.providers.meta).toEqual({ enabled: true, sku: SKU });
+    expect(JSON.stringify(body)).not.toContain("meta-secret");
   });
 });

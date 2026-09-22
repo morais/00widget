@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import handler from "../src/index";
 import { ApiScopePresets, createApiKey, listTenants } from "../src/auth";
 import * as storage from "../src/storage";
-import { authedRequest, makeEnv } from "./helpers";
+import { authedRequest, FakeD1, makeEnv } from "./helpers";
 
 const executionCtx = {} as ExecutionContext;
 
@@ -217,6 +217,30 @@ describe("DELETE /v1/account", () => {
       `SELECT tenant_id FROM subscriptions WHERE original_transaction_id = ?`,
     )
       .bind("txn-1")
+      .first<{ tenant_id: string | null }>();
+    expect(row).not.toBeNull();
+    expect(row?.tenant_id).toBeNull();
+  });
+
+  it("detaches a Meta subscription rather than deleting it", async () => {
+    const env = makeEnv();
+    const { device, app } = await session(env);
+    (env.ZW_DB as unknown as FakeD1).seedMetaSubscription({
+      subscriptionId: "meta-subscription-1",
+      ownerId: "meta-owner-1",
+      tenantId: device.tenant.id,
+    });
+
+    await (handler.fetch as any)(
+      authedRequest("https://x/v1/account", { method: "DELETE" }, app.token),
+      env,
+      executionCtx,
+    );
+
+    const row = await env.ZW_DB.prepare(
+      `SELECT tenant_id FROM meta_subscriptions WHERE subscription_id = ?`,
+    )
+      .bind("meta-subscription-1")
       .first<{ tenant_id: string | null }>();
     expect(row).not.toBeNull();
     expect(row?.tenant_id).toBeNull();

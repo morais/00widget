@@ -110,6 +110,15 @@ SUBSCRIPTION_REQUIRED = "false"
 # is honoured separately, with whichever window reaches further winning.
 # SUBSCRIPTION_GRACE_DAYS = "3"
 
+# Meta Horizon Store subscriptions share SUBSCRIPTION_REQUIRED and the same
+# entitlement gate. META_SUBSCRIPTION_SKU is the one base SKU configured in the
+# dashboard; the Horizon client may purchase its generated
+# :SUBSCRIPTION__MONTHLY / :SUBSCRIPTION__ANNUAL variants. META_APP_SECRET and
+# META_WEBHOOK_VERIFY_TOKEN are Wrangler secrets, never plain vars here.
+META_SUBSCRIPTIONS_ENABLED = "false"
+# META_APP_ID = "REPLACE_WITH_META_APP_ID"
+# META_SUBSCRIPTION_SKU = "com.example.zerozerowidget.subscription"
+
 # Where the guest link browser page's "Get 00Widget" button sends someone who
 # does not have the app. Unset means this deployment's own root, which is right
 # when the Worker is all there is; set it when a marketing site sits in front of

@@ -311,6 +311,13 @@ describe("GET /v1/subscription", () => {
     expect(body.required).toBe(false);
     expect(body.productIds).toEqual([MONTHLY, YEARLY]);
     expect(body.acceptedEnvironments).toEqual(["Production"]);
+    expect(body.providers).toEqual({
+      apple: {
+        productIds: [MONTHLY, YEARLY],
+        acceptedEnvironments: ["Production"],
+      },
+      meta: { enabled: false, sku: null },
+    });
   });
 
   it("reports both accepted environments when sandbox testing is enabled", async () => {
@@ -862,7 +869,7 @@ describe("SUBSCRIPTION_REQUIRED enforcement", () => {
     expect(body.code).toBe("subscription_required");
     expect(body.subscription.status).toBe("none");
     // Written to be relayed by an agent to the person who can fix it.
-    expect(body.error).toMatch(/subscribe in the iOS app/);
+    expect(body.error).toMatch(/subscribe in the 00Widget app/);
   });
 
   it("allows a publish from an entitled tenant", async () => {

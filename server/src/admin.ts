@@ -30,6 +30,10 @@ import {
   listSubscriptionRowsForTenant,
   type SubscriptionAdminRow,
 } from "./subscription";
+import {
+  listMetaSubscriptionRowsForTenant,
+  type MetaSubscriptionAdminRow,
+} from "./metaSubscription";
 
 
 
@@ -273,6 +277,7 @@ function renderDashboard(d: DashboardData): string {
 
 interface TenantRows {
   subscriptions: SubscriptionAdminRow[];
+  metaSubscriptions: MetaSubscriptionAdminRow[];
   cards: storage.ScopedEntry<unknown>[];
   devices: storage.ScopedEntry<unknown>[];
   widgetTokens: storage.ScopedEntry<storage.WidgetTokenRecord>[];
@@ -283,8 +288,9 @@ interface TenantRows {
 }
 
 async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
-  const [subscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits] = await Promise.all([
+  const [subscriptions, metaSubscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits] = await Promise.all([
     listSubscriptionRowsForTenant(env, tenantId),
+    listMetaSubscriptionRowsForTenant(env, tenantId),
     storage.listTenantCards(env, tenantId),
     storage.listTenantDevices(env, tenantId),
     storage.listTenantWidgetTokens(env, tenantId),
@@ -293,12 +299,13 @@ async function loadTenantRows(env: Env, tenantId: string): Promise<TenantRows> {
     storage.listTenantStartTokens(env, tenantId),
     listTenantRateLimitBuckets(env, tenantId),
   ]);
-  return { subscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits };
+  return { subscriptions, metaSubscriptions, cards, devices, widgetTokens, activities, pending, startTokens, rateLimits };
 }
 
 function emptyTenantRows(): TenantRows {
   return {
     subscriptions: [],
+    metaSubscriptions: [],
     cards: [],
     devices: [],
     widgetTokens: [],
@@ -358,7 +365,7 @@ function renderTenantDetail(d: DashboardData): string {
       </tbody></table>
     </section>
     ${renderTenantApiKeysSection(d.selectedTenant, tenantApiKeys, d.session.csrf)}
-    ${renderSubscriptionsSection(d.rows.subscriptions)}
+    ${renderSubscriptionsSection(d.rows.subscriptions, d.rows.metaSubscriptions)}
     ${renderCardsSection(d.selectedTenant.id, d.rows.cards, d.session.csrf)}
     ${renderTokenSection("Devices", d.rows.devices, ["device id", "apnsDeviceToken", "appVersion", "platform", "updatedAt"])}
     ${renderWidgetTokensSection(d.selectedTenant.id, d.rows.widgetTokens, d.session.csrf)}
@@ -369,11 +376,14 @@ function renderTenantDetail(d: DashboardData): string {
   `;
 }
 
-function renderSubscriptionsSection(rows: SubscriptionAdminRow[]): string {
-  if (rows.length === 0) {
-    return section("Subscriptions", `<p class="empty">No App Store subscriptions linked.</p>`);
+function renderSubscriptionsSection(
+  appleRows: SubscriptionAdminRow[],
+  metaRows: MetaSubscriptionAdminRow[],
+): string {
+  if (appleRows.length === 0 && metaRows.length === 0) {
+    return section("Subscriptions", `<p class="empty">No store subscriptions linked.</p>`);
   }
-  const body = rows.map((row) => `<tr>
+  const appleBody = appleRows.map((row) => `<tr>
       <td><code>${esc(shortHash(row.original_transaction_id))}</code></td>
       <td>${esc(row.environment)}</td>
       <td><code>${esc(row.product_id)}</code></td>
@@ -385,9 +395,27 @@ function renderSubscriptionsSection(rows: SubscriptionAdminRow[]): string {
       <td class="ts">${esc(formatTimestamp(row.revoked_at_ms))}</td>
       <td class="ts">${esc(row.updated_at)}</td>
     </tr>`).join("");
+  const metaBody = metaRows.map((row) => `<tr>
+      <td><code>${esc(shortHash(row.subscription_id))}</code></td>
+      <td><code>${esc(shortHash(row.owner_id))}</code></td>
+      <td><code>${esc(row.sku)}</code></td>
+      <td>${row.is_active === 1 ? "active" : "expired"}</td>
+      <td>${row.is_trial === 1 ? "yes" : "no"}</td>
+      <td>${row.cancellation_ms === null ? "yes" : "no"}</td>
+      <td>${esc(row.current_term ?? "")}</td>
+      <td class="ts">${esc(formatTimestamp(row.period_end_ms))}</td>
+      <td class="ts">${esc(formatTimestamp(row.next_renewal_ms))}</td>
+      <td class="ts">${esc(row.updated_at)}</td>
+    </tr>`).join("");
+  const appleTable = appleRows.length === 0 ? "" : `
+    <h3>App Store</h3>
+    <table><thead><tr><th>original transaction</th><th>environment</th><th>product</th><th>stored status</th><th>trial</th><th>auto renew</th><th>expires</th><th>billing grace</th><th>revoked</th><th>updated</th></tr></thead><tbody>${appleBody}</tbody></table>`;
+  const metaTable = metaRows.length === 0 ? "" : `
+    <h3>Meta Horizon Store</h3>
+    <table><thead><tr><th>subscription</th><th>owner</th><th>SKU</th><th>stored status</th><th>trial</th><th>auto renew</th><th>term</th><th>expires</th><th>next renewal</th><th>updated</th></tr></thead><tbody>${metaBody}</tbody></table>`;
   return section(
-    `Subscriptions <span class="count">${rows.length}</span>`,
-    `<table><thead><tr><th>original transaction</th><th>environment</th><th>product</th><th>stored status</th><th>trial</th><th>auto renew</th><th>expires</th><th>billing grace</th><th>revoked</th><th>updated</th></tr></thead><tbody>${body}</tbody></table>`,
+    `Subscriptions <span class="count">${appleRows.length + metaRows.length}</span>`,
+    `${appleTable}${metaTable}`,
   );
 }
 

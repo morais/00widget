@@ -17,6 +17,11 @@ export interface MetaSubscriptionRow {
   last_event_ms: number;
 }
 
+export interface MetaSubscriptionAdminRow extends MetaSubscriptionRow {
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MetaSubscriptionSnapshot {
   subscriptionId: string;
   ownerId: string;
@@ -96,6 +101,23 @@ export async function readMetaSubscriptionState(
   tenantId: string,
 ): Promise<SubscriptionState> {
   return evaluateMetaSubscription(await readMetaSubscriptionRow(env, tenantId));
+}
+
+export async function listMetaSubscriptionRowsForTenant(
+  env: Env,
+  tenantId: string,
+): Promise<MetaSubscriptionAdminRow[]> {
+  const rows = await env.ZW_DB.prepare(
+    `SELECT subscription_id, owner_id, tenant_id, sku, is_active, is_trial,
+            period_start_ms, period_end_ms, cancellation_ms, next_renewal_ms,
+            current_term, next_term, last_event_ms, created_at, updated_at
+     FROM meta_subscriptions
+     WHERE tenant_id = ?
+     ORDER BY is_active DESC, COALESCE(period_end_ms, 0) DESC`,
+  )
+    .bind(tenantId)
+    .all<MetaSubscriptionAdminRow>();
+  return rows.results;
 }
 
 export function parseMetaSubscriptionSnapshot(

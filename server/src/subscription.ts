@@ -5,7 +5,11 @@ import { parseJson } from "./cards";
 import { badRequest, json, notFound } from "./http";
 import { enforceRateLimits } from "./rateLimit";
 import { isReviewTenant } from "./reviewAuth";
-import { readMetaSubscriptionState } from "./metaSubscription";
+import {
+  configuredMetaSubscriptionSku,
+  isMetaSubscriptionsEnabled,
+  readMetaSubscriptionState,
+} from "./metaSubscription";
 import { RequestBodyLimits, type Env } from "./types";
 
 // App Store subscription entitlements.
@@ -522,8 +526,8 @@ export function subscriptionRequiredResponse(state: SubscriptionState): Response
 
 export function subscriptionRequiredMessage(state: SubscriptionState): string {
   return state.status === "none"
-    ? "this account has no active 00Widget subscription — subscribe in the iOS app to publish"
-    : `this account's 00Widget subscription is ${state.status} — renew in the iOS app to publish`;
+    ? "this account has no active 00Widget subscription — subscribe in the 00Widget app to publish"
+    : `this account's 00Widget subscription is ${state.status} — renew in the 00Widget app to publish`;
 }
 
 // ---------------------------------------------------------------------------
@@ -613,6 +617,16 @@ export async function getSubscription(
     required: isSubscriptionRequired(env),
     productIds: configuredProductIds(env),
     acceptedEnvironments: configuredSubscriptionEnvironments(env),
+    providers: {
+      apple: {
+        productIds: configuredProductIds(env),
+        acceptedEnvironments: configuredSubscriptionEnvironments(env),
+      },
+      meta: {
+        enabled: isMetaSubscriptionsEnabled(env),
+        sku: configuredMetaSubscriptionSku(env),
+      },
+    },
   });
 }
 

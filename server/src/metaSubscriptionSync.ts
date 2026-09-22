@@ -51,18 +51,34 @@ export async function syncMetaSubscription(
     return json({ error: "Meta subscriptions are not configured" }, 503);
   }
 
-  let body: { userAccessToken?: unknown };
+  let body: { userAccessToken?: unknown; userId?: unknown; sku?: unknown };
   try {
     body = (await parseJson(req, RequestBodyLimits.metaSubscriptionSync)) as {
       userAccessToken?: unknown;
+      userId?: unknown;
+      sku?: unknown;
     };
   } catch {
     return badRequest("missing JSON body");
   }
-  const userAccessToken = body.userAccessToken;
-  if (typeof userAccessToken !== "string" || !userAccessToken.trim()
-      || userAccessToken.length > 16 * 1024) {
-    return badRequest("userAccessToken must be a non-empty Meta access token");
+  const userAccessToken = typeof body.userAccessToken === "string"
+    ? body.userAccessToken.trim()
+    : "";
+  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+  if (!userAccessToken && !userId) {
+    return badRequest("userId or userAccessToken is required");
+  }
+  if (userAccessToken.length > 16 * 1024) {
+    return badRequest("userAccessToken is too long");
+  }
+  if (userId && (!/^[A-Za-z0-9_-]{1,128}$/.test(userId))) {
+    return badRequest("userId is invalid");
+  }
+  if (userId && auth.credentialKind !== "app") {
+    return json({ error: "app credential required" }, 403);
+  }
+  if (userId && !isConfiguredMetaSku(body.sku, sku)) {
+    return badRequest("sku is not a configured Meta subscription product");
   }
 
   const limited = await enforceRateLimits(env, [
@@ -71,23 +87,26 @@ export async function syncMetaSubscription(
   if (limited) return limited;
 
   try {
-    // First use the user token to resolve its app-scoped owner id. Then query
-    // again with our own app credentials. That second call is the proof that
-    // this owner holds a subscription in *this* Meta app; accepting the first
-    // result directly would trust a token minted for an attacker's app with a
-    // coincidentally identical SKU.
-    const userRows = await queryMetaSubscriptions(userAccessToken.trim(), { sku }, false);
-    const ownerIds = new Set(userRows.map(ownerIdFromGraphRow).filter(Boolean));
-    if (ownerIds.size === 0) {
-      return json({
-        subscription: await readSubscriptionState(env, auth.tenantId),
-        synced: 0,
-      });
+    // Horizon sends the app-scoped Meta user id using an app credential. A
+    // user access token is also accepted for older clients; in that case it is
+    // used only to discover the owner id. The authoritative lookup is always
+    // repeated with our own app credentials, which proves the subscription
+    // belongs to this Meta application.
+    let ownerId = userId;
+    if (!ownerId) {
+      const userRows = await queryMetaSubscriptions(userAccessToken, { sku }, false);
+      const ownerIds = new Set(userRows.map(ownerIdFromGraphRow).filter(Boolean));
+      if (ownerIds.size === 0) {
+        return json({
+          subscription: await readSubscriptionState(env, auth.tenantId),
+          synced: 0,
+        });
+      }
+      if (ownerIds.size !== 1) {
+        throw new MetaSubscriptionRejected("Meta returned subscriptions for several owners");
+      }
+      ownerId = [...ownerIds][0]!;
     }
-    if (ownerIds.size !== 1) {
-      throw new MetaSubscriptionRejected("Meta returned subscriptions for several owners");
-    }
-    const ownerId = [...ownerIds][0]!;
     const appAccessToken = `OC|${appId}|${appSecret}`;
     const rows = await queryMetaSubscriptions(appAccessToken, { ownerId, sku }, true);
     const fetchedAt = Date.now();
@@ -111,6 +130,22 @@ export async function syncMetaSubscription(
     }
     throw err;
   }
+}
+
+function isConfiguredMetaSku(value: unknown, configuredSku: string): boolean {
+  if (typeof value !== "string") return false;
+  const requested = value.trim();
+  if (requested === configuredSku) return true;
+  const prefix = `${configuredSku}:SUBSCRIPTION__`;
+  if (!requested.startsWith(prefix)) return false;
+  return new Set([
+    "WEEKLY",
+    "BIWEEKLY",
+    "MONTHLY",
+    "QUARTERLY",
+    "SEMIANNUAL",
+    "ANNUAL",
+  ]).has(requested.slice(prefix.length));
 }
 
 async function queryMetaSubscriptions(

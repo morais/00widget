@@ -389,6 +389,7 @@ const ActivitiesOutput = z.object({ activities: z.array(LiveActivitySessionSchem
 const SubscriptionStateOutputSchema = z.object({
   status: z.enum(["active", "trial", "grace", "expired", "revoked", "none"]),
   active: z.boolean(),
+  provider: z.enum(["apple", "meta"]).optional(),
   productId: z.string().optional(),
   expiresAt: z.string().optional(),
   autoRenew: z.boolean().optional(),

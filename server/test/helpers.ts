@@ -1317,6 +1317,15 @@ export class FakeD1 {
         })
         .slice(0, 1);
     }
+    if (normalized.startsWith("SELECT subscription_id, owner_id, tenant_id, sku, is_active, is_trial, period_start_ms, period_end_ms, cancellation_ms, next_renewal_ms, current_term, next_term, last_event_ms, created_at, updated_at FROM meta_subscriptions WHERE tenant_id = ?")) {
+      const [tenant_id] = values.map(String);
+      return [...this.metaSubscriptions.values()]
+        .filter((row) => row.tenant_id === tenant_id)
+        .sort((a, b) => {
+          const active = Number(b.is_active) - Number(a.is_active);
+          return active || Number(b.period_end_ms ?? 0) - Number(a.period_end_ms ?? 0);
+        });
+    }
     if (normalized === "SELECT DISTINCT tenant_id FROM meta_subscriptions WHERE owner_id = ? AND tenant_id IS NOT NULL") {
       const [owner_id] = values.map(String);
       const tenantIds = new Set(
@@ -1338,6 +1347,11 @@ export class FakeD1 {
     if (normalized === "SELECT tenant_id FROM subscriptions WHERE original_transaction_id = ?") {
       const [id] = values.map(String);
       const row = this.subscriptions.get(id);
+      return row ? [{ tenant_id: row.tenant_id ?? null }] : [];
+    }
+    if (normalized === "SELECT tenant_id FROM meta_subscriptions WHERE subscription_id = ?") {
+      const [id] = values.map(String);
+      const row = this.metaSubscriptions.get(id);
       return row ? [{ tenant_id: row.tenant_id ?? null }] : [];
     }
     if (normalized === "SELECT api_keys.id, api_keys.tenant_id, tenants.owner_email, api_keys.last_used_at, api_keys.kind, api_keys.session_id, api_keys.device_id, api_keys.expires_at, api_keys.scopes_json, api_keys.renew_seconds, api_keys.resource_kind, api_keys.resource_id FROM api_keys JOIN tenants ON tenants.id = api_keys.tenant_id WHERE api_keys.token_hash = ? AND api_keys.revoked_at IS NULL AND tenants.disabled_at IS NULL") {

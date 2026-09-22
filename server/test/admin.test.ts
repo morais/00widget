@@ -848,6 +848,32 @@ describe("admin routes (no Apple call required)", () => {
     expect(html).toContain("sandbox-");
   });
 
+  it("/admin shows linked Meta Horizon Store subscriptions", async () => {
+    const env = adminEnv();
+    await seedApiKey(env, "tenant-a-key", "tenant-a");
+    (env.ZW_DB as unknown as FakeD1).seedMetaSubscription({
+      subscriptionId: "meta-subscription-123456789",
+      ownerId: "meta-owner-123456789",
+      tenantId: "tenant-a",
+      sku: "com.example.zerozerowidget.subscription",
+      currentTerm: "MONTHLY",
+    });
+
+    const { cookie } = await adminCookie(env);
+    const selected = await (handler.fetch as any)(
+      new Request("https://x/admin?tenant=tenant-a", { headers: { cookie } }),
+      env,
+      ctx,
+    );
+    const html = await selected.text();
+
+    expect(html).toContain("Meta Horizon Store");
+    expect(html).toContain("com.example.zerozerowidget.subscription");
+    expect(html).toContain("MONTHLY");
+    expect(html).toContain("meta-sub");
+    expect(html).toContain("meta-own");
+  });
+
   it("/admin selected tenant can delete cards, widget tokens, and live activity state", async () => {
     const env = adminEnv();
     await seedApiKey(env, "tenant-a-key", "tenant-a");
@@ -1239,4 +1265,3 @@ describe("admin routes (no Apple call required)", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
-
