@@ -141,6 +141,9 @@ private fun SettingsRoot(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Section title like every other card on this screen —
+                // "Server", as on iOS.
+                Text("Server", style = MaterialTheme.typography.titleSmall)
                 if (!signedIn) {
                     PhoneSignInSection(
                         app = app,
