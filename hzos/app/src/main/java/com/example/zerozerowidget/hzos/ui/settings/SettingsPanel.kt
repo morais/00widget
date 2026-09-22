@@ -161,7 +161,10 @@ private fun SettingsRoot(
                         onClick = {
                             scope.launch {
                                 app.connectionStore.clear()
-                                message = "Signed out. Panels show the not-connected state."
+                                // Back to the signed-out rows silently: the
+                                // sign-in section replacing this button says
+                                // everything about the new state.
+                                message = null
                             }
                         },
                     ) { Text("Sign out") }
