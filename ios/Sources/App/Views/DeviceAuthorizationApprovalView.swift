@@ -12,79 +12,99 @@ struct DeviceAuthorizationApprovalView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Image(systemName: connected ? "checkmark.circle.fill" : "visionpro")
-                    .font(.system(size: 52))
-                    .foregroundStyle(connected ? Color.green : Color.accentColor)
-                    .accessibilityHidden(true)
+            // A consent screen has to show the sentence saying what is being
+            // granted. At a `.medium` detent this column is about 40 points
+            // too tall at standard type, and a `VStack` that overflows does
+            // not scroll — it truncates, so the sentence arrived as "This lets
+            // the headset read your dashboard…" with the Connect button still
+            // sitting under it. Nothing in a build or the suite sees that.
+            //
+            // So the sheet takes the full height and the column is centred in
+            // it; at accessibility sizes the column outgrows even that and the
+            // scroll view carries the rest rather than clipping it.
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: 24) {
+                        Image(systemName: connected ? "checkmark.circle.fill" : "visionpro")
+                            .font(.system(size: 52))
+                            .foregroundStyle(connected ? Color.green : Color.accentColor)
+                            .accessibilityHidden(true)
 
-                VStack(spacing: 8) {
-                    Text(connected ? "Headset connected" : "Connect Horizon OS?")
-                        .font(.title2.bold())
-                    Text(userCode)
-                        .font(.title3.monospaced().weight(.semibold))
-                        .textSelection(.enabled)
-                        .accessibilityLabel("Connection code \(userCode)")
-                }
-
-                if connected {
-                    Text("Return to your headset to finish signing in.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                } else if env.apiKey.isEmpty {
-                    Text("Sign in with the Apple Account you use for 00Widget. After signing in, you’ll confirm this headset separately.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-
-                    SignInWithAppleButton(.signIn) { request in
-                        let raw = Self.randomNonceString()
-                        pendingAppleRawNonce = raw
-                        request.requestedScopes = [.email]
-                        request.nonce = Self.sha256Hex(raw)
-                    } onCompletion: { result in
-                        handleAppleSignIn(result)
-                    }
-                    .frame(height: 48)
-                    .disabled(env.appleLoginInProgress)
-                } else {
-                    if let email = env.appleLoginEmail {
-                        Text("Signed in as \(email)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("This lets the headset read your dashboard and run safe actions. It cannot publish widgets or manage your account.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-
-                    Button {
-                        Task {
-                            connected = await env.approveDeviceAuthorization(userCode: userCode)
+                        VStack(spacing: 8) {
+                            Text(connected ? "Headset connected" : "Connect Horizon OS?")
+                                .font(.title2.bold())
+                            Text(userCode)
+                                .font(.title3.monospaced().weight(.semibold))
+                                .textSelection(.enabled)
+                                .accessibilityLabel("Connection code \(userCode)")
                         }
-                    } label: {
-                        if env.deviceAuthorizationInProgress {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
+
+                        if connected {
+                            Text("Return to your headset to finish signing in.")
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+                            Button("Done") { dismiss() }
+                                .buttonStyle(.borderedProminent)
+                        } else if env.apiKey.isEmpty {
+                            Text("Sign in with the Apple Account you use for 00Widget. After signing in, you’ll confirm this headset separately.")
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+
+                            SignInWithAppleButton(.signIn) { request in
+                                let raw = Self.randomNonceString()
+                                pendingAppleRawNonce = raw
+                                request.requestedScopes = [.email]
+                                request.nonce = Self.sha256Hex(raw)
+                            } onCompletion: { result in
+                                handleAppleSignIn(result)
+                            }
+                            .frame(height: 48)
+                            .disabled(env.appleLoginInProgress)
                         } else {
-                            Text("Connect headset")
-                                .frame(maxWidth: .infinity)
+                            if let email = env.appleLoginEmail {
+                                Text("Signed in as \(email)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            // Word for word what the browser fallback says in
+                            // `renderDeviceApproval`; the two are one consent
+                            // string for one grant. The account half is not
+                            // decoration: the credential is minted `kind:
+                            // "app"`, which is the whole gate on the app-only
+                            // account routes, deleting the account included.
+                            Text("This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account. It cannot publish widgets.")
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                Task {
+                                    connected = await env.approveDeviceAuthorization(userCode: userCode)
+                                }
+                            } label: {
+                                if env.deviceAuthorizationInProgress {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
+                                } else {
+                                    Text("Connect headset")
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(env.deviceAuthorizationInProgress)
+                        }
+
+                        if let error = env.appleLoginError ?? env.deviceAuthorizationError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(env.deviceAuthorizationInProgress)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
                 }
-
-                if let error = env.appleLoginError ?? env.deviceAuthorizationError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                }
-
-                Spacer(minLength: 0)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .padding(24)
             .navigationTitle("00Widget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -95,7 +115,7 @@ struct DeviceAuthorizationApprovalView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .interactiveDismissDisabled(env.deviceAuthorizationInProgress)
     }
 

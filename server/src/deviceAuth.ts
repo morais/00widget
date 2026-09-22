@@ -155,6 +155,15 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       // Horizon is a first-party 00Widget app, not a publisher integration.
       // Keep its capabilities narrowed with the device scope preset while
       // identifying the credential as app-owned for app-only account routes.
+      //
+      // `kind` is not narrowed by `scopes`: the app-only account routes in
+      // index.ts pass a `null` requiredScope, so being kind `app` is the
+      // whole of their gate. This credential therefore also reaches
+      // GET /v1/account, the two mcp-connections routes, agent-token
+      // rotation, device approval, and DELETE /v1/account — the last three
+      // of which Horizon never calls. Both consent strings (the approval
+      // page below and DeviceAuthorizationApprovalView on iOS) describe
+      // that whole set and have to move with it.
       kind: "app",
       purpose: "device",
       scopes: ApiScopePresets.device,
@@ -246,7 +255,7 @@ export async function renderDeviceApproval(req: Request, env: Env): Promise<Resp
     `<header><h1>00Widget · Connect Horizon OS</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section class="login">
        <h2>Connect the headset showing <code>${esc(displayCode)}</code>?</h2>
-       <p class="muted">It will be able to read your dashboard, run its safe actions, and use app-only account features. It cannot publish.</p>
+       <p class="muted">This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account. It cannot publish widgets.</p>
        <form method="post" action="/app/device?code=${encodeURIComponent(displayCode)}">
          <input type="hidden" name="csrf" value="${esc(session.csrf)}">
          <input type="hidden" name="code" value="${esc(displayCode)}">
