@@ -62,7 +62,7 @@ import kotlinx.coroutines.launch
 
 private enum class SignInPhase { IDLE, REQUESTING, WAITING }
 
-private enum class SettingsDestination { ROOT, AGENT, DEVELOPER }
+private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION }
 
 /**
  * Settings is one panel with drill-in destinations, not separate shell
@@ -82,6 +82,7 @@ fun SettingsPanel(
         SettingsDestination.ROOT -> "Settings"
         SettingsDestination.AGENT -> "Connect an agent"
         SettingsDestination.DEVELOPER -> "Developer"
+        SettingsDestination.SUBSCRIPTION -> "Subscription"
     }
     // A dashboard "Sign in" press lands here mid-flow: come back to the
     // root where the sign-in section lives, wherever the panel was left.
@@ -118,12 +119,14 @@ fun SettingsPanel(
                 app = app,
                 onOpenAgent = { destination = SettingsDestination.AGENT },
                 onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
+                onOpenSubscription = { destination = SettingsDestination.SUBSCRIPTION },
                 onSendAuthUrl = onSendAuthUrl,
                 signInRequest = signInRequest,
                 onSignInRequestConsumed = onSignInRequestConsumed,
             )
             SettingsDestination.AGENT -> AgentConnectPanel(app = app)
             SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
+            SettingsDestination.SUBSCRIPTION -> SubscriptionSection(app = app)
         }
     }
 }
@@ -133,6 +136,7 @@ private fun SettingsRoot(
     app: ZeroZeroWidgetApp,
     onOpenAgent: () -> Unit,
     onOpenDeveloper: () -> Unit,
+    onOpenSubscription: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
     onSignInRequestConsumed: () -> Unit = {},
@@ -166,7 +170,16 @@ private fun SettingsRoot(
                         onSignInRequestConsumed = onSignInRequestConsumed,
                     )
                 } else {
-                    AccountSection(app = app)
+                    AccountSection(
+                        app = app,
+                        // Purchase flow lives behind the build flag; without
+                        // it the status row is display-only, as before.
+                        onOpenSubscription = if (com.example.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
+                            onOpenSubscription
+                        } else {
+                            null
+                        },
+                    )
                 }
 
                 if (signedIn) {
@@ -182,12 +195,6 @@ private fun SettingsRoot(
         }
 
         Spacer(Modifier.height(4.dp))
-        // Gated at build time: ordinary builds neither show nor link the
-        // purchase flow, mirroring iOS ZW_SUBSCRIPTIONS_ENABLED.
-        if (signedIn && com.example.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
-            SubscriptionSection(app = app)
-            Spacer(Modifier.height(4.dp))
-        }
         AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
         AboutSection(onOpenDeveloper = onOpenDeveloper)
@@ -199,10 +206,14 @@ private fun SettingsRoot(
  * with nothing cached to show, so the server is the source of truth.
  * Email like iOS, plus the subscription status beside it when the
  * deployment sells any — with subscriptions off the server answers 404
- * and the row stays away. Anything failing degrades to the plain row.
+ * and the row stays away. The status row doubles as the doorway to the
+ * purchase screen while a purchase flow is compiled in. Anything failing degrades to the plain row.
  */
 @Composable
-private fun AccountSection(app: ZeroZeroWidgetApp) {
+private fun AccountSection(
+    app: ZeroZeroWidgetApp,
+    onOpenSubscription: (() -> Unit)? = null,
+) {
     var email by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var subscription by remember { mutableStateOf<SubscriptionState?>(null) }
@@ -244,7 +255,17 @@ private fun AccountSection(app: ZeroZeroWidgetApp) {
             }
         }
         if (subscriptionAnswered && subscription != null) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Doorway to the purchase screen when the build sells anything,
+            // a plain status row otherwise — like iOS, where Subscription
+            // is a NavigationLink only with the flag on.
+            val rowModifier = if (onOpenSubscription != null) {
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenSubscription)
+            } else {
+                Modifier.fillMaxWidth()
+            }
+            Row(rowModifier, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Subscription",
                     style = MaterialTheme.typography.bodyMedium,
@@ -259,6 +280,14 @@ private fun AccountSection(app: ZeroZeroWidgetApp) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
+                if (onOpenSubscription != null) {
+                    Text(
+                        ">",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
             }
         }
     }
