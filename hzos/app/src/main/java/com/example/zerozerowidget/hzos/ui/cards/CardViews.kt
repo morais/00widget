@@ -969,10 +969,11 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
 }
 
 /**
- * Delete affordance shared by card and activity detail panels. Samples
- * always read "Remove sample" (local removal); server items use the
- * caller's label ("Delete", "End activity"). One place owns the wording
- * so the two panels cannot drift apart.
+ * Delete affordance shared by card and activity detail panels. Samples read
+ * "Remove sample" — unless indicators are hidden, in which case the card
+ * plays real down to the Delete label. Either way removal itself stays
+ * local for samples (the caller routes it); only the label changes, so a
+ * hidden-indicators deck is never left with an unremovable card.
  */
 @Composable
 fun SampleAwareDeleteRow(
@@ -985,7 +986,11 @@ fun SampleAwareDeleteRow(
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     DeleteRow(
-        label = if (isSample) "Remove sample" else serverLabel,
+        label = if (isSample && !com.example.zerozerowidget.hzos.ui.LocalHideSampleIndicators.current) {
+            "Remove sample"
+        } else {
+            serverLabel
+        },
         busy = busy,
         error = error,
         onDelete = onDelete,

@@ -176,8 +176,10 @@ fun DashboardPanel(
                             actionSlot = {
                                 // Sample cards are local demos: their buttons
                                 // address nothing, so they don't run — but
-                                // only say so when buttons exist at all.
-                                if (isSample) {
+                                // only say so when buttons exist at all. With
+                                // indicators hidden the card plays real: real
+                                // buttons that fail honestly server-side.
+                                if (isSample && !hideIndicators) {
                                     if (!card.actions.isNullOrEmpty()) {
                                         Text(
                                             "Demo card — buttons don't run on samples.",
@@ -396,7 +398,7 @@ fun CardDetailPanel(
             }
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            if (isSample) {
+            if (isSample && !hideIndicators) {
                 if (!card.actions.isNullOrEmpty()) {
                     Text(
                         "Demo card — buttons don't run on samples.",
