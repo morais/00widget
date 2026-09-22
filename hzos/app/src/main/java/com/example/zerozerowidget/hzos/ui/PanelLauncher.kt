@@ -30,6 +30,19 @@ fun Context.openSettingsPanel() {
     )
 }
 
+/**
+ * Dashboard "Sign in": opens settings already asking, so the panel
+ * returns to the root destination and starts the device flow on arrival.
+ */
+fun Context.openSettingsPanelAndSignIn() {
+    startActivity(
+        Intent(this, SettingsActivity::class.java).apply {
+            putExtra(SettingsActivity.EXTRA_AUTO_SIGN_IN, true)
+            addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+        },
+    )
+}
+
 /** One card or activity detail per pop-out: MULTIPLE_TASK gives every pop-out its own panel. */
 fun Context.openDetailPanel(cardId: String) {
     startActivity(

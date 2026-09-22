@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +64,7 @@ import com.example.zerozerowidget.hzos.ui.cards.StatusDot
 import com.example.zerozerowidget.hzos.ui.cards.activityTint
 import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.openDeepLink
+import com.example.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
 import com.example.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.launch
 
@@ -128,16 +130,10 @@ fun DashboardPanel(
         val nothingToShow = visible.isEmpty() && visibleActivities.isEmpty()
         when {
             !state.isConfigured && nothingToShow -> {
-                Text(
-                    "Not connected. Sign in from the Connection panel — " +
-                        "or explore with demo data, no account needed.",
-                    style = MaterialTheme.typography.bodyMedium,
+                WelcomePanel(
+                    onSignIn = { context.openSettingsPanelAndSignIn() },
+                    onTryDemo = { app.sampleStore.generateCards() },
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpenSettings) { Text("Open Connection") }
-                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
-                }
             }
             state.error != null && nothingToShow -> {
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
@@ -457,9 +453,56 @@ fun CardDetailPanel(
     }
 }
 
+/**
+ * First-run face of the app: signed out with nothing cached, the panel is
+ * an empty window, so say what 00Widget is and offer the two ways in —
+ * sign in, or look around with on-device demo data. Fills the panel so
+ * the empty state reads as a screen, not a gap.
+ */
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
+private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(vertical = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "00Widget",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Widgets for all your agents.",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Your agents publish cards and Live Activities here — builds, " +
+                "deploys, balances, queues — floating around you while you work.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(0.85f),
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(onClick = onSignIn) { Text("Sign in") }
+        Spacer(Modifier.height(8.dp))
+        FilledTonalButton(onClick = onTryDemo) { Text("Try demo data") }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Demo data never leaves this device. No account needed to look around.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {    Text(
         text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurface,

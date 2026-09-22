@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import com.example.zerozerowidget.hzos.ui.settings.SettingsPanel
 import com.example.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
 import com.example.zerozerowidget.hzos.ui.trackPanelTransparency
@@ -14,7 +17,18 @@ import kotlinx.coroutines.launch
 
 /** Connection panel: phone sign-in + manual URL/key entry. Singleton. */
 class SettingsActivity : ComponentActivity() {
+    companion object {
+        /**
+         * Open already asking: the panel returns to the root destination
+         * and the sign-in section kicks its device flow without another
+         * tap. Each arrival bumps [signInRequest], so a repeat press
+         * while the panel is open starts the flow again.
+         */
+        const val EXTRA_AUTO_SIGN_IN = "extra_auto_sign_in"
+    }
+
     private var pendingSendCallback: ((Boolean) -> Unit)? = null
+    private var signInRequest by mutableIntStateOf(0)
 
     private val sendAuthLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -26,6 +40,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent.getBooleanExtra(EXTRA_AUTO_SIGN_IN, false)) signInRequest++
         val app = application as ZeroZeroWidgetApp
         trackPanelTransparency(app)
         setContent {
@@ -36,9 +51,18 @@ class SettingsActivity : ComponentActivity() {
                     onSendAuthUrl = { authUrl, onSent ->
                         sendAuthUrl(authUrl, onSent)
                     },
+                    signInRequest = signInRequest,
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // singleTask reuses the open panel: a fresh request still has to
+        // reach the composed screen, which it does as state.
+        if (intent.getBooleanExtra(EXTRA_AUTO_SIGN_IN, false)) signInRequest++
     }
 
     private fun sendAuthUrl(authUrl: String, onSent: (Boolean) -> Unit) {

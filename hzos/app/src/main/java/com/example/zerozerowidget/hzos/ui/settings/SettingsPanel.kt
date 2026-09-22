@@ -69,12 +69,18 @@ fun SettingsPanel(
     app: ZeroZeroWidgetApp,
     onClose: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
+    signInRequest: Int = 0,
 ) {
     var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
     val title = when (destination) {
         SettingsDestination.ROOT -> "Settings"
         SettingsDestination.AGENT -> "Connect an agent"
         SettingsDestination.DEVELOPER -> "Developer"
+    }
+    // A dashboard "Sign in" press lands here mid-flow: come back to the
+    // root where the sign-in section lives, wherever the panel was left.
+    LaunchedEffect(signInRequest) {
+        if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -101,6 +107,7 @@ fun SettingsPanel(
                 onOpenAgent = { destination = SettingsDestination.AGENT },
                 onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
                 onSendAuthUrl = onSendAuthUrl,
+                signInRequest = signInRequest,
             )
             SettingsDestination.AGENT -> AgentConnectPanel(app = app)
             SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
@@ -114,6 +121,7 @@ private fun SettingsRoot(
     onOpenAgent: () -> Unit,
     onOpenDeveloper: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
+    signInRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
@@ -139,6 +147,7 @@ private fun SettingsRoot(
                                 message = "Connected — dashboard is refreshing."
                             }
                         },
+                        signInRequest = signInRequest,
                     )
                 } else {
                     // Signed in is one row. The server address lives on the
@@ -499,6 +508,7 @@ private fun PhoneSignInSection(
     app: ZeroZeroWidgetApp,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     onSignedIn: (baseUrl: String, token: String) -> Unit,
+    signInRequest: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf(SignInPhase.IDLE) }
@@ -514,27 +524,12 @@ private fun PhoneSignInSection(
         phase = SignInPhase.IDLE
     }
 
-    if (!app.horizonAuth.isAvailable) {
-        Text(
-            "Phone sign-in needs a Horizon Platform app ID " +
-                "(`platformAppId` in hzos/local.properties).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        return
-    }
-
-    when (phase) {
-        SignInPhase.IDLE -> {
-            error?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-            Button(
-                onClick = {
-                    error = null
-                    phase = SignInPhase.REQUESTING
-                    pollJob = scope.launch {
-                        try {
+    fun start() {
+        if (phase != SignInPhase.IDLE) return
+        error = null
+        phase = SignInPhase.REQUESTING
+        pollJob = scope.launch {
+            try {
                             // Server URL resolves here, not in a text field:
                             // saved value first, build default second.
                             val stored = app.connectionStore.current()
@@ -569,8 +564,31 @@ private fun PhoneSignInSection(
                             phase = SignInPhase.IDLE
                         }
                     }
-                },
-            ) { Text("Sign in with phone") }
+    }
+
+    if (!app.horizonAuth.isAvailable) {
+        Text(
+            "Phone sign-in needs a Horizon Platform app ID " +
+                "(`platformAppId` in hzos/local.properties).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    // A dashboard "Sign in" press opens this screen already asking: kick
+    // the device flow without waiting for another tap. Once per request —
+    // after a cancel the button is the way back in.
+    LaunchedEffect(signInRequest) {
+        if (signInRequest > 0) start()
+    }
+
+    when (phase) {
+        SignInPhase.IDLE -> {
+            error?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Button(onClick = ::start) { Text("Sign in with phone") }
         }
         SignInPhase.REQUESTING -> {
             Text("Requesting a sign-in code…", style = MaterialTheme.typography.bodyMedium)
