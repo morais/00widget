@@ -20,6 +20,7 @@ export const RequestBodyLimits = {
   // StoreKit hands over every current entitlement at once, and each is a JWS
   // carrying a full certificate chain — a few KiB apiece.
   subscriptionVerify: 128 * KiB,
+  metaSubscriptionSync: 20 * KiB,
   appleNotification: 64 * KiB,
 } as const;
 
@@ -1726,4 +1727,6 @@ export interface Env {
   // being validated. Both values are required before Meta rows grant access.
   META_SUBSCRIPTIONS_ENABLED?: string;
   META_SUBSCRIPTION_SKU?: string;
+  META_APP_ID?: string;
+  META_APP_SECRET?: string;
 }

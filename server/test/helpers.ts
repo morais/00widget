@@ -992,6 +992,20 @@ export class FakeD1 {
     if (normalized.startsWith("INSERT INTO subscriptions")) {
       return this.upsertSubscription(values);
     }
+    if (normalized.startsWith("INSERT INTO meta_subscriptions")) {
+      return this.upsertMetaSubscription(values);
+    }
+    if (normalized === "UPDATE meta_subscriptions SET tenant_id = ?, updated_at = ? WHERE owner_id = ? AND tenant_id IS NULL") {
+      const [tenant_id, updated_at, owner_id] = values.map(String);
+      let changed = 0;
+      for (const row of this.metaSubscriptions.values()) {
+        if (String(row.owner_id) !== owner_id || row.tenant_id !== null) continue;
+        row.tenant_id = tenant_id;
+        row.updated_at = updated_at;
+        changed++;
+      }
+      return changed;
+    }
     if (normalized === "UPDATE meta_subscriptions SET tenant_id = NULL, updated_at = ? WHERE tenant_id = ?") {
       const [updated_at, tenant_id] = values.map(String);
       let changed = 0;
@@ -1148,6 +1162,36 @@ export class FakeD1 {
     return 1;
   }
 
+  private upsertMetaSubscription(values: unknown[]): number {
+    const [
+      subscription_id, owner_id, tenant_id, sku, is_active, is_trial,
+      period_start_ms, period_end_ms, cancellation_ms, next_renewal_ms,
+      current_term, next_term, last_event_ms, created_at, updated_at,
+    ] = values;
+    const key = String(subscription_id);
+    const existing = this.metaSubscriptions.get(key);
+    if (existing && Number(last_event_ms) < Number(existing.last_event_ms ?? 0)) return 0;
+    const asNumber = (value: unknown) => value === null ? null : Number(value);
+    this.metaSubscriptions.set(key, {
+      subscription_id: key,
+      owner_id: String(owner_id),
+      tenant_id: existing?.tenant_id ?? (tenant_id === null ? null : String(tenant_id)),
+      sku: String(sku),
+      is_active: Number(is_active),
+      is_trial: Number(is_trial),
+      period_start_ms: asNumber(period_start_ms),
+      period_end_ms: asNumber(period_end_ms),
+      cancellation_ms: asNumber(cancellation_ms),
+      next_renewal_ms: asNumber(next_renewal_ms),
+      current_term: current_term === null ? null : String(current_term),
+      next_term: next_term === null ? null : String(next_term),
+      last_event_ms: Number(last_event_ms),
+      created_at: String(existing?.created_at ?? created_at),
+      updated_at: String(updated_at),
+    });
+    return 1;
+  }
+
   /// Retires a tenant, the way an operator does directly in D1. No production
   /// statement writes `disabled_at`, so this is a seed helper rather than a
   /// SQL handler — teaching the fake a statement the Worker never issues would
@@ -1272,6 +1316,15 @@ export class FakeD1 {
           return active || Number(b.period_end_ms ?? 0) - Number(a.period_end_ms ?? 0);
         })
         .slice(0, 1);
+    }
+    if (normalized === "SELECT DISTINCT tenant_id FROM meta_subscriptions WHERE owner_id = ? AND tenant_id IS NOT NULL") {
+      const [owner_id] = values.map(String);
+      const tenantIds = new Set(
+        [...this.metaSubscriptions.values()]
+          .filter((row) => row.owner_id === owner_id && row.tenant_id !== null)
+          .map((row) => String(row.tenant_id)),
+      );
+      return [...tenantIds].map((tenant_id) => ({ tenant_id }));
     }
     if (normalized.startsWith("SELECT original_transaction_id, tenant_id, product_id, status, expires_at_ms, grace_expires_at_ms, is_trial, auto_renew, environment, revoked_at_ms, signed_date_ms FROM subscriptions WHERE tenant_id = ?")) {
       const [tenant_id, ...environments] = values.map(String);

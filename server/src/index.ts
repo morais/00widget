@@ -33,6 +33,7 @@ import * as sessions from "./sessions";
 import * as status from "./status";
 import { sweepExpiredActivityHistory } from "./storage";
 import * as subscription from "./subscription";
+import * as metaSubscriptionSync from "./metaSubscriptionSync";
 import { processPendingWidgetReload } from "./widgetPush";
 import { rateLimitSnapshotFor, sweepExpiredRateLimitBuckets } from "./rateLimit";
 
@@ -224,6 +225,8 @@ const routes: Route[] = [
   // impossible.
   authed("POST", /^\/v1\/subscription\/verify\/?$/, "read", (req, env, auth) =>
     subscription.verifySubscription(req, env, auth)),
+  authed("POST", /^\/v1\/meta\/subscription\/sync\/?$/, "read", (req, env, auth) =>
+    metaSubscriptionSync.syncMetaSubscription(req, env, auth)),
   authed("GET", /^\/v1\/subscription\/?$/, "read", (req, env, auth) =>
     subscription.getSubscription(req, env, auth)),
 
