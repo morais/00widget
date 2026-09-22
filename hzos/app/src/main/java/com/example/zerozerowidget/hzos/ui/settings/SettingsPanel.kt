@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -81,7 +82,7 @@ fun SettingsPanel(
                 FilledTonalButton(onClick = { destination = SettingsDestination.ROOT }) {
                     Text("Back")
                 }
-                Spacer(Modifier.height(0.dp))
+                Spacer(Modifier.width(8.dp))
             }
             Text(
                 title,
