@@ -65,6 +65,15 @@ describe("Horizon identity", () => {
     expect(denied.status).toBe(401);
   });
 
+  it("retires anonymous phone pairing when verified Horizon identity is enabled", async () => {
+    const env = horizonEnv();
+    const anonymous = await worker(new Request(`${ORIGIN}/v1/auth/device/code`, {
+      method: "POST",
+      body: "{}",
+    }), env);
+    expect(anonymous.status).toBe(404);
+  });
+
   it("requires a choice, creates an account without email, and signs in the same Meta user", async () => {
     const env = horizonEnv();
     const fetchMock = verifiedMeta();
@@ -106,6 +115,7 @@ describe("Horizon identity", () => {
     const env = horizonEnv();
     verifiedMeta();
     await seedApiKey(env, "phone-app", "apple-owner", "app");
+    await seedApiKey(env, "unlinked-app", "no-apple-owner", "app");
     await putAppleAccount(env, {
       appleSub: "apple-sub-1",
       tenantId: "apple-owner",
@@ -117,15 +127,15 @@ describe("Horizon identity", () => {
     const code = await link.json() as { device_code: string; user_code: string };
     expect(code.user_code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
 
-    const legacyApproval = await worker(authedRequest(`${ORIGIN}/v1/auth/device/approve`, {
+    const unlinked = await worker(authedRequest(`${ORIGIN}/v1/auth/device/approve`, {
       method: "POST",
       body: JSON.stringify({ user_code: code.user_code }),
-    }, "phone-app"), env);
-    expect(legacyApproval.status).toBe(400);
+    }, "unlinked-app"), env);
+    expect(unlinked.status).toBe(403);
 
     const approved = await worker(authedRequest(`${ORIGIN}/v1/auth/device/approve`, {
       method: "POST",
-      body: JSON.stringify({ user_code: code.user_code, confirmHorizonLink: true }),
+      body: JSON.stringify({ user_code: code.user_code }),
     }, "phone-app"), env);
     expect(approved.status).toBe(200);
 
@@ -164,7 +174,7 @@ describe("Horizon identity", () => {
       const code = await link.json() as { user_code: string };
       const approval = await worker(authedRequest(`${ORIGIN}/v1/auth/device/approve`, {
         method: "POST",
-        body: JSON.stringify({ user_code: code.user_code, confirmHorizonLink: true }),
+        body: JSON.stringify({ user_code: code.user_code }),
       }, "phone-app"), env);
       expect(approval.status).toBe(expected);
     }

@@ -50,22 +50,21 @@ interface DeviceApprovalRequest {
   // Compatibility with the first iOS beta, whose local Codable body used
   // Swift's property name before it gained an explicit snake-case key.
   userCode?: string;
-  // Explicit confirmation is required when this code permanently links a
-  // verified Meta identity to the Apple account. Old iOS builds omit it.
-  confirmHorizonLink?: boolean;
 }
 
 export function deviceAuthorizationEnabled(env: Env): boolean {
   return env.HORIZON_DEVICE_AUTH_ENABLED === "true";
 }
 
-/// POST /v1/auth/device/code
+/// POST /v1/auth/device/code — temporary compatibility for pre-identity
+/// headsets. Once verified Horizon identity is enabled, only Meta-proof-bound
+/// join codes may be issued; the old anonymous pairing flow is retired.
 ///
 /// Starts a short-lived RFC 8628-style device authorization. The short code is
 /// safe to display and place in the verification URL; the device code is the
 /// bearer secret and is returned only to the headset.
 export async function createDeviceAuthorization(req: Request, env: Env): Promise<Response> {
-  if (!deviceAuthorizationEnabled(env)) return notFound();
+  if (!deviceAuthorizationEnabled(env) || env.HORIZON_IDENTITY_ENABLED === "true") return notFound();
   return createAuthorization(req, env);
 }
 
@@ -247,7 +246,6 @@ export async function approveDeviceAuthorizationFromApp(
     env,
     input?.user_code ?? input?.userCode,
     auth.tenantId,
-    input?.confirmHorizonLink === true,
   ));
 }
 
@@ -296,7 +294,6 @@ export async function renderDeviceApproval(req: Request, env: Env): Promise<Resp
        <form method="post" action="/app/device?code=${encodeURIComponent(displayCode)}">
          <input type="hidden" name="csrf" value="${esc(session.csrf)}">
          <input type="hidden" name="code" value="${esc(displayCode)}">
-         ${state.horizonUserId ? '<input type="hidden" name="confirmHorizonLink" value="true">' : ""}
          <p class="actions">
            <button class="button button-secondary" type="submit" name="decision" value="deny">Deny</button>
            <button class="button" type="submit" name="decision" value="approve">Connect headset</button>
@@ -338,7 +335,6 @@ export async function handleDeviceApprovalDecision(req: Request, env: Env): Prom
     env,
     code,
     identity.tenantId,
-    form.get("confirmHorizonLink") === "true",
   );
   if ("error" in outcome) return approvalErrorPage(outcome.error, outcome.status);
   return completionPage("Headset connected", "Return to your headset to finish signing in.");
@@ -348,7 +344,6 @@ async function approveByUserCode(
   env: Env,
   rawCode: string | undefined | null,
   tenantId: string,
-  confirmHorizonLink = false,
 ): Promise<{ ok: true } | { error: string; status: number }> {
   const code = normalizeUserCode(rawCode);
   if (!code) return { error: "That connection code is malformed.", status: 400 };
@@ -369,9 +364,6 @@ async function approveByUserCode(
     return { error: "That connection code has already been used.", status: 409 };
   }
   if (row.horizon_app_id && row.horizon_user_id) {
-    if (!confirmHorizonLink) {
-      return { error: "Confirm linking the Horizon identity to this Apple account.", status: 400 };
-    }
     const apple = await env.ZW_DB.prepare(
       `SELECT apple_sub FROM apple_accounts WHERE tenant_id = ? LIMIT 1`,
     ).bind(tenantId).first<{ apple_sub: string }>();

@@ -294,8 +294,9 @@ The Meta user ID is app-scoped, not a global email or a user-chosen name.
 
 Apply migrations `0036` and `0037` before enabling the flow. Set
 `HORIZON_IDENTITY_ENABLED = "true"` in the deployment's local `wrangler.toml`
-only after the headset and iOS clients implement the new contract. The flag is
-off by default, so existing phone-assisted pairing continues unchanged. Keep
+only after the headset implements the new contract. The existing iOS app can
+approve verified join codes unchanged. The flag is off by default, so existing
+phone-assisted pairing continues until the verified flow is enabled. Keep
 `META_APP_SECRET` as a Wrangler secret, never in the client.
 
 The headset obtains `Users().getLoggedInUser().id` and a fresh
@@ -312,19 +313,19 @@ needs a **new** UserProof:
 - `choice: "create"` creates an email-less tenant, binds this Meta identity,
   and returns its app credential. It never searches by email.
 - `choice: "join_apple"` returns the existing device-authorization code for
-  Apple approval. The iOS app's `POST /v1/auth/device/approve` must include
-  `confirmHorizonLink: true` when the user explicitly accepts permanent
-  identity linking. Browser approval also requires an explicit confirmation.
-  Approval atomically binds the verified Meta identity to the Apple tenant;
-  the headset then exchanges the device code for its app credential. A tenant
+  Apple approval. The existing iOS app sends only `{ "user_code": "…" }` after
+  the account owner taps **Connect headset**; no iOS request change is needed.
+  Browser approval also requires an explicit confirmation. Approval atomically
+  binds the verified Meta identity to the Apple tenant; the headset then
+  exchanges the device code for its app credential. A tenant
   that already has another Horizon identity cannot be joined.
 
-The older `POST /v1/auth/device/code` flow remains available for unverified,
-phone-assisted sign-in. It gives the headset an app-kind credential but does
-not establish a Meta identity, and therefore cannot create an email-less
-account. Once the flag is on, Meta subscription sync also requires the
-request's `userId` to match the tenant's linked Meta identity. A legacy-paired
-headset should sign in through the verified flow before syncing purchases.
+When `HORIZON_IDENTITY_ENABLED=true`, anonymous
+`POST /v1/auth/device/code` issuance returns 404: old phone-only pairing is
+retired, while verified `join_apple` codes still use the same approval and
+exchange endpoints. Meta subscription sync also requires the request's
+`userId` to match the tenant's linked Meta identity. A legacy-paired headset
+should sign in through the verified flow before syncing purchases.
 
 For an MCP browser consent without an iPhone, `GET /login` offers **Sign in
 with Horizon OS**. `GET /login/horizon` creates a ten-minute, single-use code
