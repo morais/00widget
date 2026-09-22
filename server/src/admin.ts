@@ -94,7 +94,7 @@ export async function handleAdminCreateApiKey(req: Request, env: Env): Promise<R
          <p class="muted">It is stored only as a SHA-256 hash and cannot be recovered later.</p>
          <pre>${esc(created.token)}</pre>
          <table><tbody>
-           <tr><th>Owner email</th><td>${esc(created.tenant.ownerEmail)}</td></tr>
+           <tr><th>Owner email</th><td>${esc(created.tenant.ownerEmail ?? "(none)")}</td></tr>
            <tr><th>Tenant id</th><td><code>${esc(created.tenant.id)}</code></td></tr>
            <tr><th>Label</th><td>${esc(created.apiKey.label)}</td></tr>
            <tr><th>Scopes</th><td><code>${esc(created.apiKey.scopes.join(", "))}</code></td></tr>
@@ -323,7 +323,7 @@ function renderApiKeyAdminSection(tenants: TenantRecord[], apiKeys: ApiKeyRecord
       (key) => !key.revokedAt && Date.parse(key.expiresAt) > Date.now(),
     ).length;
     return `<tr>
-      <td><a href="/admin?tenant=${enc(tenant.id)}">${esc(tenant.ownerEmail || "(no owner email)")}</a></td>
+      <td><a href="/admin?tenant=${enc(tenant.id)}">${esc(tenant.ownerEmail || `${tenant.name} · ${shortHash(tenant.id)}`)}</a></td>
       <td><code>${esc(shortHash(tenant.id))}</code></td>
       <td>${esc(String(active))}</td>
       <td>${esc(String(tenantApiKeys.length - active))}</td>
@@ -357,10 +357,11 @@ function renderTenantDetail(d: DashboardData): string {
   const tenantApiKeys = d.apiKeys.filter((key) => key.tenantId === d.selectedTenant!.id);
   return `
     <section>
-      <h2>Tenant <span class="count">${esc(d.selectedTenant.ownerEmail || d.selectedTenant.id)}</span></h2>
+      <h2>Tenant <span class="count">${esc(d.selectedTenant.ownerEmail || `${d.selectedTenant.name} · ${shortHash(d.selectedTenant.id)}`)}</span></h2>
       <table><tbody>
         <tr><th>tenant id</th><td><code>${esc(d.selectedTenant.id)}</code></td></tr>
-        <tr><th>owner email</th><td>${esc(d.selectedTenant.ownerEmail)}</td></tr>
+        <tr><th>label</th><td>${esc(d.selectedTenant.name)}</td></tr>
+        <tr><th>owner email</th><td>${esc(d.selectedTenant.ownerEmail ?? "(none)")}</td></tr>
         <tr><th>created</th><td class="ts">${esc(d.selectedTenant.createdAt)}</td></tr>
       </tbody></table>
     </section>

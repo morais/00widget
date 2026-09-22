@@ -18,6 +18,7 @@ import * as admin from "./admin";
 import * as appLogin from "./appLogin";
 import * as reviewLogin from "./reviewLogin";
 import * as deviceAuth from "./deviceAuth";
+import * as horizonIdentity from "./horizonIdentity";
 import * as appleAppSite from "./appleAppSite";
 import * as guestLinks from "./guestLinks";
 import * as guestPage from "./guestPage";
@@ -214,6 +215,9 @@ const routes: Route[] = [
   ),
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
+  },
+  { method: "POST", pattern: /^\/v1\/auth\/horizon\/?$/, handler: (req, env) =>
+    horizonIdentity.signInWithHorizon(req, env),
   },
   { method: "POST", pattern: /^\/v1\/auth\/device\/code\/?$/, handler: (req, env) =>
     deviceAuth.createDeviceAuthorization(req, env) },

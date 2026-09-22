@@ -1,6 +1,7 @@
 import type { AuthContext } from "./auth";
 import { parseJson } from "./cards";
 import { badRequest, json } from "./http";
+import { getHorizonUserForTenant, horizonIdentityEnabled } from "./horizonIdentity";
 import {
   claimMetaOwnerForTenant,
   configuredMetaSubscriptionSku,
@@ -79,6 +80,15 @@ export async function syncMetaSubscription(
   }
   if (userId && !isConfiguredMetaSku(body.sku, sku)) {
     return badRequest("sku is not a configured Meta subscription product");
+  }
+  // Once native Horizon identity is enabled, an app-kind bearer credential
+  // alone cannot choose which Meta user's purchase to claim. The verified
+  // identity bound to its tenant is the owner of this subscription lookup.
+  if (userId && horizonIdentityEnabled(env)) {
+    const boundUserId = await getHorizonUserForTenant(env, auth.tenantId);
+    if (boundUserId !== userId) {
+      return json({ error: "Meta user is not linked to this account" }, 403);
+    }
   }
 
   const limited = await enforceRateLimits(env, [

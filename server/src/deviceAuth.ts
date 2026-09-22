@@ -37,6 +37,8 @@ interface DeviceAuthorizationRow {
   status: DeviceAuthorizationStatus;
   tenant_id: string | null;
   expires_at: string;
+  horizon_app_id: string | null;
+  horizon_user_id: string | null;
 }
 
 interface DeviceTokenRequest {
@@ -48,6 +50,9 @@ interface DeviceApprovalRequest {
   // Compatibility with the first iOS beta, whose local Codable body used
   // Swift's property name before it gained an explicit snake-case key.
   userCode?: string;
+  // Explicit confirmation is required when this code permanently links a
+  // verified Meta identity to the Apple account. Old iOS builds omit it.
+  confirmHorizonLink?: boolean;
 }
 
 export function deviceAuthorizationEnabled(env: Env): boolean {
@@ -61,6 +66,28 @@ export function deviceAuthorizationEnabled(env: Env): boolean {
 /// bearer secret and is returned only to the headset.
 export async function createDeviceAuthorization(req: Request, env: Env): Promise<Response> {
   if (!deviceAuthorizationEnabled(env)) return notFound();
+  return createAuthorization(req, env);
+}
+
+/// Used only after Meta has verified this app-scoped user ID. The resulting
+/// code follows the ordinary phone approval flow, with the identity attached.
+export async function createVerifiedHorizonAuthorization(
+  req: Request,
+  env: Env,
+  appId: string,
+  userId: string,
+): Promise<Response> {
+  if (!deviceAuthorizationEnabled(env)) {
+    return json({ error: "Apple account linking is not enabled" }, 503);
+  }
+  return createAuthorization(req, env, { appId, userId });
+}
+
+async function createAuthorization(
+  req: Request,
+  env: Env,
+  horizon?: { appId: string; userId: string },
+): Promise<Response> {
   const limited = await enforceRateLimits(env, [
     { policy: "deviceCodeIpHour", key: requestIpKey(req) },
   ]);
@@ -75,8 +102,8 @@ export async function createDeviceAuthorization(req: Request, env: Env): Promise
   await env.ZW_DB.prepare(
     `INSERT INTO device_authorizations
        (id, device_code_hash, user_code_hash, status, tenant_id, created_at, expires_at,
-        approved_at, consumed_at)
-     VALUES (?, ?, ?, 'pending', NULL, ?, ?, NULL, NULL)`,
+        approved_at, consumed_at, horizon_app_id, horizon_user_id)
+     VALUES (?, ?, ?, 'pending', NULL, ?, ?, NULL, NULL, ?, ?)`,
   )
     .bind(
       crypto.randomUUID(),
@@ -84,6 +111,8 @@ export async function createDeviceAuthorization(req: Request, env: Env): Promise
       await sha256Hex(normalizedUserCode),
       now.toISOString(),
       expiresAt.toISOString(),
+      horizon?.appId ?? null,
+      horizon?.userId ?? null,
     )
     .run();
 
@@ -218,6 +247,7 @@ export async function approveDeviceAuthorizationFromApp(
     env,
     input?.user_code ?? input?.userCode,
     auth.tenantId,
+    input?.confirmHorizonLink === true,
   ));
 }
 
@@ -260,10 +290,13 @@ export async function renderDeviceApproval(req: Request, env: Env): Promise<Resp
     `<header><h1>00Widget · Connect Horizon OS</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section class="login">
        <h2>Connect the headset showing <code>${esc(displayCode)}</code>?</h2>
-       <p class="muted">This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account.</p>
+       <p class="muted">${state.horizonUserId
+         ? "This will link the verified Horizon identity to your Apple account. The headset can manage this account, including connected agents and account deletion."
+         : "This headset will be able to read your dashboard, run its safe actions, and manage your account — including your connected agents and deleting the account."}</p>
        <form method="post" action="/app/device?code=${encodeURIComponent(displayCode)}">
          <input type="hidden" name="csrf" value="${esc(session.csrf)}">
          <input type="hidden" name="code" value="${esc(displayCode)}">
+         ${state.horizonUserId ? '<input type="hidden" name="confirmHorizonLink" value="true">' : ""}
          <p class="actions">
            <button class="button button-secondary" type="submit" name="decision" value="deny">Deny</button>
            <button class="button" type="submit" name="decision" value="approve">Connect headset</button>
@@ -301,7 +334,12 @@ export async function handleDeviceApprovalDecision(req: Request, env: Env): Prom
   }
   if (decision !== "approve") return approvalErrorPage("Choose Connect or Deny.", 400);
 
-  const outcome = await approveByUserCode(env, code, identity.tenantId);
+  const outcome = await approveByUserCode(
+    env,
+    code,
+    identity.tenantId,
+    form.get("confirmHorizonLink") === "true",
+  );
   if ("error" in outcome) return approvalErrorPage(outcome.error, outcome.status);
   return completionPage("Headset connected", "Return to your headset to finish signing in.");
 }
@@ -310,12 +348,13 @@ async function approveByUserCode(
   env: Env,
   rawCode: string | undefined | null,
   tenantId: string,
+  confirmHorizonLink = false,
 ): Promise<{ ok: true } | { error: string; status: number }> {
   const code = normalizeUserCode(rawCode);
   if (!code) return { error: "That connection code is malformed.", status: 400 };
   const hash = await sha256Hex(code);
   const row = await env.ZW_DB.prepare(
-    `SELECT id, status, tenant_id, expires_at
+    `SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id
      FROM device_authorizations
      WHERE user_code_hash = ?`,
   )
@@ -329,13 +368,42 @@ async function approveByUserCode(
   if (row.status !== "pending") {
     return { error: "That connection code has already been used.", status: 409 };
   }
+  if (row.horizon_app_id && row.horizon_user_id) {
+    if (!confirmHorizonLink) {
+      return { error: "Confirm linking the Horizon identity to this Apple account.", status: 400 };
+    }
+    const apple = await env.ZW_DB.prepare(
+      `SELECT apple_sub FROM apple_accounts WHERE tenant_id = ? LIMIT 1`,
+    ).bind(tenantId).first<{ apple_sub: string }>();
+    if (!apple) return { error: "An Apple account is required for this connection.", status: 403 };
+    try {
+      // The unique Meta identity and single-Horizon-owner constraints are
+      // checked in the same D1 transaction as the code approval. A conflict
+      // rolls back both writes, leaving the headset free to retry elsewhere.
+      const results = await env.ZW_DB.batch([
+        env.ZW_DB.prepare(
+          `INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at)
+           VALUES (?, ?, ?, ?)`,
+        ).bind(row.horizon_app_id, row.horizon_user_id, tenantId, new Date().toISOString()),
+        env.ZW_DB.prepare(
+          `UPDATE device_authorizations
+           SET status = 'approved', tenant_id = ?, approved_at = ?
+           WHERE id = ? AND status = 'pending'`,
+        ).bind(tenantId, new Date().toISOString(), row.id),
+      ]);
+      if (changedRows(results[1]) === 0) {
+        return { error: "That connection code has already been used.", status: 409 };
+      }
+      return { ok: true };
+    } catch {
+      return { error: "This Horizon identity or Apple account is already linked.", status: 409 };
+    }
+  }
   const updated = await env.ZW_DB.prepare(
     `UPDATE device_authorizations
      SET status = 'approved', tenant_id = ?, approved_at = ?
      WHERE id = ? AND status = 'pending'`,
-  )
-    .bind(tenantId, new Date().toISOString(), row.id)
-    .run();
+  ).bind(tenantId, new Date().toISOString(), row.id).run();
   if (changedRows(updated) === 0) {
     return { error: "That connection code has already been used.", status: 409 };
   }
@@ -349,7 +417,7 @@ async function denyByUserCode(
   const code = normalizeUserCode(rawCode);
   if (!code) return { error: "That connection code is malformed.", status: 400 };
   const row = await env.ZW_DB.prepare(
-    `SELECT id, status, tenant_id, expires_at
+    `SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id
      FROM device_authorizations
      WHERE user_code_hash = ?`,
   )
@@ -373,11 +441,11 @@ async function denyByUserCode(
 async function authorizationByUserCode(
   env: Env,
   rawCode: string | undefined | null,
-): Promise<{ ok: true } | { error: string; status: number }> {
+): Promise<{ ok: true; horizonUserId: string | null } | { error: string; status: number }> {
   const code = normalizeUserCode(rawCode);
   if (!code) return { error: "Enter the eight-character code shown in your headset.", status: 400 };
   const row = await env.ZW_DB.prepare(
-    `SELECT id, status, tenant_id, expires_at
+    `SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id
      FROM device_authorizations
      WHERE user_code_hash = ?`,
   )
@@ -390,7 +458,7 @@ async function authorizationByUserCode(
   if (row.status !== "pending") {
     return { error: "That connection code has already been used.", status: 409 };
   }
-  return { ok: true };
+  return { ok: true, horizonUserId: row.horizon_user_id };
 }
 
 function approvalJson(outcome: { ok: true } | { error: string; status: number }): Response {

@@ -74,6 +74,8 @@ export class FakeD1 {
   private activityHistory = new Map<string, FakeApiKeyRow>();
   private mcpAuthorizationCodes = new Map<string, FakeApiKeyRow>();
   private deviceAuthorizations = new Map<string, FakeApiKeyRow>();
+  private horizonAccounts = new Map<string, FakeRow>();
+  private horizonProofUses = new Map<string, FakeRow>();
 
   prepare(sql: string): D1PreparedStatement {
     return new FakeD1Statement(this, sql) as unknown as D1PreparedStatement;
@@ -282,6 +284,37 @@ export class FakeD1 {
       this.tenants.set(id, { id, name, owner_email, created_at, disabled_at: "" });
       return 1;
     }
+    if (normalized === "INSERT INTO tenants (id, name, owner_email, created_at) VALUES (?, ?, NULL, ?)") {
+      const [id, name, created_at] = values.map(String);
+      if (this.tenants.has(id)) throw new Error("UNIQUE constraint failed: tenants.id");
+      this.tenants.set(id, { id, name, owner_email: "", created_at, disabled_at: "" });
+      return 1;
+    }
+    if (normalized.startsWith("INSERT INTO horizon_accounts")) {
+      const [app_id, user_id, tenant_id, created_at] = values.map(String);
+      const key = `${app_id}:${user_id}`;
+      if (this.horizonAccounts.has(key) || [...this.horizonAccounts.values()].some(
+        (row) => row.tenant_id === tenant_id,
+      )) throw new Error("UNIQUE constraint failed: horizon_accounts");
+      this.horizonAccounts.set(key, { app_id, user_id, tenant_id, created_at });
+      return 1;
+    }
+    if (normalized === "INSERT OR IGNORE INTO horizon_proof_uses (nonce_hash, expires_at) VALUES (?, ?)") {
+      const [nonce_hash, expires_at] = values.map(String);
+      if (this.horizonProofUses.has(nonce_hash)) return 0;
+      this.horizonProofUses.set(nonce_hash, { nonce_hash, expires_at });
+      return 1;
+    }
+    if (normalized === "DELETE FROM horizon_proof_uses WHERE expires_at < ?") {
+      const [now] = values.map(String);
+      let removed = 0;
+      for (const [key, row] of this.horizonProofUses) {
+        if (row.expires_at >= now) continue;
+        this.horizonProofUses.delete(key);
+        removed++;
+      }
+      return removed;
+    }
     if (normalized.startsWith("UPDATE tenants SET owner_email = ? WHERE id = ?")) {
       const [owner_email, id] = values.map(String);
       const row = this.tenants.get(id);
@@ -360,6 +393,8 @@ export class FakeD1 {
         expires_at,
         approved_at: null,
         consumed_at: null,
+        horizon_app_id: values[5] == null ? null : String(values[5]),
+        horizon_user_id: values[6] == null ? null : String(values[6]),
       });
       return 1;
     }
@@ -1112,6 +1147,7 @@ export class FakeD1 {
       tenants: this.tenants,
       api_keys: this.apiKeys,
       apple_accounts: this.appleAccounts,
+      horizon_accounts: this.horizonAccounts,
       device_authorizations: this.deviceAuthorizations,
       cards: this.cards,
       action_payloads: this.actionPayloads,
@@ -1277,11 +1313,29 @@ export class FakeD1 {
         .find((candidate) => candidate.device_code_hash === hash);
       return row ? [select("id", "status", "tenant_id", "expires_at")(row)] : [];
     }
-    if (normalized === "SELECT id, status, tenant_id, expires_at FROM device_authorizations WHERE user_code_hash = ?") {
+    if (normalized === "SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id FROM device_authorizations WHERE user_code_hash = ?") {
       const [hash] = values.map(String);
       const row = [...this.deviceAuthorizations.values()]
         .find((candidate) => candidate.user_code_hash === hash);
-      return row ? [select("id", "status", "tenant_id", "expires_at")(row)] : [];
+      return row ? [select("id", "status", "tenant_id", "expires_at", "horizon_app_id", "horizon_user_id")(row)] : [];
+    }
+    if (normalized === "SELECT tenant_id FROM horizon_accounts WHERE app_id = ? AND user_id = ?") {
+      const [app_id, user_id] = values.map(String);
+      return pick(this.horizonAccounts.get(`${app_id}:${user_id}`), ["tenant_id"]);
+    }
+    if (normalized === "SELECT user_id FROM horizon_accounts WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      const row = [...this.horizonAccounts.values()].find((candidate) => candidate.tenant_id === tenant_id);
+      return pick(row, ["user_id"]);
+    }
+    if (normalized === "SELECT apple_sub FROM apple_accounts WHERE tenant_id = ? LIMIT 1") {
+      const [tenant_id] = values.map(String);
+      const row = [...this.appleAccounts.values()].find((candidate) => candidate.tenant_id === tenant_id);
+      return pick(row, ["apple_sub"]);
+    }
+    if (normalized === "SELECT name FROM tenants WHERE id = ?") {
+      const [id] = values.map(String);
+      return pick(this.tenants.get(id), ["name"]);
     }
     if (normalized.startsWith("SELECT token, last_sent_at, allowance FROM widget_push_cadence")) {
       const wanted = new Set(values.map(String));
@@ -1395,12 +1449,12 @@ export class FakeD1 {
           }]
         : [];
     }
-    if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
+    if (normalized === "SELECT id, name, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email") {
       return [...this.tenants.values()].sort(by("created_at", "owner_email")).reverse();
     }
-    if (normalized === "SELECT id, owner_email, created_at, disabled_at FROM tenants WHERE id = ?") {
+    if (normalized === "SELECT id, name, owner_email, created_at, disabled_at FROM tenants WHERE id = ?") {
       const [id] = values.map(String);
-      return pick(this.tenants.get(id), ["id", "owner_email", "created_at", "disabled_at"]);
+      return pick(this.tenants.get(id), ["id", "name", "owner_email", "created_at", "disabled_at"]);
     }
     if (normalized === "SELECT id, owner_email FROM tenants WHERE lower(owner_email) = ? AND disabled_at IS NULL ORDER BY created_at ASC LIMIT 1") {
       const [owner_email] = values.map(String);

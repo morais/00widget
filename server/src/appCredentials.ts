@@ -36,7 +36,7 @@ export async function issueAppCredentialBundle(
   });
   const appCredential = await createApiKey(env, {
     tenantId: created.tenant.id,
-    ownerEmail: created.tenant.ownerEmail,
+    ownerEmail: created.tenant.ownerEmail ?? input.ownerEmail,
     label: `${input.label} (app only)`,
     kind: "app",
     purpose: "app",
@@ -48,7 +48,7 @@ export async function issueAppCredentialBundle(
     ? null
     : await createApiKey(env, {
         tenantId: created.tenant.id,
-        ownerEmail: created.tenant.ownerEmail,
+        ownerEmail: created.tenant.ownerEmail ?? input.ownerEmail,
         label: `${input.label} (agent publisher)`,
         kind: "publisher",
         purpose: "agent",

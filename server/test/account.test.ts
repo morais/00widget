@@ -16,7 +16,7 @@ async function session(env: ReturnType<typeof makeEnv>) {
   });
   const app = await createApiKey(env, {
     tenantId: device.tenant.id,
-    ownerEmail: device.tenant.ownerEmail,
+    ownerEmail: device.tenant.ownerEmail ?? undefined,
     label: "iPhone (app only)",
     kind: "app",
     sessionId: "session-1",
@@ -40,6 +40,7 @@ describe("GET /v1/account", () => {
       account: {
         tenantId: device.tenant.id,
         ownerEmail: "owner@example.com",
+        displayName: "owner@example.com",
         isReviewTenant: false,
       },
     });

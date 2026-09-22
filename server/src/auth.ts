@@ -100,7 +100,8 @@ interface AuthRow {
 
 export interface TenantRecord {
   id: string;
-  ownerEmail: string;
+  name: string;
+  ownerEmail: string | null;
   createdAt: string;
   disabledAt?: string;
 }
@@ -306,7 +307,7 @@ export async function createTenantForOwner(env: Env, ownerEmail: string): Promis
   if (changedRows(result) === 0) {
     throw new TenantEmailTakenError(email);
   }
-  return { id, ownerEmail: email, createdAt: now };
+  return { id, name: email, ownerEmail: email, createdAt: now };
 }
 
 export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Promise<CreatedApiKey> {
@@ -314,13 +315,14 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   const tenantId = input.tenantId?.trim() || crypto.randomUUID();
   const existingTenant = input.tenantId
     ? await env.ZW_DB.prepare(
-        `SELECT id, owner_email, created_at, disabled_at
+        `SELECT id, name, owner_email, created_at, disabled_at
          FROM tenants
          WHERE id = ?`,
       )
         .bind(tenantId)
         .first<{
           id: string;
+          name: string;
           owner_email: string | null;
           created_at: string;
           disabled_at: string | null;
@@ -328,13 +330,13 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
     : null;
   const storedEmail = normalizeEmail(existingTenant?.owner_email);
   const ownerEmail = storedEmail || normalizeEmail(input.ownerEmail);
-  if (!ownerEmail) {
+  if (!ownerEmail && !existingTenant) {
     throw new Error("ownerEmail is required");
   }
   // Only what the caller supplied. A stored address is account history and may
   // predate this rule; refusing to mint a credential for an existing tenant
   // because of how its email was once written would be the wrong trade.
-  if (!storedEmail && !isValidEmail(ownerEmail)) {
+  if (ownerEmail && !storedEmail && !isValidEmail(ownerEmail)) {
     throw new Error("ownerEmail must be a valid email address");
   }
   const label = input.label?.trim() || "default";
@@ -386,13 +388,15 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   if (!existingTenant && changedRows(tenantInsert) === 0) {
     throw new TenantEmailTakenError(ownerEmail);
   }
-  await env.ZW_DB.prepare(
-    `UPDATE tenants
-     SET owner_email = ?
-     WHERE id = ? AND (owner_email IS NULL OR owner_email = '')`,
-  )
-    .bind(ownerEmail, tenantId)
-    .run();
+  if (ownerEmail) {
+    await env.ZW_DB.prepare(
+      `UPDATE tenants
+       SET owner_email = ?
+       WHERE id = ? AND (owner_email IS NULL OR owner_email = '')`,
+    )
+      .bind(ownerEmail, tenantId)
+      .run();
+  }
   await env.ZW_DB.prepare(
     `INSERT INTO api_keys
        (id, tenant_id, token_hash, label, created_at, kind, purpose, session_id, device_id,
@@ -420,7 +424,8 @@ export async function createApiKey(env: Env, input: CreateApiKeyInput = {}): Pro
   return {
     tenant: {
       id: tenantId,
-      ownerEmail,
+      name: existingTenant?.name ?? ownerEmail,
+      ownerEmail: ownerEmail || null,
       createdAt: existingTenant?.created_at ?? now,
       disabledAt: existingTenant?.disabled_at ?? undefined,
     },
@@ -576,18 +581,20 @@ export async function getMcpConnection(
 
 export async function listTenants(env: Env): Promise<TenantRecord[]> {
   const rows = await env.ZW_DB.prepare(
-    `SELECT id, owner_email, created_at, disabled_at
+    `SELECT id, name, owner_email, created_at, disabled_at
      FROM tenants
      ORDER BY created_at DESC, owner_email`,
   ).all<{
     id: string;
+    name: string;
     owner_email: string | null;
     created_at: string;
     disabled_at: string | null;
   }>();
   return rows.results.map((row) => ({
     id: row.id,
-    ownerEmail: row.owner_email ?? "",
+    name: row.name,
+    ownerEmail: row.owner_email || null,
     createdAt: row.created_at,
     disabledAt: row.disabled_at ?? undefined,
   }));

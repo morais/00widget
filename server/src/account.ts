@@ -19,10 +19,14 @@ export async function getAccount(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
+  const tenant = await env.ZW_DB.prepare(`SELECT name FROM tenants WHERE id = ?`)
+    .bind(auth.tenantId)
+    .first<{ name: string }>();
   return json({
     account: {
       tenantId: auth.tenantId,
       ownerEmail: auth.ownerEmail ?? null,
+      displayName: tenant?.name ?? "00Widget account",
       isReviewTenant: isReviewTenant(env, auth.tenantId),
     },
   });
@@ -76,6 +80,7 @@ export const TENANT_SCOPED_TABLES: Readonly<Record<string, readonly string[]>> =
   // rows belonging to this tenant.
   api_keys: ["tenant_id"],
   apple_accounts: ["tenant_id"],
+  horizon_accounts: ["tenant_id"],
   device_authorizations: ["tenant_id"],
   tenants: ["id"],
 };
@@ -97,6 +102,7 @@ export const ACCOUNT_DELETION_EXEMPT_TABLES: Readonly<Record<string, string>> = 
   // Not tenant data.
   server_settings: "global configuration",
   mcp_authorization_codes: "single-use codes, expire on their own",
+  horizon_proof_uses: "hashed one-time nonces, swept after expiry",
 };
 
 export async function deleteAccount(

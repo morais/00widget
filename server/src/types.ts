@@ -14,6 +14,7 @@ export const RequestBodyLimits = {
   appleLogin: 16 * KiB,
   reviewLogin: 4 * KiB,
   deviceAuth: 2 * KiB,
+  horizonAuth: 4 * KiB,
   // One JSON-RPC envelope on the MCP endpoint. It has to clear the largest
   // body any tool forwards (a card batch) plus the wrapper around it.
   mcpRpc: 160 * KiB,
@@ -1651,6 +1652,9 @@ export interface Env {
   // Apple-authenticated phone approves it and the headset receives a scoped
   // device credential. Off unless explicitly enabled.
   HORIZON_DEVICE_AUTH_ENABLED?: string;
+  // Native Horizon sign-in with Meta User Verification. Requires META_APP_ID
+  // and the server-only META_APP_SECRET. Kept separate from legacy pairing.
+  HORIZON_IDENTITY_ENABLED?: string;
 
   // Master kill switch for the MCP endpoint and the OAuth authorization server
   // that fronts it. Off unless set to "true", so a deployment that has not

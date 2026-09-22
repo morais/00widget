@@ -138,7 +138,7 @@ export async function createTokenFromApple(
     const alert = sendNewTenantAlert(env, {
       source: "app",
       tenantId: created.tenant.id,
-      ownerEmail: created.tenant.ownerEmail,
+      ownerEmail: created.tenant.ownerEmail ?? ownerEmail!,
       createdAt: created.tenant.createdAt,
     });
     // After the response, so a slow or failing mail send cannot delay signup.
@@ -153,5 +153,4 @@ function appleLoginIpKey(req: Request): string {
   const ip = req.headers.get("cf-connecting-ip")?.trim();
   return `apple-login:${ip || "unknown"}`;
 }
-
 

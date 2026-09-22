@@ -239,7 +239,7 @@ export async function handleAppleCallback(
       const alert = sendNewTenantAlert(env, {
         source: "web",
         tenantId: tenant.id,
-        ownerEmail: tenant.ownerEmail,
+        ownerEmail: tenant.ownerEmail ?? email,
         createdAt: tenant.createdAt,
       });
       // Production passes an ExecutionContext, so mail is sent after the

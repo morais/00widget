@@ -42,6 +42,10 @@ WEB_SIGNUP_ENABLED = "false"
 # a device-scoped token for the headset. Off by default so an unconfigured
 # deployment exposes no anonymous code-issuance surface.
 HORIZON_DEVICE_AUTH_ENABLED = "false"
+# Native Meta identity sign-in and Horizon-only accounts. Enable after the
+# headset sends getUserProof() alongside its app-scoped user ID. Uses the same
+# META_APP_ID and server-only META_APP_SECRET as Meta subscriptions.
+HORIZON_IDENTITY_ENABLED = "false"
 
 # Master kill switch for the MCP endpoint (/mcp) and the OAuth authorization
 # server that fronts it, which together let an MCP client — a ChatGPT
