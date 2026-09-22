@@ -409,7 +409,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
         Text("Agent tokens", style = MaterialTheme.typography.titleSmall)
         Text(
             "Use this if an agent token may have been exposed. Every old agent " +
-                "token stops working and one replacement is created below — give " +
+                "token stops working and one replacement is created — give " +
                 "it to your agents. This headset stays signed in; its own token " +
                 "above is untouched.",
             style = MaterialTheme.typography.bodySmall,
