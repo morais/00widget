@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -311,6 +312,10 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             // The token path and the connector doorway are the two ways in;
             // the rule keeps them from reading as one paragraph.
             HorizontalDivider()
+            if (signedIn) {
+                RotateAgentTokensSection(app = app)
+                HorizontalDivider()
+            }
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = MaterialTheme.typography.bodySmall,
@@ -318,6 +323,117 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             )
             FilledTonalButton(onClick = onOpenAgentConnect) { Text("Connect an agent") }
         }
+    }
+}
+
+/**
+ * Replaces the tokens the account's agents publish with. Logged-in only,
+ * mirroring the rotation in iOS AccountExitView — but note what it is and
+ * is not: it revokes `publisher`/`agent` purpose keys, never the token
+ * shown above (this headset's own sign-in) and never connectors, so the
+ * headset stays signed in and assistants stay connected. The replacement
+ * is answered once, so it is shown here for handoff, not stored anywhere.
+ */
+@Composable
+private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var confirming by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var rotated by remember { mutableStateOf<com.example.zerozerowidget.hzos.data.AgentTokenRotation?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var copied by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Agent tokens", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "Use this if an agent token may have been exposed. Every old agent " +
+                "token stops working and one replacement is created below — give " +
+                "it to your agents. This headset stays signed in; its own token " +
+                "above is untouched.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        error?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        rotated?.let {
+            Text(
+                "Rotated — ${it.revokedAgentTokens} old token(s) revoked. " +
+                    "Copy the replacement now; it is shown once.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Row(verticalAlignment = Alignment.Top) {
+                SelectionContainer(Modifier.weight(1f)) {
+                    Text(
+                        it.token,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        val clipboard =
+                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("00Widget agent token", it.token))
+                        copied = true
+                        scope.launch {
+                            delay(10_000)
+                            copied = false
+                        }
+                    },
+                ) {
+                    Icon(
+                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription = if (copied) "Agent token copied" else "Copy agent token",
+                    )
+                }
+            }
+        }
+        FilledTonalButton(
+            onClick = { confirming = true },
+            enabled = !busy,
+        ) { Text(if (busy) "Rotating…" else "Rotate agent token") }
+    }
+
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirming = false },
+            title = { Text("Rotate the agent token?") },
+            text = {
+                Text("Every agent publishing with an old token stops until it gets the replacement.")
+            },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = {
+                        confirming = false
+                        busy = true
+                        error = null
+                        scope.launch {
+                            try {
+                                val current = app.connectionStore.current()
+                                val base = current.baseUrl.ifBlank {
+                                    com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+                                }
+                                val api = com.example.zerozerowidget.hzos.data.ZeroWidgetApi(
+                                    app.http, base, current.apiKey,
+                                )
+                                rotated = api.rotateAgentToken()
+                            } catch (e: Exception) {
+                                error = (e.message ?: e.javaClass.simpleName).take(200)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    enabled = !busy,
+                ) { Text("Rotate") }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = { confirming = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

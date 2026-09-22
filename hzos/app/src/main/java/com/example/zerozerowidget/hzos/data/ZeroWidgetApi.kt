@@ -2,6 +2,7 @@ package com.example.zerozerowidget.hzos.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -91,6 +92,18 @@ class ZeroWidgetApi(
         }
     }
 
+    /**
+     * Replaces every publisher token the account's agents publish with with
+     * one fresh token. Mirrors iOS rotateAgentToken. Safe to call on the
+     * device credential: the server only revokes `publisher`/`agent`
+     * purpose keys, so this headset stays signed in. The replacement is
+     * shown once — callers must surface it, there is no second read.
+     */
+    suspend fun rotateAgentToken(): AgentTokenRotation =
+        withContext(Dispatchers.IO) {
+            post("/v1/auth/agent-token/rotate")
+        }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =
@@ -115,6 +128,19 @@ class ZeroWidgetApi(
 
     private inline fun <reified T> get(path: String): T {
         getRaw(path).use { resp ->
+            return parse(resp.body?.string().orEmpty())
+        }
+    }
+
+    private inline fun <reified T> post(path: String, jsonBody: String = "{}"): T {
+        val req = authed(path)
+            .post(jsonBody.toRequestBody("application/json".toMediaType()))
+            .build()
+        http.newCall(req).execute().use { resp ->
+            if (resp.code !in 200..299) {
+                val msg = resp.body?.string().orEmpty()
+                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+            }
             return parse(resp.body?.string().orEmpty())
         }
     }
@@ -146,3 +172,10 @@ class ZeroWidgetApi(
             URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
     }
 }
+
+/** Answer to POST /v1/auth/agent-token/rotate. Unknown fields ignored. */
+@Serializable
+data class AgentTokenRotation(
+    val token: String = "",
+    val revokedAgentTokens: Int = 0,
+)
