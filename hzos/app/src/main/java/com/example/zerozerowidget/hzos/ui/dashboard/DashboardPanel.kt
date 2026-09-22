@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
@@ -207,7 +208,13 @@ fun DashboardPanel(
                 // a lazy grid cannot live inside a lazy list.
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                     val twoCol = maxWidth >= 728.dp
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        // Bottom breathing room: without it the last card
+                        // ends flush against the window edge when the list
+                        // is scrolled to the end.
+                        contentPadding = PaddingValues(bottom = 10.dp),
+                    ) {
                         if (visibleActivities.isNotEmpty()) {
                             item(key = "activities-title") {
                                 SectionTitle("Ongoing Activities")
