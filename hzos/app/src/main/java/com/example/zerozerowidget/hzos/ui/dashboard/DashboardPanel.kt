@@ -474,7 +474,7 @@ private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
         Image(
             painter = painterResource(id = com.example.zerozerowidget.hzos.R.drawable.zw_mark),
             contentDescription = "00Widget",
-            modifier = Modifier.size(96.dp),
+            modifier = Modifier.size(192.dp),
         )
         Spacer(Modifier.height(12.dp))
         Text(
