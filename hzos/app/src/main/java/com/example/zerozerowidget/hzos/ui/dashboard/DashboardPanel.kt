@@ -152,12 +152,10 @@ fun DashboardPanel(
                 }
             }
             nothingToShow -> {
-                Text(
-                    "No cards yet. Publish one from an agent, or explore with demo data.",
-                    style = MaterialTheme.typography.bodyMedium,
+                WelcomePanel(
+                    onSignIn = null,
+                    onTryDemo = { app.sampleStore.generateCards() },
                 )
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
             }
             else -> {
                 state.error?.let {
@@ -470,7 +468,7 @@ fun CardDetailPanel(
  * the empty state reads as a screen, not a gap.
  */
 @Composable
-private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
+private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
@@ -506,12 +504,18 @@ private fun WelcomePanel(onSignIn: () -> Unit, onTryDemo: () -> Unit) {
             modifier = Modifier.fillMaxWidth(0.85f),
         )
         Spacer(Modifier.height(20.dp))
-        Button(onClick = onSignIn) { Text("Sign in") }
-        Spacer(Modifier.height(8.dp))
+        onSignIn?.let { signIn ->
+            Button(onClick = signIn) { Text("Sign in") }
+            Spacer(Modifier.height(8.dp))
+        }
         FilledTonalButton(onClick = onTryDemo) { Text("Try demo data") }
         Spacer(Modifier.height(12.dp))
         Text(
-            "Demo data never leaves this device. No account needed to look around.",
+            if (onSignIn != null) {
+                "Demo data never leaves this device. No account needed to look around."
+            } else {
+                "Demo data never leaves this device."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
