@@ -149,6 +149,15 @@ class HorizonLoginTest {
     }
 
     @Test
+    fun `delete when Horizon is the only way in, unlink when something survives`() {
+        assertEquals(AccountIdAction.NONE, accountIdAction(emptyList()))
+        assertEquals(AccountIdAction.NONE, accountIdAction(listOf("apple")))
+        assertEquals(AccountIdAction.DELETE, accountIdAction(listOf("horizon")))
+        assertEquals(AccountIdAction.UNLINK, accountIdAction(listOf("horizon", "apple")))
+        assertEquals(AccountIdAction.UNLINK, accountIdAction(listOf("horizon", "weird")))
+    }
+
+    @Test
     fun `browser approval echoes the decision and names failures`() {
         assertEquals("Browser sign-in approved.", describeBrowserApproval(200, """{"ok":true}""", true))
         assertEquals("Browser sign-in denied.", describeBrowserApproval(200, """{"ok":true}""", false))

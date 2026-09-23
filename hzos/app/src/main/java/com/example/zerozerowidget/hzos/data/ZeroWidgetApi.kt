@@ -177,6 +177,29 @@ class ZeroWidgetApi(
             postRaw("/v1/auth/horizon/browser/approve", body)
         }
 
+    /**
+     * Deletes the whole tenant (`DELETE /v1/account`) on the app
+     * credential. Irreversible by design; the caller confirms first and
+     * clears the local store after, since the token dies with the account.
+     */
+    suspend fun deleteAccount() =
+        withContext(Dispatchers.IO) {
+            delete("/v1/account")
+        }
+
+    /**
+     * Detaches the Horizon identity (`DELETE /v1/account/horizon`) on the
+     * app credential, for accounts that also sign in elsewhere. Returns raw
+     * (status, body): 404 while the endpoint does not exist yet, 409 when
+     * Horizon is the only identity (delete instead), and success otherwise.
+     * The caller clears the local store after, since the session dies with
+     * the link.
+     */
+    suspend fun unlinkHorizonAccount(): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            deleteRaw("/v1/account/horizon")
+        }
+
     // --- internals ---
 
     private inline fun <reified T> parse(raw: String): T =
@@ -231,6 +254,14 @@ class ZeroWidgetApi(
             return resp.code to resp.body?.string().orEmpty()
         }
     }
+
+    /** Raw DELETE: status plus body, throwing only when nothing answered. */
+    private fun deleteRaw(path: String): Pair<Int, String> {
+        val req = authed(path).delete().build()
+        http.newCall(req).execute().use { resp ->
+            return resp.code to resp.body?.string().orEmpty()
+        }
+    }
     private fun postEmpty(path: String, jsonBody: String) {
         val req = authed(path)
             .post(jsonBody.toRequestBody("application/json".toMediaType()))
@@ -279,6 +310,17 @@ data class AccountInfo(
     val ownerEmail: String? = null,
     val displayName: String? = null,
     val isReviewTenant: Boolean = false,
+    /**
+     * Linked login identities. Absent on Workers predating the field —
+     * callers must offer neither delete nor unlink then, since the case
+     * cannot be determined.
+     */
+    val identities: List<AccountIdentity> = emptyList(),
+)
+
+@Serializable
+data class AccountIdentity(
+    val provider: String = "",
 )
 
 /** Answer to GET /v1/subscription. Mirrors SubscriptionState server-side. */

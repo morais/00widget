@@ -57,6 +57,8 @@ import com.example.zerozerowidget.hzos.data.DummyAccountData
 import com.example.zerozerowidget.hzos.data.HorizonOutcome
 import com.example.zerozerowidget.hzos.data.SubscriptionState
 import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
+import com.example.zerozerowidget.hzos.data.AccountIdAction
+import com.example.zerozerowidget.hzos.data.accountIdAction
 import com.example.zerozerowidget.hzos.data.awaitDeviceToken
 import com.example.zerozerowidget.hzos.data.describeBrowserApproval
 import com.example.zerozerowidget.hzos.data.horizonSignInBody
@@ -211,8 +213,10 @@ private fun SettingsRoot(
 
         Spacer(Modifier.height(4.dp))
         if (signedIn) {
+            AccountAccessSection(app = app)
             Spacer(Modifier.height(4.dp))
             BrowserApprovalSection(app = app)
+            Spacer(Modifier.height(4.dp))
         }
         AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
@@ -402,6 +406,159 @@ private fun BrowserApprovalSection(app: ZeroZeroWidgetApp) {
                 )
             }
         }
+    }
+}
+
+/**
+ * Delete-or-unlink for the account, decided by its login identities (see
+ * [accountIdAction]): Horizon-only accounts can only be deleted, Apple-
+ * linked ones only unlinked. Absent identity data (older Workers) offers
+ * neither. Either success clears the local store — the token dies with
+ * the account or the link — and refreshes into the signed-out view.
+ */
+@Composable
+private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
+    val scope = rememberCoroutineScope()
+    var action by remember { mutableStateOf<AccountIdAction?>(null) }
+    var confirming by remember { mutableStateOf<AccountIdAction?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        action = try {
+            val current = app.connectionStore.current()
+            val base = current.baseUrl.ifBlank {
+                com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+            }
+            if (current.apiKey.isBlank() || base.isBlank()) {
+                AccountIdAction.NONE
+            } else {
+                val info = ZeroWidgetApi(app.http, base, current.apiKey).fetchAccount()
+                accountIdAction(info.identities.map { it.provider })
+            }
+        } catch (e: Exception) {
+            AccountIdAction.NONE
+        }
+    }
+
+    // Nothing determinable, nothing offered. Hooks stay above this return.
+    if (action == null || action == AccountIdAction.NONE) return
+
+    suspend fun api(): ZeroWidgetApi {
+        val current = app.connectionStore.current()
+        val base = current.baseUrl.ifBlank {
+            com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+        }
+        if (current.apiKey.isBlank() || base.isBlank()) throw IllegalStateException("Not connected.")
+        return ZeroWidgetApi(app.http, base, current.apiKey)
+    }
+
+    fun execute(act: AccountIdAction) {
+        if (busy) return
+        confirming = null
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                if (act == AccountIdAction.DELETE) {
+                    api().deleteAccount()
+                    app.connectionStore.clear()
+                } else {
+                    val (status, body) = api().unlinkHorizonAccount()
+                    if (status in 200..299) {
+                        app.connectionStore.clear()
+                    } else if (status == 401 || status == 404) {
+                        // Dead credential or already-gone link: the session
+                        // is useless either way, so land signed out. A 404
+                        // from a Worker predating the endpoint reads the
+                        // same — both mean there is nothing to unlink.
+                        app.connectionStore.clear()
+                        throw IllegalStateException("Nothing left to unlink.")
+                    } else if (status == 409) {
+                        throw IllegalStateException(
+                            "Horizon is the only way into this account — delete it instead.",
+                        )
+                    } else {
+                        val serverError = """"error"\s*:\s*"([^"]*)""""
+                            .toRegex().find(body)?.groupValues?.getOrNull(1)
+                        throw IllegalStateException(
+                            serverError?.takeIf { it.isNotBlank() } ?: "Request failed ($status).",
+                        )
+                    }
+                }
+                app.repository.refresh()
+            } catch (e: ZeroWidgetApi.ApiException) {
+                // Delete's only failure with a usable session behind it is
+                // worth naming; anything else (401/404) already landed
+                // signed out above or means the account is gone, so the
+                // local clear stands and no error shows.
+                if (act == AccountIdAction.DELETE && e.status !in listOf(401, 404)) {
+                    error = (e.message ?: "Delete failed.").take(200)
+                } else if (act == AccountIdAction.DELETE) {
+                    app.connectionStore.clear()
+                    app.repository.refresh()
+                } else {
+                    error = (e.message ?: "Request failed.").take(200)
+                }
+            } catch (e: Exception) {
+                error = (e.message ?: e.javaClass.simpleName).take(200)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val isDelete = action == AccountIdAction.DELETE
+    GlassCard(cardAlpha = 1f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Account and access", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (isDelete) {
+                    "Horizon is the only way into this account. Deleting removes " +
+                        "its cards, activities, tokens, and the account itself — " +
+                        "it cannot be undone."
+                } else {
+                    "This account also uses Sign in with Apple, which keeps " +
+                        "working. Unlinking removes this headset's Meta identity " +
+                        "and signs this device out."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            error?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            FilledTonalButton(
+                onClick = { confirming = action },
+                enabled = !busy,
+            ) { Text(if (busy) "Working…" else if (isDelete) "Delete account" else "Unlink this headset") }
+        }
+    }
+
+    if (confirming != null) {
+        val target = confirming!!
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirming = null },
+            title = { Text(if (target == AccountIdAction.DELETE) "Delete this account?" else "Unlink this headset?") },
+            text = {
+                Text(
+                    if (target == AccountIdAction.DELETE) {
+                        "Everything goes: cards, activities, tokens, the account itself."
+                    } else {
+                        "This Meta identity loses access to the account. Apple sign-in is unaffected."
+                    },
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = { execute(target) },
+                    enabled = !busy,
+                ) { Text(if (target == AccountIdAction.DELETE) "Delete" else "Unlink") }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = { confirming = null }) { Text("Cancel") }
+            },
+        )
     }
 }
 

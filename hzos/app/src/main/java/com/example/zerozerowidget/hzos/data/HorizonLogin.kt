@@ -136,6 +136,20 @@ suspend fun runHorizonSignIn(
 fun isMetaUserSwitch(storedUserId: String, currentUserId: String?): Boolean =
     storedUserId.isNotBlank() && !currentUserId.isNullOrBlank() && storedUserId != currentUserId
 
+/** What Settings may offer for the account's login identities. */
+enum class AccountIdAction { NONE, DELETE, UNLINK }
+
+/**
+ * Delete when Horizon is the only way in; unlink when another identity
+ * survives the removal (Apple or anything else — the rule is about what
+ * remains, not its name). Empty or Horizon-less lists offer nothing: no
+ * link, nothing to do; no data (older Workers), case undeterminable.
+ */
+fun accountIdAction(providers: List<String>): AccountIdAction {
+    if (!providers.contains("horizon")) return AccountIdAction.NONE
+    return if (providers.any { it != "horizon" }) AccountIdAction.UNLINK else AccountIdAction.DELETE
+}
+
 /**
  * Maps one browser-approval answer onto UI text. Success echoes the
  * decision the user made; failures name the cause.
