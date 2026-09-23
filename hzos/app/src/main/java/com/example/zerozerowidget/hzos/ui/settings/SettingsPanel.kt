@@ -43,7 +43,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.auth.ensureMetaUserMatches
@@ -970,6 +974,12 @@ private fun HorizonSignInSection(
                 "This headset isn't linked to an account yet.",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            Text(
+                "Creating an account uses this headset's own Meta identity — " +
+                    "nothing to approve on your phone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Button(
                 onClick = { begin("create") },
                 modifier = Modifier.fillMaxWidth(),
@@ -977,7 +987,17 @@ private fun HorizonSignInSection(
             FilledTonalButton(
                 onClick = { begin("join_apple") },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Join my iPhone account") }
+            ) {
+                Text(
+                    buildAnnotatedString {
+                        append("Use an existing ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append("Sign in with Apple")
+                        }
+                        append(" account")
+                    },
+                )
+            }
             FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
         }
         HorizonPhase.WAITING -> {
