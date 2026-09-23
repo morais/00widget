@@ -984,6 +984,11 @@ private fun HorizonSignInSection(
                 onClick = { begin("create") },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Create a new account") }
+            Text(
+                "Already have an account? Join it here — you'll approve the link on your iPhone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             FilledTonalButton(
                 onClick = { begin("join_apple") },
                 modifier = Modifier.fillMaxWidth(),
