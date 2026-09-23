@@ -97,7 +97,7 @@ export async function signInWithHorizon(req: Request, env: Env): Promise<Respons
     .run();
 
   const account = await getHorizonAccount(env, appId, userId);
-  if (account) return issueHorizonCredential(env, account.tenant_id, deviceId);
+  if (account) return issueHorizonCredential(env, account.tenant_id, deviceId, appId, userId);
   if (choice === undefined) {
     return json({ status: "choice_required", choices: ["create", "join_apple"] }, 200, {
       "cache-control": "no-store",
@@ -124,9 +124,9 @@ export async function signInWithHorizon(req: Request, env: Env): Promise<Respons
   } catch (error) {
     const winner = await getHorizonAccount(env, appId, userId);
     if (!winner) throw error;
-    return issueHorizonCredential(env, winner.tenant_id, deviceId);
+    return issueHorizonCredential(env, winner.tenant_id, deviceId, appId, userId);
   }
-  return issueHorizonCredential(env, tenantId, deviceId);
+  return issueHorizonCredential(env, tenantId, deviceId, appId, userId);
 }
 
 export async function getHorizonAccount(
@@ -154,6 +154,8 @@ async function issueHorizonCredential(
   env: Env,
   tenantId: string,
   deviceId: string,
+  appId: string,
+  userId: string,
 ): Promise<Response> {
   const created = await createApiKey(env, {
     tenantId,
@@ -163,6 +165,15 @@ async function issueHorizonCredential(
     scopes: ApiScopePresets.device,
     deviceId: deviceId || undefined,
   });
+  // Unlink can happen between the first identity lookup and this insert.
+  // If it did, revoke the just-minted token rather than returning a valid
+  // credential for an identity that is no longer part of this account.
+  const current = await getHorizonAccount(env, appId, userId);
+  if (current?.tenant_id !== tenantId) {
+    await env.ZW_DB.prepare(`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`)
+      .bind(new Date().toISOString(), created.apiKey.id).run();
+    return json({ error: "Horizon identity was unlinked; sign in again" }, 409);
+  }
   return json({ status: "signed_in", token: created.token }, 201, { "cache-control": "no-store" });
 }
 

@@ -292,6 +292,18 @@ is stored only in `horizon_accounts`, keyed by the configured app ID. Admin
 lists append a short tenant ID to distinguish accounts with the same label.
 The Meta user ID is app-scoped, not a global email or a user-chosen name.
 
+`GET /v1/account` includes `identities`, with one `{ "provider": "apple" }`
+entry per `apple_accounts` row and one `{ "provider": "horizon" }` per
+`horizon_accounts` row. Clients should offer **Delete account** when Horizon
+is the only identity, or **Unlink Horizon OS** when another identity remains.
+`DELETE /v1/account/horizon` accepts only an app credential and is available
+even without an active subscription. It returns 404 if no Horizon identity is
+linked, 409 if Horizon is the sole identity, or `{ "ok": true }` after removing
+the Horizon identity. Unlink revokes the tenant's app-kind, device-purpose
+headset credentials, approved-but-unexchanged Horizon join codes, and pending
+Horizon browser logins; the headset should clear its local session on success.
+The iOS app credential is unaffected.
+
 Apply migrations `0036` and `0037` before enabling the flow. Set
 `HORIZON_IDENTITY_ENABLED = "true"` in the deployment's local `wrangler.toml`
 only after the headset implements the new contract. The existing iOS app can

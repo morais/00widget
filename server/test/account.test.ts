@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import handler from "../src/index";
 import { ApiScopePresets, createApiKey, listTenants } from "../src/auth";
+import { createVerifiedHorizonAuthorization } from "../src/deviceAuth";
+import { putAppleAccount } from "../src/identity";
 import * as storage from "../src/storage";
 import { authedRequest, FakeD1, makeEnv } from "./helpers";
 
@@ -41,6 +43,7 @@ describe("GET /v1/account", () => {
         tenantId: device.tenant.id,
         ownerEmail: "owner@example.com",
         displayName: "owner@example.com",
+        identities: [],
         isReviewTenant: false,
       },
     });
@@ -69,6 +72,121 @@ describe("GET /v1/account", () => {
       executionCtx,
     );
     expect(response.status).toBe(401);
+  });
+});
+
+describe("DELETE /v1/account/horizon", () => {
+  it("unlinks Horizon, revokes only headset app/device credentials, and preserves Apple access", async () => {
+    const env = makeEnv({ SUBSCRIPTION_REQUIRED: "true" });
+    const { device, app } = await session(env);
+    const tenantId = device.tenant.id;
+    await putAppleAccount(env, { appleSub: "apple-1", tenantId, email: "owner@example.com" });
+    await putAppleAccount(env, { appleSub: "apple-2", tenantId, email: "owner@example.com" });
+    await env.ZW_DB.prepare(
+      `INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at) VALUES (?, ?, ?, ?)`,
+    ).bind("meta-app", "meta-user", tenantId, new Date().toISOString()).run();
+    const headset = await createApiKey(env, {
+      tenantId, label: "Horizon headset", kind: "app", purpose: "device",
+      scopes: ApiScopePresets.device,
+    });
+
+    const before = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account", {}, headset.token), env, executionCtx,
+    );
+    expect((await before.json() as any).account.identities).toEqual([
+      { provider: "apple" }, { provider: "apple" }, { provider: "horizon" },
+    ]);
+
+    const unlinked = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account/horizon", { method: "DELETE" }, headset.token),
+      env, executionCtx,
+    );
+    expect(unlinked.status).toBe(200);
+    expect(await unlinked.json()).toEqual({ ok: true });
+
+    const headsetAfter = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account", {}, headset.token), env, executionCtx,
+    );
+    expect(headsetAfter.status).toBe(401);
+    const phoneAfter = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account", {}, app.token), env, executionCtx,
+    );
+    expect(phoneAfter.status).toBe(200);
+    expect((await phoneAfter.json() as any).account.identities).toEqual([
+      { provider: "apple" }, { provider: "apple" },
+    ]);
+    const deviceAfter = await (handler.fetch as any)(
+      authedRequest("https://x/v1/cards", {}, device.token), env, executionCtx,
+    );
+    expect(deviceAfter.status).toBe(200);
+  });
+
+  it("returns 404 without a Horizon identity and 409 when it is the sole identity", async () => {
+    const env = makeEnv();
+    const { app } = await session(env);
+    const tenantId = app.tenant.id;
+    const missing = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account/horizon", { method: "DELETE" }, app.token),
+      env, executionCtx,
+    );
+    expect(missing.status).toBe(404);
+
+    await env.ZW_DB.prepare(
+      `INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at) VALUES (?, ?, ?, ?)`,
+    ).bind("meta-app", "meta-user", tenantId, new Date().toISOString()).run();
+    const sole = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account/horizon", { method: "DELETE" }, app.token),
+      env, executionCtx,
+    );
+    expect(sole.status).toBe(409);
+    const account = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account", {}, app.token), env, executionCtx,
+    );
+    expect((await account.json() as any).account.identities).toEqual([{ provider: "horizon" }]);
+  });
+
+  it("requires an app credential", async () => {
+    const env = makeEnv();
+    const { device } = await session(env);
+    const forbidden = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account/horizon", { method: "DELETE" }, device.token),
+      env, executionCtx,
+    );
+    expect(forbidden.status).toBe(403);
+    const unauthorized = await (handler.fetch as any)(
+      new Request("https://x/v1/account/horizon", { method: "DELETE" }), env, executionCtx,
+    );
+    expect(unauthorized.status).toBe(401);
+  });
+
+  it("invalidates an approved Horizon join code before it can mint a new headset token", async () => {
+    const env = makeEnv({ HORIZON_DEVICE_AUTH_ENABLED: "true" });
+    const { app } = await session(env);
+    await putAppleAccount(env, {
+      appleSub: "apple-1", tenantId: app.tenant.id, email: "owner@example.com",
+    });
+    const issued = await createVerifiedHorizonAuthorization(
+      new Request("https://x/v1/auth/horizon"), env, "meta-app", "meta-user",
+    );
+    const code = await issued.json() as { user_code: string; device_code: string };
+    const approved = await (handler.fetch as any)(
+      authedRequest("https://x/v1/auth/device/approve", {
+        method: "POST", body: JSON.stringify({ user_code: code.user_code }),
+      }, app.token), env, executionCtx,
+    );
+    expect(approved.status).toBe(200);
+
+    const unlinked = await (handler.fetch as any)(
+      authedRequest("https://x/v1/account/horizon", { method: "DELETE" }, app.token),
+      env, executionCtx,
+    );
+    expect(unlinked.status).toBe(200);
+    const exchange = await (handler.fetch as any)(
+      new Request("https://x/v1/auth/device/token", {
+        method: "POST", body: JSON.stringify({ device_code: code.device_code }),
+      }), env, executionCtx,
+    );
+    expect((await exchange.json() as any).error).toBe("expired");
   });
 });
 

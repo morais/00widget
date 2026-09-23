@@ -152,7 +152,7 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
 
   const hash = await sha256Hex(deviceCode);
   const row = await env.ZW_DB.prepare(
-    `SELECT id, status, tenant_id, expires_at
+    `SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id
      FROM device_authorizations
      WHERE device_code_hash = ?`,
   )
@@ -163,6 +163,7 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
   if (row.status === "pending") return deviceState("authorization_pending");
   if (row.status === "denied") return deviceState("denied");
   if (row.status !== "approved" || !row.tenant_id) return deviceState("expired");
+  if (!(await horizonJoinStillLinked(env, row))) return deviceState("expired");
 
   // Claim before minting so two concurrent polls cannot both receive a new
   // credential. If minting fails, put it back so a transient D1 failure does
@@ -176,6 +177,7 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
     .run();
   if (changedRows(claimed) === 0) return deviceState("authorization_pending");
 
+  let mintedApiKeyId: string | null = null;
   try {
     const created = await createApiKey(env, {
       tenantId: row.tenant_id,
@@ -201,6 +203,14 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       purpose: "device",
       scopes: ApiScopePresets.device,
     });
+    mintedApiKeyId = created.apiKey.id;
+    // Unlink may race with a poll that already claimed the code. Never hand
+    // back a newly minted token after its Horizon binding was removed.
+    if (!(await horizonJoinStillLinked(env, row))) {
+      await env.ZW_DB.prepare(`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`)
+        .bind(new Date().toISOString(), mintedApiKeyId).run();
+      return deviceState("expired");
+    }
     await env.ZW_DB.prepare(
       `UPDATE device_authorizations
        SET status = 'consumed', consumed_at = ?
@@ -210,6 +220,10 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       .run();
     return json({ token: created.token }, 200, { "cache-control": "no-store" });
   } catch (error) {
+    if (mintedApiKeyId) {
+      await env.ZW_DB.prepare(`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`)
+        .bind(new Date().toISOString(), mintedApiKeyId).run();
+    }
     try {
       await env.ZW_DB.prepare(
         `UPDATE device_authorizations
@@ -223,6 +237,14 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
     }
     throw error;
   }
+}
+
+async function horizonJoinStillLinked(env: Env, row: DeviceAuthorizationRow): Promise<boolean> {
+  if (!row.horizon_app_id || !row.horizon_user_id) return true;
+  const bound = await env.ZW_DB.prepare(
+    `SELECT tenant_id FROM horizon_accounts WHERE app_id = ? AND user_id = ?`,
+  ).bind(row.horizon_app_id, row.horizon_user_id).first<{ tenant_id: string }>();
+  return bound?.tenant_id === row.tenant_id;
 }
 
 /// POST /v1/auth/device/approve — native iOS path, app credential only.

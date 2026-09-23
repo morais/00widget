@@ -19,17 +19,97 @@ export async function getAccount(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const tenant = await env.ZW_DB.prepare(`SELECT name FROM tenants WHERE id = ?`)
-    .bind(auth.tenantId)
-    .first<{ name: string }>();
+  const [tenant, identities] = await Promise.all([
+    env.ZW_DB.prepare(`SELECT name FROM tenants WHERE id = ?`)
+      .bind(auth.tenantId)
+      .first<{ name: string }>(),
+    listAccountIdentities(env, auth.tenantId),
+  ]);
   return json({
     account: {
       tenantId: auth.tenantId,
       ownerEmail: auth.ownerEmail ?? null,
       displayName: tenant?.name ?? "00Widget account",
+      identities,
       isReviewTenant: isReviewTenant(env, auth.tenantId),
     },
   });
+}
+
+type IdentityProvider = "apple" | "horizon";
+
+async function listAccountIdentities(
+  env: Env,
+  tenantId: string,
+): Promise<Array<{ provider: IdentityProvider }>> {
+  const [apple, horizon] = await Promise.all([
+    env.ZW_DB.prepare(`SELECT 'apple' AS provider FROM apple_accounts WHERE tenant_id = ?`)
+      .bind(tenantId).all<{ provider: "apple" }>(),
+    env.ZW_DB.prepare(`SELECT 'horizon' AS provider FROM horizon_accounts WHERE tenant_id = ?`)
+      .bind(tenantId).all<{ provider: "horizon" }>(),
+  ]);
+  // One entry per identity row, not one per provider. The account name and
+  // owner email are presentation data; neither proves that Apple is linked.
+  return [...apple.results, ...horizon.results];
+}
+
+/// DELETE /v1/account/horizon — unlink a Horizon identity while preserving
+/// the Apple-owned tenant. Never strand an account with no sign-in method.
+/// Horizon app credentials have kind=app/purpose=device; the iOS app's own
+/// credential has kind=app/purpose=app and must survive this operation.
+export async function unlinkHorizonAccount(
+  _req: Request,
+  env: Env,
+  auth: AuthContext,
+): Promise<Response> {
+  const tenantId = auth.tenantId;
+  const identities = await listAccountIdentities(env, tenantId);
+  if (!identities.some((identity) => identity.provider === "horizon")) {
+    return json({ error: "Horizon identity is not linked" }, 404);
+  }
+  if (!identities.some((identity) => identity.provider === "apple")) {
+    return json({ error: "Horizon is the only linked identity; delete the account instead" }, 409);
+  }
+
+  const db = env.ZW_DB;
+  // The conditions repeat the identity checks inside this one D1 transaction.
+  // Revoke before deleting the mapping so a racing unlink cannot revoke a
+  // token on an account that no longer has a Horizon identity.
+  const results = await db.batch([
+    db.prepare(
+      `UPDATE api_keys SET revoked_at = ?
+       WHERE tenant_id = ? AND kind = 'app' AND purpose = 'device'
+         AND revoked_at IS NULL
+         AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?)
+         AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)`,
+    ).bind(new Date().toISOString(), tenantId, tenantId, tenantId),
+    db.prepare(
+      `DELETE FROM horizon_browser_logins WHERE tenant_id = ?
+       AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?)
+       AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)`,
+    ).bind(tenantId, tenantId, tenantId),
+    db.prepare(
+      `DELETE FROM device_authorizations WHERE tenant_id = ?
+       AND horizon_app_id IS NOT NULL AND horizon_user_id IS NOT NULL
+       AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?)
+       AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)`,
+    ).bind(tenantId, tenantId, tenantId),
+    db.prepare(
+      `DELETE FROM horizon_accounts WHERE tenant_id = ?
+       AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)`,
+    ).bind(tenantId, tenantId),
+  ]);
+  if (changedRows(results[3]) === 0) {
+    const current = await listAccountIdentities(env, tenantId);
+    return current.some((identity) => identity.provider === "horizon")
+      ? json({ error: "Horizon is the only linked identity; delete the account instead" }, 409)
+      : json({ error: "Horizon identity is not linked" }, 404);
+  }
+  return json({ ok: true });
+}
+
+function changedRows(result: D1Result): number {
+  return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
 }
 
 /// DELETE /v1/account — erase the tenant and everything it owns.

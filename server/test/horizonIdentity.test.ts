@@ -95,7 +95,13 @@ describe("Horizon identity", () => {
     expect(accountResponse.status).toBe(200);
     const account = (await accountResponse.json() as any).account;
     expect(account).toMatchObject({ ownerEmail: null, displayName: "Horizon account" });
+    expect(account.identities).toEqual([{ provider: "horizon" }]);
     expect(account.tenantId).toBeTruthy();
+
+    const cannotUnlink = await worker(authedRequest(`${ORIGIN}/v1/account/horizon`, {
+      method: "DELETE",
+    }, token), env);
+    expect(cannotUnlink.status).toBe(409);
 
     const signedIn = await login(env, "proof-return-12345678");
     expect(signedIn.status).toBe(201);
@@ -150,6 +156,7 @@ describe("Horizon identity", () => {
     expect((await account.json() as any).account).toMatchObject({
       tenantId: "apple-owner",
       ownerEmail: "apple-owner@example.com",
+      identities: [{ provider: "apple" }, { provider: "horizon" }],
     });
 
     const returnLogin = await login(env, "proof-join-return-12345678");

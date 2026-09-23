@@ -238,6 +238,41 @@ export class FakeD1 {
 
   run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
+    if (normalized === "DELETE FROM horizon_browser_logins WHERE tenant_id = ? AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?) AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)") {
+      const [tenant_id] = values.map(String);
+      if (![...this.horizonAccounts.values()].some((row) => row.tenant_id === tenant_id)
+        || ![...this.appleAccounts.values()].some((row) => row.tenant_id === tenant_id)) return 0;
+      let removed = 0;
+      for (const [key, row] of this.horizonBrowserLogins) {
+        if (row.tenant_id !== tenant_id) continue;
+        this.horizonBrowserLogins.delete(key);
+        removed++;
+      }
+      return removed;
+    }
+    if (normalized === "DELETE FROM horizon_accounts WHERE tenant_id = ? AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)") {
+      const [tenant_id] = values.map(String);
+      if (![...this.appleAccounts.values()].some((row) => row.tenant_id === tenant_id)) return 0;
+      let removed = 0;
+      for (const [key, row] of this.horizonAccounts) {
+        if (row.tenant_id !== tenant_id) continue;
+        this.horizonAccounts.delete(key);
+        removed++;
+      }
+      return removed;
+    }
+    if (normalized === "DELETE FROM device_authorizations WHERE tenant_id = ? AND horizon_app_id IS NOT NULL AND horizon_user_id IS NOT NULL AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?) AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)") {
+      const [tenant_id] = values.map(String);
+      if (![...this.horizonAccounts.values()].some((row) => row.tenant_id === tenant_id)
+        || ![...this.appleAccounts.values()].some((row) => row.tenant_id === tenant_id)) return 0;
+      let removed = 0;
+      for (const [key, row] of this.deviceAuthorizations) {
+        if (row.tenant_id !== tenant_id || !row.horizon_app_id || !row.horizon_user_id) continue;
+        this.deviceAuthorizations.delete(key);
+        removed++;
+      }
+      return removed;
+    }
     // The account-deletion batch in `src/account.ts`: one table, one equality,
     // one bound value. Matched by shape rather than listed statement by
     // statement — and deliberately *first*, because several handlers below
@@ -483,6 +518,19 @@ export class FakeD1 {
       if (!row || row.revoked_at) return 0;
       row.revoked_at = revoked_at;
       return 1;
+    }
+    if (normalized === "UPDATE api_keys SET revoked_at = ? WHERE tenant_id = ? AND kind = 'app' AND purpose = 'device' AND revoked_at IS NULL AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?) AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)") {
+      const [revoked_at, tenant_id] = values.map(String);
+      if (![...this.horizonAccounts.values()].some((row) => row.tenant_id === tenant_id)
+        || ![...this.appleAccounts.values()].some((row) => row.tenant_id === tenant_id)) return 0;
+      let count = 0;
+      for (const row of this.apiKeys.values()) {
+        if (row.tenant_id === tenant_id && row.kind === "app" && row.purpose === "device" && !row.revoked_at) {
+          row.revoked_at = revoked_at;
+          count++;
+        }
+      }
+      return count;
     }
     if (normalized === "UPDATE api_keys SET revoked_at = ? WHERE tenant_id = ? AND session_id = ? AND revoked_at IS NULL") {
       const [revoked_at, tenant_id, session_id] = values.map(String);
@@ -1349,11 +1397,11 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
-    if (normalized === "SELECT id, status, tenant_id, expires_at FROM device_authorizations WHERE device_code_hash = ?") {
+    if (normalized === "SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id FROM device_authorizations WHERE device_code_hash = ?") {
       const [hash] = values.map(String);
       const row = [...this.deviceAuthorizations.values()]
         .find((candidate) => candidate.device_code_hash === hash);
-      return row ? [select("id", "status", "tenant_id", "expires_at")(row)] : [];
+      return row ? [select("id", "status", "tenant_id", "expires_at", "horizon_app_id", "horizon_user_id")(row)] : [];
     }
     if (normalized === "SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id FROM device_authorizations WHERE user_code_hash = ?") {
       const [hash] = values.map(String);
@@ -1374,6 +1422,18 @@ export class FakeD1 {
       const [tenant_id] = values.map(String);
       const row = [...this.appleAccounts.values()].find((candidate) => candidate.tenant_id === tenant_id);
       return pick(row, ["apple_sub"]);
+    }
+    if (normalized === "SELECT 'apple' AS provider FROM apple_accounts WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      return [...this.appleAccounts.values()]
+        .filter((row) => row.tenant_id === tenant_id)
+        .map(() => ({ provider: "apple" }));
+    }
+    if (normalized === "SELECT 'horizon' AS provider FROM horizon_accounts WHERE tenant_id = ?") {
+      const [tenant_id] = values.map(String);
+      return [...this.horizonAccounts.values()]
+        .filter((row) => row.tenant_id === tenant_id)
+        .map(() => ({ provider: "horizon" }));
     }
     if (normalized === "SELECT name FROM tenants WHERE id = ?") {
       const [id] = values.map(String);

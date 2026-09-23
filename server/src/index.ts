@@ -258,6 +258,10 @@ const routes: Route[] = [
   authed("GET", /^\/v1\/account\/?$/, null, (req, env, auth) =>
     account.getAccount(req, env, auth), { credentialKind: "app" },
   ),
+  // Account unlinking is an app action even if the subscription has lapsed.
+  authed("DELETE", /^\/v1\/account\/horizon\/?$/, null, (req, env, auth) =>
+    account.unlinkHorizonAccount(req, env, auth), { credentialKind: "app" },
+  ),
   // App-only: connector grants are account access, just like Agent-token
   // rotation. A publisher or connector must never enumerate or revoke peers.
   authed("GET", /^\/v1\/account\/mcp-connections\/?$/, null, (req, env, auth) =>
