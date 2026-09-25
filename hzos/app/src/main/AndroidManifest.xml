@@ -55,10 +55,13 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:screenOrientation="landscape">
+            <!-- Narrow by design: settings is a form, not a dashboard. Half
+                 the old 900dp default; min follows so the shell can keep it
+                 slim. Content scrolls, so nothing is lost to the width. -->
             <layout
-                android:defaultWidth="900dp"
+                android:defaultWidth="480dp"
                 android:defaultHeight="700dp"
-                android:minWidth="600dp"
+                android:minWidth="360dp"
                 android:minHeight="450dp" />
         </activity>
 
