@@ -1663,6 +1663,10 @@ export interface Env {
   // SESSION_SECRET: MCP OAuth signs its client ids and authorization codes with
   // it, and identifies the operator through the admin session cookie.
   MCP_ENABLED?: string;
+  // Opt-in MCP Apps test channel at /mcp-preview. This depends on MCP_ENABLED
+  // and stays separate so deploying preview code cannot alter a reviewed
+  // stable connector until the operator explicitly enables it.
+  MCP_PREVIEW_ENABLED?: string;
 
   // Comma-separated stable tenant ids that may use a zero-scope review access
   // code on the MCP connection page and the iOS Developer screen. Empty or

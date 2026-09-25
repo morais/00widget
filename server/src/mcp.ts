@@ -15,6 +15,11 @@ import { json } from "./http";
 import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
+import {
+  MCP_PREVIEW_RESOURCE_URI,
+  mcpAppResource,
+  mcpAppResourceDescriptor,
+} from "./mcpApp";
 import { subscriptionGate, subscriptionRequiredMessage } from "./subscription";
 import {
   BatchUpsertCardsSchema,
@@ -253,6 +258,8 @@ function stripShellExamples(markdown: string): string {
 }
 
 export const MCP_PATH = "/mcp";
+export const MCP_PREVIEW_PATH = "/mcp-preview";
+export type McpChannel = "stable" | "preview";
 
 /// Most JSON-RPC requests here arrive one to a body. The cap matches
 /// `FieldLimits.cardBatchCount`, which is the largest number of things any
@@ -322,6 +329,7 @@ const JSON_RPC_INVALID_REQUEST = -32600;
 const JSON_RPC_METHOD_NOT_FOUND = -32601;
 const JSON_RPC_INVALID_PARAMS = -32602;
 const JSON_RPC_INTERNAL_ERROR = -32603;
+const MCP_RESOURCE_NOT_FOUND = -32002;
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -339,6 +347,9 @@ interface ToolContext {
   /// What the client says it speaks, from the MCP-Protocol-Version header or
   /// an initialize request. Decides whether results carry 2026-07-28 fields.
   protocolVersion: string;
+  /// Stable intentionally exposes only the pre-existing contract. Preview is
+  /// the opt-in Apps surface and may advertise resources and render tools.
+  channel: McpChannel;
 }
 
 /// A tool always runs with a credential; `handleMcp` refuses `tools/call`
@@ -484,6 +495,14 @@ interface McpTool {
     text: string,
     args: Record<string, unknown>,
   ): Record<string, unknown>;
+  /// A short model-readable summary for successful JSON responses. The full
+  /// object remains in structuredContent for the component and other clients.
+  successfulContent?(
+    structured: Record<string, unknown>,
+    args: Record<string, unknown>,
+  ): string;
+  securitySchemes?: Array<{ type: "oauth2"; scopes: ApiScope[] }>;
+  descriptorMeta?: Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
   /// Irreversible from the caller's side, in a way a person would want to
@@ -500,7 +519,7 @@ const McpGuideSectionSchema = z.enum(
   Object.keys(MCP_GUIDE_SECTIONS) as [McpGuideSection, ...McpGuideSection[]],
 );
 
-const TOOLS: McpTool[] = [
+const BASE_TOOLS: McpTool[] = [
   {
     name: "list_cards",
     title: "List cards",
@@ -879,6 +898,79 @@ const TOOLS: McpTool[] = [
   },
 ];
 
+const PREVIEW_SECURITY_SCHEMES = [{ type: "oauth2" as const, scopes: ["read" as const] }];
+const PREVIEW_TOOL_META = {
+  securitySchemes: PREVIEW_SECURITY_SCHEMES,
+  ui: {
+    resourceUri: MCP_PREVIEW_RESOURCE_URI,
+    visibility: ["model", "app"],
+  },
+  "openai/outputTemplate": MCP_PREVIEW_RESOURCE_URI,
+  "openai/widgetAccessible": true,
+  "openai/visibility": "public",
+};
+
+const RENDER_TOOLS: McpTool[] = [
+  {
+    name: "render_card",
+    title: "Preview one card",
+    description:
+      "Use this when the user wants to see or inspect one specific 00Widget card. "
+      + "It reads the current card by stable id and opens a read-only visual preview. "
+      + "Prefer this over render_dashboard when a single card answers the request.",
+    schema: z.object({ id: z.string().min(1).describe("The stable id of the card to preview.") }),
+    outputSchema: CardOutput,
+    successfulContent: (structured) => {
+      const card = structured.card as { title?: unknown } | undefined;
+      return `Rendered ${typeof card?.title === "string" ? card.title : "the card"}.`;
+    },
+    securitySchemes: PREVIEW_SECURITY_SCHEMES,
+    descriptorMeta: {
+      ...PREVIEW_TOOL_META,
+      "openai/toolInvocation/invoking": "Loading card…",
+      "openai/toolInvocation/invoked": "Card ready",
+    },
+    scope: "read",
+    readOnly: true,
+    destructive: false,
+    idempotent: true,
+    invoke: (args, tools) =>
+      cards.getCard(getRequest(tools.origin, "/v1/cards"), tools.env, tools.auth, String(args.id)),
+  },
+  {
+    name: "render_dashboard",
+    title: "Preview the dashboard",
+    description:
+      "Use this when the user explicitly wants the whole 00Widget dashboard or needs to compare "
+      + "several cards and running Live Activities. For one known card, prefer render_card.",
+    schema: NoArguments,
+    outputSchema: DashboardOutput,
+    successfulContent: (structured) => {
+      const cards = Array.isArray(structured.cards) ? structured.cards.length : 0;
+      const activities = Array.isArray(structured.activities) ? structured.activities.length : 0;
+      return `Rendered the dashboard with ${cards} card${cards === 1 ? "" : "s"} and ${activities} running activit${activities === 1 ? "y" : "ies"}.`;
+    },
+    securitySchemes: PREVIEW_SECURITY_SCHEMES,
+    descriptorMeta: {
+      ...PREVIEW_TOOL_META,
+      "openai/toolInvocation/invoking": "Loading dashboard…",
+      "openai/toolInvocation/invoked": "Dashboard ready",
+    },
+    scope: "read",
+    readOnly: true,
+    destructive: false,
+    idempotent: true,
+    invoke: (_args, tools) =>
+      dashboard.getDashboard(getRequest(tools.origin, "/v1/dashboard"), tools.env, tools.auth),
+  },
+];
+
+const ALL_TOOLS = [...BASE_TOOLS, ...RENDER_TOOLS];
+
+function toolsFor(channel: McpChannel): McpTool[] {
+  return channel === "preview" ? ALL_TOOLS : BASE_TOOLS;
+}
+
 // Converted once per isolate. `io: "input"` describes what a caller may send —
 // fields carrying a zod default are optional here even though they are always
 // present in the stored card.
@@ -916,31 +1008,38 @@ const OUTPUT_BOUND_KEYWORDS = [
 /// schema that permits everything and would pass a handler returning fields no
 /// schema declares, which is the exact drift it exists to catch.
 export const STRICT_TOOL_OUTPUT_SCHEMAS: Record<string, unknown> = Object.fromEntries(
-  TOOLS.map((tool) => {
+  ALL_TOOLS.map((tool) => {
     const converted = z.toJSONSchema(tool.outputSchema, { io: "output" }) as Record<string, unknown>;
     delete converted.$schema;
     return [tool.name, portableTypeUnions(converted)];
   }),
 );
 
-const TOOL_DESCRIPTORS = TOOLS.map((tool) => ({
-  name: tool.name,
-  title: tool.title,
-  description: tool.description,
-  inputSchema: toolInputSchema(tool.schema),
-  // Text-first tools satisfy the same promise through structuredTextOutput.
-  outputSchema: toolOutputSchema(tool.outputSchema),
-  annotations: {
+function toolDescriptor(tool: McpTool) {
+  return {
+    name: tool.name,
     title: tool.title,
-    readOnlyHint: tool.readOnly,
-    // A tool is destructive when any supported call can overwrite, clear,
-    // delete, or irreversibly replace existing user-visible state.
-    destructiveHint: tool.destructive,
-    idempotentHint: tool.idempotent,
-    // Nothing reaches outside the operator's own 00Widget account.
-    openWorldHint: false,
-  },
-}));
+    description: tool.description,
+    inputSchema: toolInputSchema(tool.schema),
+    // Text-first tools satisfy the same promise through structuredTextOutput.
+    outputSchema: toolOutputSchema(tool.outputSchema),
+    ...(tool.securitySchemes ? { securitySchemes: tool.securitySchemes } : {}),
+    ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta } : {}),
+    annotations: {
+      title: tool.title,
+      readOnlyHint: tool.readOnly,
+      // A tool is destructive when any supported call can overwrite, clear,
+      // delete, or irreversibly replace existing user-visible state.
+      destructiveHint: tool.destructive,
+      idempotentHint: tool.idempotent,
+      // Nothing reaches outside the operator's own 00Widget account.
+      openWorldHint: false,
+    },
+  };
+}
+
+const BASE_TOOL_DESCRIPTORS = BASE_TOOLS.map(toolDescriptor);
+const PREVIEW_TOOL_DESCRIPTORS = ALL_TOOLS.map(toolDescriptor);
 
 function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "input" }) as Record<string, unknown>;
@@ -1036,19 +1135,31 @@ function openObjects(node: unknown): Record<string, unknown> {
 
 // ---------- Discovery for humans and non-ChatGPT clients ----------
 
+function channelPath(channel: McpChannel): string {
+  return channel === "preview" ? MCP_PREVIEW_PATH : MCP_PATH;
+}
+
+function channelConfigured(env: Env, channel: McpChannel): boolean {
+  return mcpConfigured(env) && (channel === "stable" || env.MCP_PREVIEW_ENABLED === "true");
+}
+
 /// A ready-to-paste MCP client config for whatever host is serving it. Clients
 /// that take a config file (Claude Code, editors) want this shape; ChatGPT is
 /// pointed at the URL directly. Generated per request so a fork or a staging
 /// deployment hands out its own hostname rather than one hardcoded here.
-export async function handleMcpConfig(req: Request, env: Env): Promise<Response> {
-  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
+export async function handleMcpConfig(
+  req: Request,
+  env: Env,
+  channel: McpChannel = "stable",
+): Promise<Response> {
+  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
   const origin = new URL(req.url).origin;
   return json(
     {
       mcpServers: {
-        "00widget": {
+        [channel === "preview" ? "00widget-preview" : "00widget"]: {
           type: "http",
-          url: `${origin}${MCP_PATH}`,
+          url: `${origin}${channelPath(channel)}`,
         },
       },
     },
@@ -1060,8 +1171,12 @@ export async function handleMcpConfig(req: Request, env: Env): Promise<Response>
 /// The MCP endpoint speaks one POST at a time. Answering GET with a clean 405
 /// (rather than the router's 404) tells a client probing for an SSE stream that
 /// the endpoint exists and which method it wants.
-export async function handleMcpMethodNotAllowed(_req: Request, env: Env): Promise<Response> {
-  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
+export async function handleMcpMethodNotAllowed(
+  _req: Request,
+  env: Env,
+  channel: McpChannel = "stable",
+): Promise<Response> {
+  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
   return json(
     { error: "the MCP endpoint accepts POST only; this server has no SSE stream" },
     405,
@@ -1071,8 +1186,13 @@ export async function handleMcpMethodNotAllowed(_req: Request, env: Env): Promis
 
 // ---------- Transport ----------
 
-export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
+export async function handleMcp(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  channel: McpChannel = "stable",
+): Promise<Response> {
+  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
 
   // Every JSON-RPC message needs a credential. The one thing that does not is
   // the empty probe below, which carries no message at all.
@@ -1095,7 +1215,7 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
         hasAuthorizationHeader: true,
         reason: err.message,
       });
-      return mcpUnauthorized(req, err.message);
+      return mcpUnauthorized(req, err.message, channelPath(channel));
     }
   }
 
@@ -1128,7 +1248,7 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     // An anonymous caller gets the challenge rather than a bare parse error:
     // it may simply not know yet that this endpoint wants a credential, and a
     // 400 gives it nothing to act on.
-    if (!auth) return mcpUnauthorized(req, "authentication required");
+    if (!auth) return mcpUnauthorized(req, "authentication required", channelPath(channel));
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
@@ -1138,7 +1258,7 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
       hasAuthorizationHeader: false,
       reason: "missing or malformed Authorization header",
     });
-    return mcpUnauthorized(req, "missing or malformed Authorization header");
+    return mcpUnauthorized(req, "missing or malformed Authorization header", channelPath(channel));
   }
 
   const origin = new URL(req.url).origin;
@@ -1148,6 +1268,7 @@ export async function handleMcp(req: Request, env: Env, ctx: ExecutionContext): 
     ctx,
     origin,
     protocolVersion: declaredProtocolVersion(req, payload),
+    channel,
   };
 
   if (Array.isArray(payload)) {
@@ -1202,7 +1323,9 @@ async function dispatch(
     case "initialize":
       return ok({
         protocolVersion: negotiatedProtocolVersion(request.params),
-        capabilities: { tools: { listChanged: false } },
+        capabilities: tools.channel === "preview"
+          ? { tools: { listChanged: false }, resources: { listChanged: false } }
+          : { tools: { listChanged: false } },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
         instructions: SERVER_INSTRUCTIONS,
       });
@@ -1215,7 +1338,9 @@ async function dispatch(
     case "server/discover":
       return ok({
         supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
-        capabilities: { tools: {} },
+        capabilities: tools.channel === "preview"
+          ? { tools: {}, resources: {} }
+          : { tools: {} },
         instructions: SERVER_INSTRUCTIONS,
         ttlMs: TOOL_LIST_TTL_MS,
         cacheScope: "public",
@@ -1237,14 +1362,33 @@ async function dispatch(
     // are none of those here" is both true and harmless. Cheap interop
     // insurance on a method that cannot do anything.
     case "resources/list":
-      return ok(emptyList("resources"));
+      return ok(tools.channel === "preview"
+        ? {
+            resources: [mcpAppResourceDescriptor()],
+            ttlMs: TOOL_LIST_TTL_MS,
+            cacheScope: "public",
+          }
+        : emptyList("resources"));
+    case "resources/read": {
+      if (tools.channel !== "preview") {
+        return errorResponse(id, JSON_RPC_METHOD_NOT_FOUND, `unknown method '${request.method}'`);
+      }
+      const uri = (request.params as { uri?: unknown } | undefined)?.uri;
+      if (typeof uri !== "string") {
+        return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.uri is required");
+      }
+      if (uri !== MCP_PREVIEW_RESOURCE_URI) {
+        return errorResponse(id, MCP_RESOURCE_NOT_FOUND, `resource '${uri}' was not found`);
+      }
+      return ok({ contents: [mcpAppResource(tools.origin)] });
+    }
     case "resources/templates/list":
       return ok(emptyList("resourceTemplates"));
     case "prompts/list":
       return ok(emptyList("prompts"));
     case "tools/list":
       return ok({
-        tools: TOOL_DESCRIPTORS,
+        tools: tools.channel === "preview" ? PREVIEW_TOOL_DESCRIPTORS : BASE_TOOL_DESCRIPTORS,
         ttlMs: TOOL_LIST_TTL_MS,
         cacheScope: "public",
       });
@@ -1267,7 +1411,7 @@ async function callTool(
   if (typeof call.name !== "string") {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.name is required");
   }
-  const tool = TOOLS.find((candidate) => candidate.name === call.name);
+  const tool = toolsFor(tools.channel).find((candidate) => candidate.name === call.name);
   if (!tool) {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, `unknown tool '${call.name}'`);
   }
@@ -1339,8 +1483,15 @@ async function callTool(
   } catch {
     return ok({ content: [{ type: "text", text }] });
   }
+  const summary = tool.successfulContent && structured && typeof structured === "object"
+    && !Array.isArray(structured)
+    ? tool.successfulContent(
+        structured as Record<string, unknown>,
+        parsed.data as Record<string, unknown>,
+      )
+    : text;
   return ok({
-    content: [{ type: "text", text }],
+    content: [{ type: "text", text: summary }],
     structuredContent: structured,
   });
 }

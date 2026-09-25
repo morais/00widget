@@ -26,6 +26,12 @@ scoped to the approver's own account, revocable from `/admin`.
 
 Details: `server/README.md` → "MCP".
 
+An additive MCP Apps UI can be tested without touching that connector: deploy
+the same Worker with `MCP_PREVIEW_ENABLED = "true"`, then add
+`<BASE_URL>/mcp-preview` as a separate Developer Mode connection. It adds
+read-only `render_card` and `render_dashboard` tools backed by a versioned HTML
+resource; `/mcp` keeps its existing discovery and tool contract.
+
 ### Apps, scripts, automations, and coding agents
 
 If you're inside another repo (say, a CI pipeline or a home-automation script) and want to make Claude Code / Codex publish state to your 00Widget instance, paste this into the agent — it's self-contained:

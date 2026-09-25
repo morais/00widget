@@ -435,6 +435,9 @@ something to integrate against:
 | POST   | `/mcp`                                       | MCP endpoint (Streamable HTTP, JSON-RPC). Off unless `MCP_ENABLED=true`. |
 | GET    | `/mcp.json`                                  | Generated MCP client config for this deployment. |
 | GET    | `/.well-known/oauth-protected-resource`      | RFC 9728 metadata for `/mcp`.          |
+| POST   | `/mcp-preview`                               | Opt-in MCP Apps test channel. Also requires `MCP_PREVIEW_ENABLED=true`. |
+| GET    | `/mcp-preview.json`                          | Generated client config for the preview channel. |
+| GET    | `/.well-known/oauth-protected-resource/mcp-preview` | RFC 9728 metadata for `/mcp-preview`. |
 | GET    | `/.well-known/oauth-authorization-server`    | RFC 8414 metadata.                     |
 | POST   | `/oauth/register`                            | Dynamic client registration (RFC 7591). |
 | GET    | `/connect/mcp/authorize`                     | Consent screen; needs any web session. |
@@ -499,6 +502,36 @@ is: the client registers itself (`/oauth/register`), sends the person to
 producer scopes, listed and revocable in `/admin` like any other. A caller that
 *already* holds a `zw_` token can skip all of this and send it to `/mcp`
 directly.
+
+### MCP Apps preview channel
+
+`/mcp-preview` is an isolated test channel for the optional visual UI. It is
+available only when both `MCP_ENABLED = "true"` and
+`MCP_PREVIEW_ENABLED = "true"`; otherwise its endpoint, generated config, and
+protected-resource metadata all return 404. Connect it separately in Developer
+Mode. It uses the same tenant data and OAuth server as `/mcp`, but its OAuth
+metadata identifies `/mcp-preview` as the protected resource so a client cannot
+silently reconnect to the stable endpoint.
+
+The preview begins with the complete stable tool set and adds two read-only
+tools:
+
+- `render_card { id }` previews one card and is the preferred visual tool.
+- `render_dashboard {}` previews all cards and running Live Activities when an
+  overview is explicitly useful.
+
+Both tools return the same structured envelopes as `get_card` and
+`get_dashboard`, so they remain useful in hosts without UI. MCP Apps hosts also
+load the versioned `ui://00widget/preview/v1-preview.1.html` resource. It is a
+self-contained HTML document using the guest page's existing browser renderer,
+the standard `ui/*` postMessage bridge, and no external network or asset
+permissions.
+
+The stable `/mcp` response is intentionally unchanged while this channel is in
+preview: it still advertises no resources and does not list either render tool.
+Changing `MCP_PREVIEW_ENABLED` therefore does not change the connector under
+review. When the preview is accepted, freeze it at a non-prerelease resource
+URI before promoting its additive contract to `/mcp`.
 
 ### What ChatGPT actually calls
 

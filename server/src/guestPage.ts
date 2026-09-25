@@ -511,6 +511,7 @@ export const WEB_PREVIEW_RUNTIME = `
     return all.length?'<div class="dashboard-grid">'+all.join('')+'</div>':'<p class="msg">Nothing has been published yet.</p>';
   };
   globalThis.ZeroZeroPreview={renderCard:renderCard,renderActivity:renderActivity,renderDashboard:renderDashboard};
+  if(globalThis.ZeroZeroPreviewMode==='mcp'){return}
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
     if(r.status===401){throw new Error('This link has expired or been revoked.')}

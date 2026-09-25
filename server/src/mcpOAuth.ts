@@ -11,7 +11,7 @@ import {
 } from "./webSession";
 import { json } from "./http";
 import { enforceRateLimits } from "./rateLimit";
-import { MCP_PATH } from "./mcp";
+import { MCP_PATH, MCP_PREVIEW_PATH } from "./mcp";
 import { FieldLimits, type Env } from "./types";
 
 // OAuth 2.1 authorization server for the MCP endpoint.
@@ -104,17 +104,28 @@ export function mcpConfigured(env: Env): boolean {
   return mcpEnabled(env) && isSecureAdminSecret(env.SESSION_SECRET);
 }
 
-function protectedResourceMetadataPath(): string {
-  return "/.well-known/oauth-protected-resource";
+function resourceConfigured(env: Env, resourcePath: string): boolean {
+  return mcpConfigured(env)
+    && (resourcePath === MCP_PATH || (resourcePath === MCP_PREVIEW_PATH && env.MCP_PREVIEW_ENABLED === "true"));
+}
+
+function protectedResourceMetadataPath(resourcePath: string): string {
+  return resourcePath === MCP_PATH
+    ? "/.well-known/oauth-protected-resource"
+    : `/.well-known/oauth-protected-resource${resourcePath}`;
 }
 
 // ---------- Discovery ----------
 
-export async function handleProtectedResourceMetadata(req: Request, env: Env): Promise<Response> {
-  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
+export async function handleProtectedResourceMetadata(
+  req: Request,
+  env: Env,
+  resourcePath: string = MCP_PATH,
+): Promise<Response> {
+  if (!resourceConfigured(env, resourcePath)) return json({ error: "not found" }, 404);
   const origin = new URL(req.url).origin;
   return metadataResponse({
-    resource: `${origin}${MCP_PATH}`,
+    resource: `${origin}${resourcePath}`,
     authorization_servers: [origin],
     scopes_supported: GRANTABLE_SCOPES,
     bearer_methods_supported: ["header"],
@@ -155,12 +166,16 @@ function metadataResponse(body: unknown): Response {
 /// The 401 that starts the OAuth dance. Clients discover where to authorize
 /// from `resource_metadata`; without this header ChatGPT reports the connector
 /// as unreachable rather than prompting to sign in.
-export function mcpUnauthorized(req: Request, message: string): Response {
+export function mcpUnauthorized(
+  req: Request,
+  message: string,
+  resourcePath: string = MCP_PATH,
+): Response {
   const origin = new URL(req.url).origin;
   const params = [
     `error="invalid_token"`,
     `error_description="${message.replace(/["\\]/g, "")}"`,
-    `resource_metadata="${origin}${protectedResourceMetadataPath()}"`,
+    `resource_metadata="${origin}${protectedResourceMetadataPath(resourcePath)}"`,
   ].join(", ");
   return json({ error: message }, 401, { "www-authenticate": `Bearer ${params}` });
 }

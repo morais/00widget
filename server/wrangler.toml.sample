@@ -59,6 +59,10 @@ HORIZON_IDENTITY_ENABLED = "false"
 # in tenant may approve a connector for itself; the credential it mints is an
 # ordinary tenant API token, revocable from /admin like any other.
 MCP_ENABLED = "false"
+# Separate opt-in channel for MCP Apps UI testing. It exposes /mcp-preview and
+# /mcp-preview.json only when MCP_ENABLED is also true; leave it false on the
+# connector URL currently under review.
+MCP_PREVIEW_ENABLED = "false"
 # Comma-separated stable tenant UUIDs allowed to use a zero-scope reviewer
 # access code in the MCP consent flow and hidden iOS Developer screen.
 # Empty or unset disables both entry points.

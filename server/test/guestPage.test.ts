@@ -72,6 +72,23 @@ const card = (extra: Record<string, unknown>) => ({
 });
 
 describe("guest page — card fields it must not silently drop", () => {
+  it("exposes the same renderer for an MCP App card or dashboard", async () => {
+    await renderGuestCard(card({ value: "128" }));
+    const preview = (globalThis as typeof globalThis & {
+      ZeroZeroPreview?: {
+        renderCard(card: Record<string, unknown>): string;
+        renderDashboard(dashboard: { cards: unknown[]; activities: unknown[] }): string;
+      };
+    }).ZeroZeroPreview;
+    expect(preview).toBeDefined();
+    expect(preview!.renderCard({ id: "solar", template: "summary", title: "Solar" }))
+      .toContain("Solar");
+    expect(preview!.renderDashboard({
+      cards: [{ id: "solar", template: "summary", title: "Solar" }],
+      activities: [],
+    })).toContain('class="dashboard-grid"');
+  });
+
   it("renders the producer's label under the title", async () => {
     const h = await renderGuestCard(
       card({ producer: { label: "Growth Agent", icon: "sparkles" } }),
