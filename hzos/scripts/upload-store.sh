@@ -82,8 +82,8 @@ APK="$HZOS_DIR/app/build/outputs/apk/release/app-release.apk"
 [ -f "$APK" ] || { echo "APK not found at $APK" >&2; exit 1; }
 
 echo "Uploading $APK to channel $CHANNEL..."
-DRAFT_FLAG=()
-if [ -n "$DRAFT" ]; then DRAFT_FLAG=(--draft); fi
+# ${VAR:+...} instead of an array: macOS bash 3.2 chokes on
+# "${EMPTY_ARRAY[@]}" under `set -u`, which is exactly this script.
 "$OVR_UTIL" upload-quest-build \
     --app-id "$APP_ID" \
     --app-secret "$ZW_META_APP_SECRET" \
@@ -91,5 +91,5 @@ if [ -n "$DRAFT" ]; then DRAFT_FLAG=(--draft); fi
     --channel "$CHANNEL" \
     --age-group "$AGE_GROUP" \
     --notes "$NOTES" \
-    "${DRAFT_FLAG[@]}" \
+    ${DRAFT:+--draft} \
     --disable-progress-bar
