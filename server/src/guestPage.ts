@@ -11,7 +11,9 @@ import type { Env } from "./types";
 // location.hash and calls the API from the browser — same origin, so no CORS
 // and no token in any request line the Worker logs.
 
-const GUEST_STYLES = `
+// Shared with the MCP App resource. Keep the rendering rules here rather than
+// growing a second browser renderer that can silently drift from guest links.
+export const WEB_PREVIEW_STYLES = `
 :root{color-scheme:light dark;--bg:#0f1115;--fg:#f5f7fa;--muted:#9aa3b2;--card:#171a21;--line:#252a34;--accent:#4da3ff}
 @media (prefers-color-scheme:light){:root{--bg:#f6f7f9;--fg:#12151a;--muted:#5b6472;--card:#fff;--line:#e3e6ec}}
 *{box-sizing:border-box}
@@ -128,7 +130,7 @@ a.k:hover{text-decoration:underline}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
 `.trim();
 
-const GUEST_SCRIPT = `
+export const WEB_PREVIEW_RUNTIME = `
 (function(){
   var el=function(id){return document.getElementById(id)};
   var out=el('out');
@@ -439,6 +441,76 @@ const GUEST_SCRIPT = `
     a.textContent=text==null?'':String(text);
     return a.outerHTML;
   };
+  var renderCard=function(c){
+    // No "Needs you" badge here, deliberately, and it is not an omission to
+    // fix later. The badge is derived from an attention status *plus* an
+    // action. Browser previews are read-only and have nothing to press.
+    var h='';
+    h+='<p class="title">'+esc(c.title)+'</p>';
+    h+=producerLine(c.producer,c.subtitle);
+    if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
+    if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
+    h+=comparisonLine(c.comparison);
+    var pf=fraction(c);
+    if(pf!=null){h+=progressBar(pf,c.status)}
+    if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
+    if(c.template==='timeline'&&c.timeline){h+=timeline(c.timeline)}
+    if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
+    if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
+    if(c.template==='briefing'&&c.briefing){
+      (c.briefing.sections||[]).forEach(function(s){
+        h+='<div class="brief">'
+          +(s.label?'<p class="brief-label">'+esc(s.label)+'</p>':'')
+          +'<p class="brief-text">'+esc(s.text)+'</p></div>';
+      });
+    }
+    var widest=0;
+    (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
+    (c.items||[]).forEach(function(i){
+      var label=i.deepLink
+        ? link(i.deepLink,i.title)
+        : '<span class="k">'+esc(i.title)+'</span>';
+      h+='<div class="row"><span>'+label+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+      // Ranked against the widest row, matching the app. Width has to be an
+      // attribute rather than a style — see the note on breakdown() above.
+      if(widest>0&&i.amount!=null){
+        h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="'+(PIP[i.status]||semanticClass(i.semantic))+'" x="0" y="0" height="4" width="'+(Math.max(0,i.amount)/widest*100).toFixed(2)+'"/></svg>';
+      }
+    });
+    return h;
+  };
+  var renderActivity=function(a){
+    var h='<p class="title">'+esc(a.title)+'</p>';
+    var signalMark=SIGNAL_MARK[a.signal];
+    h+='<p class="state">'+(signalMark?esc(signalMark)+' ':'')+esc(a.state)
+      +(a.signal?'<span class="signal">'+esc(a.signal)+'</span>':'')+'</p>';
+    if(a.subtitle){h+='<p class="sub">'+esc(a.subtitle)+'</p>'}
+    if(a.value){h+='<div class="value">'+esc(a.value)+(a.unit?'<span class="unit">'+esc(a.unit)+'</span>':'')+'</div>'}
+    if(typeof a.progress==='number'){h+=progressBar(clamp01(a.progress),null,a.signal)}
+    // Items suppress the chart here for the same reason they do on the Lock
+    // Screen: rows and a plot are two stories and this is one card.
+    var rows=(a.items||[]).filter(function(i){return i.status!=='finished'&&i.status!=='offline'});
+    if(rows.length){
+      rows.forEach(function(i){
+        h+='<div class="row"><span><span class="k">'+esc(i.title)+'</span>'+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
+        if(i.subtitle){h+='<p class="rowsub">'+esc(i.subtitle)+'</p>'}
+        if(typeof i.progress==='number'){
+          h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(clamp01(i.progress)*100).toFixed(2)+'"/></svg>';
+        }
+      });
+    } else if(a.chart&&a.chart.points&&a.chart.points.length>1){
+      h+=spark(a.chart);
+    }
+    if(a.endsAt){h+='<p class="sub">Ends '+esc(new Date(a.endsAt).toLocaleString())+'</p>'}
+    return h;
+  };
+  var renderDashboard=function(d){
+    var cards=(d.cards||[]).map(function(c){return '<section class="card">'+renderCard(c)+'</section>'});
+    var activities=(d.activities||[]).map(function(a){return '<section class="card">'+renderActivity(a)+'</section>'});
+    var all=cards.concat(activities);
+    return all.length?'<div class="dashboard-grid">'+all.join('')+'</div>':'<p class="msg">Nothing has been published yet.</p>';
+  };
+  globalThis.ZeroZeroPreview={renderCard:renderCard,renderActivity:renderActivity,renderDashboard:renderDashboard};
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
     if(r.status===401){throw new Error('This link has expired or been revoked.')}
@@ -447,68 +519,9 @@ const GUEST_SCRIPT = `
   }).then(function(d){
     var h='';
     if(d.resourceKind==='card'){
-      // No "Needs you" badge here, deliberately, and it is not an omission to
-      // fix later. The badge is derived from an attention status *plus* an
-      // action, and getGuestResource strips actions from a shared card — so
-      // the second half is absent by design. It would be the wrong thing to
-      // draw regardless: a guest is not the operator the badge addresses and
-      // has nothing to press.
-      var c=d.card;
-      h+='<p class="title">'+esc(c.title)+'</p>';
-      h+=producerLine(c.producer,c.subtitle);
-      if(c.subtitle){h+='<p class="sub">'+esc(c.subtitle)+'</p>'}
-      if(c.value){h+='<div class="value">'+esc(c.value)+(c.unit?'<span class="unit">'+esc(c.unit)+'</span>':'')+'</div>'}
-      h+=comparisonLine(c.comparison);
-      var pf=fraction(c);
-      if(pf!=null){h+=progressBar(pf,c.status)}
-      if(c.chart&&c.chart.points&&c.chart.points.length>1){h+=spark(c.chart)}
-      if(c.template==='timeline'&&c.timeline){h+=timeline(c.timeline)}
-      if(c.template==='history'&&(c.items||[]).length){h+=pips(c.items)}
-      if(c.template==='breakdown'&&(c.items||[]).length){h+=breakdown(c.items)}
-      if(c.template==='briefing'&&c.briefing){
-        (c.briefing.sections||[]).forEach(function(s){
-          h+='<div class="brief">'
-            +(s.label?'<p class="brief-label">'+esc(s.label)+'</p>':'')
-            +'<p class="brief-text">'+esc(s.text)+'</p></div>';
-        });
-      }
-      var widest=0;
-      (c.items||[]).forEach(function(i){if(i.amount!=null){widest=Math.max(widest,Math.max(0,i.amount))}});
-      (c.items||[]).forEach(function(i){
-        var label=i.deepLink
-          ? link(i.deepLink,i.title)
-          : '<span class="k">'+esc(i.title)+'</span>';
-        h+='<div class="row"><span>'+label+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
-        // Ranked against the widest row, matching the app. Width has to be an
-        // attribute rather than a style — see the note on breakdown() above.
-        if(widest>0&&i.amount!=null){
-          h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="'+(PIP[i.status]||semanticClass(i.semantic))+'" x="0" y="0" height="4" width="'+(Math.max(0,i.amount)/widest*100).toFixed(2)+'"/></svg>';
-        }
-      });
+      h=renderCard(d.card);
     } else {
-      var a=d.activity;
-      h+='<p class="title">'+esc(a.title)+'</p>';
-      var signalMark=SIGNAL_MARK[a.signal];
-      h+='<p class="state">'+(signalMark?esc(signalMark)+' ':'')+esc(a.state)
-        +(a.signal?'<span class="signal">'+esc(a.signal)+'</span>':'')+'</p>';
-      if(a.subtitle){h+='<p class="sub">'+esc(a.subtitle)+'</p>'}
-      if(a.value){h+='<div class="value">'+esc(a.value)+(a.unit?'<span class="unit">'+esc(a.unit)+'</span>':'')+'</div>'}
-      if(typeof a.progress==='number'){h+=progressBar(clamp01(a.progress),null,a.signal)}
-      // Items suppress the chart here for the same reason they do on the Lock
-      // Screen: rows and a plot are two stories and this is one card.
-      var rows=(a.items||[]).filter(function(i){return i.status!=='finished'&&i.status!=='offline'});
-      if(rows.length){
-        rows.forEach(function(i){
-          h+='<div class="row"><span><span class="k">'+esc(i.title)+'</span>'+itemMeaning(i)+'</span><span>'+esc(i.value||'')+' '+esc(i.unit||'')+'</span></div>';
-          if(i.subtitle){h+='<p class="rowsub">'+esc(i.subtitle)+'</p>'}
-          if(typeof i.progress==='number'){
-            h+='<svg class="rank" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" height="4" width="'+(clamp01(i.progress)*100).toFixed(2)+'"/></svg>';
-          }
-        });
-      } else if(a.chart&&a.chart.points&&a.chart.points.length>1){
-        h+=spark(a.chart);
-      }
-      if(a.endsAt){h+='<p class="sub">Ends '+esc(new Date(a.endsAt).toLocaleString())+'</p>'}
+      h=renderActivity(d.activity);
     }
     h+='<p class="meta">Shared with you. Read-only, and this link stops working on '+esc(new Date(d.expiresAt).toLocaleString())+'.</p>';
     out.innerHTML='<div class="card">'+h+'</div>';
@@ -546,12 +559,12 @@ function renderGuestHTML(ctaURL: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Shared with you — 00Widget</title>
-<style>${GUEST_STYLES}</style>
+<style>${WEB_PREVIEW_STYLES}</style>
 </head><body><main>
 <h1>00Widget</h1>
 <div id="out"><p class="msg">Loading…</p></div>
 <a class="cta" href="${esc(ctaURL)}">Get 00Widget</a>
-</main><script>${GUEST_SCRIPT}</script></body></html>`;
+</main><script>${WEB_PREVIEW_RUNTIME}</script></body></html>`;
 }
 
 let cachedCsp: string | null = null;
@@ -559,8 +572,8 @@ let cachedCsp: string | null = null;
 async function guestContentSecurityPolicy(): Promise<string> {
   if (cachedCsp) return cachedCsp;
   const [scriptHash, styleHash] = await Promise.all([
-    sha256Base64(GUEST_SCRIPT),
-    sha256Base64(GUEST_STYLES),
+    sha256Base64(WEB_PREVIEW_RUNTIME),
+    sha256Base64(WEB_PREVIEW_STYLES),
   ]);
   // connect-src 'self' is what lets the inline script call /v1/guest/resource
   // and nothing else — the token in the fragment cannot be exfiltrated to
