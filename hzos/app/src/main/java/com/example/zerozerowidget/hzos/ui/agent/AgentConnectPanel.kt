@@ -324,9 +324,9 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("MCP login", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Connecting an assistant from a terminal? It shows an " +
-                    "8-character code — approve it here and the login " +
-                    "completes. Only approve a code shown on your own screen.",
+                "Connecting an assistant? It shows an 8-character code — " +
+                    "approve it here and the login completes. Only approve " +
+                    "a code shown on your own screen.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
