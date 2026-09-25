@@ -147,50 +147,6 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         }
 
         if (signedIn) {
-            GlassCard(cardAlpha = cardAlpha) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Connected agents", style = MaterialTheme.typography.titleSmall)
-                    connectionsError?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
-                    if (connections.isEmpty()) {
-                        Text(
-                            "No agents are currently connected.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    connections.forEach { item ->
-                        ConnectionRow(
-                            item = item,
-                            busy = busyId == item.id,
-                            onDisconnect = {
-                                scope.launch {
-                                    busyId = item.id
-                                    try {
-                                        authedApi()?.disconnectMCPConnection(item.id)
-                                        connections = connections.filterNot { it.id == item.id }
-                                    } catch (e: Exception) {
-                                        connectionsError =
-                                            (e.message ?: e.javaClass.simpleName).take(200)
-                                    } finally {
-                                        busyId = null
-                                    }
-                                }
-                            },
-                        )
-                    }
-                    Text(
-                        "Disconnecting stops that agent's 00Widget access immediately. It may remain " +
-                            "listed in that client until you remove it there.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
-        if (signedIn) {
             McpLoginSection(app = app)
         }
 
@@ -269,12 +225,58 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             LinkButton(context, "VS Code", "https://code.visualstudio.com/docs/agent-customization/mcp-servers")
             LinkButton(context, "Gemini CLI", "https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html")
         }
+
+        // Last: what this account already granted. Connecting comes first;
+        // reviewing what is connected closes the screen.
+        if (signedIn) {
+            GlassCard(cardAlpha = cardAlpha) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Connected agents", style = MaterialTheme.typography.titleSmall)
+                    connectionsError?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    if (connections.isEmpty()) {
+                        Text(
+                            "No agents are currently connected.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    connections.forEach { item ->
+                        ConnectionRow(
+                            item = item,
+                            busy = busyId == item.id,
+                            onDisconnect = {
+                                scope.launch {
+                                    busyId = item.id
+                                    try {
+                                        authedApi()?.disconnectMCPConnection(item.id)
+                                        connections = connections.filterNot { it.id == item.id }
+                                    } catch (e: Exception) {
+                                        connectionsError =
+                                            (e.message ?: e.javaClass.simpleName).take(200)
+                                    } finally {
+                                        busyId = null
+                                    }
+                                }
+                            },
+                        )
+                    }
+                    Text(
+                        "Disconnecting stops that agent's 00Widget access immediately. It may remain " +
+                            "listed in that client until you remove it there.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
 /**
- * Approves an MCP login code shown by a terminal client that cannot finish
- * OAuth on its own — no iPhone needed. Signed in only, answered on the app
+ * Approves an MCP login code shown by a client that cannot finish OAuth on
+ * its own — no iPhone needed. Signed in only, answered on the app
  * credential: approving binds the pending login to this tenant, denying
  * kills it. Only ever approve a code shown on your own screen.
  */
