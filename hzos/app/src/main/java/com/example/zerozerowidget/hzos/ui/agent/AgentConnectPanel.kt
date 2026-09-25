@@ -15,13 +15,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -45,6 +49,7 @@ import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.ConnectionStore
 import com.example.zerozerowidget.hzos.data.MCPConnectionSummary
 import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
+import com.example.zerozerowidget.hzos.data.describeBrowserApproval
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
@@ -185,6 +190,10 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             }
         }
 
+        if (signedIn) {
+            McpLoginSection(app = app)
+        }
+
         GuideSection(app = app, title = "Claude") {
             Step(1, "Tap Connect Claude below. It opens claude.ai with the connector details already filled in.")
             Step(2, "Sign in to claude.ai if it asks, then tap Add.")
@@ -259,6 +268,97 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             LinkButton(context, "Cursor", "https://cursor.com/docs/mcp")
             LinkButton(context, "VS Code", "https://code.visualstudio.com/docs/agent-customization/mcp-servers")
             LinkButton(context, "Gemini CLI", "https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html")
+        }
+    }
+}
+
+/**
+ * Approves an MCP login code shown by a terminal client that cannot finish
+ * OAuth on its own — no iPhone needed. Signed in only, answered on the app
+ * credential: approving binds the pending login to this tenant, denying
+ * kills it. Only ever approve a code shown on your own screen.
+ */
+@Composable
+private fun McpLoginSection(app: ZeroZeroWidgetApp) {
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var noticeError by remember { mutableStateOf(false) }
+
+    fun decide(approved: Boolean) {
+        val normalized = code.trim()
+        if (normalized.isBlank() || busy) return
+        busy = true
+        notice = null
+        scope.launch {
+            try {
+                val current = app.connectionStore.current()
+                val base = current.baseUrl.ifBlank {
+                    com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
+                }
+                if (current.apiKey.isBlank() || base.isBlank()) {
+                    throw IllegalStateException("Not connected.")
+                }
+                val api = ZeroWidgetApi(app.http, base, current.apiKey)
+                val (status, body) = api.approveBrowserSignIn(
+                    normalized,
+                    if (approved) "approve" else "deny",
+                )
+                notice = describeBrowserApproval(status, body, approved)
+                noticeError = status !in 200..299
+                if (status in 200..299) code = ""
+            } catch (e: Exception) {
+                notice = (e.message ?: e.javaClass.simpleName).take(200)
+                noticeError = true
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
+    GlassCard(cardAlpha = cardAlpha) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("MCP login", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Connecting an assistant from a terminal? It shows an " +
+                    "8-character code — approve it here and the login " +
+                    "completes. Only approve a code shown on your own screen.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = code,
+                onValueChange = { code = it; notice = null },
+                label = { Text("Code (XXXX-XXXX)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { decide(true) },
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Approve") }
+                FilledTonalButton(
+                    onClick = { decide(false) },
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Deny") }
+            }
+            notice?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (noticeError) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }

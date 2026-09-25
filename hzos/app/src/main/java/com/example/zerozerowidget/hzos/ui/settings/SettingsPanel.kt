@@ -60,7 +60,6 @@ import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.example.zerozerowidget.hzos.data.AccountIdAction
 import com.example.zerozerowidget.hzos.data.accountIdAction
 import com.example.zerozerowidget.hzos.data.awaitDeviceToken
-import com.example.zerozerowidget.hzos.data.describeBrowserApproval
 import com.example.zerozerowidget.hzos.data.horizonSignInBody
 import com.example.zerozerowidget.hzos.data.runHorizonSignIn
 import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
@@ -73,7 +72,7 @@ import kotlinx.coroutines.launch
 
 private enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 
-private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION }
+private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION, ACCOUNT }
 
 /**
  * Settings is one panel with drill-in destinations, not separate shell
@@ -94,6 +93,7 @@ fun SettingsPanel(
         SettingsDestination.AGENT -> "Connect an agent"
         SettingsDestination.DEVELOPER -> "Developer"
         SettingsDestination.SUBSCRIPTION -> "Subscription"
+        SettingsDestination.ACCOUNT -> "Account and access"
     }
     // A dashboard "Sign in" press lands here mid-flow: come back to the
     // root where the sign-in section lives, wherever the panel was left.
@@ -131,6 +131,7 @@ fun SettingsPanel(
                 onOpenAgent = { destination = SettingsDestination.AGENT },
                 onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
                 onOpenSubscription = { destination = SettingsDestination.SUBSCRIPTION },
+                onOpenAccountAccess = { destination = SettingsDestination.ACCOUNT },
                 onSendAuthUrl = onSendAuthUrl,
                 signInRequest = signInRequest,
                 onSignInRequestConsumed = onSignInRequestConsumed,
@@ -138,6 +139,7 @@ fun SettingsPanel(
             SettingsDestination.AGENT -> AgentConnectPanel(app = app)
             SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
             SettingsDestination.SUBSCRIPTION -> SubscriptionSection(app = app)
+            SettingsDestination.ACCOUNT -> AccountAccessDestination(app = app)
         }
     }
 }
@@ -148,6 +150,7 @@ private fun SettingsRoot(
     onOpenAgent: () -> Unit,
     onOpenDeveloper: () -> Unit,
     onOpenSubscription: () -> Unit,
+    onOpenAccountAccess: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
     onSignInRequestConsumed: () -> Unit = {},
@@ -196,31 +199,51 @@ private fun SettingsRoot(
                         } else {
                             null
                         },
+                        onOpenAccountAccess = onOpenAccountAccess,
                     )
-                }
-
-                if (signedIn) {
-                    FilledTonalButton(
-                        onClick = {
-                            // Silent: the sign-in section replacing this
-                            // button says everything about the new state.
-                            scope.launch { app.connectionStore.clear() }
-                        },
-                    ) { Text("Sign out") }
                 }
             }
         }
 
         Spacer(Modifier.height(4.dp))
-        if (signedIn) {
-            AccountAccessSection(app = app)
-            Spacer(Modifier.height(4.dp))
-            BrowserApprovalSection(app = app)
-            Spacer(Modifier.height(4.dp))
-        }
         AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
         AboutSection(onOpenDeveloper = onOpenDeveloper)
+    }
+}
+
+/**
+ * Device sign-out plus delete-or-unlink, grouped like iOS Account and
+ * access: the things that end or move a session live together, one tap
+ * past the Server rows.
+ */
+@Composable
+private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
+    val scope = rememberCoroutineScope()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        GlassCard(cardAlpha = cardAlpha) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("This device", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Signing out forgets this device's credential. Cards already " +
+                        "on it stay until the next refresh.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FilledTonalButton(
+                    onClick = {
+                        scope.launch { app.connectionStore.clear() }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Sign out") }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        AccountAccessSection(app = app)
     }
 }
 
@@ -239,6 +262,7 @@ private fun SettingsRoot(
 private fun AccountSection(
     app: ZeroZeroWidgetApp,
     onOpenSubscription: (() -> Unit)? = null,
+    onOpenAccountAccess: () -> Unit,
 ) {
     var accountName by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -318,93 +342,22 @@ private fun AccountSection(
                 }
             }
         }
-    }
-}
-
-/**
- * Approves a browser asking to sign in as this account — the MCP path
- * without an iPhone. Signed in only, answered on the app credential. The
- * browser shows an 8-character code; approving binds its pending login to
- * this tenant, denying kills it. Only ever approve a code shown on your
- * own screen.
- */
-@Composable
-private fun BrowserApprovalSection(app: ZeroZeroWidgetApp) {
-    val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var notice by remember { mutableStateOf<String?>(null) }
-    var noticeError by remember { mutableStateOf(false) }
-
-    fun decide(approved: Boolean) {
-        val normalized = code.trim()
-        if (normalized.isBlank() || busy) return
-        busy = true
-        notice = null
-        scope.launch {
-            try {
-                val current = app.connectionStore.current()
-                val base = current.baseUrl.ifBlank {
-                    com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                }
-                if (current.apiKey.isBlank() || base.isBlank()) {
-                    throw IllegalStateException("Not connected.")
-                }
-                val api = ZeroWidgetApi(app.http, base, current.apiKey)
-                val (status, body) = api.approveBrowserSignIn(
-                    normalized,
-                    if (approved) "approve" else "deny",
-                )
-                notice = describeBrowserApproval(status, body, approved)
-                noticeError = status !in 200..299
-                if (status in 200..299) code = ""
-            } catch (e: Exception) {
-                notice = (e.message ?: e.javaClass.simpleName).take(200)
-                noticeError = true
-            } finally {
-                busy = false
-            }
-        }
-    }
-
-    GlassCard(cardAlpha = 1f) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Browser sign-in", style = MaterialTheme.typography.titleSmall)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenAccountAccess),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                "A browser asking to sign in as this account — for MCP use " +
-                    "without an iPhone. Only approve a code shown on your own screen.",
-                style = MaterialTheme.typography.bodySmall,
+                "Account and access",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                ">",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
-                value = code,
-                onValueChange = { code = it; notice = null },
-                label = { Text("Code (XXXX-XXXX)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !busy,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { decide(true) },
-                    enabled = !busy,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Approve") }
-                FilledTonalButton(
-                    onClick = { decide(false) },
-                    enabled = !busy,
-                    modifier = Modifier.weight(1f),
-                ) { Text("Deny") }
-            }
-            notice?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (noticeError) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.primary,
-                )
-            }
         }
     }
 }
