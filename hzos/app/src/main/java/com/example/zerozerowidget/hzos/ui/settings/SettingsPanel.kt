@@ -238,7 +238,6 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
                     onClick = {
                         scope.launch { app.connectionStore.clear() }
                     },
-                    modifier = Modifier.fillMaxWidth(),
                 ) { Text("Sign out") }
             }
         }
