@@ -273,6 +273,18 @@ describe("web sign-in surface", () => {
     expect(body).not.toContain("Admin</h1>");
   });
 
+  it("renders Apple and Horizon OS sign-in actions at the same full width", async () => {
+    const res = await fetchWorker(new Request(`${ORIGIN}/login`), webEnv({
+      HORIZON_IDENTITY_ENABLED: "true",
+      META_APP_ID: "meta-app-id",
+    }), ctx);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('class="button button-provider button-apple"');
+    expect(body).toContain('class="button button-provider" href="/login/horizon"');
+    expect(body).toContain(".button-provider { display: block; width: 100%; text-align: center; }");
+  });
+
   it("sends the browser to Apple with a state and nonce", async () => {
     const res = await fetchWorker(new Request(`${ORIGIN}/login/apple`), webEnv(), ctx);
     expect(res.status).toBe(302);

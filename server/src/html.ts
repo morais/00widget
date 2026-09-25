@@ -107,7 +107,8 @@ export function baseHTML(title: string, body: string): string {
   .button-secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
   .button-small { padding: 5px 9px; margin: 0; font-size: 12px; }
   .button-danger { background: var(--crit); }
-  .button-apple { background: var(--fg); color: var(--bg); display: block; text-align: center; }
+  .button-provider { display: block; width: 100%; text-align: center; }
+  .button-apple { background: var(--fg); color: var(--bg); }
   .api-token-form { display: flex; flex-direction: column; gap: 4px; }
   .api-token-form .button { align-self: stretch; text-align: center; }
   .api-key-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 16px; }

@@ -295,11 +295,11 @@ function renderLoginPage(opts: {
 }): string {
   const appleHref = opts.next ? `/login/apple?next=${enc(opts.next)}` : "/login/apple";
   const appleBlock = opts.apple
-    ? `<a class="button button-apple" href="${esc(appleHref)}">Sign in with Apple</a>`
+    ? `<a class="button button-provider button-apple" href="${esc(appleHref)}">Sign in with Apple</a>`
     : `<p class="muted">Sign in with Apple is not configured.</p>`;
   const horizonHref = opts.next ? `/login/horizon?next=${enc(opts.next)}` : "/login/horizon";
   const horizonBlock = opts.horizon
-    ? `<a class="button" href="${esc(horizonHref)}">Sign in with Horizon OS</a>`
+    ? `<a class="button button-provider" href="${esc(horizonHref)}">Sign in with Horizon OS</a>`
     : "";
 
   const nextField = opts.next
