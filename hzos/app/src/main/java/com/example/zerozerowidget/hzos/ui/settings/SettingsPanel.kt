@@ -313,10 +313,13 @@ private fun AccountSection(
             // Doorway to the purchase screen when the build sells anything,
             // a plain status row otherwise — like iOS, where Subscription
             // is a NavigationLink only with the flag on.
+            // Roomy rows: these are the two doors out of this card and
+            // should take a ray tap without precision.
             val rowModifier = if (onOpenSubscription != null) {
                 Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onOpenSubscription)
+                    .padding(vertical = 12.dp)
             } else {
                 Modifier.fillMaxWidth()
             }
@@ -348,7 +351,8 @@ private fun AccountSection(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpenAccountAccess),
+                .clickable(onClick = onOpenAccountAccess)
+                .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
