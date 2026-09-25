@@ -3,7 +3,11 @@ import { WEB_PREVIEW_RUNTIME, WEB_PREVIEW_STYLES } from "./guestPage";
 /// Preview resource URI. The suffix is deliberately prerelease-shaped: MCP
 /// hosts cache resources by URI, so an incompatible UI change gets a new URI
 /// without changing either the stable or preview HTTP endpoint.
-export const MCP_PREVIEW_RESOURCE_URI = "ui://00widget/preview/v1-preview.2.html";
+export const MCP_PREVIEW_RESOURCE_URI = "ui://00widget/preview/v1-preview.3.html";
+export const MCP_PREVIEW_LEGACY_RESOURCE_URIS = [
+  "ui://00widget/preview/v1-preview.1.html",
+  "ui://00widget/preview/v1-preview.2.html",
+] as const;
 export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
 
 const APP_STYLES = `
@@ -60,6 +64,10 @@ const APP_SCRIPT = `
       lastTool='render_card';
       lastArgs={id:data.card.id};
       out.innerHTML='<section class="card">'+renderer.renderCard(data.card)+'</section>';
+    }else if(data.activity){
+      lastTool='render_activity';
+      lastArgs={externalActivityId:data.activity.externalActivityId};
+      out.innerHTML='<section class="card">'+renderer.renderActivity(data.activity)+'</section>';
     }else if(Array.isArray(data.cards)&&Array.isArray(data.activities)){
       lastTool='render_dashboard';
       lastArgs={};
@@ -81,6 +89,7 @@ const APP_SCRIPT = `
     if(message.method==='ui/notifications/tool-input'){
       var input=message.params&&message.params.arguments?message.params.arguments:message.params;
       if(input&&typeof input.id==='string'){lastArgs={id:input.id}}
+      if(input&&typeof input.externalActivityId==='string'){lastArgs={externalActivityId:input.externalActivityId}}
       return;
     }
     if(message.method==='ui/notifications/tool-result'){
@@ -142,10 +151,15 @@ export function renderMcpAppHTML(): string {
 </main><script>globalThis.ZeroZeroPreviewMode='mcp';</script><script>${WEB_PREVIEW_RUNTIME}</script><script>${APP_SCRIPT}</script></body></html>`;
 }
 
-export function mcpAppResource(origin: string) {
+export function isMcpAppResourceUri(uri: string): boolean {
+  return uri === MCP_PREVIEW_RESOURCE_URI
+    || MCP_PREVIEW_LEGACY_RESOURCE_URIS.some((legacyUri) => legacyUri === uri);
+}
+
+export function mcpAppResource(origin: string, uri = MCP_PREVIEW_RESOURCE_URI) {
   const ui = mcpAppUiMeta();
   return {
-    uri: MCP_PREVIEW_RESOURCE_URI,
+    uri,
     mimeType: MCP_APP_MIME_TYPE,
     text: renderMcpAppHTML(),
     _meta: {
@@ -173,7 +187,7 @@ export function mcpAppResourceDescriptor() {
     uri: MCP_PREVIEW_RESOURCE_URI,
     name: "00Widget preview",
     title: "00Widget preview",
-    description: "Read-only preview of one card or the full dashboard.",
+    description: "Read-only preview of one card, one running Live Activity, or the full dashboard.",
     mimeType: MCP_APP_MIME_TYPE,
     // Listing metadata lets a host review and prefetch the resource before it
     // calls resources/read. The content item repeats it as the authoritative

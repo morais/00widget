@@ -513,22 +513,25 @@ Mode. It uses the same tenant data and OAuth server as `/mcp`, but its OAuth
 metadata identifies `/mcp-preview` as the protected resource so a client cannot
 silently reconnect to the stable endpoint.
 
-The preview begins with the complete stable tool set and adds two read-only
+The preview begins with the complete stable tool set and adds three read-only
 tools:
 
 - `render_card { id }` previews one card and is the preferred visual tool.
+- `render_activity { externalActivityId }` previews one currently running Live
+  Activity. Ended activities deliberately return not found.
 - `render_dashboard {}` previews all cards and running Live Activities when an
   overview is explicitly useful.
 
-Both tools return the same structured envelopes as `get_card` and
-`get_dashboard`, so they remain useful in hosts without UI. MCP Apps hosts also
-load the versioned `ui://00widget/preview/v1-preview.1.html` resource. It is a
+The tools return the same structured state as the corresponding read endpoints,
+so they remain useful in hosts without UI. MCP Apps hosts also load the
+versioned `ui://00widget/preview/v1-preview.3.html` resource. It is a
 self-contained HTML document using the guest page's existing browser renderer,
 the standard `ui/*` postMessage bridge, and no external network or asset
-permissions.
+permissions. Previously advertised `.1` and `.2` preview resource URIs remain
+readable so connected clients can age out cached tool descriptors safely.
 
 The stable `/mcp` response is intentionally unchanged while this channel is in
-preview: it still advertises no resources and does not list either render tool.
+preview: it still advertises no resources and does not list any render tool.
 Changing `MCP_PREVIEW_ENABLED` therefore does not change the connector under
 review. When the preview is accepted, freeze it at a non-prerelease resource
 URI before promoting its additive contract to `/mcp`.

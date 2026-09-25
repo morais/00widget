@@ -17,6 +17,7 @@ import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
 import {
   MCP_PREVIEW_RESOURCE_URI,
+  isMcpAppResourceUri,
   mcpAppResource,
   mcpAppResourceDescriptor,
 } from "./mcpApp";
@@ -385,6 +386,7 @@ const WidgetPushDeliverySchema = z.object({
 });
 
 const CardOutput = z.object({ card: DashboardCardSchema });
+const ActivityOutput = z.object({ activity: LiveActivitySessionSchema });
 const CardsOutput = z.object({
   cards: z.array(DashboardCardSchema),
   shared: z.array(DashboardCardSchema).optional().describe(
@@ -942,6 +944,35 @@ const RENDER_TOOLS: McpTool[] = [
       cards.getCard(getRequest(tools.origin, "/v1/cards"), tools.env, tools.auth, String(args.id)),
   },
   {
+    name: "render_activity",
+    title: "Preview one running Live Activity",
+    description:
+      "Use this when the user wants to see or inspect one specific running 00Widget Live Activity. "
+      + "Pass the externalActivityId returned by list_live_activities. Ended activities are not "
+      + "available here. Prefer this over render_dashboard when one running activity answers the request.",
+    schema: z.object({
+      externalActivityId: z.string().min(1).describe(
+        "The externalActivityId of a currently running Live Activity.",
+      ),
+    }),
+    outputSchema: ActivityOutput,
+    successfulContent: (structured) => {
+      const activity = structured.activity as { title?: unknown } | undefined;
+      return `Rendered ${typeof activity?.title === "string" ? activity.title : "the running Live Activity"}.`;
+    },
+    securitySchemes: PREVIEW_SECURITY_SCHEMES,
+    descriptorMeta: {
+      ...PREVIEW_TOOL_META,
+      "openai/toolInvocation/invoking": "Loading activity…",
+      "openai/toolInvocation/invoked": "Activity ready",
+    },
+    scope: "read",
+    readOnly: true,
+    destructive: false,
+    idempotent: true,
+    invoke: (args, tools) => renderRunningActivity(String(args.externalActivityId), tools),
+  },
+  {
     name: "render_dashboard",
     title: "Preview the dashboard",
     description:
@@ -968,6 +999,29 @@ const RENDER_TOOLS: McpTool[] = [
       dashboard.getDashboard(getRequest(tools.origin, "/v1/dashboard"), tools.env, tools.auth),
   },
 ];
+
+async function renderRunningActivity(
+  externalActivityId: string,
+  tools: AuthedToolContext,
+): Promise<Response> {
+  // Go through the same HTTP handler as list_live_activities so visibility,
+  // tenant isolation, and the definition of "running" cannot drift. Do not
+  // opt into ended history: an ended activity must be indistinguishable from
+  // an unknown id on this focused preview surface.
+  const response = await liveActivities.activeActivities(
+    getRequest(tools.origin, "/v1/live-activities"),
+    tools.env,
+    tools.auth,
+  );
+  if (!response.ok) return response;
+
+  const payload = ActivitiesOutput.parse(await response.json());
+  const activity = payload.activities.find(
+    (candidate) => candidate.externalActivityId === externalActivityId,
+  );
+  if (!activity) return json({ error: "running Live Activity not found" }, 404);
+  return json({ activity });
+}
 
 const ALL_TOOLS = [...BASE_TOOLS, ...RENDER_TOOLS];
 
@@ -1381,10 +1435,10 @@ async function dispatch(
       if (typeof uri !== "string") {
         return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.uri is required");
       }
-      if (uri !== MCP_PREVIEW_RESOURCE_URI) {
+      if (!isMcpAppResourceUri(uri)) {
         return errorResponse(id, MCP_RESOURCE_NOT_FOUND, `resource '${uri}' was not found`);
       }
-      return ok({ contents: [mcpAppResource(tools.origin)] });
+      return ok({ contents: [mcpAppResource(tools.origin, uri)] });
     }
     case "resources/templates/list":
       return ok(emptyList("resourceTemplates"));

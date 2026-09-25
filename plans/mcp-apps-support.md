@@ -1,22 +1,24 @@
 # MCP Apps support for the 00Widget MCP server
 
-Spec written 2026-09-24, revised 2026-09-25. Target: add optional focused-card
-and dashboard views without changing the behavior or wire contract of the MCP
-endpoint currently under OpenAI review.
+Spec written 2026-09-24, revised 2026-09-25. Target: add optional focused-card,
+focused-running-activity, and dashboard views without changing the behavior or
+wire contract of the MCP endpoint currently under OpenAI review.
 
 ## Decision
 
-Add two new, read-only render tools linked to one shared, versioned MCP Apps
+Add three new, read-only render tools linked to one shared, versioned MCP Apps
 resource:
 
 - `render_card { id }` is the primary visual tool. It renders the one 00Widget
   card the user asked about.
+- `render_activity { externalActivityId }` renders one currently running Live
+  Activity; ended activities are intentionally outside this surface.
 - `render_dashboard {}` is the secondary overview tool. It renders all cards
   and running Live Activities.
 
 The first preview candidate uses
-`ui://00widget/preview/v1-preview.1.html`; the resource selects its focused-card
-or dashboard layout from the structured-result envelope.
+`ui://00widget/preview/v1-preview.3.html`; the resource selects its focused-card,
+focused-activity, or dashboard layout from the structured-result envelope.
 
 Develop and deploy them first on `https://api.00widget.com/mcp-preview`, a
 separate Developer Mode connection behind `MCP_PREVIEW_ENABLED`. The submitted
@@ -41,9 +43,11 @@ This is an **interactive-decoupled** MCP App:
 - Existing data and mutation tools remain independently useful to models and
   non-UI MCP clients.
 - `render_card` is the preferred model-visible render tool for a named widget;
+  `render_activity` does the same for a named running Live Activity; and
   `render_dashboard` is reserved for overview intent.
 - The mounted view can refresh through the matching existing read-only tool,
-  `get_card` or `get_dashboard`, without remounting itself.
+  `get_card`, `list_live_activities`, or `get_dashboard`, without remounting
+  itself.
 - The first release is otherwise display-only. It does not run card actions,
   publish cards, or mutate Live Activities.
 
@@ -68,8 +72,8 @@ This is an **interactive-decoupled** MCP App:
   has no action-execution tool, and destructive confirmation belongs in the
   native app for now.
 - Auto-polling. The initial version refreshes only when the person asks it to.
-- Changing the draft currently under review. A dedicated `_meta.ui.domain`,
-  review assets, updated test cases, and release notes belong to the later
+- Changing the draft currently under review. Submission metadata, review
+  assets, updated test cases, and release notes belong to the later
   promotion/submission milestone.
 - Pixel-identical SwiftUI rendering. The existing guest renderer is the web
   semantic equivalent, not a screenshot of the native widget.
@@ -208,10 +212,10 @@ Descriptor:
   },
   "_meta": {
     "ui": {
-      "resourceUri": "ui://00widget/preview/v1-preview.1.html",
+      "resourceUri": "ui://00widget/preview/v1-preview.3.html",
       "visibility": ["model", "app"]
     },
-    "openai/outputTemplate": "ui://00widget/preview/v1-preview.1.html",
+    "openai/outputTemplate": "ui://00widget/preview/v1-preview.3.html",
     "openai/toolInvocation/invoking": "Loading card…",
     "openai/toolInvocation/invoked": "Card ready"
   }
@@ -222,6 +226,20 @@ The handler requires `read`, reuses the existing `get_card` adapter, returns
 the unchanged `{ card }` body as `structuredContent`, and uses a concise text
 fallback such as `Card: Solar — 4.2 kW.` Missing ids have the same not-found
 semantics as `get_card`.
+
+### New focused activity tool: `render_activity`
+
+`render_activity { externalActivityId }` is the activity counterpart to
+`render_card`. Its descriptor points at the same versioned UI resource, uses
+the existing `read` scope, and is read-only, non-destructive, idempotent, and
+closed-world. The result envelope is `{ activity }`, with the existing
+`LiveActivitySessionSchema` as its open output schema.
+
+The handler calls `liveActivities.activeActivities` without
+`include=ended`, then selects the exact stable `externalActivityId`. It never
+loads activity history. An ended or unknown id therefore returns the same
+not-found tool error, and only a currently running activity can reach the
+component. Its concise headless fallback is `Rendered <title>.`.
 
 ### New overview tool: `render_dashboard`
 
@@ -247,10 +265,10 @@ Descriptor:
   },
   "_meta": {
     "ui": {
-      "resourceUri": "ui://00widget/preview/v1-preview.1.html",
+      "resourceUri": "ui://00widget/preview/v1-preview.3.html",
       "visibility": ["model", "app"]
     },
-    "openai/outputTemplate": "ui://00widget/preview/v1-preview.1.html",
+    "openai/outputTemplate": "ui://00widget/preview/v1-preview.3.html",
     "openai/toolInvocation/invoking": "Loading dashboard…",
     "openai/toolInvocation/invoked": "Dashboard ready"
   }
@@ -270,7 +288,7 @@ Handler behavior:
    Activities.` rather than serializing the complete JSON into `content`.
 
 The last point needs a small optional result formatter on `McpTool`. Existing
-tools keep today's raw-response text behavior; only the two render tools use
+tools keep today's raw-response text behavior; only the three render tools use
 the formatter. A non-UI client therefore still receives a useful text fallback
 and the complete structured snapshot.
 
@@ -281,10 +299,10 @@ later; optional input fields are an additive change.
 
 ### New resource
 
-Use one exact, versioned URI for both render tools:
+Use one exact, versioned URI for all three render tools:
 
 ```text
-ui://00widget/preview/v1-preview.1.html
+ui://00widget/preview/v1-preview.3.html
 ```
 
 `resources/list` returns:
@@ -293,9 +311,9 @@ ui://00widget/preview/v1-preview.1.html
 {
   "resources": [
     {
-      "uri": "ui://00widget/preview/v1-preview.1.html",
+      "uri": "ui://00widget/preview/v1-preview.3.html",
       "name": "00Widget preview",
-      "description": "One focused card or the complete dashboard, rendered read-only from the calling tool's result.",
+      "description": "One focused card, one focused running Live Activity, or the complete dashboard, rendered read-only from the calling tool's result.",
       "mimeType": "text/html;profile=mcp-app"
     }
   ]
@@ -308,7 +326,7 @@ ui://00widget/preview/v1-preview.1.html
 {
   "contents": [
     {
-      "uri": "ui://00widget/preview/v1-preview.1.html",
+      "uri": "ui://00widget/preview/v1-preview.3.html",
       "mimeType": "text/html;profile=mcp-app",
       "text": "<!doctype html>…",
       "_meta": {
@@ -317,8 +335,7 @@ ui://00widget/preview/v1-preview.1.html
           "csp": {
             "connectDomains": [],
             "resourceDomains": []
-          },
-          "domain": "https://api.00widget.com"
+          }
         },
         "openai/ui": {
           "availableDisplayModes": ["inline", "fullscreen"]
@@ -341,9 +358,10 @@ Notes:
 - The page is a complete HTML5 document with inline CSS and JS.
 - It needs no external network, asset, frame, device, or clipboard permission.
 - `prefersBorder` is false because each 00Widget card draws its own boundary.
-- Declare the deployment origin in `_meta.ui.domain` and the ChatGPT
-  `openai/widgetDomain` compatibility alias. This deployment is the component's
-  dedicated origin; the HTML itself remains inline and self-contained.
+- Declare the deployment origin in the ChatGPT `openai/widgetDomain`
+  compatibility key. Omit shared `_meta.ui.domain` because hosts differ in how
+  they provision an origin for inline resources; the HTML remains inline and
+  self-contained.
 - `resources/templates/list` remains empty because this is one exact resource,
   not a URI template.
 - An unknown URI returns a normal MCP resource-not-found error; it must never
@@ -358,7 +376,7 @@ stable channel keeps its current discovery response until promotion.
 
 Treat the URI as a cache key. Compatible CSS fixes and renderer bug fixes may
 remain on `v1`; any change to the bridge contract, expected structured data,
-or document boot sequence publishes `v2.html` and updates both render tools in
+or document boot sequence publishes `v2.html` and updates all three render tools in
 the same deployment.
 
 While iterating rapidly in preview, use an explicit candidate URI such as
@@ -474,14 +492,14 @@ channel is additive and isolated by URL:
 | Surface | Compatibility rule |
 | --- | --- |
 | Submitted `/mcp` endpoint | Tool order, descriptors, discovery capabilities, empty resource lists, prompts, and tool behavior remain deeply equal to the pre-change endpoint. |
-| `/mcp-preview` endpoint | Starts from the stable contract, then appends `render_card` and `render_dashboard` and advertises one UI resource. |
+| `/mcp-preview` endpoint | Starts from the stable contract, then appends `render_card`, `render_activity`, and `render_dashboard` and advertises one UI resource. |
 | Existing tool descriptors | Deeply equal in both channels; no UI metadata is added to them. |
 | Existing tool calls | Same validation, authorization, handlers, `content`, and `structuredContent` in both channels. |
 | Existing non-UI clients | Remain configured to `/mcp`; after promotion they may ignore the new tools or call them as normal read tools with text plus JSON. |
 | `initialize` / `server/discover` | Stable remains unchanged during review. Preview truthfully adds `resources`; existing `tools` capability and protocol-version behavior stay intact. |
 | Resource probes | Stable keeps the current empty lists. Preview lists one exact resource; templates and prompts remain empty. |
 | Cached clients | Old descriptors continue to call old tools. Old resource URIs remain readable across template revisions. |
-| OAuth and scopes | No new scope. Preview has its own protected-resource identity on the same authorization server. Both render tools require `read`. |
+| OAuth and scopes | No new scope. Preview has its own protected-resource identity on the same authorization server. All three render tools require `read`. |
 | REST API and Apple clients | No route, schema, state, or renderer contract changes. |
 
 The endpoint is stateless across HTTP requests, so it cannot remember the UI
@@ -512,9 +530,11 @@ couple future visual changes to the most common headless read paths.
    - Extend `McpTool` with optional descriptor metadata and successful-content
      formatter.
    - Add `render_card` by reusing `CardOutput` and the `get_card` adapter.
+   - Add `render_activity` with `{ activity }` output by selecting an exact id
+     from the existing running-only activity adapter.
    - Add `render_dashboard` by reusing `DashboardOutput` and the
      `get_dashboard` adapter.
-   - Merge UI metadata into only those two descriptors on the preview channel.
+   - Merge UI metadata into only those three descriptors on the preview channel.
    - Advertise and dispatch resources on preview; preserve stable responses.
 5. `server/src/mcpOAuth.ts`
    - Generate protected-resource metadata and 401 challenges for the exact
@@ -557,13 +577,14 @@ regression tests are a release gate.
 - `resources/read` returns the exact URI, MIME type, HTML, CSP, and component
   metadata; missing or non-string URIs are invalid params and unknown URIs are
   not found.
-- Only `render_card` and `render_dashboard`, and only on preview before
-  promotion, carry `_meta.ui.resourceUri` and the OpenAI alias.
+- Only `render_card`, `render_activity`, and `render_dashboard`, and only on
+  preview before promotion, carry `_meta.ui.resourceUri` and the OpenAI alias.
 - Every descriptor that existed before this change is deeply equal to its old
   form.
-- Both render tools are read-only, non-destructive, idempotent, and require
+- All three render tools are read-only, non-destructive, idempotent, and require
   `read` scope.
-- Their `structuredContent` satisfies `CardOutput` or `DashboardOutput`; their
+- Their `structuredContent` satisfies `CardOutput`, `ActivityOutput`, or
+  `DashboardOutput`; their
   published output schemas remain recursively open and unbounded.
 - Headless calls receive concise text and the complete focused or dashboard
   snapshot.
@@ -596,8 +617,9 @@ regression tests are a release gate.
 - No tool result is expected before initialization completes.
 - Initial and refreshed `structuredContent` both render.
 - Focused refresh makes exactly one `get_card` call with the rendered id;
-  dashboard refresh makes exactly one `get_dashboard` call. Both handle result,
-  error, and cancellation states.
+  focused activity refresh resolves exactly one current activity by external
+  id; dashboard refresh makes exactly one `get_dashboard` call. All handle
+  result, error, and cancellation states.
 - Host-context changes update theme/locale/size without losing the snapshot.
 - Resize notifications are debounced.
 - Messages from a window other than `parent` are ignored.
@@ -619,10 +641,11 @@ Then validate the deployed/tunnelled endpoint at increasing fidelity:
 2. The MCP Apps basic host: resource load, bridge lifecycle, initial render,
    refresh, resize, theme, and fullscreen.
 3. ChatGPT Developer Mode using a separately named `00Widget Preview`
-   connection: OAuth, focused-card versus overview tool selection, inline
-   component, refresh, empty state, and a mixed fixture containing every card
-   template plus a Live Activity. Select Refresh after every metadata or UI URI
-   change, then start a new conversation.
+   connection: OAuth, focused-card, focused-running-activity, and overview tool
+   selection; inline component; refresh; empty state; rejection of ended
+   activities; and a mixed fixture containing every card template plus a Live
+   Activity. Select Refresh after every metadata or UI URI change, then start a
+   new conversation.
 4. One non-UI client already used with 00Widget: old tools still list and call
    normally; the new tool degrades to text plus structured data.
 
@@ -634,13 +657,16 @@ Then validate the deployed/tunnelled endpoint at increasing fidelity:
   and rolled back without changing the submitted connection URL.
 - Asking to "show me the solar widget" selects `render_card` with the solar
   card id and opens a component containing only that card.
+- Asking to "show the running washer activity" selects `render_activity` with
+  its external id and opens a component containing only that activity. The
+  same call returns not found after the activity ends.
 - Asking to "show my 00Widget dashboard" selects `render_dashboard` and opens
   one inline component with the current cards and activities.
 - Asking an agent to publish/update/end state follows the exact existing tool
   path and does not mount a component.
 - Refresh updates the mounted component without creating a second iframe.
 - Disconnecting UI support does not make any current workflow worse: every old
-  tool and both render tools remain complete headless MCP tools.
+  tool and all three render tools remain complete headless MCP tools.
 - Guest links look and behave the same after renderer extraction.
 - The component performs no direct network request and receives no API token.
 - All server tests and typecheck pass, followed by one real MCP Apps host pass.
@@ -651,13 +677,14 @@ Then validate the deployed/tunnelled endpoint at increasing fidelity:
    discovery, descriptor order and contents, prompts, resources, and OAuth
    resource identity.
 2. Ship renderer extraction alone and verify guest-page parity.
-3. Ship the preview routes, resource methods, `render_card`, and
-   `render_dashboard` with `MCP_PREVIEW_ENABLED=false`. Verify `/mcp` against
-   the golden fixtures in production.
+3. Ship the preview routes, resource methods, `render_card`,
+   `render_activity`, and `render_dashboard` with
+   `MCP_PREVIEW_ENABLED=false`. Verify `/mcp` against the golden fixtures in
+   production.
 4. Set `MCP_PREVIEW_ENABLED=true`, connect
    `https://api.00widget.com/mcp-preview` as `00Widget Preview` in Developer
-   Mode, and run the focused-card and dashboard evaluation set. Do not use Scan
-   Tools on the in-review submission.
+   Mode, and run the focused-card, focused-running-activity, and dashboard
+   evaluation set. Do not use Scan Tools on the in-review submission.
 5. Bump the preview candidate resource URI when cached HTML would obstruct an
    iteration. Refresh the Developer Mode connection and start a new chat after
    each descriptor or URI change.

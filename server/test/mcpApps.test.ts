@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import handler from "../src/index";
-import { MCP_PREVIEW_RESOURCE_URI } from "../src/mcpApp";
+import {
+  MCP_PREVIEW_LEGACY_RESOURCE_URIS,
+  MCP_PREVIEW_RESOURCE_URI,
+} from "../src/mcpApp";
 import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY } from "./helpers";
 
@@ -78,6 +81,7 @@ describe("MCP Apps preview channel", () => {
       _meta?: unknown;
     }>;
     expect(stableTools.some((tool) => tool.name === "render_card")).toBe(false);
+    expect(stableTools.some((tool) => tool.name === "render_activity")).toBe(false);
     expect(stableTools.some((tool) => tool.name === "render_dashboard")).toBe(false);
     expect(stableTools.every((tool) => tool._meta === undefined)).toBe(true);
 
@@ -93,14 +97,18 @@ describe("MCP Apps preview channel", () => {
     expect(stableCall.error.code).toBe(-32602);
   });
 
-  it("advertises resources and only two additive render tools", async () => {
+  it("advertises resources and only three additive render tools", async () => {
     const currentEnv = env();
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
 
     const preview = await result(currentEnv, "/mcp-preview", "tools/list");
     const tools = preview.result.tools as Array<Record<string, any>>;
     const renderTools = tools.filter((tool) => tool.name.startsWith("render_"));
-    expect(renderTools.map((tool) => tool.name)).toEqual(["render_card", "render_dashboard"]);
+    expect(renderTools.map((tool) => tool.name)).toEqual([
+      "render_card",
+      "render_activity",
+      "render_dashboard",
+    ]);
 
     for (const tool of renderTools) {
       expect(tool.annotations).toMatchObject({
@@ -172,13 +180,23 @@ describe("MCP Apps preview channel", () => {
     expect(scripts).toHaveLength(3);
     for (const script of scripts) expect(() => new Function(script)).not.toThrow();
 
+    for (const legacyUri of MCP_PREVIEW_LEGACY_RESOURCE_URIS) {
+      const legacy = await result(currentEnv, "/mcp-preview", "resources/read", {
+        uri: legacyUri,
+      });
+      expect(legacy.result.contents[0]).toMatchObject({
+        uri: legacyUri,
+        mimeType: "text/html;profile=mcp-app",
+      });
+    }
+
     const missing = await result(currentEnv, "/mcp-preview", "resources/read", {
       uri: "ui://00widget/preview/not-there.html",
     });
     expect(missing.error.code).toBe(-32002);
   });
 
-  it("renders one card as the primary flow and the dashboard on demand", async () => {
+  it("renders one card, one running activity, and the dashboard on demand", async () => {
     const currentEnv = env();
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
     await result(currentEnv, "/mcp", "tools/call", {
@@ -200,12 +218,51 @@ describe("MCP Apps preview channel", () => {
     expect(card.result.structuredContent.card).toMatchObject({ id: "solar", title: "Solar" });
     expect(card.result.content[0].text).toBe("Rendered Solar.");
 
+    await result(currentEnv, "/mcp", "tools/call", {
+      name: "start_live_activity",
+      arguments: {
+        externalActivityId: "washer-cycle",
+        kind: "appliance",
+        title: "Washer cycle",
+        state: "running",
+        progress: 0.4,
+      },
+    });
+
+    const activity = await result(currentEnv, "/mcp-preview", "tools/call", {
+      name: "render_activity",
+      arguments: { externalActivityId: "washer-cycle" },
+    });
+    expect(activity.result.isError).toBeUndefined();
+    expect(activity.result.structuredContent.activity).toMatchObject({
+      externalActivityId: "washer-cycle",
+      title: "Washer cycle",
+      state: "running",
+    });
+    expect(activity.result.content[0].text).toBe("Rendered Washer cycle.");
+
     const dashboard = await result(currentEnv, "/mcp-preview", "tools/call", {
       name: "render_dashboard",
       arguments: {},
     });
     expect(dashboard.result.structuredContent.cards).toHaveLength(1);
-    expect(dashboard.result.content[0].text).toContain("1 card and 0 running activities");
+    expect(dashboard.result.structuredContent.activities).toHaveLength(1);
+    expect(dashboard.result.content[0].text).toContain("1 card and 1 running activity");
+
+    await result(currentEnv, "/mcp", "tools/call", {
+      name: "end_live_activity",
+      arguments: { externalActivityId: "washer-cycle" },
+    });
+    const ended = await result(currentEnv, "/mcp-preview", "tools/call", {
+      name: "render_activity",
+      arguments: { externalActivityId: "washer-cycle" },
+    });
+    expect(ended.result.isError).toBe(true);
+    expect(ended.result.structuredContent).toMatchObject({
+      error: "running Live Activity not found",
+      status: 404,
+      retryable: false,
+    });
   });
 
   it("uses preview-specific OAuth discovery and generated config", async () => {
