@@ -243,6 +243,10 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
             }
         }
         Spacer(Modifier.height(4.dp))
+        GlassCard(cardAlpha = cardAlpha) {
+            RotateAgentTokensSection(app = app)
+        }
+        Spacer(Modifier.height(4.dp))
         AccountAccessSection(app = app)
     }
 }
@@ -464,7 +468,6 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
     val isDelete = action == AccountIdAction.DELETE
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Account and access", style = MaterialTheme.typography.titleSmall)
             Text(
                 if (isDelete) {
                     "Horizon is the only way into this account. Deleting removes " +
@@ -638,10 +641,6 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             // The token path and the connector doorway are the two ways in;
             // the rule keeps them from reading as one paragraph.
             HorizontalDivider()
-            if (signedIn) {
-                RotateAgentTokensSection(app = app)
-                HorizontalDivider()
-            }
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = MaterialTheme.typography.bodySmall,
@@ -675,8 +674,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
         Text(
             "Use this if an agent token may have been exposed. Every old agent " +
                 "token stops working and one replacement is created — give " +
-                "it to your agents. This headset stays signed in; its own token " +
-                "above is untouched.",
+                "it to your agents. This headset stays signed in.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
