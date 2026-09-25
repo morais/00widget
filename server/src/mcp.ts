@@ -905,6 +905,10 @@ const PREVIEW_TOOL_META = {
     resourceUri: MCP_PREVIEW_RESOURCE_URI,
     visibility: ["model", "app"],
   },
+  // The MCP Apps helper publishes both forms. The flat key is deprecated but
+  // remains necessary for hosts shipping against the pre-GA extension while
+  // the nested `ui.resourceUri` above is the standards-first form.
+  "ui/resourceUri": MCP_PREVIEW_RESOURCE_URI,
   "openai/outputTemplate": MCP_PREVIEW_RESOURCE_URI,
   "openai/widgetAccessible": true,
   "openai/visibility": "public",

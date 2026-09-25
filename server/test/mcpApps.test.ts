@@ -114,6 +114,7 @@ describe("MCP Apps preview channel", () => {
         resourceUri: MCP_PREVIEW_RESOURCE_URI,
         visibility: ["model", "app"],
       });
+      expect(tool._meta["ui/resourceUri"]).toBe(MCP_PREVIEW_RESOURCE_URI);
       expect(tool._meta["openai/outputTemplate"]).toBe(MCP_PREVIEW_RESOURCE_URI);
       expect(tool.outputSchema.type).toBe("object");
     }
@@ -138,6 +139,12 @@ describe("MCP Apps preview channel", () => {
       expect.objectContaining({
         uri: MCP_PREVIEW_RESOURCE_URI,
         mimeType: "text/html;profile=mcp-app",
+        _meta: {
+          ui: {
+            prefersBorder: false,
+            csp: { connectDomains: [], resourceDomains: [] },
+          },
+        },
       }),
     ]);
 
@@ -149,14 +156,16 @@ describe("MCP Apps preview channel", () => {
     expect(resource.mimeType).toBe("text/html;profile=mcp-app");
     expect(resource._meta.ui).toEqual({
       prefersBorder: false,
-      domain: "https://api.example.com",
       csp: { connectDomains: [], resourceDomains: [] },
     });
+    expect(resource._meta.ui).not.toHaveProperty("domain");
+    expect(resource._meta["openai/widgetDomain"]).toBe("https://api.example.com");
     expect(resource._meta["openai/ui"].availableDisplayModes).toEqual(["inline", "fullscreen"]);
     expect(resource.text).toContain("ZeroZeroPreview");
     expect(resource.text).toContain("ui/initialize");
     expect(resource.text).toContain("ui/notifications/tool-result");
     expect(resource.text).toContain("tools/call");
+    expect(resource.text).toContain("availableDisplayModes:['inline','fullscreen']");
     expect(resource.text).not.toMatch(/<script[^>]+src=/);
     const scripts = [...String(resource.text).matchAll(/<script>([\s\S]*?)<\/script>/g)]
       .map((match) => match[1]);

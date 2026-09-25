@@ -3,7 +3,7 @@ import { WEB_PREVIEW_RUNTIME, WEB_PREVIEW_STYLES } from "./guestPage";
 /// Preview resource URI. The suffix is deliberately prerelease-shaped: MCP
 /// hosts cache resources by URI, so an incompatible UI change gets a new URI
 /// without changing either the stable or preview HTTP endpoint.
-export const MCP_PREVIEW_RESOURCE_URI = "ui://00widget/preview/v1-preview.1.html";
+export const MCP_PREVIEW_RESOURCE_URI = "ui://00widget/preview/v1-preview.2.html";
 export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
 
 const APP_STYLES = `
@@ -115,7 +115,7 @@ const APP_SCRIPT = `
 
   var bridgeReady=request('ui/initialize',{
     appInfo:{name:'00widget-preview',version:'1.0.0-preview.1'},
-    appCapabilities:{},
+    appCapabilities:{availableDisplayModes:['inline','fullscreen']},
     protocolVersion:'2026-01-26'
   }).then(function(){
     notify('ui/notifications/initialized',{});
@@ -143,16 +143,19 @@ export function renderMcpAppHTML(): string {
 }
 
 export function mcpAppResource(origin: string) {
-  const csp = {
-    connectDomains: [] as string[],
-    resourceDomains: [] as string[],
-  };
+  const ui = mcpAppUiMeta();
   return {
     uri: MCP_PREVIEW_RESOURCE_URI,
     mimeType: MCP_APP_MIME_TYPE,
     text: renderMcpAppHTML(),
     _meta: {
-      ui: { prefersBorder: false, csp, domain: origin },
+      // `ui.domain` is deliberately absent. MCP Apps makes its format
+      // host-specific: ChatGPT accepts the deployment origin while Claude uses
+      // a claudemcpcontent.com sandbox name. Advertising either in the shared
+      // field makes the other host reject an otherwise portable resource. Let
+      // each host assign its default sandbox and keep the ChatGPT-only origin
+      // in the compatibility alias below.
+      ui,
       "openai/ui": { availableDisplayModes: ["inline", "fullscreen"] },
       "openai/widgetDescription": "A read-only rendering of current 00Widget state.",
       "openai/widgetPrefersBorder": false,
@@ -172,5 +175,19 @@ export function mcpAppResourceDescriptor() {
     title: "00Widget preview",
     description: "Read-only preview of one card or the full dashboard.",
     mimeType: MCP_APP_MIME_TYPE,
+    // Listing metadata lets a host review and prefetch the resource before it
+    // calls resources/read. The content item repeats it as the authoritative
+    // value, per the MCP Apps resource contract.
+    _meta: { ui: mcpAppUiMeta() },
+  };
+}
+
+function mcpAppUiMeta() {
+  return {
+    prefersBorder: false,
+    csp: {
+      connectDomains: [] as string[],
+      resourceDomains: [] as string[],
+    },
   };
 }
