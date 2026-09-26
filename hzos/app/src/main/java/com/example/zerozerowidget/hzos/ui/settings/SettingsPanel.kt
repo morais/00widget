@@ -297,9 +297,18 @@ private fun AccountSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // Same roomy row as the doors below: without the padding this
+        // line reads visually smaller than its neighbours.
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (!loaded || accountName.isNullOrBlank()) {
-                Text("Signed in.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Signed in.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
             } else {
                 Text(
                     "Signed in as",
