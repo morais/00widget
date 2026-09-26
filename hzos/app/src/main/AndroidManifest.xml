@@ -53,8 +53,11 @@
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".SettingsActivity"
             android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape">
+            android:launchMode="singleTask">
+            <!-- No screenOrientation lock: a locked-landscape activity in a
+                 tall resized window gets system-letterboxed (the grey slab
+                 under the content), while an unlocked one simply fills. All
+                 content here scrolls, so any aspect works. -->
             <!-- Narrow by design: settings is a form, not a dashboard. Half
                  the old 900dp default; min follows so the shell can keep it
                  slim. Content scrolls, so nothing is lost to the width. -->
