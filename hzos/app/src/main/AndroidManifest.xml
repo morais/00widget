@@ -30,16 +30,16 @@
 
         <!-- Dashboard: the launcher panel. minWidth lets the shell shrink
              it below the 728dp two-column break (minus 40dp padding) so a
-             narrow panel genuinely drops to one column. -->
+             narrow panel genuinely drops to one column. No orientation lock:
+             a tall narrow window must fill, not letterbox (see Settings). -->
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".DashboardActivity"
-            android:exported="true"
-            android:screenOrientation="landscape">
+            android:exported="true">
             <layout
                 android:defaultWidth="1280dp"
                 android:defaultHeight="800dp"
-                android:minWidth="520dp"
+                android:minWidth="360dp"
                 android:minHeight="500dp" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -69,16 +69,17 @@
         </activity>
 
         <!-- Card detail: one instance per popped-out card (MULTIPLE_TASK),
-             so N cards sit side by side as N shell panels. -->
+             so N cards sit side by side as N shell panels. Unlocked
+             orientation and a 360dp floor like the rest: a tall narrow
+             detail must fill, not letterbox. -->
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".CardDetailActivity"
-            android:exported="false"
-            android:screenOrientation="landscape">
+            android:exported="false">
             <layout
                 android:defaultWidth="1024dp"
                 android:defaultHeight="700dp"
-                android:minWidth="700dp"
+                android:minWidth="360dp"
                 android:minHeight="450dp" />
         </activity>
     </application>
