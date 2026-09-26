@@ -2,11 +2,13 @@ package com.zerozerowidget.hzos.ui.uiset
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import metavrx.uiset.compose.button.ButtonStyle
 import metavrx.uiset.compose.button.LabelButton
 import metavrx.uiset.compose.control.Switch
 import metavrx.uiset.compose.dialog.BasicDialog
 import metavrx.uiset.compose.dialog.DialogAction
+import metavrx.uiset.compose.input.TextField
 import metavrx.uiset.compose.slider.Slider
 import metavrx.uiset.compose.theme.UiSetTheme
 
@@ -21,9 +23,21 @@ import metavrx.uiset.compose.theme.UiSetTheme
  * to that screen root and these wrappers go away.
  *
  * Mappings: M3 Button → Primary, M3 FilledTonalButton → Secondary,
- * destructive confirms → Destructive. Switch, Slider, and confirm dialogs
- * map one to one. Everything else (text, fields, cards, badges) stays
- * Material 3 until its own migration.
+ * destructive confirms → Destructive. Switch, Slider, text fields, and
+ * confirm dialogs map one to one.
+ *
+ * What stays Material, and why it cannot just be swapped:
+ * - Text, theme, and app colors: adopting UiSetTheme above the controls
+ *   is a full visual restyle, a design decision to take on-device, not a
+ *   mechanical mapping.
+ * - Cards: GlassCard's translucency (surfaceVariant at cardAlpha over
+ *   passthrough) has no expression in UiSet's brush-based CardColors.
+ * - LinearProgressIndicator: uiset-compose ships no linear progress.
+ * - HorizontalDivider: uiset-compose ships no divider.
+ * - material-icons glyphs: a vector asset pack, and UiSet's own icon
+ *   coverage for these five glyphs is unverified.
+ * - The join-account button: UiSet labels are plain strings and cannot
+ *   carry its bold brand phrase (see the call site).
  */
 @Composable
 fun UiSetPrimaryButton(
@@ -164,6 +178,39 @@ fun UiSetConfirmDialog(
                 label = dismissLabel,
                 onClick = onDismiss,
             ),
+        )
+    }
+}
+
+/**
+ * Single-line text entry. UiSet's field takes [keyboardType] directly
+ * instead of Material's [KeyboardOptions] wrapper, and has no read-only
+ * mode — callers with a locked value pass enabled = false, which reads
+ * disabled rather than read-only.
+ */
+@Composable
+fun UiSetTextField(
+    value: String,
+    label: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    placeholder: String? = null,
+    supportingText: String? = null,
+) {
+    UiSetTheme {
+        TextField(
+            value = value,
+            label = label,
+            onValueChange = onValueChange,
+            modifier = modifier,
+            placeholder = placeholder,
+            supportingText = supportingText,
+            enabled = enabled,
+            singleLine = singleLine,
+            keyboardType = keyboardType,
         )
     }
 }

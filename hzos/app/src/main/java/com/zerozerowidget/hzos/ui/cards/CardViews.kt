@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -1038,9 +1037,9 @@ fun DeleteRow(
 }
 
 @Composable
-fun NeedsYouBadge(modifier: Modifier = Modifier) {    // Mirrors the derived "Needs you" rule in llms.md: attention status +
-    // actionable button. Callers decide; this only draws the pill.
-    FilledTonalButton(onClick = {}, modifier = modifier) {
-        Text("Needs you", color = MaterialTheme.colorScheme.error)
-    }
+fun NeedsYouBadge(modifier: Modifier = Modifier) {
+    // Mirrors the derived "Needs you" rule in llms.md: attention status +
+    // actionable button. Callers decide; this only draws the pill. No
+    // callers yet — kept in the new system so the first one starts there.
+    UiSetDestructiveButton(label = "Needs you", onClick = {}, modifier = modifier)
 }

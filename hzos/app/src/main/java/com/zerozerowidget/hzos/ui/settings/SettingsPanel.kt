@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -25,7 +24,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +65,7 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSlider
 import com.zerozerowidget.hzos.ui.uiset.UiSetSwitch
+import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -878,19 +877,19 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Server", style = MaterialTheme.typography.titleSmall)
-            OutlinedTextField(
+            UiSetTextField(
                 value = if (locked) {
                     com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
                 } else {
                     serverUrl
                 },
+                label = "Worker URL (https://…)",
                 onValueChange = { serverUrl = it; savedNote = null },
-                label = { Text("Worker URL (https://…)") },
-                singleLine = true,
-                readOnly = locked,
-                enabled = !locked,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
+                // No read-only mode in UiSet: a locked URL is simply
+                // disabled, which greys it instead of showing read-only.
+                enabled = !locked,
+                keyboardType = KeyboardType.Uri,
             )
             if (!locked) {
                 savedNote?.let {
