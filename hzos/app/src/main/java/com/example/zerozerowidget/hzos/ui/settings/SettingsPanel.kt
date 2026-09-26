@@ -284,13 +284,20 @@ private fun AccountSection(
             }
             if (current.apiKey.isBlank() || base.isBlank()) return@LaunchedEffect
             val api = ZeroWidgetApi(app.http, base, current.apiKey)
-            val account = api.fetchAccount()
-            accountName = account.ownerEmail?.takeIf { it.isNotBlank() }
-                ?: account.displayName?.takeIf { it.isNotBlank() }
-            loaded = true
-            subscription = api.fetchSubscription()
-            subscriptionAnswered = true
+            // Parallel: account and subscription are independent reads,
+            // and sequential await was the visible fill-up. Both states
+            // land together below, so the rows below never reshape twice.
+            kotlinx.coroutines.coroutineScope {
+                val accountDeferred = kotlinx.coroutines.async { api.fetchAccount() }
+                val subscriptionDeferred = kotlinx.coroutines.async { api.fetchSubscription() }
+                val account = accountDeferred.await()
+                accountName = account.ownerEmail?.takeIf { it.isNotBlank() }
+                    ?: account.displayName?.takeIf { it.isNotBlank() }
+                subscription = subscriptionDeferred.await()
+            }
         } catch (e: Exception) {
+            // Anything failing degrades to the plain row (see below).
+        } finally {
             loaded = true
             subscriptionAnswered = true
         }
@@ -298,12 +305,14 @@ private fun AccountSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Same roomy row as the doors below: without the padding this
-        // line reads visually smaller than its neighbours.
+        // line reads visually smaller than its neighbours. The shape
+        // never changes while loading — label plus a Loading… value —
+        // so the row below does not move when the name arrives.
         Row(
             Modifier.fillMaxWidth().padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (!loaded || accountName.isNullOrBlank()) {
+            if (loaded && accountName.isNullOrBlank()) {
                 Text(
                     "Signed in.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -316,13 +325,31 @@ private fun AccountSection(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    accountName!!,
+                    if (!loaded) "Loading…" else accountName!!,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        if (subscriptionAnswered && subscription != null) {
+        if (!subscriptionAnswered) {
+            // Reserved while the parallel fetch answers: without it the
+            // Account door jumps when this row arrives or stays away.
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Subscription",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "Loading…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (subscription != null) {
             // Doorway to the purchase screen when the build sells anything,
             // a plain status row otherwise — like iOS, where Subscription
             // is a NavigationLink only with the flag on.
