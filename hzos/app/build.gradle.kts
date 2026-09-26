@@ -20,8 +20,8 @@ val platformAppId: String = Properties().apply {
 }.getProperty("platformAppId", "")
 
 // Release-safe per-developer values (gitignored defaults.properties, see
-// defaults.properties.sample). Namespace stays fixed so R/BuildConfig
-// imports never move; only the store identity varies.
+// defaults.properties.sample). Namespace is the store identity, so R and
+// BuildConfig live next to the code that imports them.
 val developerDefaults = Properties().apply {
     val f = rootProject.file("defaults.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -34,15 +34,15 @@ val storeProps = Properties().apply {
 }
 val defaultBaseUrl: String = developerDefaults.getProperty("defaultBaseUrl", "")
 val configuredAppId: String =
-    developerDefaults.getProperty("applicationId", "com.example.zerozerowidget.hzos")
+    developerDefaults.getProperty("applicationId", "com.zerozerowidget.hzos")
 
 android {
-    namespace = "com.example.zerozerowidget.hzos"
+    namespace = "com.zerozerowidget.hzos"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
         // Store identity comes from gitignored defaults.properties.
-        // Keep com.example.* out of the store.
+        // Never point it at com.example.*.
         applicationId = configuredAppId
         minSdk = libs.versions.minSdk.get().toInt()
         // 34, not 36: the store warns that Horizon OS supports up to API 34.
