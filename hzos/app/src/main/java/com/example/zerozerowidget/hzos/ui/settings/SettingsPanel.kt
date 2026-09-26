@@ -441,8 +441,21 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
         }
     }
 
-    // Nothing determinable, nothing offered. Hooks stay above this return.
-    if (action == null || action == AccountIdAction.NONE) return
+    // The identity answers over the network: hold a Loading… card
+    // instead of nothing, so the screen above does not jump when the
+    // delete-or-unlink card arrives. Nothing determinable, nothing
+    // offered. Hooks stay above this return.
+    if (action == null) {
+        GlassCard(cardAlpha = 1f) {
+            Text(
+                "Loading…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    if (action == AccountIdAction.NONE) return
 
     suspend fun api(): ZeroWidgetApi {
         val current = app.connectionStore.current()
