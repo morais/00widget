@@ -55,6 +55,7 @@ import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.example.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -77,7 +78,14 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     )
     var connections by remember { mutableStateOf<List<MCPConnectionSummary>>(emptyList()) }
     var connectionsError by remember { mutableStateOf<String?>(null) }
+    var connectionsLoaded by remember { mutableStateOf(false) }
     var busyId by remember { mutableStateOf<String?>(null) }
+    // DataStore hasn't emitted on first composition, so the collected
+    // connection still holds the signed-out initial — and the signed-in
+    // cards below would pop in a beat later, pushing the guides down.
+    // Gate the whole screen on the first real emission (local disk, fast)
+    // so the layout below renders once, in its final shape.
+    var connectionKnown by remember { mutableStateOf(false) }
 
     suspend fun authedApi(): ZeroWidgetApi? {
         val current = app.connectionStore.current()
@@ -93,6 +101,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         val api = authedApi() ?: run {
             connections = emptyList()
             connectionsError = null
+            connectionsLoaded = true
             return
         }
         try {
@@ -100,10 +109,20 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             connectionsError = null
         } catch (e: Exception) {
             connectionsError = (e.message ?: e.javaClass.simpleName).take(200)
+        } finally {
+            connectionsLoaded = true
         }
     }
 
-    LaunchedEffect(signedIn) { loadConnections() }
+    LaunchedEffect(Unit) {
+        app.connectionStore.connection.first()
+        connectionKnown = true
+    }
+    LaunchedEffect(signedIn) {
+        // A fresh account means a fresh list: loading, not the old rows.
+        connectionsLoaded = false
+        loadConnections()
+    }
     // Returning from the browser (where connecting happens) reloads, like
     // iOS reloading on scene-phase active.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -119,6 +138,25 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
     }
     val mcpEndpoint = baseUrl.ifBlank { null }?.trimEnd('/')?.plus("/mcp")
+
+    if (!connectionKnown) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Connect an agent", style = MaterialTheme.typography.headlineSmall)
+            GlassCard(cardAlpha = cardAlpha) {
+                Text(
+                    "Loading…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        return
+    }
 
     Column(
         Modifier
@@ -160,7 +198,16 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                     connectionsError?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
-                    if (connections.isEmpty()) {
+                    // The list answers over the network: hold a Loading…
+                    // row instead of flashing "No agents" before the rows
+                    // arrive and shifting everything below.
+                    if (!connectionsLoaded) {
+                        Text(
+                            "Loading…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else if (connections.isEmpty()) {
                         Text(
                             "No agents are currently connected.",
                             style = MaterialTheme.typography.bodyMedium,
