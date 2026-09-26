@@ -18,6 +18,10 @@ import java.net.URLEncoder
  * Auth: `Authorization: Bearer <API_KEY>` on everything but `/health`.
  * Read-only by default: this client only calls `read`-scoped routes plus
  * safe action runs. Publishing cards from the headset is out of scope.
+ *
+ * Every public call is Main-safe (IO-dispatched): panels call straight
+ * from compose scopes, and blocking OkHttp on Main throws
+ * NetworkOnMainThreadException.
  */
 class ZeroWidgetApi(
     private val http: OkHttpClient,
@@ -34,46 +38,56 @@ class ZeroWidgetApi(
 
     class ApiException(val status: Int, message: String) : IOException(message)
 
-    suspend fun health(): Boolean {
-        val code = getRaw("/health").use { it.code }
-        return code == 200
-    }
+    suspend fun health(): Boolean =
+        withContext(Dispatchers.IO) {
+            val code = getRaw("/health").use { it.code }
+            code == 200
+        }
 
     suspend fun fetchDashboard(): DashboardResponse =
-        get("/v1/dashboard")
+        withContext(Dispatchers.IO) {
+            get("/v1/dashboard")
+        }
 
     suspend fun fetchCards(): List<DashboardCard> =
-        get<CardsListResponse>("/v1/cards").cards
+        withContext(Dispatchers.IO) {
+            get<CardsListResponse>("/v1/cards").cards
+        }
 
     suspend fun fetchLiveActivities(): List<LiveActivitySession> =
-        get<LiveActivitiesListResponse>("/v1/live-activities").activities
+        withContext(Dispatchers.IO) {
+            get<LiveActivitiesListResponse>("/v1/live-activities").activities
+        }
 
     /**
      * Runs one action button press. Callers must check
      * [ActionDefinition.isSafeFromPanel] first — the server also enforces it,
      * and a 403 naming the required scope means this credential cannot run it.
      */
-    suspend fun runAction(actionId: String, cardId: String?) {
-        val body = json.encodeToString(
-            ActionRunBody.serializer(),
-            ActionRunBody(ActionRunContext(cardId)),
-        )
-        postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
-    }
+    suspend fun runAction(actionId: String, cardId: String?) =
+        withContext(Dispatchers.IO) {
+            val body = json.encodeToString(
+                ActionRunBody.serializer(),
+                ActionRunBody(ActionRunContext(cardId)),
+            )
+            postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
+        }
 
     /**
      * Deletes a card / ends an activity. Both routes require the `publish`
      * scope, which a device-preset token does NOT have — callers surface
      * the 403 honestly instead of hiding the button's limits.
      */
-    suspend fun deleteCard(id: String) {
-        delete("/v1/cards/${pathSegment(id)}")
-    }
+    suspend fun deleteCard(id: String) =
+        withContext(Dispatchers.IO) {
+            delete("/v1/cards/${pathSegment(id)}")
+        }
 
-    suspend fun endActivity(externalActivityId: String) {
-        val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
-        postEmpty("/v1/live-activities/end", body)
-    }
+    suspend fun endActivity(externalActivityId: String) =
+        withContext(Dispatchers.IO) {
+            val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
+            postEmpty("/v1/live-activities/end", body)
+        }
 
     /**
      * Active MCP grants: lifecycle/display metadata only, never tokens.
