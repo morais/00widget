@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,12 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,6 +46,10 @@ import com.example.zerozerowidget.hzos.data.DashboardCard
 import com.example.zerozerowidget.hzos.data.DashboardChart
 import com.example.zerozerowidget.hzos.data.DashboardStatus
 import com.example.zerozerowidget.hzos.data.isSample
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlin.math.abs
 
 /** See ChartColors.kt: statusColor now mirrors DashboardStatus.tint. */
@@ -119,15 +119,10 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
                 color = Color.White,
             )
         }
-        Button(
+        UiSetSecondaryButton(
+            label = "Remove samples",
             onClick = onRemoveAll,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = MaterialTheme.colorScheme.primary,
-            ),
-        ) {
-            Text("Remove samples", style = MaterialTheme.typography.labelMedium)
-        }
+        )
     }
 }
 
@@ -138,7 +133,7 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
  */
 @Composable
 fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = onPopOut, modifier = modifier) {
+    UiSetIconButton(onClick = onPopOut, contentDescription = "Pop out", modifier = modifier) {
         val color = MaterialTheme.colorScheme.onSurfaceVariant
         Canvas(Modifier.size(22.dp)) {
             val sw = 2.dp.toPx()
@@ -166,7 +161,7 @@ fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
  */
 @Composable
 fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = onOpenLink, modifier = modifier) {
+    UiSetIconButton(onClick = onOpenLink, contentDescription = "Open link", modifier = modifier) {
         val color = MaterialTheme.colorScheme.onSurfaceVariant
         Canvas(Modifier.size(22.dp)) {
             val sw = 2.dp.toPx()
@@ -900,17 +895,19 @@ fun ActionButtons(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         card.actions.orEmpty().forEach { action ->
             if (action.isSafeFromPanel) {
-                Button(
+                UiSetPrimaryButton(
+                    label = if (runningId == action.id) "Running…" else action.label,
                     onClick = { onRun(action) },
                     enabled = runningId == null,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (runningId == action.id) "Running…" else action.label)
-                }
+                )
             } else {
-                FilledTonalButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-                    Text("${action.label} — confirm in app")
-                }
+                UiSetSecondaryButton(
+                    label = "${action.label} — confirm in app",
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         runError?.let {
@@ -1018,7 +1015,10 @@ fun DeleteRow(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             leading()
             Spacer(Modifier.weight(1f))
-            FilledTonalButton(
+            // Destructive throughout: this is the delete/end affordance,
+            // and the armed state is the confirm, not a style change.
+            UiSetDestructiveButton(
+                label = if (busy) "Working…" else if (armed) "Sure?" else label,
                 onClick = {
                     if (armed) {
                         armed = false
@@ -1028,18 +1028,7 @@ fun DeleteRow(
                     }
                 },
                 enabled = !busy,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
-                    contentColor = Color.White,
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                modifier = Modifier.height(34.dp),
-            ) {
-                Text(
-                    if (busy) "Working…" else if (armed) "Sure?" else label,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
+            )
         }
         error?.let {
             Spacer(Modifier.height(4.dp))

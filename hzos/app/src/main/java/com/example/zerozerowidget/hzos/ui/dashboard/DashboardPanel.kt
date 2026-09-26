@@ -19,15 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,6 +67,9 @@ import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.openDeepLink
 import com.example.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
 import com.example.zerozerowidget.hzos.ui.relativeTime
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.launch
 
 /**
@@ -116,12 +116,12 @@ fun DashboardPanel(
             // Refresh only signs in states: logged out there is nothing to
             // refetch, and the button suggests otherwise.
             if (state.isConfigured) {
-                IconButton(onClick = { app.repository.refresh() }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
+                    Icon(Icons.Filled.Refresh, contentDescription = null)
                 }
             }
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+            UiSetIconButton(onClick = onOpenSettings, contentDescription = "Settings") {
+                Icon(Icons.Filled.Settings, contentDescription = null)
             }
         }
         androidx.compose.runtime.CompositionLocalProvider(
@@ -147,8 +147,8 @@ fun DashboardPanel(
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { app.repository.refresh() }) { Text("Retry") }
-                    FilledTonalButton(onClick = { app.sampleStore.generateCards() }) { Text("Generate samples") }
+                    UiSetPrimaryButton("Retry", onClick = { app.repository.refresh() })
+                    UiSetSecondaryButton("Generate samples", onClick = { app.sampleStore.generateCards() })
                 }
             }
             nothingToShow -> {
@@ -242,9 +242,10 @@ fun DashboardPanel(
                             // No widgets: like the activities section, the
                             // Widgets section becomes its own demo picker.
                             item(key = "demo-widgets") {
-                                FilledTonalButton(
+                                UiSetSecondaryButton(
+                                    "Generate samples",
                                     onClick = { app.sampleStore.generateCards() },
-                                ) { Text("Generate samples") }
+                                )
                             }
                         } else if (twoCol) {
                                 items(
@@ -379,13 +380,12 @@ fun CardDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            IconButton(onClick = { app.repository.refresh() }) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                        UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
+                Icon(Icons.Filled.Refresh, contentDescription = null)
             }
         }
         Spacer(Modifier.height(8.dp))
-        if (card == null) {
-            Text(
+        if (card == null) {            Text(
                 "This card is no longer on the dashboard.",
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -440,7 +440,7 @@ fun CardDetailPanel(
                 },
                 leading = {
                     card.deepLink?.let {
-                        FilledTonalButton(onClick = { onOpenLink(card.deepLink) }) { Text("Open link") }
+                        UiSetSecondaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
                     }
                 },
             )
@@ -501,10 +501,10 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
         )
         Spacer(Modifier.height(20.dp))
         onSignIn?.let { signIn ->
-            Button(onClick = signIn) { Text("Sign in") }
+            UiSetPrimaryButton("Sign in", onClick = signIn)
             Spacer(Modifier.height(8.dp))
         }
-        FilledTonalButton(onClick = onTryDemo) { Text("Try demo data") }
+        UiSetSecondaryButton("Try demo data", onClick = onTryDemo)
         Spacer(Modifier.height(12.dp))
         Text(
             if (onSignIn != null) {

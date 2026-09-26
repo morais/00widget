@@ -15,9 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,6 +41,8 @@ import com.example.zerozerowidget.hzos.ui.cards.activityTint
 import com.example.zerozerowidget.hzos.ui.describeDeleteError
 import com.example.zerozerowidget.hzos.ui.isStale
 import com.example.zerozerowidget.hzos.ui.relativeTime
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.launch
 
 /**
@@ -88,8 +88,8 @@ fun ActivityDetailPanel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            IconButton(onClick = { app.repository.refresh() }) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+            UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
+                Icon(Icons.Filled.Refresh, contentDescription = null)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -227,7 +227,7 @@ fun ActivityDetailPanel(
                 },
                 leading = {
                     session.deepLink?.let {
-                        FilledTonalButton(onClick = { onOpenLink(session.deepLink) }) { Text("Open link") }
+                        UiSetSecondaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
                     }
                 },
             )
