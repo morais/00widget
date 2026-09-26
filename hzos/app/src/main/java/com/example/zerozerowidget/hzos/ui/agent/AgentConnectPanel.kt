@@ -19,10 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -53,6 +50,9 @@ import com.example.zerozerowidget.hzos.data.describeBrowserApproval
 import com.example.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.example.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -156,9 +156,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             Step(3, "Approve the permission screen. It publishes to whichever 00Widget account you are signed in as there.")
             val claudeUrl = mcpEndpoint?.let(::claudeConnectorUrl)
             if (claudeUrl != null) {
-                FilledTonalButton(onClick = { openDeepLink(context, claudeUrl) }) {
-                    Text("Connect Claude")
-                }
+                UiSetSecondaryButton("Connect Claude", onClick = { openDeepLink(context, claudeUrl) })
             }
             mcpEndpoint?.let { endpoint ->
                 Text(
@@ -342,16 +340,18 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
                 enabled = !busy,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                UiSetPrimaryButton(
+                    "Approve",
                     onClick = { decide(true) },
                     enabled = !busy,
                     modifier = Modifier.weight(1f),
-                ) { Text("Approve") }
-                FilledTonalButton(
+                )
+                UiSetSecondaryButton(
+                    "Deny",
                     onClick = { decide(false) },
                     enabled = !busy,
                     modifier = Modifier.weight(1f),
-                ) { Text("Deny") }
+                )
             }
             notice?.let {
                 Text(
@@ -405,9 +405,7 @@ private fun Step(number: Int, text: String) {
 
 @Composable
 private fun LinkButton(context: Context, label: String, url: String) {
-    FilledTonalButton(onClick = { openDeepLink(context, url) }) {
-        Text(label)
-    }
+    UiSetSecondaryButton(label, onClick = { openDeepLink(context, url) })
 }
 
 @Composable
@@ -422,7 +420,7 @@ private fun CodeBlock(text: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        IconButtonCopy(copied = copied, onCopy = {
+        UiSetIconButtonCopy(copied = copied, onCopy = {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("00Widget MCP", text))
             copied = true
@@ -435,11 +433,14 @@ private fun CodeBlock(text: String) {
 }
 
 @Composable
-private fun IconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
-    androidx.compose.material3.IconButton(onClick = onCopy) {
+private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
+    UiSetIconButton(
+        onClick = onCopy,
+        contentDescription = if (copied) "Copied" else "Copy",
+    ) {
         Icon(
             if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-            contentDescription = if (copied) "Copied" else "Copy",
+            contentDescription = null,
         )
     }
 }

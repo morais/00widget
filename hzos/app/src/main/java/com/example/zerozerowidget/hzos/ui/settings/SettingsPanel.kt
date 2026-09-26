@@ -21,16 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,6 +60,13 @@ import com.example.zerozerowidget.hzos.data.runHorizonSignIn
 import com.example.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
 import com.example.zerozerowidget.hzos.ui.openDeepLink
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSlider
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSwitch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -110,9 +112,7 @@ fun SettingsPanel(
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (destination != SettingsDestination.ROOT) {
-                FilledTonalButton(onClick = { destination = SettingsDestination.ROOT }) {
-                    Text("Back")
-                }
+                UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
                 Spacer(Modifier.width(8.dp))
             }
             Text(
@@ -120,8 +120,8 @@ fun SettingsPanel(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = "Close")
+            UiSetIconButton(onClick = onClose, contentDescription = "Close") {
+                Icon(Icons.Filled.Close, contentDescription = null)
             }
         }
 
@@ -234,14 +234,15 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FilledTonalButton(
+                UiSetSecondaryButton(
+                    "Sign out",
                     onClick = {
                         scope.launch {
                             app.connectionStore.clear()
                             app.repository.clearServerData()
                         }
                     },
-                ) { Text("Sign out") }
+                )
             }
         }
         Spacer(Modifier.height(4.dp))
@@ -490,36 +491,38 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
             error?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            FilledTonalButton(
-                onClick = { confirming = action },
-                enabled = !busy,
-            ) { Text(if (busy) "Working…" else if (isDelete) "Delete account" else "Unlink this headset") }
+            if (isDelete) {
+                UiSetDestructiveButton(
+                    if (busy) "Working…" else "Delete account",
+                    onClick = { confirming = action },
+                    enabled = !busy,
+                )
+            } else {
+                UiSetSecondaryButton(
+                    if (busy) "Working…" else "Unlink this headset",
+                    onClick = { confirming = action },
+                    enabled = !busy,
+                )
+            }
         }
     }
 
     if (confirming != null) {
         val target = confirming!!
-        AlertDialog(
-            onDismissRequest = { if (!busy) confirming = null },
-            title = { Text(if (target == AccountIdAction.DELETE) "Delete this account?" else "Unlink this headset?") },
-            text = {
-                Text(
-                    if (target == AccountIdAction.DELETE) {
-                        "Everything goes: cards, activities, tokens, the account itself."
-                    } else {
-                        "This Meta identity loses access to the account. Apple sign-in is unaffected."
-                    },
-                )
+        val destructive = target == AccountIdAction.DELETE
+        UiSetConfirmDialog(
+            title = if (destructive) "Delete this account?" else "Unlink this headset?",
+            text = if (destructive) {
+                "Everything goes: cards, activities, tokens, the account itself."
+            } else {
+                "This Meta identity loses access to the account. Apple sign-in is unaffected."
             },
-            confirmButton = {
-                FilledTonalButton(
-                    onClick = { execute(target) },
-                    enabled = !busy,
-                ) { Text(if (target == AccountIdAction.DELETE) "Delete" else "Unlink") }
-            },
-            dismissButton = {
-                FilledTonalButton(onClick = { confirming = null }) { Text("Cancel") }
-            },
+            confirmLabel = if (destructive) "Delete" else "Unlink",
+            onConfirm = { execute(target) },
+            dismissLabel = "Cancel",
+            onDismiss = { if (!busy) confirming = null },
+            destructive = destructive,
+            confirmEnabled = !busy,
         )
     }
 }
@@ -615,7 +618,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(
+                UiSetIconButton(
                     onClick = {
                         val clipboard =
                             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -630,10 +633,11 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
                             copied = false
                         }
                     },
+                    contentDescription = if (copied) "Agent config copied" else "Copy agent config",
                 ) {
                     Icon(
                         if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = if (copied) "Agent config copied" else "Copy agent config",
+                        contentDescription = null,
                     )
                 }
             }
@@ -652,7 +656,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            FilledTonalButton(onClick = onOpenAgentConnect) { Text("Connect an agent") }
+            UiSetSecondaryButton("Connect an agent", onClick = onOpenAgentConnect)
         }
     }
 }
@@ -702,7 +706,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(
+                UiSetIconButton(
                     onClick = {
                         val clipboard =
                             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -713,56 +717,52 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                             copied = false
                         }
                     },
+                    contentDescription = if (copied) "Agent token copied" else "Copy agent token",
                 ) {
                     Icon(
                         if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = if (copied) "Agent token copied" else "Copy agent token",
+                        contentDescription = null,
                     )
                 }
             }
         }
-        FilledTonalButton(
+        UiSetSecondaryButton(
+            if (busy) "Rotating…" else "Rotate agent token",
             onClick = { confirming = true },
             enabled = !busy,
-        ) { Text(if (busy) "Rotating…" else "Rotate agent token") }
+        )
     }
 
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { if (!busy) confirming = false },
-            title = { Text("Rotate the agent token?") },
-            text = {
-                Text("Every agent publishing with an old token stops until it gets the replacement.")
-            },
-            confirmButton = {
-                FilledTonalButton(
-                    onClick = {
-                        confirming = false
-                        busy = true
-                        error = null
-                        scope.launch {
-                            try {
-                                val current = app.connectionStore.current()
-                                val base = current.baseUrl.ifBlank {
-                                    com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                                }
-                                val api = com.example.zerozerowidget.hzos.data.ZeroWidgetApi(
-                                    app.http, base, current.apiKey,
-                                )
-                                rotated = api.rotateAgentToken()
-                            } catch (e: Exception) {
-                                error = (e.message ?: e.javaClass.simpleName).take(200)
-                            } finally {
-                                busy = false
-                            }
+        UiSetConfirmDialog(
+            title = "Rotate the agent token?",
+            text = "Every agent publishing with an old token stops until it gets the replacement.",
+            confirmLabel = "Rotate",
+            onConfirm = {
+                confirming = false
+                busy = true
+                error = null
+                scope.launch {
+                    try {
+                        val current = app.connectionStore.current()
+                        val base = current.baseUrl.ifBlank {
+                            com.example.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
                         }
-                    },
-                    enabled = !busy,
-                ) { Text("Rotate") }
+                        val api = com.example.zerozerowidget.hzos.data.ZeroWidgetApi(
+                            app.http, base, current.apiKey,
+                        )
+                        rotated = api.rotateAgentToken()
+                    } catch (e: Exception) {
+                        error = (e.message ?: e.javaClass.simpleName).take(200)
+                    } finally {
+                        busy = false
+                    }
+                }
             },
-            dismissButton = {
-                FilledTonalButton(onClick = { confirming = false }) { Text("Cancel") }
-            },
+            dismissLabel = "Cancel",
+            onDismiss = { if (!busy) confirming = false },
+            destructive = true,
+            confirmEnabled = !busy,
         )
     }
 }
@@ -837,7 +837,8 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
-                Button(
+                UiSetPrimaryButton(
+                    label = "Save server",
                     onClick = {
                         scope.launch {
                             val normalized = ConnectionStore.normalizeBaseUrl(serverUrl)
@@ -851,7 +852,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                             savedNote = "Saved — dashboard is refreshing."
                         }
                     },
-                ) { Text("Save server") }
+                )
             }
             Text("Screenshots and recordings", style = MaterialTheme.typography.titleSmall)
             Row(
@@ -866,11 +867,12 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                UiSetSwitch(
                     checked = showDummyAccountData,
                     onCheckedChange = { checked ->
                         scope.launch { app.panelPrefs.setShowDummyAccountData(checked) }
                     },
+                    contentDescription = "Show dummy account data",
                 )
             }
             Row(
@@ -885,11 +887,12 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                UiSetSwitch(
                     checked = hideIndicators,
                     onCheckedChange = { checked ->
                         scope.launch { app.panelPrefs.setHideSampleIndicators(checked) }
                     },
+                    contentDescription = "Hide sample indicators",
                 )
             }
             Text(
@@ -913,11 +916,12 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Switch(
+                UiSetSwitch(
                     checked = transparent,
                     onCheckedChange = { checked ->
                         scope.launch { app.panelPrefs.setTransparent(checked) }
                     },
+                    contentDescription = "Transparent panels",
                 )
             }
             Column(Modifier.fillMaxWidth()) {
@@ -928,7 +932,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Slider(
+            UiSetSlider(
                 value = sliderAlpha,
                 onValueChange = { sliderAlpha = it },
                 onValueChangeFinished = {
@@ -1074,11 +1078,11 @@ private fun HorizonSignInSection(
             error?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            Button(onClick = { begin(null) }) { Text("Sign in") }
+            UiSetPrimaryButton("Sign in", onClick = { begin(null) })
         }
         HorizonPhase.PROVING -> {
             Text("Signing in…", style = MaterialTheme.typography.bodyMedium)
-            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
+            UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
         HorizonPhase.CHOICE -> {
             // Said here rather than by choosing silently: a new account and
@@ -1094,10 +1098,11 @@ private fun HorizonSignInSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(
+            UiSetPrimaryButton(
+                "Create a new account",
                 onClick = { begin("create") },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Create a new account") }
+            )
             Text(
                 "Already have an account? Join it here — you'll approve the link on your iPhone.",
                 style = MaterialTheme.typography.bodySmall,
@@ -1107,6 +1112,9 @@ private fun HorizonSignInSection(
                 onClick = { begin("join_apple") },
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                // Stays Material on purpose: UiSet labels are plain strings
+                // and cannot carry the bold brand phrase. Revisited if the
+                // SDK gains rich-text labels.
                 Text(
                     buildAnnotatedString {
                         append("Use an existing ")
@@ -1117,7 +1125,7 @@ private fun HorizonSignInSection(
                     },
                 )
             }
-            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
+            UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
         HorizonPhase.WAITING -> {
             Text("Approve on your phone", style = MaterialTheme.typography.titleSmall)
@@ -1139,7 +1147,7 @@ private fun HorizonSignInSection(
                 Text(verifyUri, style = MaterialTheme.typography.bodySmall)
             }
             Text("Waiting for approval…", style = MaterialTheme.typography.bodyMedium)
-            FilledTonalButton(onClick = ::cancel) { Text("Cancel") }
+            UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
     }
 }

@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +22,8 @@ import com.example.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.example.zerozerowidget.hzos.data.SubscriptionState
 import com.example.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.example.zerozerowidget.hzos.ui.cards.GlassCard
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
+import com.example.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.launch
 
 /**
@@ -183,26 +183,22 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                 } else {
                     tiers.forEach { (label, sku) ->
                         val price = prices[sku]
-                        Button(
+                        UiSetPrimaryButton(
+                            if (busySku == sku) "Processing…"
+                            else if (price != null) "$label — $price"
+                            else label,
                             onClick = { buy(sku) },
                             enabled = busySku == null && !restoring,
                             modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                if (busySku == sku) "Processing…"
-                                else if (price != null) "$label — $price"
-                                else label,
-                            )
-                        }
+                        )
                     }
                     Spacer(Modifier.height(2.dp))
-                    FilledTonalButton(
+                    UiSetSecondaryButton(
+                        if (restoring) "Restoring…" else "Restore purchases",
                         onClick = ::restore,
                         enabled = busySku == null && !restoring,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(if (restoring) "Restoring…" else "Restore purchases")
-                    }
+                    )
                 }
             }
 

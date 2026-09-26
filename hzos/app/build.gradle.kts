@@ -158,6 +158,10 @@ android {
 dependencies {
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
+    // MetaVRX BOM keeps Meta's Android artifacts mutually compatible;
+    // artifacts it manages carry no version of their own.
+    implementation(platform(libs.metavrx.bom))
+    implementation(libs.metavrx.uiset.compose)
     androidTestImplementation(composeBom)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
