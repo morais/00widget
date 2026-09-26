@@ -390,10 +390,6 @@ fun CardDetailPanel(
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            if (isSample) {
-                SampleBadge()
-                Spacer(Modifier.height(4.dp))
-            }
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
             if (isSample && !hideIndicators) {
