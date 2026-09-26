@@ -63,7 +63,17 @@ fun InspectableChart(
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val x = event.changes.firstOrNull()?.position?.x ?: continue
+                            // Pinch (two pointers, on devices with no hover
+                            // to give a Move): select whatever sits under
+                            // the pinch centroid, exactly like hover does
+                            // for a single ray. Still never consumed, so
+                            // the surrounding list keeps scrolling.
+                            val pressed = event.changes.filter { it.pressed }
+                            val x = if (pressed.size >= 2) {
+                                pressed.map { it.position.x }.average().toFloat()
+                            } else {
+                                event.changes.firstOrNull()?.position?.x ?: continue
+                            }
                             when (event.type) {
                                 PointerEventType.Move,
                                 PointerEventType.Press,
