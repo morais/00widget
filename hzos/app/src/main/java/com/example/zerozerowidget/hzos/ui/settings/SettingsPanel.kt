@@ -229,14 +229,17 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("This device", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Signing out forgets this device's credential. Cards already " +
-                        "on it stay until the next refresh.",
+                    "Signing out forgets this device's credential and clears " +
+                        "its cards straight away.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FilledTonalButton(
                     onClick = {
-                        scope.launch { app.connectionStore.clear() }
+                        scope.launch {
+                            app.connectionStore.clear()
+                            app.repository.clearServerData()
+                        }
                     },
                 ) { Text("Sign out") }
             }

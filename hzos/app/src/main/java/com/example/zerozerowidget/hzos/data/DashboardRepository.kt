@@ -1,6 +1,7 @@
 package com.example.zerozerowidget.hzos.data
 
 import com.example.zerozerowidget.hzos.BuildConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -117,6 +118,17 @@ class DashboardRepository(
 
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
 
+    /**
+     * Drops every server card and activity immediately. Sign-out calls this
+     * alongside clearing the credential: the connection flow reset covers
+     * the steady state, but an in-flight poll finishing late must never
+     * repaint signed-out panels — and neither may a swallowed cancellation
+     * (see below).
+     */
+    fun clearServerData() {
+        _state.value = DashboardState(isLoading = false, isConfigured = false)
+    }
+
     private suspend fun refreshNow(connection: ConnectionStore.Connection) {
         // Callers guarantee resolvability; re-check defensively since the
         // stored values can change between guard and call.
@@ -142,6 +154,11 @@ class DashboardRepository(
                     "HTTP ${e.status}: ${e.message?.take(160)}"
                 },
             )
+        } catch (e: CancellationException) {
+            // A cancelled poll (sign-out mid-flight, credential change) is
+            // not a failure: die quietly so the fresher state — usually the
+            // signed-out reset — stands uncontradicted.
+            throw e
         } catch (e: Exception) {
             _state.value = _state.value.copy(
                 isLoading = false,
