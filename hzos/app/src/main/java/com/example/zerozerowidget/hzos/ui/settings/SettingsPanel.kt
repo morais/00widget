@@ -69,6 +69,8 @@ import com.example.zerozerowidget.hzos.ui.uiset.UiSetSlider
 import com.example.zerozerowidget.hzos.ui.uiset.UiSetSwitch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -139,7 +141,13 @@ fun SettingsPanel(
             SettingsDestination.AGENT -> AgentConnectPanel(app = app)
             SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
             SettingsDestination.SUBSCRIPTION -> SubscriptionSection(app = app)
-            SettingsDestination.ACCOUNT -> AccountAccessDestination(app = app)
+            SettingsDestination.ACCOUNT -> AccountAccessDestination(
+                app = app,
+                // Delete/unlink ends the session: land back on the root
+                // so Settings shows the signed-out Server card, not this
+                // screen with dead credentials behind it.
+                onSignedOut = { destination = SettingsDestination.ROOT },
+            )
         }
     }
 }
@@ -218,7 +226,7 @@ private fun SettingsRoot(
  * past the Server rows.
  */
 @Composable
-private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
+private fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.example.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
@@ -250,7 +258,7 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp) {
             RotateAgentTokensSection(app = app)
         }
         Spacer(Modifier.height(4.dp))
-        AccountAccessSection(app = app)
+        AccountAccessSection(app = app, onSignedOut = onSignedOut)
     }
 }
 
@@ -287,9 +295,9 @@ private fun AccountSection(
             // Parallel: account and subscription are independent reads,
             // and sequential await was the visible fill-up. Both states
             // land together below, so the rows below never reshape twice.
-            kotlinx.coroutines.coroutineScope {
-                val accountDeferred = kotlinx.coroutines.async { api.fetchAccount() }
-                val subscriptionDeferred = kotlinx.coroutines.async { api.fetchSubscription() }
+            coroutineScope {
+                val accountDeferred = async { api.fetchAccount() }
+                val subscriptionDeferred = async { api.fetchSubscription() }
                 val account = accountDeferred.await()
                 accountName = account.ownerEmail?.takeIf { it.isNotBlank() }
                     ?: account.displayName?.takeIf { it.isNotBlank() }
@@ -417,7 +425,7 @@ private fun AccountSection(
  * the account or the link — and refreshes into the signed-out view.
  */
 @Composable
-private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
+private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     var action by remember { mutableStateOf<AccountIdAction?>(null) }
     var confirming by remember { mutableStateOf<AccountIdAction?>(null) }
@@ -472,21 +480,28 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
         busy = true
         error = null
         scope.launch {
+            // Every path that kills the local credential lands on the
+            // Settings root: it is the screen that shows the signed-out
+            // Server card, while this one would keep a dead session.
+            suspend fun landSignedOut() {
+                app.connectionStore.clear()
+                app.repository.refresh()
+                onSignedOut()
+            }
             try {
                 if (act == AccountIdAction.DELETE) {
                     api().deleteAccount()
-                    app.connectionStore.clear()
+                    landSignedOut()
                 } else {
                     val (status, body) = api().unlinkHorizonAccount()
                     if (status in 200..299) {
-                        app.connectionStore.clear()
+                        landSignedOut()
                     } else if (status == 401 || status == 404) {
                         // Dead credential or already-gone link: the session
                         // is useless either way, so land signed out. A 404
                         // from a Worker predating the endpoint reads the
                         // same — both mean there is nothing to unlink.
-                        app.connectionStore.clear()
-                        throw IllegalStateException("Nothing left to unlink.")
+                        landSignedOut()
                     } else if (status == 409) {
                         throw IllegalStateException(
                             "Horizon is the only way into this account — delete it instead.",
@@ -508,8 +523,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp) {
                 if (act == AccountIdAction.DELETE && e.status !in listOf(401, 404)) {
                     error = (e.message ?: "Delete failed.").take(200)
                 } else if (act == AccountIdAction.DELETE) {
-                    app.connectionStore.clear()
-                    app.repository.refresh()
+                    landSignedOut()
                 } else {
                     error = (e.message ?: "Request failed.").take(200)
                 }
