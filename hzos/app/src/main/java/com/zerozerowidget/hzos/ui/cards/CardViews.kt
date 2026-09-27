@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -62,6 +61,37 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
     val unknown = LocalContentColors.current.secondary
     Canvas(modifier = modifier.size(10.dp)) {
         drawCircle(statusColor(status, unknown))
+    }
+}
+
+/**
+ * Determinate progress bar. UiSet ships progress *colors* but no bar
+ * component, and every use here is a known fraction — so a rounded
+ * track plus a rounded fill, no animation, nothing to configure.
+ */
+@Composable
+fun ProgressBar(
+    fraction: Float,
+    color: Color,
+    modifier: Modifier = Modifier,
+    trackColor: Color = color.copy(alpha = 0.24f),
+    height: androidx.compose.ui.unit.Dp = 4.dp,
+) {
+    Canvas(modifier.fillMaxWidth().height(height)) {
+        val radius = size.height / 2
+        drawRoundRect(
+            color = trackColor,
+            cornerRadius = CornerRadius(radius, radius),
+        )
+        val width = size.width * fraction.coerceIn(0f, 1f)
+        if (width > 0f) {
+            drawRoundRect(
+                color = color,
+                topLeft = Offset.Zero,
+                size = Size(width, size.height),
+                cornerRadius = CornerRadius(radius, radius),
+            )
+        }
     }
 }
 
@@ -287,8 +317,9 @@ private fun SummaryBody(card: DashboardCard) {
 private fun ProgressBody(card: DashboardCard) {
     CardMetaLine(card)
     Spacer(Modifier.height(8.dp))
-    LinearProgressIndicator(
-        progress = { (card.progress ?: 0.0).toFloat() },
+    ProgressBar(
+        fraction = (card.progress ?: 0.0).toFloat(),
+        color = uiSetAccent(),
         modifier = Modifier.fillMaxWidth(),
     )
     card.value?.let {
@@ -325,9 +356,10 @@ private fun ListBody(card: DashboardCard) {
             // Ranked bars when rows carry an amount (mirrors the iOS list).
             if (max != null && item.amount != null) {
                 Spacer(Modifier.height(2.dp))
-                LinearProgressIndicator(
-                    progress = { (item.amount / max).toFloat().coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                ProgressBar(
+                    fraction = (item.amount / max).toFloat().coerceIn(0f, 1f),
+                    color = uiSetAccent(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             item.subtitle?.let {

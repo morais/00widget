@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.isSample
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
+import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.zerozerowidget.hzos.ui.cards.StatusDot
@@ -146,7 +146,11 @@ fun ActivityDetailPanel(
             }
             session.progress?.let {
                 Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(progress = { it.toFloat() }, modifier = Modifier.fillMaxWidth())
+                ProgressBar(
+                    fraction = it.toFloat(),
+                    color = uiSetAccent(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             session.chart?.let { chart ->
                 Spacer(Modifier.height(8.dp))
@@ -183,8 +187,9 @@ fun ActivityDetailPanel(
                     }
                 }
                 item.progress?.let { p ->
-                    LinearProgressIndicator(
-                        progress = { p.toFloat() },
+                    ProgressBar(
+                        fraction = p.toFloat(),
+                        color = uiSetAccent(),
                         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                     )
                 }

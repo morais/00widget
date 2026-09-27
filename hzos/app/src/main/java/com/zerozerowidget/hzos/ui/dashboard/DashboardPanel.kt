@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -54,6 +53,7 @@ import com.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.zerozerowidget.hzos.ui.cards.DetailCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
+import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
@@ -572,7 +572,11 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
             }
             session.progress?.let {
                 Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(progress = { it.toFloat() }, modifier = Modifier.fillMaxWidth())
+                ProgressBar(
+                    fraction = it.toFloat(),
+                    color = uiSetAccent(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             session.chart?.let {
                 Spacer(Modifier.height(6.dp))
