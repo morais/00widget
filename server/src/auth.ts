@@ -67,6 +67,12 @@ export const ApiScopePresets = {
   mcp: ["read", "publish"] as ApiScope[],
   readOnly: ["read"] as ApiScope[],
   device: ["read", "device:register", "actions:run"] as ApiScope[],
+  // The verified Horizon client is a first-party account surface, not merely
+  // a renderer. It manages the same cards and Live Activities as iOS, while
+  // retaining the device capabilities used to render and run safe actions.
+  // Keep this separate from `device`: adding publish there would silently
+  // broaden the primary iOS and tvOS credentials too.
+  horizonApp: ["read", "publish", "device:register", "actions:run"] as ApiScope[],
   appOnly: ["actions:confirm", "shares:manage"] as ApiScope[],
   webhookManager: ["read", "webhook:manage"] as ApiScope[],
   // Deliberately the whole of a guest's authority: read the one resource the

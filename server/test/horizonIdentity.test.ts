@@ -91,6 +91,14 @@ describe("Horizon identity", () => {
     const token = (await created.json() as { token: string }).token;
     expect(token).toMatch(/^zwa_[A-Za-z0-9_-]{43}$/);
 
+    const statusResponse = await worker(authedRequest(`${ORIGIN}/v1/status`, {}, token), env);
+    expect((await statusResponse.json() as any).account.scopes).toEqual([
+      "read",
+      "publish",
+      "device:register",
+      "actions:run",
+    ]);
+
     const accountResponse = await worker(authedRequest(`${ORIGIN}/v1/account`, {}, token), env);
     expect(accountResponse.status).toBe(200);
     const account = (await accountResponse.json() as any).account;
@@ -152,6 +160,8 @@ describe("Horizon identity", () => {
     }), env);
     expect(exchanged.status).toBe(200);
     const headsetToken = (await exchanged.json() as { token: string }).token;
+    const status = await worker(authedRequest(`${ORIGIN}/v1/status`, {}, headsetToken), env);
+    expect((await status.json() as any).account.scopes).toContain("publish");
     const account = await worker(authedRequest(`${ORIGIN}/v1/account`, {}, headsetToken), env);
     expect((await account.json() as any).account).toMatchObject({
       tenantId: "apple-owner",

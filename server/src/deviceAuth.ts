@@ -183,8 +183,9 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       tenantId: row.tenant_id,
       label: "Horizon OS",
       // Horizon is a first-party 00Widget app, not a publisher integration.
-      // Keep its capabilities narrowed with the device scope preset while
-      // identifying the credential as app-owned for app-only account routes.
+      // Give it the Horizon app preset so managing cards and ending activities
+      // has parity with iOS, while identifying the credential as app-owned for
+      // app-only account routes.
       //
       // `kind` is not narrowed by `scopes`: the app-only account routes in
       // index.ts pass a `null` requiredScope, so being kind `app` is the
@@ -195,13 +196,12 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       // page below and DeviceAuthorizationApprovalView on iOS) describe
       // that whole set and have to move with it.
       //
-      // Neither claims a limit, deliberately. Saying it cannot publish was
-      // true of these scopes and false in effect: agent-token rotation is
-      // one of the ungated routes above, and it answers with a fresh
-      // producer token in plaintext.
+      // Neither claims a limit, deliberately. Withholding publish would not be
+      // a meaningful boundary: agent-token rotation is one of the ungated
+      // routes above, and it answers with a fresh producer token in plaintext.
       kind: "app",
       purpose: "device",
-      scopes: ApiScopePresets.device,
+      scopes: ApiScopePresets.horizonApp,
     });
     mintedApiKeyId = created.apiKey.id;
     // Unlink may race with a poll that already claimed the code. Never hand

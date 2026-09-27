@@ -304,7 +304,7 @@ headset credentials, approved-but-unexchanged Horizon join codes, and pending
 Horizon browser logins; the headset should clear its local session on success.
 The iOS app credential is unaffected.
 
-Apply migrations `0036` and `0037` before enabling the flow. Set
+Apply migrations `0036`, `0037`, and `0038` before enabling the flow. Set
 `HORIZON_IDENTITY_ENABLED = "true"` in the deployment's local `wrangler.toml`
 only after the headset implements the new contract. The existing iOS app can
 approve verified join codes unchanged. The flag is off by default, so existing
@@ -316,8 +316,11 @@ The headset obtains `Users().getLoggedInUser().id` and a fresh
 `POST /v1/auth/horizon` as `{ "userId": "...", "userProof": "..." }`.
 The Worker validates the proof with Meta's `user_nonce_validate` endpoint and
 rejects nonce replay. A known Meta identity receives a new 90-day app-kind
-`zwa_…` credential with the device preset (`read`, `device:register`,
-`actions:run`). For an unknown identity the response is
+`zwa_…` credential with the Horizon app preset (`read`, `publish`,
+`device:register`, `actions:run`). `publish` gives the first-party headset app
+the same card deletion and Live Activity ending authority as iOS; it is kept
+out of the generic device preset so iOS and tvOS primary credentials do not
+silently broaden. For an unknown identity the response is
 `{ "status": "choice_required", "choices": ["create", "join_apple"] }`;
 the headset must ask the user which path they want. Each subsequent attempt
 needs a **new** UserProof:

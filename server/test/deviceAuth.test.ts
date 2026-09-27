@@ -52,7 +52,7 @@ describe("Horizon device authorization", () => {
     expect(code.interval).toBe(5);
   });
 
-  it("stays pending until an app credential approves, then mints one scoped app token", async () => {
+  it("stays pending until approval, then mints a Horizon app token that can publish", async () => {
     const env = makeEnv({ HORIZON_DEVICE_AUTH_ENABLED: "true" });
     await seedApiKey(env, "phone-app", "owner", "app");
     const code = await issue(env);
@@ -86,7 +86,7 @@ describe("Horizon device authorization", () => {
     expect(status.status).toBe(200);
     expect((await status.json() as any).account).toMatchObject({
       credentialKind: "app",
-      scopes: ["read", "device:register", "actions:run"],
+      scopes: ["read", "publish", "device:register", "actions:run"],
     });
 
     const cards = await fetchWorker(new Request(`${ORIGIN}/v1/cards`, {
@@ -101,7 +101,12 @@ describe("Horizon device authorization", () => {
       },
       body: JSON.stringify({ id: "forbidden", title: "No", template: "summary" }),
     }), env);
-    expect(publish.status).toBe(403);
+    expect(publish.status).toBe(200);
+    const deleted = await fetchWorker(new Request(`${ORIGIN}/v1/cards/forbidden`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${body.token}` },
+    }), env);
+    expect(deleted.status).toBe(200);
 
     const replay = await fetchWorker(new Request(`${ORIGIN}/v1/auth/device/token`, {
       method: "POST",

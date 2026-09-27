@@ -51,15 +51,17 @@ fun isStale(updatedAt: String?, staleAfter: String?, now: Instant = Instant.now(
 }
 
 /**
- * Honest delete/end failure text. Server deletes need the `publish` scope,
- * which a device-preset token does not have — say so instead of showing a
- * bare 403.
+ * Honest delete/end failure text. Current Horizon credentials can publish;
+ * a 403 usually means an older credential survived the server upgrade.
  */
 fun describeDeleteError(e: Throwable): String {
     val api = e as? ZeroWidgetApi.ApiException
-    if (api != null && (api.status == 401 || api.status == 403)) {
-        return "This token can't delete (needs the publish scope). " +
-            "Delete from the iOS app or /admin instead."
+    if (api?.status == 401) {
+        return "This sign-in has expired. Sign in again, then retry."
+    }
+    if (api?.status == 403) {
+        return "This sign-in predates Horizon content management. " +
+            "Sign out and sign in again, then retry."
     }
     return (e.message ?: e.javaClass.simpleName).take(200)
 }

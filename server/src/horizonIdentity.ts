@@ -162,7 +162,7 @@ async function issueHorizonCredential(
     label: "Horizon OS",
     kind: "app",
     purpose: "device",
-    scopes: ApiScopePresets.device,
+    scopes: ApiScopePresets.horizonApp,
     deviceId: deviceId || undefined,
   });
   // Unlink can happen between the first identity lookup and this insert.

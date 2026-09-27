@@ -16,8 +16,10 @@ import java.net.URLEncoder
  * `fetch` per endpoint, mirroring `APIClient.swift`.
  *
  * Auth: `Authorization: Bearer <API_KEY>` on everything but `/health`.
- * Read-only by default: this client only calls `read`-scoped routes plus
- * safe action runs. Publishing cards from the headset is out of scope.
+ * Read-mostly by default: the client renders account state and runs safe
+ * actions, but its first-party Horizon credential also carries `publish` so
+ * explicit owner operations such as deleting a card or ending an activity
+ * have parity with iOS.
  *
  * Every public call is Main-safe (IO-dispatched): panels call straight
  * from compose scopes, and blocking OkHttp on Main throws
@@ -73,11 +75,7 @@ class ZeroWidgetApi(
             postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
         }
 
-    /**
-     * Deletes a card / ends an activity. Both routes require the `publish`
-     * scope, which a device-preset token does NOT have — callers surface
-     * the 403 honestly instead of hiding the button's limits.
-     */
+    /** Deletes a card / ends an activity using the Horizon app's `publish` scope. */
     suspend fun deleteCard(id: String) =
         withContext(Dispatchers.IO) {
             delete("/v1/cards/${pathSegment(id)}")
