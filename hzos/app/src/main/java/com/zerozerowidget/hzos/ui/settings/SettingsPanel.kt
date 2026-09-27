@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -39,11 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
@@ -1180,21 +1177,37 @@ private fun HorizonSignInSection(
                 style = LocalTypography.current.bodySmall,
                 color = LocalContentColors.current.secondary,
             )
-            FilledTonalButton(
-                onClick = { begin("join_apple") },
-                modifier = Modifier.fillMaxWidth(),
+            // UiSet labels are plain strings, so the bold brand phrase
+            // becomes its own text: a wrapping row that reads as one
+            // sentence and taps like the doors elsewhere in Settings.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = { begin("join_apple") })
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Stays Material on purpose: UiSet labels are plain strings
-                // and cannot carry the bold brand phrase. Revisited if the
-                // SDK gains rich-text labels.
-                androidx.compose.material3.Text(
-                    buildAnnotatedString {
-                        append("Use an existing ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append("Sign in with Apple")
-                        }
-                        append(" account")
-                    },
+                FlowRow(Modifier.weight(1f)) {
+                    Text(
+                        "Use an existing ",
+                        style = LocalTypography.current.body,
+                    )
+                    Text(
+                        "Sign in with Apple",
+                        style = LocalTypography.current.body.copy(
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                    Text(
+                        " account",
+                        style = LocalTypography.current.body,
+                    )
+                }
+                Text(
+                    ">",
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
