@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +23,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -714,8 +715,14 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
                 )
             }
             // The token path and the connector doorway are the two ways in;
-            // the rule keeps them from reading as one paragraph.
-            HorizontalDivider()
+            // the rule keeps them from reading as one paragraph. UiSet
+            // ships the divider color but no divider component.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(LocalColorScheme.current.divider),
+            )
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = LocalTypography.current.bodySmall,
