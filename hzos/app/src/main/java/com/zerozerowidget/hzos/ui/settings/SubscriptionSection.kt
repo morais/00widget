@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -134,27 +136,27 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
 
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Subscription", style = MaterialTheme.typography.titleSmall)
+            Text("Subscription", style = LocalTypography.current.title)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Status",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                 )
                 if (!statusLoaded) {
                     Text(
                         "Loading…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 } else {
                     Text(
                         status?.displayLabel ?: "Unknown",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = LocalTypography.current.bodySmall,
                         color = if (status?.needsAttention == true) {
-                            MaterialTheme.colorScheme.error
+                            LocalColorScheme.current.negative.content
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            LocalContentColors.current.secondary
                         },
                     )
                 }
@@ -163,22 +165,22 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
             if (status?.active == true) {
                 Text(
                     "Manage or cancel in the Meta Horizon mobile app.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
             } else {
                 if (!app.horizonIap.isAvailable) {
                     Text(
                         "Subscriptions need a Horizon Platform app ID " +
                             "(`platformAppId` in hzos/local.properties).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 } else if (tiers.isEmpty()) {
                     Text(
                         "No subscription products configured on this build.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 } else {
                     tiers.forEach { (label, sku) ->
@@ -203,7 +205,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
             }
 
             error?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
             }
         }
     }

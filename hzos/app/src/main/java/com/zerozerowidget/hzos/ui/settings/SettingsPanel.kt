@@ -23,8 +23,10 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +68,7 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSlider
 import com.zerozerowidget.hzos.ui.uiset.UiSetSwitch
 import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
+import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -118,7 +121,7 @@ fun SettingsPanel(
             }
             Text(
                 title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = LocalTypography.current.headline,
                 modifier = Modifier.weight(1f),
             )
             UiSetIconButton(onClick = onClose, contentDescription = "Close") {
@@ -182,7 +185,7 @@ private fun SettingsRoot(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Section title like every other card on this screen —
                 // "Server", as on iOS.
-                Text("Server", style = MaterialTheme.typography.titleSmall)
+                Text("Server", style = LocalTypography.current.title)
                 if (!signedIn) {
                     HorizonSignInSection(
                         app = app,
@@ -234,12 +237,12 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("This device", style = MaterialTheme.typography.titleSmall)
+                Text("This device", style = LocalTypography.current.title)
                 Text(
                     "Signing out forgets this device's credential and clears " +
                         "its cards straight away.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
                 UiSetSecondaryButton(
                     "Sign out",
@@ -322,19 +325,19 @@ private fun AccountSection(
             if (loaded && accountName.isNullOrBlank()) {
                 Text(
                     "Signed in.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                 )
             } else {
                 Text(
                     "Signed in as",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     if (!loaded) "Loading…" else accountName!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
             }
         }
@@ -347,13 +350,13 @@ private fun AccountSection(
             ) {
                 Text(
                     "Subscription",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     "Loading…",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
             }
         } else if (subscription != null) {
@@ -373,23 +376,23 @@ private fun AccountSection(
             Row(rowModifier, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Subscription",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     subscription!!.displayLabel,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = LocalTypography.current.bodySmall,
                     color = if (subscription!!.needsAttention) {
-                        MaterialTheme.colorScheme.error
+                        LocalColorScheme.current.negative.content
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        LocalContentColors.current.secondary
                     },
                 )
                 if (onOpenSubscription != null) {
                     Text(
                         ">",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.body,
+                        color = LocalContentColors.current.secondary,
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
@@ -404,13 +407,13 @@ private fun AccountSection(
         ) {
             Text(
                 "Account and access",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocalTypography.current.body,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 ">",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.body,
+                color = LocalContentColors.current.secondary,
             )
         }
     }
@@ -456,8 +459,8 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit
         GlassCard(cardAlpha = 1f) {
             Text(
                 "Loading…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.body,
+                color = LocalContentColors.current.secondary,
             )
         }
         return
@@ -547,11 +550,11 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit
                         "working. Unlinking removes this headset's Meta identity " +
                         "and signs this device out."
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             error?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
             }
             if (isDelete) {
                 UiSetDestructiveButton(
@@ -599,7 +602,7 @@ private fun AboutSection(onOpenDeveloper: () -> Unit) {
     val context = LocalContext.current
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("About", style = MaterialTheme.typography.titleSmall)
+            Text("About", style = LocalTypography.current.title)
             VersionRow(onOpenDeveloper = onOpenDeveloper)
             val privacy = com.zerozerowidget.hzos.BuildConfig.PRIVACY_URL
             if (privacy.isNotBlank()) {
@@ -623,14 +626,14 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall,
+            color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f),
         )
         Text(
             ">",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.body,
+            color = LocalContentColors.current.secondary,
         )
     }
 }
@@ -671,13 +674,13 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
 
     GlassCard(cardAlpha = 1f) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Agent config", style = MaterialTheme.typography.titleSmall)
+            Text("Agent config", style = LocalTypography.current.title)
             Row(verticalAlignment = Alignment.Top) {
                 SelectionContainer(Modifier.weight(1f)) {
                     Text(
                         agentConfig,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
                 UiSetIconButton(
@@ -706,8 +709,8 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             if (copied) {
                 Text(
                     "Copied",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = LocalTypography.current.bodySmall,
+                    color = uiSetAccent(),
                 )
             }
             // The token path and the connector doorway are the two ways in;
@@ -715,8 +718,8 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             HorizontalDivider()
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             UiSetSecondaryButton("Connect an agent", onClick = onOpenAgentConnect)
         }
@@ -742,30 +745,30 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
     var copied by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Agent tokens", style = MaterialTheme.typography.titleSmall)
+        Text("Agent tokens", style = LocalTypography.current.title)
         Text(
             "Use this if an agent token may have been exposed. Every old agent " +
                 "token stops working and one replacement is created — give " +
                 "it to your agents. This headset stays signed in.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall,
+            color = LocalContentColors.current.secondary,
         )
         error?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
         rotated?.let {
             Text(
                 "Rotated — ${it.revokedAgentTokens} old token(s) revoked. " +
                     "Copy the replacement now; it is shown once.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
+                style = LocalTypography.current.bodySmall,
+                color = uiSetAccent(),
             )
             Row(verticalAlignment = Alignment.Top) {
                 SelectionContainer(Modifier.weight(1f)) {
                     Text(
                         it.token,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
                 UiSetIconButton(
@@ -840,14 +843,14 @@ private fun VersionRow(onOpenDeveloper: () -> Unit) {
         Text(
             "Version ${com.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
                 "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE})",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall,
+            color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f),
         )
         Text(
             ">",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.body,
+            color = LocalContentColors.current.secondary,
         )
     }
 }
@@ -876,7 +879,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
 
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Server", style = MaterialTheme.typography.titleSmall)
+            Text("Server", style = LocalTypography.current.title)
             UiSetTextField(
                 value = if (locked) {
                     com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
@@ -895,8 +898,8 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 savedNote?.let {
                     Text(
                         it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        style = LocalTypography.current.bodySmall,
+                        color = uiSetAccent(),
                     )
                 }
                 UiSetPrimaryButton(
@@ -916,17 +919,17 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     },
                 )
             }
-            Text("Screenshots and recordings", style = MaterialTheme.typography.titleSmall)
+            Text("Screenshots and recordings", style = LocalTypography.current.title)
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Show dummy account data", style = MaterialTheme.typography.bodyMedium)
+                    Text("Show dummy account data", style = LocalTypography.current.body)
                     Text(
                         "A visibly fake token on the Settings screen instead of your own.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
                 UiSetSwitch(
@@ -942,11 +945,11 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Hide sample indicators", style = MaterialTheme.typography.bodyMedium)
+                    Text("Hide sample indicators", style = LocalTypography.current.body)
                     Text(
                         "Demo data stays; badges and notice go away.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
                 UiSetSwitch(
@@ -962,20 +965,20 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     "your own. The real token still authorizes every request, and Copy " +
                     "agent config copies what is on screen — so turn this off before " +
                     "handing the token to an agent.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
-            Text("Look", style = MaterialTheme.typography.titleSmall)
+            Text("Look", style = LocalTypography.current.title)
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Transparent panels", style = MaterialTheme.typography.bodyMedium)
+                    Text("Transparent panels", style = LocalTypography.current.body)
                     Text(
                         "Passthrough shows through the window; cards stay solid.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
                 UiSetSwitch(
@@ -987,11 +990,11 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 )
             }
             Column(Modifier.fillMaxWidth()) {
-                Text("Card opacity", style = MaterialTheme.typography.bodyMedium)
+                Text("Card opacity", style = LocalTypography.current.body)
                 Text(
                     "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
             }
             UiSetSlider(
@@ -1119,8 +1122,8 @@ private fun HorizonSignInSection(
         Text(
             "Sign-in needs a Horizon Platform app ID " +
                 "(`platformAppId` in hzos/local.properties).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall,
+            color = LocalContentColors.current.secondary,
         )
         return
     }
@@ -1138,12 +1141,12 @@ private fun HorizonSignInSection(
     when (phase) {
         HorizonPhase.IDLE -> {
             error?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
             }
             UiSetPrimaryButton("Sign in", onClick = { begin(null) })
         }
         HorizonPhase.PROVING -> {
-            Text("Signing in…", style = MaterialTheme.typography.bodyMedium)
+            Text("Signing in…", style = LocalTypography.current.body)
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
         HorizonPhase.CHOICE -> {
@@ -1152,13 +1155,13 @@ private fun HorizonSignInSection(
             // the operator knows which this headset should join.
             Text(
                 "This headset isn't linked to an account yet.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocalTypography.current.body,
             )
             Text(
                 "Creating an account uses this headset's own Meta identity — " +
                     "nothing to approve on your phone.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             UiSetPrimaryButton(
                 "Create a new account",
@@ -1167,8 +1170,8 @@ private fun HorizonSignInSection(
             )
             Text(
                 "Already have an account? Join it here — you'll approve the link on your iPhone.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             FilledTonalButton(
                 onClick = { begin("join_apple") },
@@ -1177,7 +1180,7 @@ private fun HorizonSignInSection(
                 // Stays Material on purpose: UiSet labels are plain strings
                 // and cannot carry the bold brand phrase. Revisited if the
                 // SDK gains rich-text labels.
-                Text(
+                androidx.compose.material3.Text(
                     buildAnnotatedString {
                         append("Use an existing ")
                         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
@@ -1190,11 +1193,11 @@ private fun HorizonSignInSection(
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
         HorizonPhase.WAITING -> {
-            Text("Approve on your phone", style = MaterialTheme.typography.titleSmall)
+            Text("Approve on your phone", style = LocalTypography.current.title)
             Text(
                 userCode,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
+                style = LocalTypography.current.display,
+                color = uiSetAccent(),
             )
             Text(
                 when (linkSent) {
@@ -1202,13 +1205,13 @@ private fun HorizonSignInSection(
                     true -> "Approval sent to your Horizon mobile app — tap the notification."
                     false -> "Phone request wasn't sent — enter the code manually below."
                 },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             if (linkSent != true) {
-                Text(verifyUri, style = MaterialTheme.typography.bodySmall)
+                Text(verifyUri, style = LocalTypography.current.bodySmall)
             }
-            Text("Waiting for approval…", style = MaterialTheme.typography.bodyMedium)
+            Text("Waiting for approval…", style = LocalTypography.current.body)
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
     }

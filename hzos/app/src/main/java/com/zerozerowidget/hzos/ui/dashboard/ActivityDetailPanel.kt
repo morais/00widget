@@ -18,7 +18,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,7 +42,12 @@ import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
+import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Full activity detail, hosted by CardDetailActivity alongside cards: every
@@ -83,7 +87,7 @@ fun ActivityDetailPanel(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 session?.title ?: "Activity",
-                style = MaterialTheme.typography.headlineSmall,
+                style = LocalTypography.current.headline,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -96,7 +100,7 @@ fun ActivityDetailPanel(
         if (session == null) {
             Text(
                 "This activity has ended.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocalTypography.current.body,
             )
         } else {
             // Same glass container as widget details, so activity panels
@@ -115,7 +119,7 @@ fun ActivityDetailPanel(
                 session.progress?.let {
                     Text(
                         "${(it * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = LocalTypography.current.label,
                         modifier = Modifier.padding(end = 8.dp),
                     )
                 } ?: StatusDot(
@@ -123,12 +127,12 @@ fun ActivityDetailPanel(
                     Modifier.padding(end = 8.dp),
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(session.state, style = MaterialTheme.typography.titleSmall)
+                    Text(session.state, style = LocalTypography.current.title)
                     session.subtitle?.let {
                         Text(
                             it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocalTypography.current.bodySmall,
+                            color = LocalContentColors.current.secondary,
                         )
                     }
                 }
@@ -136,7 +140,7 @@ fun ActivityDetailPanel(
             session.value?.let {
                 Text(
                     it + (session.unit?.let { u -> " $u" } ?: ""),
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = LocalTypography.current.display,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -152,7 +156,7 @@ fun ActivityDetailPanel(
                     baseTint = activityTint(
                         session.kind,
                         session.signal,
-                        MaterialTheme.colorScheme.primary,
+                        uiSetAccent(),
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -161,20 +165,20 @@ fun ActivityDetailPanel(
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     StatusDot(item.status, Modifier.padding(end = 6.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(item.title, style = MaterialTheme.typography.bodyMedium)
+                        Text(item.title, style = LocalTypography.current.body)
                         item.subtitle?.let {
                             Text(
                                 it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = LocalTypography.current.bodySmall,
+                                color = LocalContentColors.current.secondary,
                             )
                         }
                     }
                     item.value?.let { v ->
                         Text(
                             v + (item.unit?.let { u -> " $u" } ?: ""),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocalTypography.current.body,
+                            color = LocalContentColors.current.secondary,
                         )
                     }
                 }
@@ -194,13 +198,13 @@ fun ActivityDetailPanel(
                 session.endsAt?.let { endsAt ->
                     Text(
                         "Ends ${relativeTime(endsAt) ?: endsAt}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                         modifier = Modifier.weight(1f),
                     )
                 } ?: Spacer(Modifier.weight(1f))
                 if (isStale(session.updatedAt, session.staleAt)) {
-                    Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
                 }
             }
             Spacer(Modifier.height(8.dp))

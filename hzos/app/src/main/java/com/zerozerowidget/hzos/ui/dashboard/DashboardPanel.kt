@@ -27,7 +27,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,7 +69,12 @@ import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
+import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Main dashboard panel, mirroring the Apple TV layout: an "Ongoing
@@ -104,12 +108,12 @@ fun DashboardPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Dashboard", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            Text("Dashboard", style = LocalTypography.current.headline, modifier = Modifier.weight(1f))
             state.lastSyncEpochMs?.let {
                 Text(
                     "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString()) ?: ""}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.caption,
+                    color = LocalContentColors.current.secondary,
                     modifier = Modifier.padding(end = 4.dp),
                 )
             }
@@ -144,7 +148,7 @@ fun DashboardPanel(
                 )
             }
             state.error != null && nothingToShow -> {
-                Text(state.error!!, color = MaterialTheme.colorScheme.error)
+                Text(state.error!!, color = LocalColorScheme.current.negative.content)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     UiSetPrimaryButton("Retry", onClick = { app.repository.refresh() })
@@ -159,7 +163,7 @@ fun DashboardPanel(
             }
             else -> {
                 state.error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(it, color = LocalColorScheme.current.negative.content, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 val cardRow: @Composable (DashboardCard) -> Unit = { card ->
                     val isSample = card.isSample()
@@ -181,8 +185,8 @@ fun DashboardPanel(
                                     if (!card.actions.isNullOrEmpty()) {
                                         Text(
                                             "Demo card — buttons don't run on samples.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = LocalTypography.current.bodySmall,
+                                            color = LocalContentColors.current.secondary,
                                         )
                                     }
                                 } else {
@@ -307,14 +311,14 @@ private fun DashboardRow(
             card.subtitle?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (isStale(card.updatedAt, card.staleAfter)) {
-                Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
             }
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
@@ -375,7 +379,7 @@ fun CardDetailPanel(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 card?.title ?: "Card",
-                style = MaterialTheme.typography.headlineSmall,
+                style = LocalTypography.current.headline,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -387,7 +391,7 @@ fun CardDetailPanel(
         Spacer(Modifier.height(8.dp))
         if (card == null) {            Text(
                 "This card is no longer on the dashboard.",
-                style = MaterialTheme.typography.bodyMedium,
+                style = LocalTypography.current.body,
             )
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
@@ -396,8 +400,8 @@ fun CardDetailPanel(
                 if (!card.actions.isNullOrEmpty()) {
                     Text(
                         "Demo card — buttons don't run on samples.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
             } else {
@@ -448,8 +452,8 @@ fun CardDetailPanel(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Due ${relativeTime(deadline) ?: deadline}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
             }
         }
@@ -480,22 +484,22 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         Text(
             "00Widget",
-            style = MaterialTheme.typography.headlineMedium,
+            style = LocalTypography.current.display,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             "Widgets for all your agents.",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
+            style = LocalTypography.current.title,
+            color = uiSetAccent(),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
             "Your agents publish cards and activities here — builds, " +
                 "deploys, balances, queues — floating around you while you work.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.body,
+            color = LocalContentColors.current.secondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(0.85f),
         )
@@ -512,8 +516,8 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
             } else {
                 "Demo data never leaves this device."
             },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall,
+            color = LocalContentColors.current.secondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -522,8 +526,7 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {    Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurface,
+        style = LocalTypography.current.title,
     )
 }
 
@@ -544,7 +547,7 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                 session.progress?.let {
                     Text(
                         "${(it * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = LocalTypography.current.label,
                         modifier = Modifier.padding(end = 8.dp),
                     )
                 } ?: StatusDot(
@@ -552,18 +555,18 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                     Modifier.padding(end = 8.dp),
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(session.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(session.state, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(session.title, style = LocalTypography.current.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(session.state, style = LocalTypography.current.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 PopOutIconButton(onPopOut)
             }
             session.subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
             }
             session.value?.let {
                 Text(
                     it + (session.unit?.let { u -> " $u" } ?: ""),
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = LocalTypography.current.headline,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -578,16 +581,16 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                     activityTint(
                         session.kind,
                         session.signal,
-                        MaterialTheme.colorScheme.primary,
+                        uiSetAccent(),
                     ),
                     Modifier.fillMaxWidth().height(64.dp),
                 )
             }
             session.items.orEmpty().take(4).forEach { item ->
                 Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-                    Text(item.title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Text(item.title, style = LocalTypography.current.bodySmall, modifier = Modifier.weight(1f))
                     item.value?.let { v ->
-                        Text(v, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(v, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
                     }
                 }
             }
@@ -595,13 +598,13 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                 session.endsAt?.let { endsAt ->
                     Text(
                         "Ends ${relativeTime(endsAt) ?: endsAt}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.caption,
+                        color = LocalContentColors.current.secondary,
                         modifier = Modifier.weight(1f),
                     )
                 } ?: Spacer(Modifier.weight(1f))
                 if (isStale(session.updatedAt, session.staleAt)) {
-                    Text("stale", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
                 }
             }
         }

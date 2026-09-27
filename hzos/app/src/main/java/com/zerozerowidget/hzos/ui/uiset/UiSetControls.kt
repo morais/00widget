@@ -2,6 +2,7 @@ package com.zerozerowidget.hzos.ui.uiset
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import metavrx.uiset.compose.button.ButtonStyle
 import metavrx.uiset.compose.button.LabelButton
@@ -214,3 +215,15 @@ fun UiSetTextField(
         )
     }
 }
+
+/**
+ * The accent swatch as a text color. This is the same iOS blue the root
+ * theme accents the UiSet scheme with (see ZeroZeroWidgetTheme) — read
+ * from a const rather than the scheme because UiSet keeps its accent
+ * container brush internal. For accent-colored text on surfaces — the old
+ * `primary` text role.
+ */
+/** The iOS blue the root theme accents the UiSet scheme with. */
+internal val UiSetAccent = Color(0xFF0A84FF)
+
+fun uiSetAccent(): Color = UiSetAccent

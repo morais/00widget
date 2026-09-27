@@ -19,8 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +53,7 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
+import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import com.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -144,12 +147,12 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Connect an agent", style = MaterialTheme.typography.headlineSmall)
+            Text("Connect an agent", style = LocalTypography.current.headline)
             GlassCard(cardAlpha = cardAlpha) {
                 Text(
                     "Loading…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
                 )
             }
         }
@@ -162,21 +165,21 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Connect an agent", style = MaterialTheme.typography.headlineSmall)
+        Text("Connect an agent", style = LocalTypography.current.headline)
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "A connector lets an assistant publish cards and Live Activities on your behalf " +
                         "without you handing it a token. It asks for permission once, you approve it " +
                         "while signed in, and it is issued its own credential.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
                 )
                 if (!signedIn) {
                     Text(
                         "Sign in on the Connection panel first. Approving a connector needs an " +
                             "account that already exists — the permission screen cannot create one.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = LocalTypography.current.body,
                     )
                 }
             }
@@ -192,9 +195,9 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         if (signedIn) {
             GlassCard(cardAlpha = cardAlpha) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Connected agents", style = MaterialTheme.typography.titleSmall)
+                    Text("Connected agents", style = LocalTypography.current.title)
                     connectionsError?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
                     }
                     // The list answers over the network: hold a Loading…
                     // row instead of flashing "No agents" before the rows
@@ -202,14 +205,14 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                     if (!connectionsLoaded) {
                         Text(
                             "Loading…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocalTypography.current.body,
+                            color = LocalContentColors.current.secondary,
                         )
                     } else if (connections.isEmpty()) {
                         Text(
                             "No agents are currently connected.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocalTypography.current.body,
+                            color = LocalContentColors.current.secondary,
                         )
                     }
                     connections.forEach { item ->
@@ -235,8 +238,8 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                     Text(
                         "Disconnecting stops that agent's 00Widget access immediately. It may remain " +
                             "listed in that client until you remove it there.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
             }
@@ -253,16 +256,16 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             mcpEndpoint?.let { endpoint ->
                 Text(
                     "Using Claude Code? Run this command, then open /mcp in Claude Code to complete OAuth.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
                 )
                 CodeBlock(text = "claude mcp add --transport http 00widget $endpoint")
             }
             Text(
                 "You only do this once. A connector belongs to your Claude account rather than to a " +
                     "device, so it is there afterwards wherever you use Claude.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
         }
 
@@ -308,8 +311,8 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             mcpEndpoint?.let { CodeBlock(text = it) }
             Text(
                 "Works with MCP clients that support remote Streamable HTTP and OAuth.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             LinkButton(context, "Cursor", "https://cursor.com/docs/mcp")
             LinkButton(context, "VS Code", "https://code.visualstudio.com/docs/agent-customization/mcp-servers")
@@ -368,13 +371,13 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
     )
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("MCP login", style = MaterialTheme.typography.titleSmall)
+            Text("MCP login", style = LocalTypography.current.title)
             Text(
                 "Connecting an assistant? It shows an 8-character code — " +
                     "approve it here and the login completes. Only approve " +
                     "a code shown on your own screen.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
             UiSetTextField(
                 value = code,
@@ -400,9 +403,9 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
             notice?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (noticeError) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.primary,
+                    style = LocalTypography.current.bodySmall,
+                    color = if (noticeError) LocalColorScheme.current.negative.content
+                    else uiSetAccent(),
                 )
             }
         }
@@ -420,7 +423,7 @@ private fun GuideSection(
     )
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(title, style = LocalTypography.current.title)
             content()
         }
     }
@@ -430,18 +433,18 @@ private fun GuideSection(
 private fun Step(number: Int, text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
-            Modifier.size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+            Modifier.size(22.dp).background(uiSetAccent(), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 number.toString(),
-                style = MaterialTheme.typography.labelSmall,
+                style = LocalTypography.current.caption,
                 color = androidx.compose.ui.graphics.Color.White,
             )
         }
         Text(
             text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = LocalTypography.current.body,
             modifier = Modifier.weight(1f),
         )
     }
@@ -460,8 +463,8 @@ private fun CodeBlock(text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f),
         )
         UiSetIconButtonCopy(copied = copied, onCopy = {
@@ -493,11 +496,11 @@ private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
 private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnect: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(item.clientName, style = MaterialTheme.typography.bodyMedium)
+            Text(item.clientName, style = LocalTypography.current.body)
             Text(
                 connectionSubtitle(item),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
         }
         DeleteRow(

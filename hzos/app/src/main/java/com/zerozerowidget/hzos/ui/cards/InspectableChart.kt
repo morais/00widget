@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -26,6 +25,9 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardChart
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Chart plot + pointed-at readout, mirroring InspectableChartView: the plot
@@ -159,26 +161,26 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         snapshot.label?.let {
-            Text(it, style = MaterialTheme.typography.labelLarge)
+            Text(it, style = LocalTypography.current.label)
         }
         snapshot.signal?.let {
             Text(
                 it.replaceFirstChar(Char::titlecase),
-                style = MaterialTheme.typography.labelMedium,
-                color = signalColor(it, MaterialTheme.colorScheme.onSurfaceVariant),
+                style = LocalTypography.current.caption,
+                color = signalColor(it, LocalContentColors.current.secondary),
             )
         }
         readings.forEach { reading ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     reading.label ?: "Value",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     formatChartValue(reading.value, unit),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                 )
             }
         }
@@ -189,21 +191,21 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
             ) {
                 Text(
                     it.label ?: "Reference",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     formatChartValue(it.value, unit),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                 )
             }
         }
         snapshot.comparison?.let {
             Text(
                 it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
             )
         }
     }

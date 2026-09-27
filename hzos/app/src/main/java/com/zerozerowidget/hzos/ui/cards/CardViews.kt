@@ -18,7 +18,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,13 +52,14 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
+import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlin.math.abs
 
 /** See ChartColors.kt: statusColor now mirrors DashboardStatus.tint. */
 
 @Composable
 fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
-    val unknown = MaterialTheme.colorScheme.onSurfaceVariant
+    val unknown = LocalContentColors.current.secondary
     Canvas(modifier = modifier.size(10.dp)) {
         drawCircle(statusColor(status, unknown))
     }
@@ -73,7 +77,7 @@ fun SampleBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .background(
-                MaterialTheme.colorScheme.primary,
+                uiSetAccent(),
                 androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
             )
             .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -81,7 +85,7 @@ fun SampleBadge(modifier: Modifier = Modifier) {
     ) {
         Text(
             "SAMPLE",
-            style = MaterialTheme.typography.labelSmall,
+            style = LocalTypography.current.caption,
             color = Color.White,
         )
     }
@@ -99,7 +103,7 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .background(
-                MaterialTheme.colorScheme.primary,
+                uiSetAccent(),
                 androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
             )
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -109,12 +113,12 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
         Column(Modifier.weight(1f)) {
             Text(
                 "These are samples",
-                style = MaterialTheme.typography.titleSmall,
+                style = LocalTypography.current.title,
                 color = Color.White,
             )
             Text(
                 "These samples were generated on this device to show what 00Widget looks like. No agent published them.",
-                style = MaterialTheme.typography.bodySmall,
+                style = LocalTypography.current.bodySmall,
                 color = Color.White,
             )
         }
@@ -133,7 +137,7 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onPopOut, contentDescription = "Pop out", modifier = modifier) {
-        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        val color = LocalContentColors.current.secondary
         Canvas(Modifier.size(22.dp)) {
             val sw = 2.dp.toPx()
             // Box outline; the arrow overlaps its top-right corner.
@@ -161,7 +165,7 @@ fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onOpenLink, contentDescription = "Open link", modifier = modifier) {
-        val color = MaterialTheme.colorScheme.onSurfaceVariant
+        val color = LocalContentColors.current.secondary
         Canvas(Modifier.size(22.dp)) {
             val sw = 2.dp.toPx()
             val r = CornerRadius(3.5.dp.toPx(), 3.5.dp.toPx())
@@ -198,7 +202,7 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
         Column(Modifier.weight(1f)) {
             Text(
                 card.title,
-                style = MaterialTheme.typography.titleSmall,
+                style = LocalTypography.current.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -207,7 +211,7 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
             if (headline != null) {
                 Text(
                     headline,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = LocalTypography.current.bodyStrong,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -216,8 +220,8 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
         card.progress?.let {
             Text(
                 "${(it * 100).toInt()}%",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.label,
+                color = LocalContentColors.current.secondary,
             )
         }
     }
@@ -251,22 +255,22 @@ fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier, interac
 @Composable
 private fun CardMetaLine(card: DashboardCard) {
     card.subtitle?.let {
-        Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(it, style = LocalTypography.current.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         card.producer?.let {
             Text(
                 it.label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.caption,
+                color = LocalContentColors.current.secondary,
                 maxLines = 1,
             )
         }
         card.comparison?.let {
             Text(
                 "${it.value} ${it.label}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = LocalTypography.current.caption,
+                color = LocalContentColors.current.secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -289,7 +293,7 @@ private fun ProgressBody(card: DashboardCard) {
     )
     card.value?.let {
         Spacer(Modifier.height(4.dp))
-        Text(it, style = MaterialTheme.typography.bodyMedium)
+        Text(it, style = LocalTypography.current.body)
     }
 }
 
@@ -305,7 +309,7 @@ private fun ListBody(card: DashboardCard) {
                 StatusDot(item.status, Modifier.padding(end = 6.dp))
                 Text(
                     item.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -313,8 +317,8 @@ private fun ListBody(card: DashboardCard) {
                 item.value?.let {
                     Text(
                         it + (item.unit?.let { u -> " $u" } ?: ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = LocalTypography.current.body,
+                        color = LocalContentColors.current.secondary,
                     )
                 }
             }
@@ -327,7 +331,7 @@ private fun ListBody(card: DashboardCard) {
                 )
             }
             item.subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
             }
         }
     }
@@ -337,8 +341,8 @@ private fun ListBody(card: DashboardCard) {
 private fun ActionHintBody() {
     Text(
         "Buttons are below.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = LocalTypography.current.body,
+        color = LocalContentColors.current.secondary,
     )
 }
 
@@ -349,7 +353,7 @@ private fun ChartBody(card: DashboardCard, interactive: Boolean) {
     Spacer(Modifier.height(8.dp))
     // Base tint is the card's status tint, exactly like iOS (SparklineView
     // takes the card tint as its `tint` argument).
-    val unknown = MaterialTheme.colorScheme.onSurfaceVariant
+    val unknown = LocalContentColors.current.secondary
     val base = statusColor(card.status, unknown)
     if (interactive) {
         InspectableChart(
@@ -395,8 +399,8 @@ private fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Strin
         }
         Text(
             label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.caption,
+            color = LocalContentColors.current.secondary,
         )
     }
 }
@@ -657,7 +661,7 @@ private fun HistoryBody(card: DashboardCard) {
     CardMetaLine(card)
     Spacer(Modifier.height(8.dp))
     // Outcome pips, oldest first, most recent on the right (mirrors iOS).
-    val unknown = MaterialTheme.colorScheme.onSurfaceVariant
+    val unknown = LocalContentColors.current.secondary
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         card.items.orEmpty().forEach { item ->
             Canvas(Modifier.size(14.dp)) { drawCircle(statusColor(item.status, unknown)) }
@@ -666,9 +670,9 @@ private fun HistoryBody(card: DashboardCard) {
     Spacer(Modifier.height(4.dp))
     card.items.orEmpty().takeLast(5).reversed().forEach { item ->
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(item.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
             item.value?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
             }
         }
     }
@@ -698,9 +702,9 @@ private fun BreakdownBody(card: DashboardCard) {
     }
     items.forEach { item ->
         Row(Modifier.fillMaxWidth()) {
-            Text(item.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
             item.value?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
             }
         }
     }
@@ -712,9 +716,9 @@ private fun BriefingBody(card: DashboardCard) {
     Spacer(Modifier.height(4.dp))
     card.briefing?.sections.orEmpty().forEach { section ->
         section.label?.let {
-            Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+            Text(it, style = LocalTypography.current.label, modifier = Modifier.padding(top = 6.dp))
         }
-        Text(section.text, style = MaterialTheme.typography.bodyMedium)
+        Text(section.text, style = LocalTypography.current.body)
     }
 }
 
@@ -722,7 +726,7 @@ private fun BriefingBody(card: DashboardCard) {
 private fun TimelineBody(card: DashboardCard) {
     CardMetaLine(card)
     val timeline = card.timeline ?: return
-    val unknown = MaterialTheme.colorScheme.onSurfaceVariant
+    val unknown = LocalContentColors.current.secondary
     val base = statusColor(card.status, unknown)
     Spacer(Modifier.height(4.dp))
     // Legend: series dot + label. FlowRow wraps long label sets onto
@@ -741,8 +745,8 @@ private fun TimelineBody(card: DashboardCard) {
                 }
                 Text(
                     series.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = LocalTypography.current.caption,
+                    color = LocalContentColors.current.secondary,
                     maxLines = 1,
                 )
             }
@@ -759,8 +763,8 @@ private fun TimelineBody(card: DashboardCard) {
                     ) {
                         Text(
                             lane.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = LocalTypography.current.caption,
+                            color = LocalContentColors.current.secondary,
                             maxLines = 1,
                         )
                     }
@@ -779,14 +783,14 @@ private fun TimelineBody(card: DashboardCard) {
     Row(Modifier.fillMaxWidth()) {
         Text(
             formatHourMinute(timeline.startAt),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.caption,
+            color = LocalContentColors.current.secondary,
         )
         Spacer(Modifier.weight(1f))
         Text(
             formatHourMinute(timeline.endAt),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = LocalTypography.current.caption,
+            color = LocalContentColors.current.secondary,
         )
     }
 }
@@ -910,7 +914,7 @@ fun ActionButtons(
             }
         }
         runError?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
     }
 }
@@ -1031,7 +1035,7 @@ fun DeleteRow(
         }
         error?.let {
             Spacer(Modifier.height(4.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
     }
 }
