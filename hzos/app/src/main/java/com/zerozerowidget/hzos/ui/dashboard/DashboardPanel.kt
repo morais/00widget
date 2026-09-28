@@ -106,7 +106,13 @@ fun DashboardPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Dashboard", style = LocalTypography.current.headline, modifier = Modifier.weight(1f))
+            Text(
+                "Dashboard",
+                style = LocalTypography.current.headline,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             state.lastSyncEpochMs?.let {
                 Text(
                     "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString()) ?: ""}",

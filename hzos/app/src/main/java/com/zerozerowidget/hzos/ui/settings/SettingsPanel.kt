@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
@@ -122,6 +123,8 @@ fun SettingsPanel(
                 title,
                 style = LocalTypography.current.headline,
                 modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             UiSetIconButton(onClick = onClose, contentDescription = "Close") {
                 UiSetIcon(UiSetIcons.Regular.Close, contentDescription = null)
