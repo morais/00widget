@@ -16,6 +16,11 @@ activity per panel, Jetpack Compose UI, no game engine, no Spatial SDK. (An
 immersive Spatial SDK version was prototyped and removed — wrong app type
 for a dashboard; see git history if curious.)
 
+The UI is Meta's **VR UI Set SDK for Compose** (`metavrx.uiset`, through the
+metavrx BOM): theme, type, cards, buttons, dialogs, icons and the Settings
+side rail. There is no Material layer. The Horizon Platform SDK supplies
+sign-in and in-app purchase; nothing else from Meta is linked.
+
 Multi-panel needs no SDK: activities launch into their own panels with task
 flags (`ui/PanelLauncher.kt`).
 
@@ -23,29 +28,32 @@ flags (`ui/PanelLauncher.kt`).
 
 ```
 hzos/
-  settings.gradle.kts  app/build.gradle.kts  gradle/libs.versions.toml
+  settings.gradle.kts  build.gradle.kts (Spotless)  .editorconfig (ktlint)
+  app/build.gradle.kts  app/proguard-rules.pro  gradle/libs.versions.toml
   app/src/main/
-    AndroidManifest.xml   # one activity per panel + <layout> sizes
-    java/com/example/zerozerowidget/hzos/
-      ZeroZeroWidgetApp.kt   # composition root (no DI framework)
-      DashboardActivity.kt   # launcher panel: card list
-      ActivitiesActivity.kt  # Live Activities panel (singleton)
-      ConnectionActivity.kt  # connection + phone sign-in (singleton)
-      CardDetailActivity.kt  # one card's detail (one instance per pop-out)
+    AndroidManifest.xml     # one activity per panel + <layout> sizes
+    java/com/zerozerowidget/hzos/
+      ZeroZeroWidgetApp.kt  # composition root (no DI), authedApi(), poll gating
+      DashboardActivity.kt  # launcher panel: activities + cards
+      CardDetailActivity.kt # one card or activity per pop-out
+      SettingsActivity.kt   # settings, sign-in, account (singleTask)
+      auth/                 # Horizon Platform SDK: sign-in, IAP, account-switch guard
       data/
-        Models.kt            # wire-model mirror — keep in lockstep (see below)
-        ZeroWidgetApi.kt     # OkHttp + kotlinx.serialization, read + safe actions
-        DeviceAuth.kt        # RFC 8628 device-code client
-        ConnectionStore.kt   # base URL + API key (DataStore) until login lands
-        DashboardRepository.kt  # StateFlow + 60s poll + manual refresh
-      auth/HorizonAuth.kt    # send_auth_url delivery wrapper
+        Models.kt           # wire-model mirror — keep in lockstep (see below)
+        ZeroWidgetApi.kt    # OkHttp client + WireJson
+        DashboardRepository.kt  # serialised, credential-fenced 60s poll
+        ConnectionStore.kt  # Worker URL + API key (DataStore)
+        SampleStore.kt, SampleData.kt  # on-device demo deck
+        DeviceAuth.kt, HorizonLogin.kt # sign-in flows
       ui/
-        PanelLauncher.kt     # singleton vs per-card launch flags
-        theme/Theme.kt       # dark panel theme
-        cards/CardViews.kt   # all 9 template renderers + hand-rolled sparkline
-        dashboard/DashboardPanel.kt  # list + inline expand + pop-out + detail
-        activities/ActivitiesPanel.kt
-        settings/ConnectionPanel.kt
+        PanelLauncher.kt, PanelBreakpoints.kt, PanelPrefs.kt, PanelState.kt
+        theme/Theme.kt      # UI Set theme, spacing scale, panel glass
+        uiset/              # thin aliases over UI Set controls
+        cards/              # template renderers, plots, containers, controls
+        dashboard/          # dashboard, card detail, activity detail
+        settings/           # one file per Settings section
+        agent/              # connect-an-agent guide
+  app/src/test/             # JVM + Robolectric tests, layout screenshots
 ```
 
 ## Panels
@@ -53,15 +61,15 @@ hzos/
 | Panel | Activity | Instances |
 | ----- | -------- | --------- |
 | Dashboard | `DashboardActivity` (launcher) | one |
-| Live Activities | `ActivitiesActivity` (`singleTask`) | one, reused |
-| Connection | `ConnectionActivity` (`singleTask`) | one, reused |
-| Card detail | `CardDetailActivity` (`MULTIPLE_TASK`) | one per popped-out card |
+| Settings | `SettingsActivity` (`singleTask`) | one, reused |
+| Card or activity detail | `CardDetailActivity` (`MULTIPLE_TASK`) | one per pop-out |
 
-Dashboard/activities/settings open with `LAUNCH_ADJACENT | NEW_TASK`
-(reuses the open instance). Card pop-out adds `MULTIPLE_TASK`, so three
-popped-out cards sit side by side as three panels. Each activity declares
-its default/min size in the manifest `<layout>` element; the shell lets the
-user move and resize from there.
+Settings opens with `LAUNCH_ADJACENT | NEW_TASK` (reusing the open
+instance). Pop-out adds `MULTIPLE_TASK`, so three popped-out cards sit side
+by side as three panels. Each activity declares its default and minimum
+size in the manifest `<layout>` element (minimum 320dp wide, which is the
+Quest shell's real floor); the shell lets the user move and resize from
+there. Layouts switch at the widths in `ui/PanelBreakpoints.kt`.
 
 To add a panel type: add an activity + `<layout>` entry, and a launcher in
 `PanelLauncher.kt` (singleton or multi-instance flags as appropriate).
@@ -107,64 +115,42 @@ nothing. "Generate sample widgets" works offline with no account, and
 2. `cd hzos && ./gradlew :app:assembleDebug` (wrapper is committed; needs a
    JDK 17+ and the Android SDK).
 3. `metavr adb install -r app/build/outputs/apk/debug/app-debug.apk`, launch
-   00Widget from the library. The Connection panel (⚙) arrives with the
-   Worker URL pre-filled from gitignored `hzos/defaults.properties` (copy
-   from `defaults.properties.sample`); paste a tenant API token with the
-   `device` preset from the Worker's `/admin` page (`read` + `actions:run`
-   — a `publisher` token 403s on action runs and needlessly grants `publish`
-   + `webhook:manage`), Save + connect.
+   00Widget from the library, and press Sign in (or Try demo data, which
+   needs no account). The Worker URL comes from gitignored
+   `hzos/defaults.properties` (copy from `defaults.properties.sample`);
+   sign-in needs a Horizon Platform app ID in gitignored
+   `hzos/local.properties` as `platformAppId=...`, and without one Settings
+   says so instead of offering it. The ID is public, not a secret.
 
-Polling is 60s + manual refresh — panels have no WidgetKit-style reload
-budget, but the server's rate limits still apply, so don't shorten the
-interval without a reason.
+Polling is every 60s while a panel is on screen, and not at all otherwise,
+plus a manual refresh. Panels have no WidgetKit-style reload budget, but
+the server's rate limits still apply, so don't shorten the interval
+without a reason.
 
-## Login: device flow via `send_auth_url`
+## Sign-in: Meta identity, phone approval to join
 
-The Connection panel offers "Sign in with phone" next to manual paste. It
-implements the headset half of an OAuth Device Authorization Grant
-(RFC 8628), delivered through the Horizon Login API:
+There is no token to paste. Sign-in proves the headset's Meta account to
+the Worker and gets a Horizon credential back (`data/HorizonLogin.kt`,
+`data/DeviceAuth.kt`, `ui/settings/HorizonSignInSection.kt`):
 
-1. Headset `POST`s the Worker for a device code (no auth).
-2. Headset calls `Users().sendAuthUrl(verification_uri_complete)` (Horizon
-   Platform SDK `users-kotlin`). The OS shows a confirmation dialog and
-   pushes the URL to the Horizon mobile app, code pre-filled — no retyping
-   a code you saw inside the headset.
-3. Operator approves on the phone (see server contract below).
-4. Headset polls until approval and stores the returned token in the same
-   `ConnectionStore` keys manual paste uses. Nothing downstream changes.
+1. The Platform SDK supplies the app-scoped Meta user id and a single-use
+   proof nonce; the headset `POST`s both to `/v1/auth/horizon`.
+2. A returning Meta account gets a token straight back. An unknown one is
+   asked to choose: create a new 00Widget account, or join the one it
+   already has through the iPhone app.
+3. Joining answers with an RFC 8628 device code. The headset hands its
+   `verification_uri_complete` to `Users().sendAuthUrl`, so the OS confirms
+   and pushes the link to the Meta Horizon phone app; the operator approves
+   in the 00Widget iPhone app (or the Worker's web page), and the headset
+   polls `POST /v1/auth/device/token` until it is approved.
 
-Any failure — no Platform app ID, Platform SDK uninitialized, declined
-dialog, older OS, server without the flow — degrades to showing the
-`user_code` + `verification_uri` for manual entry, which doubles as the
-required fallback where `send_auth_url` is unavailable.
-
-Phone sign-in needs a Horizon Platform app ID (developer portal → your
-app): put it in `hzos/local.properties` (gitignored) as
-`platformAppId=...`. Empty means the button path is disabled and manual
-paste is the only option. The ID is public, not a secret.
-
-### Server contract
-
-`data/DeviceAuth.kt` and `server/src/deviceAuth.ts` implement this contract.
-Older deployments return 404 and the UI falls back to manual paste.
-
-- `POST /v1/auth/device/code` (no auth, strictly rate-limited) →
-  `{device_code, user_code, verification_uri, verification_uri_complete?,
-  expires_in, interval}`. Codes random per attempt, short TTL (~10 min),
-  single-use. No PII in the URL query.
-- `verification_uri_complete` is `/app/device?code=...`. The installed iOS
-  app claims it as a Universal Link, signs in with Apple when needed, and
-  requires an explicit confirmation. Without the app, the Worker serves the
-  same confirmation in the browser through its Apple web session. In both
-  cases the authenticated identity supplies the tenant; never the request.
-- `POST /v1/auth/device/token` `{device_code}` → `{token}` once approved,
-  else `{error: authorization_pending | slow_down | denied | expired}`.
-  The returned `zwa_…` token is an **`app` credential** carrying the narrowed
-  **`device` preset** (`read`, `device:register`, `actions:run`). It identifies
-  Horizon as a first-party app without granting publisher capabilities.
-- Codes are ephemeral with a TTL sweep and short expiry. Approved rows carry
-  a tenant foreign key and are included in account deletion; pending rows do
-  not belong to any tenant. Code issuance and approval are rate-limited.
+The token is an `app` credential with the narrowed `device` preset
+(`read`, `device:register`, `actions:run`), stored in `ConnectionStore`
+together with the Meta id it was issued for; a later Meta account switch
+on the headset clears it (`auth/MetaUserGuard.kt`). If `send_auth_url`
+cannot run, the code and URL are shown for manual entry on the phone.
+`cd ../server && npm test` covers the Worker side
+(`server/src/deviceAuth.ts`, `server/src/horizonIdentity.ts`).
 
 ## Publishing to the Horizon Store
 
@@ -177,11 +163,12 @@ Done in the tree:
 - Brand adaptive icon (`ic_launcher`, round variant) generated from
   `docs/brand/mark-transparent-1024.png` over deep navy.
 - `allowBackup=false` so bearer tokens never enter cloud backups.
-- Release build carries **no dev values**: `DEVICE_TOKEN` is empty in
-  release (debug pre-fills from the gitignored file), so a store build
-  cannot leak a credential. The production Worker URL stays — it's public.
-- `usesCleartextTraffic` off (localhost-shaped http exception only).
-- minSdk 32 / targetSdk 36, landscape panels with default + min sizes.
+- No build carries a credential: the API key only ever comes from
+  sign-in. The production Worker URL is embedded — it is public.
+- Cleartext HTTP is blocked (targetSdk 34 default; there is no network
+  security config and no localhost exception).
+- Release is minified with R8 (`proguard-rules.pro`) and ships arm64 only.
+- minSdk 32 / targetSdk 34 (compileSdk 36), panels with default + min sizes.
 
 To cut a submission build (all secrets in gitignored `store.properties`,
 copied from `store.properties.sample` — same pattern as the other
@@ -198,8 +185,16 @@ per-developer files; env vars override the file for CI):
 
 ## Verification
 
-- `./gradlew :app:assembleDebug` (needs Android SDK; not runnable in this
-  repo's iOS/Worker CI).
-- After any template change: eyeball every renderer in `CardViews.kt` on
-  device — same rule as iOS, the compiler can't see a clipped card.
+```
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:verifyRoborazziDebug spotlessCheck
+```
+
+- Unit tests are JVM and Robolectric: repository ordering and polling,
+  wire decoding against `examples/`, sample store, time and chart helpers.
+- `verifyRoborazziDebug` compares every panel at 320, 360, 400, 728 and
+  1280dp against `app/src/test/screenshots`. After an intended layout
+  change, `recordRoborazziDebug` and look at the new PNGs before committing
+  them. It proves layout only — check Look and Pinch, resizing and
+  passthrough on a headset.
+- `spotlessCheck` fails on formatting drift; `spotlessApply` fixes it.
 - `cd ../server && npm test` covers the device-code endpoints this app reads.
