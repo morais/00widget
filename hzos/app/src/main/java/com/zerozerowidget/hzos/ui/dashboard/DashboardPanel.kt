@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -219,7 +221,16 @@ fun DashboardPanel(
                 // a lazy grid cannot live inside a lazy list.
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                     val twoCol = maxWidth >= 728.dp
+                    val listState = rememberLazyListState()
+                    // Row keys change shape across the breakpoint (row ids
+                    // vs card ids), and a retained scroll index can point
+                    // past the new list and show blank. Reset on crossing
+                    // rather than risking an empty window after a resize.
+                    LaunchedEffect(twoCol) {
+                        listState.scrollToItem(0)
+                    }
                     LazyColumn(
+                        state = listState,
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         // Bottom breathing room: without it the last card
                         // ends flush against the window edge when the list
