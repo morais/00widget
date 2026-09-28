@@ -56,6 +56,10 @@ android {
             .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
             .toInt()
         versionName = "1.5"
+        // Quest and Meta VR Glasses are arm64-only, and Glasses refuses a
+        // binary without 64-bit native code. Say so explicitly instead of
+        // shipping armeabi-v7a/x86/x86_64 copies of AndroidX's .so files.
+        ndk { abiFilters += "arm64-v8a" }
         // Short commit hash for the About screen, so a screenshot proves
         // which source a build came from. versionCode alone cannot: its
         // hour precision collides across same-hour builds, which is how
