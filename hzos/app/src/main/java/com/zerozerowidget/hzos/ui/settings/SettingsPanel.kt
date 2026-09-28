@@ -897,20 +897,25 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Server", style = LocalTypography.current.title)
-            UiSetTextField(
-                value = if (locked) {
-                    com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                } else {
-                    serverUrl
-                },
-                label = "Worker URL (https://…)",
-                onValueChange = { serverUrl = it; savedNote = null },
-                modifier = Modifier.fillMaxWidth(),
-                // No read-only mode in UiSet: a locked URL is simply
-                // disabled, which greys it instead of showing read-only.
-                enabled = !locked,
-                keyboardType = KeyboardType.Uri,
-            )
+            if (locked) {
+                // No label, no field: the section already says Server, so
+                // the URL sits under it as plain text. A disabled field
+                // here was chrome around a value nobody can change.
+                Text(
+                    com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
+                )
+            } else {
+                UiSetTextField(
+                    value = serverUrl,
+                    label = "",
+                    placeholder = "https://…",
+                    onValueChange = { serverUrl = it; savedNote = null },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardType = KeyboardType.Uri,
+                )
+            }
             if (!locked) {
                 savedNote?.let {
                     Text(
