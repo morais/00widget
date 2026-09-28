@@ -394,31 +394,9 @@ fun CardDetailPanel(
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            if (isSample && !hideIndicators) {
-                if (!card.actions.isNullOrEmpty()) {
-                    Text(
-                        "Demo card — buttons don't run on samples.",
-                        style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
-                    )
-                }
-            } else {
-                ActionButtons(
-                    card = card,
-                    runningId = runningId,
-                    runError = runError,
-                    onRun = { action ->
-                        scope.launch {
-                            runningId = action.id
-                            runError = null
-                            val result = app.repository.runAction(action.id, card.id)
-                            runningId = null
-                            runError = result.exceptionOrNull()?.let(::describeRunError)
-                        }
-                    },
-                )
-            }
-            Spacer(Modifier.height(8.dp))
+            // Actions, link, and delete share one row: the buttons take
+            // the weight, link and delete sit right. Samples keep their
+            // demo notice instead of runners.
             SampleAwareDeleteRow(
                 isSample = isSample,
                 serverLabel = "Delete",
@@ -441,10 +419,37 @@ fun CardDetailPanel(
                     }
                 },
                 leading = {
+                    if (isSample && !hideIndicators) {
+                        if (!card.actions.isNullOrEmpty()) {
+                            Text(
+                                "Demo card — buttons don't run on samples.",
+                                style = LocalTypography.current.bodySmall,
+                                color = LocalContentColors.current.secondary,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    } else {
+                        ActionButtons(
+                            card = card,
+                            runningId = runningId,
+                            runError = runError,
+                            onRun = { action ->
+                                scope.launch {
+                                    runningId = action.id
+                                    runError = null
+                                    val result = app.repository.runAction(action.id, card.id)
+                                    runningId = null
+                                    runError = result.exceptionOrNull()?.let(::describeRunError)
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     card.deepLink?.let {
                         UiSetSecondaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
                     }
                 },
+                fillLeading = card.deepLink != null || !card.actions.isNullOrEmpty(),
                 modifier = Modifier.fillMaxWidth(),
             )
             card.deadline?.let { deadline ->

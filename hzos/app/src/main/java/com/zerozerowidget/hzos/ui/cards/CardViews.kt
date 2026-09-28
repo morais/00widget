@@ -968,8 +968,9 @@ fun ActionButtons(
     onRun: (ActionDefinition) -> Unit,
     runningId: String?,
     runError: String?,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         card.actions.orEmpty().forEach { action ->
             if (action.isSafeFromPanel) {
                 UiSetPrimaryButton(
@@ -1058,6 +1059,7 @@ fun SampleAwareDeleteRow(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    fillLeading: Boolean = false,
 ) {
     DeleteRow(
         label = if (isSample && !com.zerozerowidget.hzos.ui.LocalHideSampleIndicators.current) {
@@ -1070,6 +1072,7 @@ fun SampleAwareDeleteRow(
         onDelete = onDelete,
         modifier = modifier,
         leading = leading,
+        fillLeading = fillLeading,
     )
 }
 
@@ -1086,6 +1089,12 @@ fun DeleteRow(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    /**
+     * True when [leading] already distributes the row width (e.g. action
+     * buttons on a weight): the spacer that would otherwise push the
+     * button right is skipped, so everything shares one line.
+     */
+    fillLeading: Boolean = false,
 ) {
     var armed by remember { mutableStateOf(false) }
     // The caller owns the width: details stretch full width with the
@@ -1094,7 +1103,7 @@ fun DeleteRow(
     Column(modifier) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             leading()
-            Spacer(Modifier.weight(1f))
+            if (!fillLeading) Spacer(Modifier.weight(1f))
             // Destructive throughout: this is the delete/end affordance,
             // and the armed state is the confirm, not a style change.
             UiSetDestructiveButton(
