@@ -1,6 +1,7 @@
 package com.zerozerowidget.hzos.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -82,13 +84,16 @@ class SampleStore(context: Context) {
 
     /** Removes one sample activity. */
     fun removeActivity(externalActivityId: String) {
-        _activities.value = _activities.value.filterNot { it.externalActivityId == externalActivityId }
-        scope.launch { writeList(ACTIVITIES_JSON, _activities.value, LiveActivitySession.serializer()) }
+        _activities.value =
+            _activities.value.filterNot { it.externalActivityId == externalActivityId }
+        scope.launch {
+            writeList(ACTIVITIES_JSON, _activities.value, LiveActivitySession.serializer())
+        }
     }
 
     private suspend fun <T> readList(
-        key: androidx.datastore.preferences.core.Preferences.Key<String>,
-        serializer: kotlinx.serialization.KSerializer<T>,
+        key: Preferences.Key<String>,
+        serializer: KSerializer<T>
     ): List<T> {
         val raw = appContext.sampleDataStore.data.map { it[key] }.first().orEmpty()
         if (raw.isBlank()) return emptyList()
@@ -100,9 +105,9 @@ class SampleStore(context: Context) {
     }
 
     private suspend fun <T> writeList(
-        key: androidx.datastore.preferences.core.Preferences.Key<String>,
+        key: Preferences.Key<String>,
         value: List<T>,
-        serializer: kotlinx.serialization.KSerializer<T>,
+        serializer: KSerializer<T>
     ) {
         val raw = json.encodeToString(ListSerializer(serializer), value)
         appContext.sampleDataStore.edit { it[key] = raw }

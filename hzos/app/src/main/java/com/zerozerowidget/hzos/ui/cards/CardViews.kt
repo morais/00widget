@@ -1,7 +1,7 @@
 package com.zerozerowidget.hzos.ui.cards
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -28,10 +25,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardStatus
+import com.zerozerowidget.hzos.data.DashboardTemplate
+import com.zerozerowidget.hzos.ui.theme.spacing
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /** One-line headline used in the dashboard list for every template. */
 @Composable
-fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         StatusDot(card.status)
         Spacer(Modifier.width(spacing.small))
         Column(Modifier.weight(1f)) {
@@ -39,16 +42,21 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
                 card.title,
                 style = LocalTypography.current.title,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis
             )
-            val headline = listOfNotNull(card.value?.let { it + (card.unit?.let { u -> " $u" } ?: "") })
+            val headline = listOfNotNull(
+                card.value?.let {
+                    it +
+                        (card.unit?.let { u -> " $u" } ?: "")
+                }
+            )
                 .firstOrNull()
             if (headline != null) {
                 Text(
                     headline,
                     style = LocalTypography.current.bodyStrong,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -56,7 +64,7 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
             Text(
                 "${(it * 100).toInt()}%",
                 style = LocalTypography.current.label,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
     }
@@ -68,18 +76,22 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(mo
  * `else` + comment below is the backstop, so check it when adding a template.
  */
 @Composable
-fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier, interactiveCharts: Boolean = false) {
+fun CardTemplateBody(
+    card: DashboardCard,
+    modifier: Modifier = Modifier,
+    interactiveCharts: Boolean = false
+) {
     Column(modifier) {
         when (card.template) {
-            com.zerozerowidget.hzos.data.DashboardTemplate.SUMMARY -> SummaryBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.PROGRESS -> ProgressBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.LIST -> ListBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.ACTION -> ActionHintBody(card, interactiveCharts)
-            com.zerozerowidget.hzos.data.DashboardTemplate.CHART -> ChartBody(card, interactiveCharts)
-            com.zerozerowidget.hzos.data.DashboardTemplate.HISTORY -> HistoryBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.BREAKDOWN -> BreakdownBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.BRIEFING -> BriefingBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.TIMELINE -> TimelineBody(card)
+            DashboardTemplate.SUMMARY -> SummaryBody(card)
+            DashboardTemplate.PROGRESS -> ProgressBody(card)
+            DashboardTemplate.LIST -> ListBody(card)
+            DashboardTemplate.ACTION -> ActionHintBody(card, interactiveCharts)
+            DashboardTemplate.CHART -> ChartBody(card, interactiveCharts)
+            DashboardTemplate.HISTORY -> HistoryBody(card)
+            DashboardTemplate.BREAKDOWN -> BreakdownBody(card)
+            DashboardTemplate.BRIEFING -> BriefingBody(card)
+            DashboardTemplate.TIMELINE -> TimelineBody(card)
         }
         // Buttons combine with any template (llms.md) but need the action
         // runner, which lives on the calling surface (dashboard / detail via
@@ -90,7 +102,12 @@ fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier, interac
 @Composable
 internal fun CardMetaLine(card: DashboardCard) {
     card.subtitle?.let {
-        Text(it, style = LocalTypography.current.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            it,
+            style = LocalTypography.current.body,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
     Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         card.producer?.let {
@@ -98,7 +115,7 @@ internal fun CardMetaLine(card: DashboardCard) {
                 it.label,
                 style = LocalTypography.current.caption,
                 color = LocalContentColors.current.secondary,
-                maxLines = 1,
+                maxLines = 1
             )
         }
         card.comparison?.let {
@@ -107,7 +124,7 @@ internal fun CardMetaLine(card: DashboardCard) {
                 style = LocalTypography.current.caption,
                 color = LocalContentColors.current.secondary,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -124,7 +141,7 @@ internal fun ProgressBody(card: DashboardCard) {
     Spacer(Modifier.height(spacing.small))
     ProgressBar(
         fraction = (card.progress ?: 0.0).toFloat(),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth()
     )
     card.value?.let {
         Spacer(Modifier.height(spacing.xSmall))
@@ -147,13 +164,13 @@ internal fun ListBody(card: DashboardCard) {
                     style = LocalTypography.current.body,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis
                 )
                 item.value?.let {
                     Text(
                         it + (item.unit?.let { u -> " $u" } ?: ""),
                         style = LocalTypography.current.body,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
             }
@@ -162,11 +179,15 @@ internal fun ListBody(card: DashboardCard) {
                 Spacer(Modifier.height(2.dp))
                 ProgressBar(
                     fraction = (item.amount / max).toFloat().coerceIn(0f, 1f),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             item.subtitle?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary
+                )
             }
         }
     }
@@ -184,7 +205,7 @@ internal fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
     val chart = card.chart?.takeIf { it.points.size >= 2 }
     if (chart != null) {
         val unknown = LocalContentColors.current.secondary
-        val dark = androidx.compose.foundation.isSystemInDarkTheme()
+        val dark = isSystemInDarkTheme()
         val base = statusColor(card.status, unknown, dark)
         Spacer(Modifier.height(spacing.small))
         if (interactive) {
@@ -192,13 +213,13 @@ internal fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
                 chart = chart,
                 unit = card.unit,
                 baseTint = base,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
         } else {
             Sparkline(
                 chart = chart,
                 baseTint = base,
-                modifier = Modifier.fillMaxWidth().height(120.dp),
+                modifier = Modifier.fillMaxWidth().height(120.dp)
             )
         }
     }
@@ -212,20 +233,20 @@ internal fun ChartBody(card: DashboardCard, interactive: Boolean) {
     // Base tint is the card's status tint, exactly like iOS (SparklineView
     // takes the card tint as its `tint` argument).
     val unknown = LocalContentColors.current.secondary
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val base = statusColor(card.status, unknown, dark)
     if (interactive) {
         InspectableChart(
             chart = chart,
             unit = card.unit,
             baseTint = base,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
         )
     } else {
         Sparkline(
             chart = chart,
             baseTint = base,
-            modifier = Modifier.fillMaxWidth().height(120.dp),
+            modifier = Modifier.fillMaxWidth().height(120.dp)
         )
     }
     chart.referenceMetadata?.label?.let { label ->
@@ -240,7 +261,7 @@ internal fun HistoryBody(card: DashboardCard) {
     Spacer(Modifier.height(spacing.small))
     // Outcome pips, oldest first, most recent on the right (mirrors iOS).
     val unknown = LocalContentColors.current.secondary
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         card.items.orEmpty().forEach { item ->
             Canvas(Modifier.size(14.dp)) { drawCircle(statusColor(item.status, unknown, dark)) }
@@ -251,7 +272,11 @@ internal fun HistoryBody(card: DashboardCard) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
             item.value?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary
+                )
             }
         }
     }
@@ -263,13 +288,25 @@ internal fun BreakdownBody(card: DashboardCard) {
     Spacer(Modifier.height(spacing.small))
     val items = card.items.orEmpty()
     val total = items.sumOf { (it.amount ?: 0.0).coerceAtLeast(0.0) }.takeIf { it > 0 } ?: return
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     // Segment colors for rows without a status: light pastels on dark
     // cards, saturated tones on light ones — neither reads on the other.
     val palette = if (dark) {
-        listOf(Color(0xFF7DD3FC), Color(0xFFA5B4FC), Color(0xFF6EE7B7), Color(0xFFFCD34D), Color(0xFFF9A8D4))
+        listOf(
+            Color(0xFF7DD3FC),
+            Color(0xFFA5B4FC),
+            Color(0xFF6EE7B7),
+            Color(0xFFFCD34D),
+            Color(0xFFF9A8D4)
+        )
     } else {
-        listOf(Color(0xFF007AFF), Color(0xFFAF52DE), Color(0xFF34C759), Color(0xFFFF9500), Color(0xFFFF3B30))
+        listOf(
+            Color(0xFF007AFF),
+            Color(0xFFAF52DE),
+            Color(0xFF34C759),
+            Color(0xFFFF9500),
+            Color(0xFFFF3B30)
+        )
     }
     Canvas(Modifier.fillMaxWidth().height(18.dp)) {
         var acc = 0.0
@@ -283,14 +320,18 @@ internal fun BreakdownBody(card: DashboardCard) {
                 DashboardStatus.UNKNOWN -> palette[i % palette.size]
                 else -> statusColor(item.status, unknown, dark)
             }
-            drawRect(color, Offset(left, 0f), androidx.compose.ui.geometry.Size(right - left, size.height))
+            drawRect(color, Offset(left, 0f), Size(right - left, size.height))
         }
     }
     items.forEach { item ->
         Row(Modifier.fillMaxWidth()) {
             Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
             item.value?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary
+                )
             }
         }
     }
@@ -302,7 +343,11 @@ internal fun BriefingBody(card: DashboardCard) {
     Spacer(Modifier.height(spacing.xSmall))
     card.briefing?.sections.orEmpty().forEach { section ->
         section.label?.let {
-            Text(it, style = LocalTypography.current.label, modifier = Modifier.padding(top = spacing.small))
+            Text(
+                it,
+                style = LocalTypography.current.label,
+                modifier = Modifier.padding(top = spacing.small)
+            )
         }
         Text(section.text, style = LocalTypography.current.body)
     }
@@ -313,19 +358,19 @@ internal fun TimelineBody(card: DashboardCard) {
     CardMetaLine(card)
     val timeline = card.timeline ?: return
     val unknown = LocalContentColors.current.secondary
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val base = statusColor(card.status, unknown, dark)
     Spacer(Modifier.height(spacing.xSmall))
     // Legend: series dot + label. FlowRow wraps long label sets onto
     // multiple lines instead of pushing the plot off the panel.
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+        verticalArrangement = Arrangement.spacedBy(spacing.xSmall)
     ) {
         timeline.series.take(4).forEachIndexed { index, series ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(spacing.xSmall),
+                horizontalArrangement = Arrangement.spacedBy(spacing.xSmall)
             ) {
                 Canvas(Modifier.size(7.dp)) {
                     drawCircle(chartTint(index, base, null, dark))
@@ -334,7 +379,7 @@ internal fun TimelineBody(card: DashboardCard) {
                     series.label,
                     style = LocalTypography.current.caption,
                     color = LocalContentColors.current.secondary,
-                    maxLines = 1,
+                    maxLines = 1
                 )
             }
         }
@@ -346,13 +391,13 @@ internal fun TimelineBody(card: DashboardCard) {
                 timeline.lanes.forEach { lane ->
                     Box(
                         Modifier.fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.CenterEnd,
+                        contentAlignment = Alignment.CenterEnd
                     ) {
                         Text(
                             lane.label,
                             style = LocalTypography.current.caption,
                             color = LocalContentColors.current.secondary,
-                            maxLines = 1,
+                            maxLines = 1
                         )
                     }
                 }
@@ -363,7 +408,7 @@ internal fun TimelineBody(card: DashboardCard) {
             timeline = timeline,
             baseTint = base,
             selectedFraction = null,
-            modifier = Modifier.weight(1f).height(120.dp),
+            modifier = Modifier.weight(1f).height(120.dp)
         )
     }
     Spacer(Modifier.height(spacing.xSmall))
@@ -371,13 +416,13 @@ internal fun TimelineBody(card: DashboardCard) {
         Text(
             formatHourMinute(timeline.startAt),
             style = LocalTypography.current.caption,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
         Spacer(Modifier.weight(1f))
         Text(
             formatHourMinute(timeline.endAt),
             style = LocalTypography.current.caption,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
     }
 }

@@ -1,5 +1,7 @@
 package com.zerozerowidget.hzos.data
 
+import java.io.IOException
+import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -8,8 +10,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
-import java.net.URLEncoder
 
 /**
  * Minimal HTTP client for the 00Widget Worker API. No SDK, no codegen — one
@@ -25,11 +25,7 @@ import java.net.URLEncoder
  * from compose scopes, and blocking OkHttp on Main throws
  * NetworkOnMainThreadException.
  */
-class ZeroWidgetApi(
-    private val http: OkHttpClient,
-    baseUrl: String,
-    private val apiKey: String,
-) : DashboardApi {
+class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val apiKey: String) : DashboardApi {
     private val base = baseUrl.trimEnd('/')
     val json = Json {
         ignoreUnknownKeys = true
@@ -40,52 +36,45 @@ class ZeroWidgetApi(
 
     class ApiException(val status: Int, message: String) : IOException(message)
 
-    suspend fun health(): Boolean =
-        withContext(Dispatchers.IO) {
-            val code = getRaw("/health").use { it.code }
-            code == 200
-        }
+    suspend fun health(): Boolean = withContext(Dispatchers.IO) {
+        val code = getRaw("/health").use { it.code }
+        code == 200
+    }
 
-    override suspend fun fetchDashboard(): DashboardResponse =
-        withContext(Dispatchers.IO) {
-            get("/v1/dashboard")
-        }
+    override suspend fun fetchDashboard(): DashboardResponse = withContext(Dispatchers.IO) {
+        get("/v1/dashboard")
+    }
 
-    suspend fun fetchCards(): List<DashboardCard> =
-        withContext(Dispatchers.IO) {
-            get<CardsListResponse>("/v1/cards").cards
-        }
+    suspend fun fetchCards(): List<DashboardCard> = withContext(Dispatchers.IO) {
+        get<CardsListResponse>("/v1/cards").cards
+    }
 
-    suspend fun fetchLiveActivities(): List<LiveActivitySession> =
-        withContext(Dispatchers.IO) {
-            get<LiveActivitiesListResponse>("/v1/live-activities").activities
-        }
+    suspend fun fetchLiveActivities(): List<LiveActivitySession> = withContext(Dispatchers.IO) {
+        get<LiveActivitiesListResponse>("/v1/live-activities").activities
+    }
 
     /**
      * Runs one action button press. Callers must check
      * [ActionDefinition.isSafeFromPanel] first — the server also enforces it,
      * and a 403 naming the required scope means this credential cannot run it.
      */
-    override suspend fun runAction(actionId: String, cardId: String?) =
-        withContext(Dispatchers.IO) {
-            val body = json.encodeToString(
-                ActionRunBody.serializer(),
-                ActionRunBody(ActionRunContext(cardId)),
-            )
-            postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
-        }
+    override suspend fun runAction(actionId: String, cardId: String?) = withContext(Dispatchers.IO) {
+        val body = json.encodeToString(
+            ActionRunBody.serializer(),
+            ActionRunBody(ActionRunContext(cardId))
+        )
+        postEmpty("/v1/actions/${pathSegment(actionId)}/run", body)
+    }
 
     /** Deletes a card / ends an activity using the Horizon app's `publish` scope. */
-    override suspend fun deleteCard(id: String) =
-        withContext(Dispatchers.IO) {
-            delete("/v1/cards/${pathSegment(id)}")
-        }
+    override suspend fun deleteCard(id: String) = withContext(Dispatchers.IO) {
+        delete("/v1/cards/${pathSegment(id)}")
+    }
 
-    override suspend fun endActivity(externalActivityId: String) =
-        withContext(Dispatchers.IO) {
-            val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
-            postEmpty("/v1/live-activities/end", body)
-        }
+    override suspend fun endActivity(externalActivityId: String) = withContext(Dispatchers.IO) {
+        val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
+        postEmpty("/v1/live-activities/end", body)
+    }
 
     /**
      * Active MCP grants: lifecycle/display metadata only, never tokens.
@@ -93,10 +82,9 @@ class ZeroWidgetApi(
      * Main-safe (IO-dispatched) so panels can call straight from compose
      * scopes — blocking OkHttp on Main throws NetworkOnMainThreadException.
      */
-    suspend fun listMCPConnections(): List<MCPConnectionSummary> =
-        withContext(Dispatchers.IO) {
-            get<MCPConnectionsListResponse>("/v1/account/mcp-connections").connections
-        }
+    suspend fun listMCPConnections(): List<MCPConnectionSummary> = withContext(Dispatchers.IO) {
+        get<MCPConnectionsListResponse>("/v1/account/mcp-connections").connections
+    }
 
     suspend fun disconnectMCPConnection(id: String) {
         withContext(Dispatchers.IO) {
@@ -111,34 +99,31 @@ class ZeroWidgetApi(
      * purpose keys, so this headset stays signed in. The replacement is
      * shown once — callers must surface it, there is no second read.
      */
-    suspend fun rotateAgentToken(): AgentTokenRotation =
-        withContext(Dispatchers.IO) {
-            post("/v1/auth/agent-token/rotate")
-        }
+    suspend fun rotateAgentToken(): AgentTokenRotation = withContext(Dispatchers.IO) {
+        post("/v1/auth/agent-token/rotate")
+    }
 
     /**
      * Who this device is signed in as. App-credential only, which the
      * Horizon device token is — agent publisher tokens cannot read it.
      * Mirrors iOS refreshAccount.
      */
-    suspend fun fetchAccount(): AccountInfo =
-        withContext(Dispatchers.IO) {
-            get<AccountResponse>("/v1/account").account
-        }
+    suspend fun fetchAccount(): AccountInfo = withContext(Dispatchers.IO) {
+        get<AccountResponse>("/v1/account").account
+    }
 
     /**
      * Subscription status for the Settings row. Null when the server has
      * subscriptions switched off (404) or cannot answer — the row hides
      * itself rather than erroring.
      */
-    suspend fun fetchSubscription(): SubscriptionState? =
-        withContext(Dispatchers.IO) {
-            try {
-                get<SubscriptionResponse>("/v1/subscription").subscription
-            } catch (e: ApiException) {
-                null
-            }
+    suspend fun fetchSubscription(): SubscriptionState? = withContext(Dispatchers.IO) {
+        try {
+            get<SubscriptionResponse>("/v1/subscription").subscription
+        } catch (e: ApiException) {
+            null
         }
+    }
 
     /**
      * Hands a completed Meta purchase to the Worker for verification.
@@ -155,14 +140,13 @@ class ZeroWidgetApi(
      * - 404 while the endpoint does not exist yet surfaces as [ApiException];
      *   callers map that to "update the Worker", not to a purchase failure.
      */
-    suspend fun syncMetaSubscription(userId: String, sku: String): SubscriptionState =
-        withContext(Dispatchers.IO) {
-            val body = json.encodeToString(
-                MetaSubscriptionSyncRequest.serializer(),
-                MetaSubscriptionSyncRequest(userId, sku),
-            )
-            post<SubscriptionResponse>("/v1/meta/subscription/sync", body).subscription
-        }
+    suspend fun syncMetaSubscription(userId: String, sku: String): SubscriptionState = withContext(Dispatchers.IO) {
+        val body = json.encodeToString(
+            MetaSubscriptionSyncRequest.serializer(),
+            MetaSubscriptionSyncRequest(userId, sku)
+        )
+        post<SubscriptionResponse>("/v1/meta/subscription/sync", body).subscription
+    }
 
     /**
      * One `POST /v1/auth/horizon` attempt, raw. Returns (status, body) for
@@ -170,12 +154,11 @@ class ZeroWidgetApi(
      * throws only on transport failure. The body comes from
      * [horizonSignInBody]; a null choice is omitted, never sent null.
      */
-    suspend fun postHorizonSignIn(body: String): Pair<Int, String> =
-        withContext(Dispatchers.IO) {
-            // Pre-credential by definition: no Authorization header at all,
-            // not an empty Bearer one.
-            postRaw("/v1/auth/horizon", body, withAuth = false)
-        }
+    suspend fun postHorizonSignIn(body: String): Pair<Int, String> = withContext(Dispatchers.IO) {
+        // Pre-credential by definition: no Authorization header at all,
+        // not an empty Bearer one.
+        postRaw("/v1/auth/horizon", body, withAuth = false)
+    }
 
     /**
      * Answers a browser sign-in code (`POST
@@ -183,21 +166,21 @@ class ZeroWidgetApi(
      * (status, body) for [describeBrowserApproval]. [decision] is "approve"
      * or "deny".
      */
-    suspend fun approveBrowserSignIn(code: String, decision: String): Pair<Int, String> =
-        withContext(Dispatchers.IO) {
-            val body = "{\"code\":${json.encodeToString(code)},\"decision\":${json.encodeToString(decision)}}"
-            postRaw("/v1/auth/horizon/browser/approve", body)
-        }
+    suspend fun approveBrowserSignIn(code: String, decision: String): Pair<Int, String> = withContext(Dispatchers.IO) {
+        val body = "{\"code\":${json.encodeToString(
+            code
+        )},\"decision\":${json.encodeToString(decision)}}"
+        postRaw("/v1/auth/horizon/browser/approve", body)
+    }
 
     /**
      * Deletes the whole tenant (`DELETE /v1/account`) on the app
      * credential. Irreversible by design; the caller confirms first and
      * clears the local store after, since the token dies with the account.
      */
-    suspend fun deleteAccount() =
-        withContext(Dispatchers.IO) {
-            delete("/v1/account")
-        }
+    suspend fun deleteAccount() = withContext(Dispatchers.IO) {
+        delete("/v1/account")
+    }
 
     /**
      * Detaches the Horizon identity (`DELETE /v1/account/horizon`) on the
@@ -207,21 +190,18 @@ class ZeroWidgetApi(
      * The caller clears the local store after, since the session dies with
      * the link.
      */
-    suspend fun unlinkHorizonAccount(): Pair<Int, String> =
-        withContext(Dispatchers.IO) {
-            deleteRaw("/v1/account/horizon")
-        }
+    suspend fun unlinkHorizonAccount(): Pair<Int, String> = withContext(Dispatchers.IO) {
+        deleteRaw("/v1/account/horizon")
+    }
 
     // --- internals ---
 
-    private inline fun <reified T> parse(raw: String): T =
-        json.decodeFromString(raw)
+    private inline fun <reified T> parse(raw: String): T = json.decodeFromString(raw)
 
-    private fun authed(path: String): Request.Builder =
-        Request.Builder()
-            .url(base + path)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+    private fun authed(path: String): Request.Builder = Request.Builder()
+        .url(base + path)
+        .header("Authorization", "Bearer $apiKey")
+        .header("Accept", "application/json")
 
     private fun getRaw(path: String): okhttp3.Response {
         val req = authed(path).get().build()
@@ -254,7 +234,11 @@ class ZeroWidgetApi(
     }
 
     /** Raw POST: status plus body, throwing only when nothing answered. */
-    private fun postRaw(path: String, jsonBody: String, withAuth: Boolean = true): Pair<Int, String> {
+    private fun postRaw(
+        path: String,
+        jsonBody: String,
+        withAuth: Boolean = true
+    ): Pair<Int, String> {
         val builder = Request.Builder()
             .url(base + path)
             .header("Accept", "application/json")
@@ -298,23 +282,17 @@ class ZeroWidgetApi(
 
     companion object {
         /** Mirrors APIClient.pathSegment: one escaped path segment. */
-        fun pathSegment(value: String): String =
-            URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
+        fun pathSegment(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
     }
 }
 
 /** Answer to POST /v1/auth/agent-token/rotate. Unknown fields ignored. */
 @Serializable
-data class AgentTokenRotation(
-    val token: String = "",
-    val revokedAgentTokens: Int = 0,
-)
+data class AgentTokenRotation(val token: String = "", val revokedAgentTokens: Int = 0)
 
 /** Answer to GET /v1/account. Mirrors the server's account shape. */
 @Serializable
-data class AccountResponse(
-    val account: AccountInfo = AccountInfo(),
-)
+data class AccountResponse(val account: AccountInfo = AccountInfo())
 
 @Serializable
 data class AccountInfo(
@@ -327,27 +305,22 @@ data class AccountInfo(
      * callers must offer neither delete nor unlink then, since the case
      * cannot be determined.
      */
-    val identities: List<AccountIdentity> = emptyList(),
+    val identities: List<AccountIdentity> = emptyList()
 )
 
 @Serializable
-data class AccountIdentity(
-    val provider: String = "",
-)
+data class AccountIdentity(val provider: String = "")
 
 /** Answer to GET /v1/subscription. Mirrors SubscriptionState server-side. */
 @Serializable
 data class SubscriptionResponse(
     val subscription: SubscriptionState = SubscriptionState(),
-    val required: Boolean = false,
+    val required: Boolean = false
 )
 
 /** Body of POST /v1/meta/subscription/sync. See [ZeroWidgetApi.syncMetaSubscription]. */
 @Serializable
-data class MetaSubscriptionSyncRequest(
-    val userId: String,
-    val sku: String,
-)
+data class MetaSubscriptionSyncRequest(val userId: String, val sku: String)
 
 @Serializable
 data class SubscriptionState(
@@ -356,7 +329,7 @@ data class SubscriptionState(
     val productId: String? = null,
     val expiresAt: String? = null,
     val autoRenew: Boolean? = null,
-    val environment: String? = null,
+    val environment: String? = null
 ) {
     /**
      * One label for the Settings row. Ports iOS displayLabel: five

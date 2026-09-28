@@ -1,13 +1,11 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.PanelBreakpoints
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,11 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import metavrx.uiset.compose.Icon as UiSetIcon
-import metavrx.uiset.compose.navigation.SideNavItem
-import metavrx.uiset.compose.Text
-import com.zerozerowidget.hzos.ui.theme.panelBackground
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,15 +25,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import com.zerozerowidget.hzos.data.ConnectionStore
+import com.zerozerowidget.hzos.ui.PanelBreakpoints
+import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.agent.AgentConnectPanel
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.theme.panelBackground
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
-import metavrx.uiset.compose.theme.icons.Icons as UiSetIcons
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Icon as UiSetIcon
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.navigation.SideNavItem
+import metavrx.uiset.compose.theme.LocalTypography
+import metavrx.uiset.compose.theme.icons.Icons as UiSetIcons
 
 internal enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION, ACCOUNT }
 
@@ -72,7 +74,7 @@ fun SettingsPanel(
     onClose: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
-    onSignInRequestConsumed: () -> Unit = {},
+    onSignInRequestConsumed: () -> Unit = {}
 ) {
     var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
     val title = titleOf(destination)
@@ -82,7 +84,7 @@ fun SettingsPanel(
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
     val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", ""),
+        initial = ConnectionStore.Connection("", "")
     )
     // What the rail offers mirrors what the root links to: account screens
     // only when signed in, subscription only when the build sells one.
@@ -92,91 +94,95 @@ fun SettingsPanel(
         add(SettingsDestination.ROOT)
         add(SettingsDestination.AGENT)
         if (signedIn) add(SettingsDestination.ACCOUNT)
-        if (signedIn && com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
+        if (signedIn && BuildConfig.SUBSCRIPTIONS_ENABLED) {
             add(SettingsDestination.SUBSCRIPTION)
         }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().panelBackground()) {
-    // Wide panels get a UI Set side-nav rail: one pinch per destination
-    // and no Back. Below the breakpoint the drill-in stays, since a rail
-    // would take a third of a 480dp panel.
-    val showRail = maxWidth >= PanelBreakpoints.SettingsRail
-    Row(Modifier.fillMaxSize()) {
-    if (showRail) {
-        Column(
-            Modifier
-                .width(220.dp)
-                .padding(start = spacing.medium, top = spacing.twoXLarge),
-            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
-        ) {
-            railDestinations.forEach { dest ->
-                SideNavItem(
-                    icon = { UiSetIcon(railIcon(dest), contentDescription = null) },
-                    onClick = { destination = dest },
-                    primaryLabel = titleOf(dest),
-                    selected = destination == dest,
-                )
+        // Wide panels get a UI Set side-nav rail: one pinch per destination
+        // and no Back. Below the breakpoint the drill-in stays, since a rail
+        // would take a third of a 480dp panel.
+        val showRail = maxWidth >= PanelBreakpoints.SettingsRail
+        Row(Modifier.fillMaxSize()) {
+            if (showRail) {
+                Column(
+                    Modifier
+                        .width(220.dp)
+                        .padding(start = spacing.medium, top = spacing.twoXLarge),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xSmall)
+                ) {
+                    railDestinations.forEach { dest ->
+                        SideNavItem(
+                            icon = { UiSetIcon(railIcon(dest), contentDescription = null) },
+                            onClick = { destination = dest },
+                            primaryLabel = titleOf(dest),
+                            selected = destination == dest
+                        )
+                    }
+                }
             }
-        }
-    }
-    Column(Modifier.weight(1f).fillMaxHeight()) {
-        // Pinned: Back, title, and close stay put while the destination
-        // below scrolls — the agent guide is long enough to lose them.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.twoXLarge),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (destination != SettingsDestination.ROOT && !(showRail && destination in railDestinations)) {
-                UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
-                Spacer(Modifier.width(spacing.small))
-            }
-            Text(
-                title,
-                style = LocalTypography.current.headline,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            UiSetIconButton(onClick = onClose, contentDescription = "Close") {
-                UiSetIcon(UiSetIcons.Regular.Close, contentDescription = null)
-            }
-        }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                // Pinned: Back, title, and close stay put while the destination
+                // below scrolls — the agent guide is long enough to lose them.
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.twoXLarge),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (destination != SettingsDestination.ROOT && !(showRail && destination in railDestinations)) {
+                        UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
+                        Spacer(Modifier.width(spacing.small))
+                    }
+                    Text(
+                        title,
+                        style = LocalTypography.current.headline,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    UiSetIconButton(onClick = onClose, contentDescription = "Close") {
+                        UiSetIcon(UiSetIcons.Regular.Close, contentDescription = null)
+                    }
+                }
 
-        Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.medium, bottom = spacing.twoXLarge),
-            verticalArrangement = Arrangement.spacedBy(spacing.medium),
-        ) {
-        when (destination) {
-            SettingsDestination.ROOT -> SettingsRoot(
-                app = app,
-                onOpenAgent = { destination = SettingsDestination.AGENT },
-                onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
-                onOpenSubscription = { destination = SettingsDestination.SUBSCRIPTION },
-                onOpenAccountAccess = { destination = SettingsDestination.ACCOUNT },
-                onSendAuthUrl = onSendAuthUrl,
-                signInRequest = signInRequest,
-                onSignInRequestConsumed = onSignInRequestConsumed,
-            )
-            SettingsDestination.AGENT -> AgentConnectPanel(app = app)
-            SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
-            SettingsDestination.SUBSCRIPTION -> SubscriptionSection(app = app)
-            SettingsDestination.ACCOUNT -> AccountAccessDestination(
-                app = app,
-                // Delete/unlink ends the session: land back on the root
-                // so Settings shows the signed-out Server card, not this
-                // screen with dead credentials behind it.
-                onSignedOut = { destination = SettingsDestination.ROOT },
-            )
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.medium, bottom = spacing.twoXLarge),
+                    verticalArrangement = Arrangement.spacedBy(spacing.medium)
+                ) {
+                    when (destination) {
+                        SettingsDestination.ROOT -> SettingsRoot(
+                            app = app,
+                            onOpenAgent = { destination = SettingsDestination.AGENT },
+                            onOpenDeveloper = { destination = SettingsDestination.DEVELOPER },
+                            onOpenSubscription = { destination = SettingsDestination.SUBSCRIPTION },
+                            onOpenAccountAccess = { destination = SettingsDestination.ACCOUNT },
+                            onSendAuthUrl = onSendAuthUrl,
+                            signInRequest = signInRequest,
+                            onSignInRequestConsumed = onSignInRequestConsumed
+                        )
+
+                        SettingsDestination.AGENT -> AgentConnectPanel(app = app)
+
+                        SettingsDestination.DEVELOPER -> DeveloperPanel(app = app)
+
+                        SettingsDestination.SUBSCRIPTION -> SubscriptionSection(app = app)
+
+                        SettingsDestination.ACCOUNT -> AccountAccessDestination(
+                            app = app,
+                            // Delete/unlink ends the session: land back on the root
+                            // so Settings shows the signed-out Server card, not this
+                            // screen with dead credentials behind it.
+                            onSignedOut = { destination = SettingsDestination.ROOT }
+                        )
+                    }
+                }
+            }
         }
-        }
-    }
-    }
     }
 }
 
@@ -189,15 +195,15 @@ internal fun SettingsRoot(
     onOpenAccountAccess: () -> Unit,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     signInRequest: Int = 0,
-    onSignInRequestConsumed: () -> Unit = {},
+    onSignInRequestConsumed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", ""),
+        initial = ConnectionStore.Connection("", "")
     )
     val signedIn = connection.apiKey.isNotBlank()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
 
     // Same switch check as the dashboard foreground: opening Settings on a
@@ -223,19 +229,19 @@ internal fun SettingsRoot(
                             }
                         },
                         signInRequest = signInRequest,
-                        onSignInRequestConsumed = onSignInRequestConsumed,
+                        onSignInRequestConsumed = onSignInRequestConsumed
                     )
                 } else {
                     AccountSection(
                         app = app,
                         // Purchase flow lives behind the build flag; without
                         // it the status row is display-only, as before.
-                        onOpenSubscription = if (com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
+                        onOpenSubscription = if (BuildConfig.SUBSCRIPTIONS_ENABLED) {
                             onOpenSubscription
                         } else {
                             null
                         },
-                        onOpenAccountAccess = onOpenAccountAccess,
+                        onOpenAccountAccess = onOpenAccountAccess
                     )
                 }
             }

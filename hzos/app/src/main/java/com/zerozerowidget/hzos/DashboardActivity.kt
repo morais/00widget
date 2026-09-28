@@ -3,12 +3,12 @@ package com.zerozerowidget.hzos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import com.zerozerowidget.hzos.ui.dashboard.DashboardPanel
 import com.zerozerowidget.hzos.ui.openActivityDetailPanel
-import com.zerozerowidget.hzos.ui.openSettingsPanel
 import com.zerozerowidget.hzos.ui.openDetailPanel
+import com.zerozerowidget.hzos.ui.openSettingsPanel
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
-import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import kotlinx.coroutines.launch
 
 /** Launcher panel: the card list. Entry point of the app. */
@@ -22,7 +22,7 @@ class DashboardActivity : ComponentActivity() {
                     app = app,
                     onOpenSettings = { openSettingsPanel() },
                     onPopOut = { cardId, isSample -> openDetailPanel(cardId, isSample) },
-                    onPopOutActivity = { id, isSample -> openActivityDetailPanel(id, isSample) },
+                    onPopOutActivity = { id, isSample -> openActivityDetailPanel(id, isSample) }
                 )
             }
         }

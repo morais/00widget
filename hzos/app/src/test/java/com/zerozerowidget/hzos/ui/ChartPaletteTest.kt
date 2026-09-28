@@ -32,11 +32,11 @@ class ChartPaletteTest {
         val unknown = Color(0xFF000001)
         assertEquals(
             statusColor(DashboardStatus.CRITICAL, unknown, true),
-            statusColor(DashboardStatus.CRITICAL, unknown, true),
+            statusColor(DashboardStatus.CRITICAL, unknown, true)
         )
         assertNotEquals(
             statusColor(DashboardStatus.CRITICAL, unknown, true),
-            statusColor(DashboardStatus.CRITICAL, unknown, false),
+            statusColor(DashboardStatus.CRITICAL, unknown, false)
         )
         assertEquals(unknown, statusColor(DashboardStatus.UNKNOWN, unknown, true))
         assertEquals(unknown, statusColor(DashboardStatus.UNKNOWN, unknown, false))
@@ -47,7 +47,7 @@ class ChartPaletteTest {
         val accent = Color(0xFF000002)
         assertNotEquals(
             activityTint("charging", null, accent, true),
-            activityTint("charging", null, accent, false),
+            activityTint("charging", null, accent, false)
         )
         assertEquals(accent, activityTint("other", null, accent, true))
         assertEquals(accent, activityTint("other", null, accent, false))

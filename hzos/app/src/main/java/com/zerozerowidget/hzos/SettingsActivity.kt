@@ -50,7 +50,7 @@ class SettingsActivity : ComponentActivity() {
                         sendAuthUrl(authUrl, onSent)
                     },
                     signInRequest = signInRequest,
-                    onSignInRequestConsumed = { signInRequest = 0 },
+                    onSignInRequestConsumed = { signInRequest = 0 }
                 )
             }
         }
@@ -77,7 +77,10 @@ class SettingsActivity : ComponentActivity() {
             } catch (e: Exception) {
                 // No handler for the OS dialog (old OS, no Horizon app):
                 // report not-sent instead of crashing the scope.
-                android.util.Log.e("HorizonAuth", "send dialog launch failed: ${e.javaClass.simpleName}")
+                android.util.Log.e(
+                    "HorizonAuth",
+                    "send dialog launch failed: ${e.javaClass.simpleName}"
+                )
                 pendingSendCallback = null
                 onSent(false)
             }

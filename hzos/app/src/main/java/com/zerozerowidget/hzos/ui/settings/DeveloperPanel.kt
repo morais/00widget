@@ -1,13 +1,9 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,15 +15,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.ConnectionStore
+import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSlider
 import com.zerozerowidget.hzos.ui.uiset.UiSetSwitch
 import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Developer destination: Worker URL, sample-indicator visibility, and panel
@@ -38,12 +40,12 @@ import kotlinx.coroutines.launch
 internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
     val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
     val showDummyAccountData by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
-    val locked = com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL.isNotBlank()
+    val locked = BuildConfig.DEFAULT_BASE_URL.isNotBlank()
     var serverUrl by remember { mutableStateOf("") }
     var savedNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -58,18 +60,21 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 // the URL sits under it as plain text. A disabled field
                 // here was chrome around a value nobody can change.
                 Text(
-                    com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL,
+                    BuildConfig.DEFAULT_BASE_URL,
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             } else {
                 UiSetTextField(
                     value = serverUrl,
                     label = "",
                     placeholder = "https://…",
-                    onValueChange = { serverUrl = it; savedNote = null },
+                    onValueChange = {
+                        serverUrl = it
+                        savedNote = null
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardType = KeyboardType.Uri,
+                    keyboardType = KeyboardType.Uri
                 )
             }
             if (!locked) {
@@ -77,7 +82,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     Text(
                         it,
                         style = LocalTypography.current.bodySmall,
-                        color = uiSetAccent(),
+                        color = uiSetAccent()
                     )
                 }
                 UiSetPrimaryButton(
@@ -94,20 +99,20 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                             app.repository.refresh()
                             savedNote = "Saved — dashboard is refreshing."
                         }
-                    },
+                    }
                 )
             }
             Text("Screenshots and recordings", style = LocalTypography.current.title)
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Show dummy account data", style = LocalTypography.current.body)
                     Text(
                         "A visibly fake token on the Settings screen instead of your own.",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
                 UiSetSwitch(
@@ -115,19 +120,19 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     onCheckedChange = { checked ->
                         scope.launch { app.panelPrefs.setShowDummyAccountData(checked) }
                     },
-                    contentDescription = "Show dummy account data",
+                    contentDescription = "Show dummy account data"
                 )
             }
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("Hide sample indicators", style = LocalTypography.current.body)
                     Text(
                         "Demo data stays; badges and notice go away.",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
                 UiSetSwitch(
@@ -135,7 +140,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     onCheckedChange = { checked ->
                         scope.launch { app.panelPrefs.setHideSampleIndicators(checked) }
                     },
-                    contentDescription = "Hide sample indicators",
+                    contentDescription = "Hide sample indicators"
                 )
             }
             Text(
@@ -144,7 +149,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     "agent config copies what is on screen — so turn this off before " +
                     "handing the token to an agent.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             Text("Look", style = LocalTypography.current.title)
             Column(Modifier.fillMaxWidth()) {
@@ -152,7 +157,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 Text(
                     "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             }
             UiSetSlider(
@@ -162,7 +167,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     scope.launch { app.panelPrefs.setCardAlpha(sliderAlpha) }
                 },
                 valueRange = 0.5f..1f,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

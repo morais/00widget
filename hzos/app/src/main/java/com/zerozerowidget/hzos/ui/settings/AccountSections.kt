@@ -1,6 +1,5 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,10 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,17 +19,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
+import com.zerozerowidget.hzos.data.AccountIdAction
 import com.zerozerowidget.hzos.data.SubscriptionState
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
-import com.zerozerowidget.hzos.data.AccountIdAction
 import com.zerozerowidget.hzos.data.accountIdAction
+import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Device sign-out plus delete-or-unlink, grouped like iOS Account and
@@ -45,7 +46,7 @@ import kotlinx.coroutines.launch
 internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
@@ -56,7 +57,7 @@ internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () ->
                     "Signing out forgets this device's credential and clears " +
                         "its cards straight away.",
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
                 UiSetSecondaryButton(
                     "Sign out",
@@ -65,7 +66,7 @@ internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () ->
                             app.connectionStore.clear()
                             app.repository.clearServerData()
                         }
-                    },
+                    }
                 )
             }
         }
@@ -93,7 +94,7 @@ internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () ->
 internal fun AccountSection(
     app: ZeroZeroWidgetApp,
     onOpenSubscription: (() -> Unit)? = null,
-    onOpenAccountAccess: () -> Unit,
+    onOpenAccountAccess: () -> Unit
 ) {
     var accountName by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -129,24 +130,24 @@ internal fun AccountSection(
         // so the row below does not move when the name arrives.
         Row(
             Modifier.fillMaxWidth().padding(vertical = spacing.medium),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (loaded && accountName.isNullOrBlank()) {
                 Text(
                     "Signed in.",
                     style = LocalTypography.current.body,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
             } else {
                 Text(
                     "Signed in as",
                     style = LocalTypography.current.body,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     if (!loaded) "Loading…" else accountName!!,
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             }
         }
@@ -155,17 +156,17 @@ internal fun AccountSection(
             // Account door jumps when this row arrives or stays away.
             Row(
                 Modifier.fillMaxWidth().padding(vertical = spacing.medium),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "Subscription",
                     style = LocalTypography.current.body,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     "Loading…",
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             }
         } else if (subscription != null) {
@@ -186,7 +187,7 @@ internal fun AccountSection(
                 Text(
                     "Subscription",
                     style = LocalTypography.current.body,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     subscription!!.displayLabel,
@@ -195,14 +196,14 @@ internal fun AccountSection(
                         LocalColorScheme.current.negative.content
                     } else {
                         LocalContentColors.current.secondary
-                    },
+                    }
                 )
                 if (onOpenSubscription != null) {
                     Text(
                         ">",
                         style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary,
-                        modifier = Modifier.padding(start = spacing.small),
+                        modifier = Modifier.padding(start = spacing.small)
                     )
                 }
             }
@@ -212,17 +213,17 @@ internal fun AccountSection(
                 .fillMaxWidth()
                 .clickable(onClick = onOpenAccountAccess)
                 .padding(vertical = spacing.medium),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 "Account and access",
                 style = LocalTypography.current.body,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f)
             )
             Text(
                 ">",
                 style = LocalTypography.current.body,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
     }
@@ -236,7 +237,11 @@ internal fun AccountSection(
  * the account or the link — and refreshes into the signed-out view.
  */
 @Composable
-internal fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSignedOut: () -> Unit) {
+internal fun AccountAccessSection(
+    app: ZeroZeroWidgetApp,
+    cardAlpha: Float,
+    onSignedOut: () -> Unit
+) {
     val scope = rememberCoroutineScope()
     var action by remember { mutableStateOf<AccountIdAction?>(null) }
     var confirming by remember { mutableStateOf<AccountIdAction?>(null) }
@@ -265,15 +270,14 @@ internal fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSi
             Text(
                 "Loading…",
                 style = LocalTypography.current.body,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
         return
     }
     if (action == AccountIdAction.NONE) return
 
-    suspend fun api(): ZeroWidgetApi =
-        app.authedApi() ?: throw IllegalStateException("Not connected.")
+    suspend fun api(): ZeroWidgetApi = app.authedApi() ?: throw IllegalStateException("Not connected.")
 
     fun execute(act: AccountIdAction) {
         if (busy) return
@@ -305,13 +309,13 @@ internal fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSi
                         landSignedOut()
                     } else if (status == 409) {
                         throw IllegalStateException(
-                            "Horizon is the only way into this account — delete it instead.",
+                            "Horizon is the only way into this account — delete it instead."
                         )
                     } else {
                         val serverError = """"error"\s*:\s*"([^"]*)""""
                             .toRegex().find(body)?.groupValues?.getOrNull(1)
                         throw IllegalStateException(
-                            serverError?.takeIf { it.isNotBlank() } ?: "Request failed ($status).",
+                            serverError?.takeIf { it.isNotBlank() } ?: "Request failed ($status)."
                         )
                     }
                 }
@@ -350,22 +354,26 @@ internal fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSi
                         "and signs this device out."
                 },
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             error?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalColorScheme.current.negative.content
+                )
             }
             if (isDelete) {
                 UiSetDestructiveButton(
                     if (busy) "Working…" else "Delete account",
                     onClick = { confirming = action },
-                    enabled = !busy,
+                    enabled = !busy
                 )
             } else {
                 UiSetSecondaryButton(
                     if (busy) "Working…" else "Unlink this headset",
                     onClick = { confirming = action },
-                    enabled = !busy,
+                    enabled = !busy
                 )
             }
         }
@@ -386,7 +394,7 @@ internal fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSi
             dismissLabel = "Cancel",
             onDismiss = { if (!busy) confirming = null },
             destructive = destructive,
-            confirmEnabled = !busy,
+            confirmEnabled = !busy
         )
     }
 }

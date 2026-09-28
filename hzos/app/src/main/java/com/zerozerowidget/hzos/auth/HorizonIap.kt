@@ -22,15 +22,8 @@ import kotlinx.coroutines.CoroutineScope
  * stable for this app and meaningless outside it. That is the value the
  * Worker's Meta subscription sync keys on — never the cross-app Oculus id.
  */
-class HorizonIap(
-    private val scope: CoroutineScope,
-    val appId: String,
-) {
-    data class ProductOffer(
-        val sku: String,
-        val name: String,
-        val formattedPrice: String,
-    )
+class HorizonIap(private val scope: CoroutineScope, val appId: String) {
+    data class ProductOffer(val sku: String, val name: String, val formattedPrice: String)
 
     val isAvailable: Boolean get() = appId.isNotBlank()
 
@@ -47,7 +40,7 @@ class HorizonIap(
                         ProductOffer(
                             sku = product.sku,
                             name = product.name,
-                            formattedPrice = product.formattedPrice,
+                            formattedPrice = product.formattedPrice
                         )
                     }
                 }
@@ -69,7 +62,11 @@ class HorizonIap(
      * message (cancel included) on failure — the caller shows it as-is.
      */
     suspend fun checkout(sku: String): Result<String> {
-        if (!isAvailable) return Result.failure(IllegalStateException("Platform app ID not configured."))
+        if (!isAvailable) {
+            return Result.failure(
+                IllegalStateException("Platform app ID not configured.")
+            )
+        }
         return try {
             Result.success(Iap().launchCheckoutFlow(sku).sku)
         } catch (e: IapException) {

@@ -24,10 +24,8 @@ object SampleData {
     fun sampleId(suffix: String): String = PREFIX + suffix
 
     private fun now(): String = Instant.now().toString()
-    private fun plusMinutes(minutes: Long): String =
-        Instant.now().plusSeconds(minutes * 60).toString()
-    private fun minusMinutes(minutes: Long): String =
-        Instant.now().minusSeconds(minutes * 60).toString()
+    private fun plusMinutes(minutes: Long): String = Instant.now().plusSeconds(minutes * 60).toString()
+    private fun minusMinutes(minutes: Long): String = Instant.now().minusSeconds(minutes * 60).toString()
 
     fun makeCards(): List<DashboardCard> = listOf(
         DashboardCard(
@@ -43,23 +41,27 @@ object SampleData {
             updatedAt = now(),
             briefing = DashboardBriefing(
                 sections = listOf(
-                    BriefingSection(id = "now", label = "Now", text = "Store uploaded; website live."),
+                    BriefingSection(
+                        id = "now",
+                        label = "Now",
+                        text = "Store uploaded; website live."
+                    ),
                     BriefingSection(
                         id = "next",
                         label = "Next",
-                        text = "Start the 10% rollout and publish the release notes after approval.",
+                        text = "Start the 10% rollout and publish the release notes after approval."
                     ),
                     BriefingSection(
                         id = "needs-you",
                         label = "Needs you",
-                        text = "Approve the customer announcement.",
-                    ),
-                ),
+                        text = "Approve the customer announcement."
+                    )
+                )
             ),
             // Consequential: routes through confirmation, never auto-runs.
             actions = listOf(
-                ActionDefinition(id = "approve-launch", label = "Approve", confirm = true),
-            ),
+                ActionDefinition(id = "approve-launch", label = "Approve", confirm = true)
+            )
         ),
         DashboardCard(
             id = sampleId("production"),
@@ -71,10 +73,31 @@ object SampleData {
             producer = CardProducer(label = "Ops Agent", icon = "gearshape.2"),
             updatedAt = now(),
             items = listOf(
-                DashboardItem(id = "api", title = "API", value = "118", unit = "ms", status = DashboardStatus.GOOD, amount = 118.0),
-                DashboardItem(id = "checkout", title = "Store", value = "99.99", unit = "%", status = DashboardStatus.GOOD, amount = 99.99),
-                DashboardItem(id = "queue", title = "Queue", value = "0", unit = "waiting", status = DashboardStatus.GOOD, amount = 0.0),
-            ),
+                DashboardItem(
+                    id = "api",
+                    title = "API",
+                    value = "118",
+                    unit = "ms",
+                    status = DashboardStatus.GOOD,
+                    amount = 118.0
+                ),
+                DashboardItem(
+                    id = "checkout",
+                    title = "Store",
+                    value = "99.99",
+                    unit = "%",
+                    status = DashboardStatus.GOOD,
+                    amount = 99.99
+                ),
+                DashboardItem(
+                    id = "queue",
+                    title = "Queue",
+                    value = "0",
+                    unit = "waiting",
+                    status = DashboardStatus.GOOD,
+                    amount = 0.0
+                )
+            )
         ),
         DashboardCard(
             id = sampleId("trials"),
@@ -95,12 +118,12 @@ object SampleData {
                 reference = 110.0,
                 referenceMetadata = ChartReferenceMetadata(
                     label = "Monday",
-                    semantic = MetricSemantic(role = "baseline"),
+                    semantic = MetricSemantic(role = "baseline")
                 ),
                 semantic = MetricSemantic(role = "actual", signal = "favorable"),
                 style = "line",
-                labels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"),
-            ),
+                labels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today")
+            )
         ),
         DashboardCard(
             id = sampleId("support"),
@@ -113,11 +136,29 @@ object SampleData {
             producer = CardProducer(label = "Support Agent", icon = "sparkles"),
             updatedAt = now(),
             items = listOf(
-                DashboardItem(id = "waiting", title = "Waiting", value = "1", status = DashboardStatus.WARNING, amount = 1.0),
-                DashboardItem(id = "resolved", title = "Resolved", value = "18", status = DashboardStatus.GOOD, amount = 18.0),
-                DashboardItem(id = "draft-ready", title = "Draft ready", value = "5", status = DashboardStatus.RUNNING, amount = 5.0),
+                DashboardItem(
+                    id = "waiting",
+                    title = "Waiting",
+                    value = "1",
+                    status = DashboardStatus.WARNING,
+                    amount = 1.0
+                ),
+                DashboardItem(
+                    id = "resolved",
+                    title = "Resolved",
+                    value = "18",
+                    status = DashboardStatus.GOOD,
+                    amount = 18.0
+                ),
+                DashboardItem(
+                    id = "draft-ready",
+                    title = "Draft ready",
+                    value = "5",
+                    status = DashboardStatus.RUNNING,
+                    amount = 5.0
+                )
             ),
-            actions = listOf(ActionDefinition(id = "open-support", label = "Review")),
+            actions = listOf(ActionDefinition(id = "open-support", label = "Review"))
         ),
         DashboardCard(
             id = sampleId("ai-spend"),
@@ -129,7 +170,7 @@ object SampleData {
             icon = "dollarsign.circle",
             producer = CardProducer(label = "Usage Agent", icon = "sparkles"),
             progress = 0.613,
-            updatedAt = now(),
+            updatedAt = now()
         ),
         DashboardCard(
             id = sampleId("agent-runs"),
@@ -147,9 +188,9 @@ object SampleData {
                     title = "Run $n",
                     subtitle = if (n == 20) "Recovered after retry" else null,
                     value = "Passed",
-                    status = DashboardStatus.GOOD,
+                    status = DashboardStatus.GOOD
                 )
-            },
+            }
         ),
         DashboardCard(
             id = sampleId("open-prs"),
@@ -159,9 +200,12 @@ object SampleData {
             value = "3",
             status = DashboardStatus.GOOD,
             icon = "arrow.triangle.branch",
-            producer = CardProducer(label = "Code Agent", icon = "chevron.left.forwardslash.chevron.right"),
-            updatedAt = now(),
-        ),
+            producer = CardProducer(
+                label = "Code Agent",
+                icon = "chevron.left.forwardslash.chevron.right"
+            ),
+            updatedAt = now()
+        )
     )
 
     /** The one demo activity. iOS offers two samples; the screenshot-capture
@@ -182,17 +226,42 @@ object SampleData {
             value = "4/5",
             progress = 0.8,
             items = listOf(
-                LiveActivityItem(id = "announcement", title = "Announcement", value = "Needs approval", status = DashboardStatus.WARNING),
-                LiveActivityItem(id = "store", title = "Store", value = "Uploaded", status = DashboardStatus.FINISHED),
-                LiveActivityItem(id = "website", title = "Website", value = "Live", status = DashboardStatus.FINISHED),
-                LiveActivityItem(id = "tests", title = "Tests", value = "412 passed", status = DashboardStatus.FINISHED),
-                LiveActivityItem(id = "build", title = "Build", value = "Passed", status = DashboardStatus.FINISHED),
+                LiveActivityItem(
+                    id = "announcement",
+                    title = "Announcement",
+                    value = "Needs approval",
+                    status = DashboardStatus.WARNING
+                ),
+                LiveActivityItem(
+                    id = "store",
+                    title = "Store",
+                    value = "Uploaded",
+                    status = DashboardStatus.FINISHED
+                ),
+                LiveActivityItem(
+                    id = "website",
+                    title = "Website",
+                    value = "Live",
+                    status = DashboardStatus.FINISHED
+                ),
+                LiveActivityItem(
+                    id = "tests",
+                    title = "Tests",
+                    value = "412 passed",
+                    status = DashboardStatus.FINISHED
+                ),
+                LiveActivityItem(
+                    id = "build",
+                    title = "Build",
+                    value = "Passed",
+                    status = DashboardStatus.FINISHED
+                )
             ),
             // Deliberately no endsAt: blocked on a person, and an ETA beside
             // "Waiting for approval" pretends a clock can predict a decision.
             startedAt = minusMinutes(32),
             updatedAt = now,
-            staleAt = plusMinutes(60),
+            staleAt = plusMinutes(60)
         )
     }
 }

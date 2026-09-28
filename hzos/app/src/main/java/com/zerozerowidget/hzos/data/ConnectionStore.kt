@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.zerozerowidget.hzos.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -51,12 +52,13 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
          */
         fun effectiveBaseUrl(
             stored: String,
-            default: String = com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL,
+            default: String = BuildConfig.DEFAULT_BASE_URL
         ): String? = normalizeBaseUrl(stored.ifBlank { default })
 
         private fun isLocalHost(host: String): Boolean {
             val h = host.lowercase()
-            return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" || h.endsWith(".localhost")
+            return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" ||
+                h.endsWith(".localhost")
         }
     }
 
@@ -65,7 +67,7 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
             Connection(
                 baseUrl = prefs[BASE_URL].orEmpty(),
                 apiKey = prefs[API_KEY].orEmpty(),
-                metaUserId = prefs[META_USER_ID].orEmpty(),
+                metaUserId = prefs[META_USER_ID].orEmpty()
             )
         }
 

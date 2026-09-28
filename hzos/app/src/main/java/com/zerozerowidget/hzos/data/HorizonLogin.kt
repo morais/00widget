@@ -20,7 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 data class HorizonSignInRequest(
     @SerialName("userId") val userId: String,
     @SerialName("userProof") val userProof: String,
-    @SerialName("choice") val choice: String? = null,
+    @SerialName("choice") val choice: String? = null
 )
 
 private val horizonJson = Json {
@@ -31,11 +31,10 @@ private val horizonJson = Json {
 }
 
 /** Encodes the sign-in body. A null [choice] is omitted, never sent null. */
-fun horizonSignInBody(userId: String, userProof: String, choice: String?): String =
-    horizonJson.encodeToString(
-        HorizonSignInRequest.serializer(),
-        HorizonSignInRequest(userId, userProof, choice),
-    )
+fun horizonSignInBody(userId: String, userProof: String, choice: String?): String = horizonJson.encodeToString(
+    HorizonSignInRequest.serializer(),
+    HorizonSignInRequest(userId, userProof, choice)
+)
 
 sealed interface HorizonOutcome {
     /** Verified and credentialed: store the token against [userId]. */
@@ -67,7 +66,7 @@ fun classifyHorizonSignIn(
     userId: String,
     httpCode: Int,
     body: String,
-    proofAttempt: Int,
+    proofAttempt: Int
 ): HorizonStep {
     if (httpCode == 201) {
         val token = stringField(body, "token")
@@ -83,7 +82,7 @@ fun classifyHorizonSignIn(
             // Falls through to the unexpected-answer failure below.
         }
         return HorizonStep.Done(
-            HorizonOutcome.Failed("The server's answer wasn't a sign-in. Update the Worker."),
+            HorizonOutcome.Failed("The server's answer wasn't a sign-in. Update the Worker.")
         )
     }
     if (httpCode == 200 && stringField(body, "status") == "choice_required") {
@@ -111,12 +110,12 @@ fun classifyHorizonSignIn(
 suspend fun runHorizonSignIn(
     identity: suspend () -> MetaIdentity?,
     request: suspend (userId: String, userProof: String, choice: String?) -> Pair<Int, String>,
-    choice: String? = null,
+    choice: String? = null
 ): HorizonOutcome {
     repeat(2) { attempt ->
         val id = identity()
             ?: return HorizonOutcome.Failed(
-                "Couldn't read this headset's Meta user. Check the Platform app ID.",
+                "Couldn't read this headset's Meta user. Check the Platform app ID."
             )
         val (code, body) = request(id.userId, id.userProof, choice)
         when (val step = classifyHorizonSignIn(id.userId, code, body, attempt)) {
@@ -133,8 +132,7 @@ suspend fun runHorizonSignIn(
  * unreadable current ids never count — only a present-and-different pair
  * clears a token.
  */
-fun isMetaUserSwitch(storedUserId: String, currentUserId: String?): Boolean =
-    storedUserId.isNotBlank() && !currentUserId.isNullOrBlank() && storedUserId != currentUserId
+fun isMetaUserSwitch(storedUserId: String, currentUserId: String?): Boolean = storedUserId.isNotBlank() && !currentUserId.isNullOrBlank() && storedUserId != currentUserId
 
 /** What Settings may offer for the account's login identities. */
 enum class AccountIdAction { NONE, DELETE, UNLINK }
@@ -174,5 +172,4 @@ private fun stringField(body: String, name: String): String? = try {
     null
 }
 
-private fun serverError(body: String): String? =
-    stringField(body, "error")?.takeIf { it.isNotBlank() }
+private fun serverError(body: String): String? = stringField(body, "error")?.takeIf { it.isNotBlank() }

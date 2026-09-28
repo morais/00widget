@@ -1,6 +1,5 @@
 package com.zerozerowidget.hzos.ui.agent
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -8,19 +7,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -32,31 +27,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.MCPConnectionSummary
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.describeBrowserApproval
+import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.openDeepLink
+import com.zerozerowidget.hzos.ui.relativeTime
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
-import com.zerozerowidget.hzos.ui.relativeTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * "Connect an agent" guide, ported from iOS ConnectAgentGuideView: what a
@@ -70,11 +72,11 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", ""),
+        initial = ConnectionStore.Connection("", "")
     )
     val signedIn = connection.apiKey.isNotBlank()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsStateWithLifecycle(
-        initialValue = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initialValue = PanelPrefs.DEFAULT_CARD_ALPHA
     )
     var connections by remember { mutableStateOf<List<MCPConnectionSummary>>(emptyList()) }
     var connectionsError by remember { mutableStateOf<String?>(null) }
@@ -132,13 +134,13 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     if (!connectionKnown) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(spacing.medium),
+            verticalArrangement = Arrangement.spacedBy(spacing.medium)
         ) {
             GlassCard(cardAlpha = cardAlpha) {
                 Text(
                     "Loading…",
                     style = LocalTypography.current.body,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             }
         }
@@ -147,7 +149,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(spacing.medium)
     ) {
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
@@ -156,13 +158,13 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                         "without you handing it a token. It asks for permission once, you approve it " +
                         "while signed in, and it is issued its own credential.",
                     style = LocalTypography.current.body,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
                 if (!signedIn) {
                     Text(
                         "Sign in on the Connection panel first. Approving a connector needs an " +
                             "account that already exists — the permission screen cannot create one.",
-                        style = LocalTypography.current.body,
+                        style = LocalTypography.current.body
                     )
                 }
             }
@@ -189,13 +191,13 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                         Text(
                             "Loading…",
                             style = LocalTypography.current.body,
-                            color = LocalContentColors.current.secondary,
+                            color = LocalContentColors.current.secondary
                         )
                     } else if (connections.isEmpty()) {
                         Text(
                             "No agents are currently connected.",
                             style = LocalTypography.current.body,
-                            color = LocalContentColors.current.secondary,
+                            color = LocalContentColors.current.secondary
                         )
                     }
                     connections.forEach { item ->
@@ -215,14 +217,14 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                                         busyId = null
                                     }
                                 }
-                            },
+                            }
                         )
                     }
                     Text(
                         "Disconnecting stops that agent's 00Widget access immediately. It may remain " +
                             "listed in that client until you remove it there.",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
             }
@@ -240,7 +242,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                 Text(
                     "Using Claude Code? Run this command, then open /mcp in Claude Code to complete OAuth.",
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
                 CodeBlock(text = "claude mcp add --transport http 00widget $endpoint")
             }
@@ -248,7 +250,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                 "You only do this once. A connector belongs to your Claude account rather than to a " +
                     "device, so it is there afterwards wherever you use Claude.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
 
@@ -295,7 +297,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             Text(
                 "Works with MCP clients that support remote Streamable HTTP and OAuth.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             LinkButton(context, "Cursor", "https://cursor.com/docs/mcp")
             LinkButton(context, "VS Code", "https://code.visualstudio.com/docs/agent-customization/mcp-servers")
@@ -328,7 +330,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
                 val api = app.authedApi() ?: throw IllegalStateException("Not connected.")
                 val (status, body) = api.approveBrowserSignIn(
                     normalized,
-                    if (approved) "approve" else "deny",
+                    if (approved) "approve" else "deny"
                 )
                 notice = describeBrowserApproval(status, body, approved)
                 noticeError = status !in 200..299
@@ -343,7 +345,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
     }
 
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
@@ -353,35 +355,41 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
                     "approve it here and the login completes. Only approve " +
                     "a code shown on your own screen.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             UiSetTextField(
                 value = code,
                 label = "Code (XXXX-XXXX)",
-                onValueChange = { code = it; notice = null },
+                onValueChange = {
+                    code = it
+                    notice = null
+                },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !busy,
+                enabled = !busy
             )
             Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
                 UiSetPrimaryButton(
                     "Approve",
                     onClick = { decide(true) },
                     enabled = !busy,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 UiSetSecondaryButton(
                     "Deny",
                     onClick = { decide(false) },
                     enabled = !busy,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
             }
             notice?.let {
                 Text(
                     it,
                     style = LocalTypography.current.bodySmall,
-                    color = if (noticeError) LocalColorScheme.current.negative.content
-                    else uiSetAccent(),
+                    color = if (noticeError) {
+                        LocalColorScheme.current.negative.content
+                    } else {
+                        uiSetAccent()
+                    }
                 )
             }
         }
@@ -392,10 +400,10 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
 private fun GuideSection(
     app: ZeroZeroWidgetApp,
     title: String,
-    content: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
@@ -410,18 +418,18 @@ private fun Step(number: Int, text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(spacing.medium)) {
         Box(
             Modifier.size(22.dp).background(uiSetAccent(), CircleShape),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.Center
         ) {
             Text(
                 number.toString(),
                 style = LocalTypography.current.caption,
-                color = androidx.compose.ui.graphics.Color.White,
+                color = Color.White
             )
         }
         Text(
             text,
             style = LocalTypography.current.body,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -441,7 +449,7 @@ private fun CodeBlock(text: String) {
             text,
             style = LocalTypography.current.bodySmall.copy(fontFamily = FontFamily.Monospace),
             color = LocalContentColors.current.secondary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
         UiSetIconButtonCopy(copied = copied, onCopy = {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -459,7 +467,7 @@ private fun CodeBlock(text: String) {
 private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
     UiSetIconButton(
         onClick = onCopy,
-        contentDescription = if (copied) "Copied" else "Copy",
+        contentDescription = if (copied) "Copied" else "Copy"
     ) {
         UiSetCopyIcon(copied)
     }
@@ -469,14 +477,14 @@ private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
 private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnect: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+        horizontalArrangement = Arrangement.spacedBy(spacing.small)
     ) {
         Column(Modifier.weight(1f)) {
             Text(item.clientName, style = LocalTypography.current.body)
             Text(
                 connectionSubtitle(item),
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
         DeleteRow(
@@ -490,7 +498,7 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
             // text width, so the label cannot wrap at any type size. A
             // fixed width squeezed the text column to nothing; wrap
             // alone let the inner row fill the parent and did the same.
-            modifier = Modifier.width(IntrinsicSize.Max),
+            modifier = Modifier.width(IntrinsicSize.Max)
         )
     }
 }
@@ -506,8 +514,11 @@ private fun claudeConnectorUrl(endpoint: String): String {
     val escaped = buildString {
         endpoint.toByteArray(Charsets.UTF_8).forEach { b ->
             val c = b.toInt().and(0xFF).toChar()
-            if (c.isLetterOrDigit() || c in "-._~") append(c)
-            else append("%" + b.toInt().and(0xFF).toString(16).uppercase().padStart(2, '0'))
+            if (c.isLetterOrDigit() || c in "-._~") {
+                append(c)
+            } else {
+                append("%" + b.toInt().and(0xFF).toString(16).uppercase().padStart(2, '0'))
+            }
         }
     }
     return "https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=00Widget&connectorUrl=$escaped"

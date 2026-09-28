@@ -24,7 +24,7 @@ data class DashboardState(
     /** Last error, human-readable. Null when the last fetch succeeded. */
     val error: String? = null,
     val lastSyncEpochMs: Long? = null,
-    val isConfigured: Boolean = false,
+    val isConfigured: Boolean = false
 )
 
 /** What the repository reads credentials from; [ConnectionStore] in the app. */
@@ -60,7 +60,7 @@ class DashboardRepository(
     private val store: ConnectionSource,
     private val apiFactory: (baseUrl: String, apiKey: String) -> DashboardApi,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val defaultBaseUrl: String = BuildConfig.DEFAULT_BASE_URL,
+    private val defaultBaseUrl: String = BuildConfig.DEFAULT_BASE_URL
 ) {
     private val _state = MutableStateFlow(DashboardState(isLoading = true))
     val state: StateFlow<DashboardState> = _state.asStateFlow()
@@ -137,10 +137,11 @@ class DashboardRepository(
 
     suspend fun deleteCard(id: String): Result<Unit> = writeOp { api, _ -> api.deleteCard(id) }
 
-    suspend fun endActivity(externalActivityId: String): Result<Unit> =
-        writeOp { api, _ -> api.endActivity(externalActivityId) }
+    suspend fun endActivity(externalActivityId: String): Result<Unit> = writeOp { api, _ -> api.endActivity(externalActivityId) }
 
-    private suspend fun writeOp(op: suspend (DashboardApi, ConnectionStore.Connection) -> Unit): Result<Unit> {
+    private suspend fun writeOp(
+        op: suspend (DashboardApi, ConnectionStore.Connection) -> Unit
+    ): Result<Unit> {
         val connection = store.current()
         val base = effectiveBaseUrl(connection)
         if (base == null || connection.apiKey.isBlank()) {
@@ -160,8 +161,7 @@ class DashboardRepository(
      * — the URL alone authenticates nothing — so `isConfigured` now means
      * "has a key and a resolvable URL", wherever the URL came from.
      */
-    private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? =
-        ConnectionStore.effectiveBaseUrl(connection.baseUrl, defaultBaseUrl)
+    private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? = ConnectionStore.effectiveBaseUrl(connection.baseUrl, defaultBaseUrl)
 
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
 
@@ -194,7 +194,7 @@ class DashboardRepository(
                 isLoading = false,
                 error = null,
                 lastSyncEpochMs = System.currentTimeMillis(),
-                isConfigured = true,
+                isConfigured = true
             )
         } catch (e: ZeroWidgetApi.ApiException) {
             _state.value.copy(
@@ -203,7 +203,7 @@ class DashboardRepository(
                     "Invalid or expired API key — check Connection settings."
                 } else {
                     "HTTP ${e.status}: ${e.message?.take(160)}"
-                },
+                }
             )
         } catch (e: CancellationException) {
             // A cancelled poll (sign-out mid-flight, credential change) is
@@ -213,7 +213,7 @@ class DashboardRepository(
         } catch (e: Exception) {
             _state.value.copy(
                 isLoading = false,
-                error = (e.message ?: e.javaClass.simpleName).take(200),
+                error = (e.message ?: e.javaClass.simpleName).take(200)
             )
         }
         // Signed out or switched accounts while this was in flight: the
@@ -222,8 +222,10 @@ class DashboardRepository(
         _state.value = next
     }
 
-    private suspend fun stillCurrent(connection: ConnectionStore.Connection, startedAt: Long): Boolean =
-        generation == startedAt && store.current().apiKey == connection.apiKey
+    private suspend fun stillCurrent(
+        connection: ConnectionStore.Connection,
+        startedAt: Long
+    ): Boolean = generation == startedAt && store.current().apiKey == connection.apiKey
 
     companion object {
         private const val POLL_MS = 60_000L

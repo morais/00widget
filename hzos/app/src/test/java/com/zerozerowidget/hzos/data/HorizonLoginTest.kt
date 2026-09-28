@@ -22,7 +22,7 @@ class HorizonLoginTest {
             request = { _, _, choice ->
                 assertEquals(null, choice)
                 201 to """{"status":"signed_in","token":"zwa_new"}"""
-            },
+            }
         )
         assertEquals(HorizonOutcome.SignedIn("zwa_new", "meta-user-1"), outcome)
     }
@@ -36,7 +36,7 @@ class HorizonLoginTest {
                 seen += choice
                 201 to """{"status":"signed_in","token":"zwa_created"}"""
             },
-            choice = "create",
+            choice = "create"
         )
         assertEquals(listOf("create"), seen)
         assertEquals(HorizonOutcome.SignedIn("zwa_created", "meta-user-1"), outcome)
@@ -46,7 +46,10 @@ class HorizonLoginTest {
     fun `choice_required asks instead of choosing`() = runBlocking {
         val outcome = runHorizonSignIn(
             identity = { identity },
-            request = { _, _, _ -> 200 to """{"status":"choice_required","choices":["create","join_apple"]}""" },
+            request = { _, _, _ ->
+                200 to
+                    """{"status":"choice_required","choices":["create","join_apple"]}"""
+            }
         )
         assertEquals(HorizonOutcome.NeedChoice, outcome)
     }
@@ -57,9 +60,10 @@ class HorizonLoginTest {
             identity = { identity },
             request = { _, _, choice ->
                 assertEquals("join_apple", choice)
-                201 to """{"device_code":"dc","user_code":"ABCD-EFGH","verification_uri":"https://h/app/device","expires_in":600,"interval":5}"""
+                201 to
+                    """{"device_code":"dc","user_code":"ABCD-EFGH","verification_uri":"https://h/app/device","expires_in":600,"interval":5}"""
             },
-            choice = "join_apple",
+            choice = "join_apple"
         )
         val join = outcome as HorizonOutcome.JoinCode
         assertEquals("ABCD-EFGH", join.code.userCode)
@@ -69,7 +73,10 @@ class HorizonLoginTest {
     @Test
     fun `burned proof retries once with a fresh proof`() = runBlocking {
         val proofs = mutableListOf<String>()
-        val identities = listOf(MetaIdentity("meta-user-1", "proof-stale"), MetaIdentity("meta-user-1", "proof-fresh")).iterator()
+        val identities = listOf(
+            MetaIdentity("meta-user-1", "proof-stale"),
+            MetaIdentity("meta-user-1", "proof-fresh")
+        ).iterator()
         val outcome = runHorizonSignIn(
             identity = { identities.next() },
             request = { _, proof, _ ->
@@ -79,7 +86,7 @@ class HorizonLoginTest {
                 } else {
                     201 to """{"status":"signed_in","token":"zwa_retry"}"""
                 }
-            },
+            }
         )
         assertEquals(listOf("proof-stale", "proof-fresh"), proofs)
         assertEquals(HorizonOutcome.SignedIn("zwa_retry", "meta-user-1"), outcome)
@@ -93,7 +100,7 @@ class HorizonLoginTest {
             request = { _, _, _ ->
                 calls++
                 409 to """{"error":"User proof has already been used"}"""
-            },
+            }
         )
         assertEquals(2, calls)
         assertTrue(outcome is HorizonOutcome.Failed)
@@ -104,7 +111,10 @@ class HorizonLoginTest {
         var calls = 0
         val outcome = runHorizonSignIn(
             identity = { null },
-            request = { _, _, _ -> calls++; 201 to "{}" },
+            request = { _, _, _ ->
+                calls++
+                201 to "{}"
+            }
         )
         assertEquals(0, calls)
         assertTrue(outcome is HorizonOutcome.Failed)
@@ -114,19 +124,33 @@ class HorizonLoginTest {
     fun `server states map to guidance, not codes`() {
         assertEquals(
             HorizonOutcome.Failed("This Worker is too old for Horizon sign-in — update it."),
-            (classifyHorizonSignIn("u", 404, "Not Found", 0) as HorizonStep.Done).outcome,
+            (classifyHorizonSignIn("u", 404, "Not Found", 0) as HorizonStep.Done).outcome
         )
         assertEquals(
             HorizonOutcome.Failed("Meta could not verify this headset user."),
-            (classifyHorizonSignIn("u", 401, """{"error":"nope"}""", 0) as HorizonStep.Done).outcome,
+            (
+                classifyHorizonSignIn(
+                    "u",
+                    401,
+                    """{"error":"nope"}""",
+                    0
+                ) as HorizonStep.Done
+                ).outcome
         )
         assertEquals(
             HorizonOutcome.Failed("Horizon sign-in isn't configured on this server."),
-            (classifyHorizonSignIn("u", 503, "{}", 0) as HorizonStep.Done).outcome,
+            (classifyHorizonSignIn("u", 503, "{}", 0) as HorizonStep.Done).outcome
         )
         assertEquals(
             HorizonOutcome.Failed("Custom problem."),
-            (classifyHorizonSignIn("u", 400, """{"error":"Custom problem."}""", 0) as HorizonStep.Done).outcome,
+            (
+                classifyHorizonSignIn(
+                    "u",
+                    400,
+                    """{"error":"Custom problem."}""",
+                    0
+                ) as HorizonStep.Done
+                ).outcome
         )
     }
 
@@ -159,13 +183,19 @@ class HorizonLoginTest {
 
     @Test
     fun `browser approval echoes the decision and names failures`() {
-        assertEquals("Browser sign-in approved.", describeBrowserApproval(200, """{"ok":true}""", true))
-        assertEquals("Browser sign-in denied.", describeBrowserApproval(200, """{"ok":true}""", false))
+        assertEquals(
+            "Browser sign-in approved.",
+            describeBrowserApproval(200, """{"ok":true}""", true)
+        )
+        assertEquals(
+            "Browser sign-in denied.",
+            describeBrowserApproval(200, """{"ok":true}""", false)
+        )
         assertEquals("That code is invalid or expired.", describeBrowserApproval(404, "{}", true))
         assertEquals("That code has already been used.", describeBrowserApproval(409, "{}", true))
         assertEquals(
             "This account isn't linked to a Horizon identity.",
-            describeBrowserApproval(403, "{}", true),
+            describeBrowserApproval(403, "{}", true)
         )
     }
 }

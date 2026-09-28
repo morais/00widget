@@ -20,7 +20,7 @@ fun Context.openSettingsPanel() {
     startActivity(
         Intent(this, SettingsActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
-        },
+        }
     )
 }
 
@@ -33,7 +33,7 @@ fun Context.openSettingsPanelAndSignIn() {
         Intent(this, SettingsActivity::class.java).apply {
             putExtra(SettingsActivity.EXTRA_AUTO_SIGN_IN, true)
             addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
-        },
+        }
     )
 }
 
@@ -46,9 +46,9 @@ fun Context.openDetailPanel(cardId: String, isSample: Boolean) {
             addFlags(
                 Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
                     or Intent.FLAG_ACTIVITY_NEW_TASK
-                    or Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+                    or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
             )
-        },
+        }
     )
 }
 
@@ -61,8 +61,8 @@ fun Context.openActivityDetailPanel(externalActivityId: String, isSample: Boolea
             addFlags(
                 Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
                     or Intent.FLAG_ACTIVITY_NEW_TASK
-                    or Intent.FLAG_ACTIVITY_MULTIPLE_TASK,
+                    or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
             )
-        },
+        }
     )
 }

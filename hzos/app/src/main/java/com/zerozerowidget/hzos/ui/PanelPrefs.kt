@@ -1,6 +1,7 @@
 package com.zerozerowidget.hzos.ui
 
 import android.content.Context
+import androidx.compose.runtime.compositionLocalOf
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -16,6 +17,7 @@ class PanelPrefs(private val context: Context) {
         private val CARD_ALPHA = floatPreferencesKey("card_alpha")
         private val HIDE_INDICATORS = booleanPreferencesKey("hide_sample_indicators")
         private val SHOW_DUMMY_ACCOUNT_DATA = booleanPreferencesKey("show_dummy_account_data")
+
         /** Cards nearly solid by default — just a breath of passthrough. */
         const val DEFAULT_CARD_ALPHA = 0.85f
     }
@@ -58,4 +60,4 @@ class PanelPrefs(private val context: Context) {
 
 /** Read by SampleBadge/SampleNoticeBanner; provided at each panel root. */
 val LocalHideSampleIndicators =
-    androidx.compose.runtime.compositionLocalOf { false }
+    compositionLocalOf { false }

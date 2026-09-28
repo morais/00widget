@@ -3,12 +3,12 @@ package com.zerozerowidget.hzos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalTypography
 import com.zerozerowidget.hzos.ui.dashboard.ActivityDetailPanel
 import com.zerozerowidget.hzos.ui.dashboard.CardDetailPanel
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Detail panels for cards and activities. Launched with MULTIPLE_TASK, so
@@ -31,18 +31,20 @@ class CardDetailActivity : ComponentActivity() {
                         cardId = cardId,
                         isSample = isSample,
                         onOpenLink = { url -> openDeepLink(this, url) },
-                        onDeleted = { finishAndRemoveTask() },
+                        onDeleted = { finishAndRemoveTask() }
                     )
+
                     !activityId.isNullOrBlank() -> ActivityDetailPanel(
                         app = app,
                         externalActivityId = activityId,
                         isSample = isSample,
                         onOpenLink = { url -> openDeepLink(this, url) },
-                        onDeleted = { finishAndRemoveTask() },
+                        onDeleted = { finishAndRemoveTask() }
                     )
+
                     else -> Text(
                         "Nothing to show.",
-                        style = LocalTypography.current.body,
+                        style = LocalTypography.current.body
                     )
                 }
             }

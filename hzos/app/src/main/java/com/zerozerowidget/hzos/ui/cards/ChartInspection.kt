@@ -1,6 +1,7 @@
 package com.zerozerowidget.hzos.ui.cards
 
 import com.zerozerowidget.hzos.data.DashboardChart
+import com.zerozerowidget.hzos.data.DashboardChartRange
 import kotlin.math.abs
 
 /**
@@ -9,12 +10,7 @@ import kotlin.math.abs
  * high, reference row — and the same comparison sentences
  * ("1.2 kW above target", "Matches target", "Within range").
  */
-data class InspectionValue(
-    val id: String,
-    val label: String?,
-    val value: Double,
-    val kind: Kind,
-) {
+data class InspectionValue(val id: String, val label: String?, val value: Double, val kind: Kind) {
     enum class Kind { VALUE, SERIES, TOTAL, RANGE_LOW, RANGE_VALUE, RANGE_HIGH, REFERENCE }
 }
 
@@ -25,7 +21,7 @@ data class InspectionSnapshot(
     val signal: String?,
     val values: List<InspectionValue>,
     /** "X above target" / "Matches target" / "Within range" / null. */
-    val comparison: String?,
+    val comparison: String?
 )
 
 fun formatChartValue(value: Double, unit: String?): String {
@@ -45,7 +41,7 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
 
     val values = mutableListOf<InspectionValue>()
     var comparisonValue: Double? = null
-    var inspectedRange: com.zerozerowidget.hzos.data.DashboardChartRange? = null
+    var inspectedRange: DashboardChartRange? = null
 
     val ranges = chart.ranges
     if (chart.style == "range" && ranges != null && index in ranges.indices) {
@@ -57,7 +53,7 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
                 "range-value",
                 chart.rangeValueLabel ?: "Value",
                 it,
-                InspectionValue.Kind.RANGE_VALUE,
+                InspectionValue.Kind.RANGE_VALUE
             )
             comparisonValue = it
         }
@@ -71,18 +67,22 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
                         "series-${entry.id}",
                         entry.label,
                         it,
-                        InspectionValue.Kind.SERIES,
+                        InspectionValue.Kind.SERIES
                     )
                 }
             }
             if (values.size > 1) {
                 values += InspectionValue(
-                    "total", "Total", chart.points[index], InspectionValue.Kind.TOTAL,
+                    "total",
+                    "Total",
+                    chart.points[index],
+                    InspectionValue.Kind.TOTAL
                 )
             }
             comparisonValue = chart.points[index]
         } else {
-            values += InspectionValue("value", "Value", chart.points[index], InspectionValue.Kind.VALUE)
+            values +=
+                InspectionValue("value", "Value", chart.points[index], InspectionValue.Kind.VALUE)
             comparisonValue = chart.points[index]
         }
     }
@@ -92,7 +92,7 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
             "reference",
             chart.referenceMetadata?.label ?: "Reference",
             ref,
-            InspectionValue.Kind.REFERENCE,
+            InspectionValue.Kind.REFERENCE
         )
     }
 
@@ -102,12 +102,18 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
             val diff = comparisonValue - chart.reference
             when {
                 abs(diff) < 0.000001 -> "Matches $refLabel"
-                else -> "${formatChartValue(abs(diff), unit)} ${if (diff > 0) "above" else "below"} $refLabel"
+
+                else -> "${formatChartValue(
+                    abs(diff),
+                    unit
+                )} ${if (diff > 0) "above" else "below"} $refLabel"
             }
         }
+
         comparisonValue == null && inspectedRange != null && chart.reference != null -> {
             rangeComparison(inspectedRange, chart.reference, refLabel, unit)
         }
+
         else -> null
     }
 
@@ -117,15 +123,15 @@ fun inspectChart(chart: DashboardChart, requestedIndex: Int, unit: String?): Ins
         label = label,
         signal = category?.signal,
         values = values,
-        comparison = comparison,
+        comparison = comparison
     )
 }
 
 private fun rangeComparison(
-    range: com.zerozerowidget.hzos.data.DashboardChartRange,
+    range: DashboardChartRange,
     reference: Double,
     refLabel: String,
-    unit: String?,
+    unit: String?
 ): String {
     if (reference in range.low..range.high) return "Within range"
     val (direction, near, far) = if (range.low > reference) {

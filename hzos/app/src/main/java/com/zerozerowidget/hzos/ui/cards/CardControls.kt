@@ -1,24 +1,20 @@
 package com.zerozerowidget.hzos.ui.cards
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import metavrx.uiset.compose.Icon
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.icons.Icons
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,20 +26,29 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.ActionDefinition
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardStatus
+import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
+import metavrx.uiset.compose.Icon
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
+import metavrx.uiset.compose.theme.icons.Icons
 
 @Composable
 fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val unknown = LocalContentColors.current.secondary
     Canvas(modifier = modifier.size(10.dp)) {
         drawCircle(statusColor(status, unknown, dark))
@@ -63,13 +68,13 @@ fun ProgressBar(
     modifier: Modifier = Modifier,
     color: Color = LocalColorScheme.current.progress.indicator,
     trackColor: Color = LocalColorScheme.current.progress.track,
-    height: androidx.compose.ui.unit.Dp = 4.dp,
+    height: Dp = 4.dp
 ) {
     Canvas(modifier.fillMaxWidth().height(height)) {
         val radius = size.height / 2
         drawRoundRect(
             color = trackColor,
-            cornerRadius = CornerRadius(radius, radius),
+            cornerRadius = CornerRadius(radius, radius)
         )
         val width = size.width * fraction.coerceIn(0f, 1f)
         if (width > 0f) {
@@ -77,7 +82,7 @@ fun ProgressBar(
                 color = color,
                 topLeft = Offset.Zero,
                 size = Size(width, size.height),
-                cornerRadius = CornerRadius(radius, radius),
+                cornerRadius = CornerRadius(radius, radius)
             )
         }
     }
@@ -91,20 +96,20 @@ fun ProgressBar(
 @Composable
 fun SampleBadge(modifier: Modifier = Modifier) {
     // Gated centrally so every pill obeys hide-sample-indicators together.
-    if (com.zerozerowidget.hzos.ui.LocalHideSampleIndicators.current) return
+    if (LocalHideSampleIndicators.current) return
     Box(
         modifier = modifier
             .background(
                 uiSetAccent(),
-                androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                RoundedCornerShape(4.dp)
             )
             .padding(horizontal = spacing.small, vertical = 2.dp),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Text(
             "SAMPLE",
             style = LocalTypography.current.caption,
-            color = Color.White,
+            color = Color.White
         )
     }
 }
@@ -122,27 +127,27 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .background(
                 uiSetAccent(),
-                androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                RoundedCornerShape(8.dp)
             )
             .padding(horizontal = spacing.medium, vertical = spacing.medium),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.medium),
+        horizontalArrangement = Arrangement.spacedBy(spacing.medium)
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 "These are samples",
                 style = LocalTypography.current.title,
-                color = Color.White,
+                color = Color.White
             )
             Text(
                 "These samples were generated on this device to show what 00Widget looks like. No agent published them.",
                 style = LocalTypography.current.bodySmall,
-                color = Color.White,
+                color = Color.White
             )
         }
         UiSetSecondaryButton(
             label = "Remove samples",
-            onClick = onRemoveAll,
+            onClick = onRemoveAll
         )
     }
 }
@@ -156,7 +161,11 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onPopOut, contentDescription = "Pop out", modifier = modifier) {
-        Icon(Icons.Regular.OpenTab, contentDescription = null, tint = LocalContentColors.current.secondary)
+        Icon(
+            Icons.Regular.OpenTab,
+            contentDescription = null,
+            tint = LocalContentColors.current.secondary
+        )
     }
 }
 
@@ -168,7 +177,11 @@ fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onOpenLink, contentDescription = "Open link", modifier = modifier) {
-        Icon(Icons.Regular.World, contentDescription = null, tint = LocalContentColors.current.secondary)
+        Icon(
+            Icons.Regular.World,
+            contentDescription = null,
+            tint = LocalContentColors.current.secondary
+        )
     }
 }
 
@@ -179,7 +192,7 @@ fun ActionButtons(
     onRun: (ActionDefinition) -> Unit,
     runningId: String?,
     runError: String?,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
         card.actions.orEmpty().forEach { action ->
@@ -188,19 +201,23 @@ fun ActionButtons(
                     label = if (runningId == action.id) "Running…" else action.label,
                     onClick = { onRun(action) },
                     enabled = runningId == null,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
                 UiSetSecondaryButton(
                     label = "${action.label} — confirm in app",
                     onClick = {},
                     enabled = false,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
         runError?.let {
-            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+            Text(
+                it,
+                style = LocalTypography.current.bodySmall,
+                color = LocalColorScheme.current.negative.content
+            )
         }
     }
 }
@@ -222,11 +239,11 @@ fun SampleAwareDeleteRow(
     confirmTitle: String,
     confirmText: String,
     modifier: Modifier = Modifier,
-    leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
-    fillLeading: Boolean = false,
+    leading: @Composable RowScope.() -> Unit = {},
+    fillLeading: Boolean = false
 ) {
     DeleteRow(
-        label = if (isSample && !com.zerozerowidget.hzos.ui.LocalHideSampleIndicators.current) {
+        label = if (isSample && !LocalHideSampleIndicators.current) {
             "Remove sample"
         } else {
             serverLabel
@@ -238,7 +255,7 @@ fun SampleAwareDeleteRow(
         confirmText = confirmText,
         modifier = modifier,
         leading = leading,
-        fillLeading = fillLeading,
+        fillLeading = fillLeading
     )
 }
 
@@ -260,13 +277,13 @@ fun DeleteRow(
     confirmTitle: String,
     confirmText: String,
     modifier: Modifier = Modifier,
-    leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    leading: @Composable RowScope.() -> Unit = {},
     /**
      * True when [leading] already distributes the row width (e.g. action
      * buttons on a weight): the spacer that would otherwise push the
      * button right is skipped, so everything shares one line.
      */
-    fillLeading: Boolean = false,
+    fillLeading: Boolean = false
 ) {
     var confirming by remember { mutableStateOf(false) }
     // The caller owns the width: details stretch full width with the
@@ -280,7 +297,11 @@ fun DeleteRow(
         }
         error?.let {
             Spacer(Modifier.height(spacing.xSmall))
-            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+            Text(
+                it,
+                style = LocalTypography.current.bodySmall,
+                color = LocalColorScheme.current.negative.content
+            )
         }
     }
     if (confirming) {
@@ -294,7 +315,7 @@ fun DeleteRow(
             },
             dismissLabel = "Cancel",
             onDismiss = { confirming = false },
-            destructive = true,
+            destructive = true
         )
     }
 }
@@ -305,17 +326,12 @@ fun DeleteRow(
  * owns the confirm dialog, as [DeleteRow] does.
  */
 @Composable
-fun DeleteButton(
-    label: String,
-    busy: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun DeleteButton(label: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     UiSetDestructiveButton(
         label = if (busy) "Working…" else label,
         onClick = onClick,
         enabled = !busy,
-        modifier = modifier,
+        modifier = modifier
     )
 }
 
@@ -331,9 +347,9 @@ fun NeedsYouBadge(modifier: Modifier = Modifier) {
     val colors = LocalColorScheme.current.notification
     Box(
         modifier = modifier
-            .background(colors.container, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+            .background(colors.container, RoundedCornerShape(4.dp))
             .padding(horizontal = spacing.small, vertical = 2.dp),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Text("Needs you", style = LocalTypography.current.caption, color = colors.onContainer)
     }

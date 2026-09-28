@@ -1,23 +1,24 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import androidx.compose.runtime.staticCompositionLocalOf
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.openDeepLink
+import com.zerozerowidget.hzos.ui.theme.spacing
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * The About row's "Version 1.5 (2026092812-abc1234)". A composition local
@@ -25,9 +26,9 @@ import com.zerozerowidget.hzos.ui.openDeepLink
  * every commit and every hour.
  */
 internal val LocalBuildStamp = staticCompositionLocalOf {
-    "Version ${com.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
-        "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE}-" +
-        "${com.zerozerowidget.hzos.BuildConfig.GIT_SHA})"
+    "Version ${BuildConfig.VERSION_NAME} " +
+        "(${BuildConfig.VERSION_CODE}-" +
+        "${BuildConfig.GIT_SHA})"
 }
 
 /**
@@ -42,11 +43,11 @@ internal fun AboutSection(cardAlpha: Float, onOpenDeveloper: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
             Text("About", style = LocalTypography.current.title)
             VersionRow(onOpenDeveloper = onOpenDeveloper)
-            val privacy = com.zerozerowidget.hzos.BuildConfig.PRIVACY_URL
+            val privacy = BuildConfig.PRIVACY_URL
             if (privacy.isNotBlank()) {
                 LinkRow(label = "Privacy policy") { openDeepLink(context, privacy) }
             }
-            val terms = com.zerozerowidget.hzos.BuildConfig.TERMS_URL
+            val terms = BuildConfig.TERMS_URL
             if (terms.isNotBlank()) {
                 LinkRow(label = "Terms of service") { openDeepLink(context, terms) }
             }
@@ -60,18 +61,18 @@ internal fun LinkRow(label: String, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
             style = LocalTypography.current.bodySmall,
             color = LocalContentColors.current.secondary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
         Text(
             ">",
             style = LocalTypography.current.body,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
     }
 }
@@ -82,18 +83,18 @@ internal fun VersionRow(onOpenDeveloper: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpenDeveloper),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             LocalBuildStamp.current,
             style = LocalTypography.current.bodySmall,
             color = LocalContentColors.current.secondary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f)
         )
         Text(
             ">",
             style = LocalTypography.current.body,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
     }
 }

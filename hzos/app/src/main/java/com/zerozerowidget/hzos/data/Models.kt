@@ -18,59 +18,79 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class DashboardTemplate(val raw: String) {
-    @SerialName("summary") SUMMARY("summary"),
-    @SerialName("progress") PROGRESS("progress"),
-    @SerialName("list") LIST("list"),
-    @SerialName("action") ACTION("action"),
-    @SerialName("chart") CHART("chart"),
-    @SerialName("history") HISTORY("history"),
-    @SerialName("breakdown") BREAKDOWN("breakdown"),
-    @SerialName("briefing") BRIEFING("briefing"),
-    @SerialName("timeline") TIMELINE("timeline"),
+    @SerialName("summary")
+    SUMMARY("summary"),
+
+    @SerialName("progress")
+    PROGRESS("progress"),
+
+    @SerialName("list")
+    LIST("list"),
+
+    @SerialName("action")
+    ACTION("action"),
+
+    @SerialName("chart")
+    CHART("chart"),
+
+    @SerialName("history")
+    HISTORY("history"),
+
+    @SerialName("breakdown")
+    BREAKDOWN("breakdown"),
+
+    @SerialName("briefing")
+    BRIEFING("briefing"),
+
+    @SerialName("timeline")
+    TIMELINE("timeline")
     ;
 
     companion object {
-        fun orSummary(raw: String?): DashboardTemplate =
-            values().firstOrNull { it.raw == raw } ?: SUMMARY
+        fun orSummary(raw: String?): DashboardTemplate = values().firstOrNull { it.raw == raw } ?: SUMMARY
     }
 }
 
 @Serializable
 enum class DashboardStatus(val raw: String) {
-    @SerialName("unknown") UNKNOWN("unknown"),
-    @SerialName("good") GOOD("good"),
-    @SerialName("warning") WARNING("warning"),
-    @SerialName("critical") CRITICAL("critical"),
-    @SerialName("running") RUNNING("running"),
-    @SerialName("finished") FINISHED("finished"),
-    @SerialName("paused") PAUSED("paused"),
-    @SerialName("offline") OFFLINE("offline"),
+    @SerialName("unknown")
+    UNKNOWN("unknown"),
+
+    @SerialName("good")
+    GOOD("good"),
+
+    @SerialName("warning")
+    WARNING("warning"),
+
+    @SerialName("critical")
+    CRITICAL("critical"),
+
+    @SerialName("running")
+    RUNNING("running"),
+
+    @SerialName("finished")
+    FINISHED("finished"),
+
+    @SerialName("paused")
+    PAUSED("paused"),
+
+    @SerialName("offline")
+    OFFLINE("offline")
     ;
 
     companion object {
-        fun orUnknown(raw: String?): DashboardStatus =
-            values().firstOrNull { it.raw == raw } ?: UNKNOWN
+        fun orUnknown(raw: String?): DashboardStatus = values().firstOrNull { it.raw == raw } ?: UNKNOWN
     }
 }
 
 @Serializable
-data class CardProducer(
-    val label: String,
-    val icon: String? = null,
-)
+data class CardProducer(val label: String, val icon: String? = null)
 
 @Serializable
-data class CardComparison(
-    val value: String,
-    val label: String,
-    val signal: String = "neutral",
-)
+data class CardComparison(val value: String, val label: String, val signal: String = "neutral")
 
 @Serializable
-data class DashboardItemSemantic(
-    val role: String? = null,
-    val flow: String? = null,
-)
+data class DashboardItemSemantic(val role: String? = null, val flow: String? = null)
 
 @Serializable
 data class DashboardItem(
@@ -82,43 +102,32 @@ data class DashboardItem(
     val status: DashboardStatus = DashboardStatus.UNKNOWN,
     val semantic: DashboardItemSemantic? = null,
     val deepLink: String? = null,
-    val amount: Double? = null,
+    val amount: Double? = null
 )
 
 @Serializable
 data class MetricSemantic(
     val role: String? = null,
     val flow: String? = null,
-    val signal: String? = null,
+    val signal: String? = null
 )
 
 @Serializable
-data class DashboardChartCategory(
-    val id: String,
-    val label: String,
-    val signal: String? = null,
-)
+data class DashboardChartCategory(val id: String, val label: String, val signal: String? = null)
 
 @Serializable
 data class DashboardChartSeries(
     val id: String,
     val label: String,
     val points: List<Double>,
-    val semantic: MetricSemantic? = null,
+    val semantic: MetricSemantic? = null
 )
 
 @Serializable
-data class DashboardChartRange(
-    val low: Double,
-    val high: Double,
-    val value: Double? = null,
-)
+data class DashboardChartRange(val low: Double, val high: Double, val value: Double? = null)
 
 @Serializable
-data class ChartReferenceMetadata(
-    val label: String? = null,
-    val semantic: MetricSemantic? = null,
-)
+data class ChartReferenceMetadata(val label: String? = null, val semantic: MetricSemantic? = null)
 
 @Serializable
 data class DashboardChart(
@@ -134,33 +143,20 @@ data class DashboardChart(
     val series: List<DashboardChartSeries>? = null,
     val ranges: List<DashboardChartRange>? = null,
     val rangeValueLabel: String? = null,
-    val stacking: String = "stacked",
+    val stacking: String = "stacked"
 )
 
 @Serializable
-data class BriefingSection(
-    val id: String,
-    val label: String? = null,
-    val text: String,
-)
+data class BriefingSection(val id: String, val label: String? = null, val text: String)
 
 @Serializable
-data class DashboardBriefing(
-    val sections: List<BriefingSection>,
-)
+data class DashboardBriefing(val sections: List<BriefingSection>)
 
 @Serializable
-data class TimelineLane(
-    val id: String,
-    val label: String,
-)
+data class TimelineLane(val id: String, val label: String)
 
 @Serializable
-data class TimelineSeries(
-    val id: String,
-    val label: String,
-    val icon: String? = null,
-)
+data class TimelineSeries(val id: String, val label: String, val icon: String? = null)
 
 @Serializable
 data class TimelineEntry(
@@ -170,7 +166,7 @@ data class TimelineEntry(
     val at: String,
     val endAt: String? = null,
     val label: String? = null,
-    val status: DashboardStatus = DashboardStatus.UNKNOWN,
+    val status: DashboardStatus = DashboardStatus.UNKNOWN
 )
 
 @Serializable
@@ -179,7 +175,7 @@ data class DashboardTimeline(
     val endAt: String,
     val lanes: List<TimelineLane>,
     val series: List<TimelineSeries>,
-    val entries: List<TimelineEntry>,
+    val entries: List<TimelineEntry>
 )
 
 @Serializable
@@ -187,7 +183,7 @@ data class ActionDefinition(
     val id: String,
     val label: String,
     val role: String = "normal",
-    val confirm: Boolean = false,
+    val confirm: Boolean = false
 ) {
     /**
      * Mirrors `ActionDefinition.isSafeFromWidget` on iOS: only normal,
@@ -221,7 +217,7 @@ data class DashboardCard(
     val chart: DashboardChart? = null,
     val timeline: DashboardTimeline? = null,
     val briefing: DashboardBriefing? = null,
-    val actions: List<ActionDefinition>? = null,
+    val actions: List<ActionDefinition>? = null
 ) {
     /** Server returns cards pre-sorted; keep that order, it encodes priority. */
     companion object {
@@ -240,7 +236,7 @@ data class LiveActivityItem(
     val unit: String? = null,
     val progress: Double? = null,
     val status: DashboardStatus = DashboardStatus.UNKNOWN,
-    val semantic: DashboardItemSemantic? = null,
+    val semantic: DashboardItemSemantic? = null
 )
 
 @Serializable
@@ -263,7 +259,7 @@ data class LiveActivitySession(
     val startedAt: String? = null,
     val updatedAt: String? = null,
     val staleAt: String? = null,
-    val deepLink: String? = null,
+    val deepLink: String? = null
 )
 
 @Serializable
@@ -275,7 +271,7 @@ data class LiveActivitiesListResponse(val activities: List<LiveActivitySession> 
 @Serializable
 data class DashboardResponse(
     val cards: List<DashboardCard> = emptyList(),
-    val activities: List<LiveActivitySession> = emptyList(),
+    val activities: List<LiveActivitySession> = emptyList()
 )
 
 @Serializable
@@ -291,10 +287,8 @@ data class MCPConnectionSummary(
     val connectedAt: String,
     val lastUsedAt: String? = null,
     val expiresAt: String,
-    val scopes: List<String> = emptyList(),
+    val scopes: List<String> = emptyList()
 )
 
 @Serializable
-data class MCPConnectionsListResponse(
-    val connections: List<MCPConnectionSummary> = emptyList(),
-)
+data class MCPConnectionsListResponse(val connections: List<MCPConnectionSummary> = emptyList())

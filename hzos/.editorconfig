@@ -1,0 +1,14 @@
+# Formatting rules for the hzos Kotlin sources, enforced by Spotless
+# (ktlint): `./gradlew spotlessApply` fixes, `spotlessCheck` verifies.
+root = true
+
+[*.{kt,kts}]
+indent_size = 4
+insert_final_newline = true
+ktlint_code_style = android_studio
+# Composables are PascalCase by Compose convention.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# Off: the long lines are user-facing strings and URLs, which read worse
+# split. Revisit if the rule ever gains a string/URL exemption.
+ktlint_standard_max-line-length = disabled
+max_line_length = off

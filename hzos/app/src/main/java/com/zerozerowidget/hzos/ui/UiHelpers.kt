@@ -13,7 +13,9 @@ fun openDeepLink(context: Context, raw: String?): Boolean {
     return try {
         val uri = Uri.parse(raw)
         if (uri.scheme?.lowercase() != "https") return false
-        context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
         true
     } catch (_: Exception) {
         false
@@ -33,7 +35,13 @@ fun relativeTime(iso: String?, now: Instant = Instant.now()): String? {
             abs.toDays() < 1 -> "${abs.toHours()}h"
             else -> "${abs.toDays()}d"
         }
-        if (text == "just now") text else if (d.isNegative) "$text ago" else "in $text"
+        if (text == "just now") {
+            text
+        } else if (d.isNegative) {
+            "$text ago"
+        } else {
+            "in $text"
+        }
     } catch (_: Exception) {
         null
     }

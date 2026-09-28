@@ -1,16 +1,11 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -22,13 +17,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.SubscriptionState
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
+import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Meta subscription purchase + status. Shown from Settings when signed in
@@ -45,10 +47,10 @@ import kotlinx.coroutines.launch
 fun SubscriptionSection(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+        initial = PanelPrefs.DEFAULT_CARD_ALPHA
     )
-    val monthlySku = com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTION_MONTHLY_SKU
-    val yearlySku = com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTION_YEARLY_SKU
+    val monthlySku = BuildConfig.SUBSCRIPTION_MONTHLY_SKU
+    val yearlySku = BuildConfig.SUBSCRIPTION_YEARLY_SKU
     val tiers = listOf("Monthly" to monthlySku, "Yearly" to yearlySku)
         .filter { it.second.isNotBlank() }
 
@@ -86,13 +88,17 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
             try {
                 val purchased = app.horizonIap.checkout(sku).getOrElse { throw it }
                 val userId = app.horizonAuth.loggedInUserId()
-                    ?: throw IllegalStateException("Signed into Meta, but the account id is unreadable.")
+                    ?: throw IllegalStateException(
+                        "Signed into Meta, but the account id is unreadable."
+                    )
                 try {
                     status = api()?.syncMetaSubscription(userId, purchased)
                     statusLoaded = true
                 } catch (e: ZeroWidgetApi.ApiException) {
                     throw if (e.status == 404) {
-                        IllegalStateException("Purchase done — now update the Worker so it can record it.")
+                        IllegalStateException(
+                            "Purchase done — now update the Worker so it can record it."
+                        )
                     } else {
                         e
                     }
@@ -113,9 +119,15 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
         scope.launch {
             try {
                 val userId = app.horizonAuth.loggedInUserId()
-                    ?: throw IllegalStateException("Signed into Meta, but the account id is unreadable.")
+                    ?: throw IllegalStateException(
+                        "Signed into Meta, but the account id is unreadable."
+                    )
                 val owned = app.horizonIap.ownedSkus()
-                if (owned.isEmpty()) throw IllegalStateException("No Meta purchases found for this account.")
+                if (owned.isEmpty()) {
+                    throw IllegalStateException(
+                        "No Meta purchases found for this account."
+                    )
+                }
                 val client = api() ?: throw IllegalStateException("Not connected.")
                 var last: SubscriptionState? = null
                 for (sku in owned) {
@@ -139,13 +151,13 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                 Text(
                     "Status",
                     style = LocalTypography.current.body,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 if (!statusLoaded) {
                     Text(
                         "Loading…",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 } else {
                     Text(
@@ -155,7 +167,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                             LocalColorScheme.current.negative.content
                         } else {
                             LocalContentColors.current.secondary
-                        },
+                        }
                     )
                 }
             }
@@ -164,7 +176,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                 Text(
                     "Manage or cancel in the Meta Horizon mobile app.",
                     style = LocalTypography.current.bodySmall,
-                    color = LocalContentColors.current.secondary,
+                    color = LocalContentColors.current.secondary
                 )
             } else {
                 if (!app.horizonIap.isAvailable) {
@@ -172,24 +184,28 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                         "Subscriptions need a Horizon Platform app ID " +
                             "(`platformAppId` in hzos/local.properties).",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 } else if (tiers.isEmpty()) {
                     Text(
                         "No subscription products configured on this build.",
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 } else {
                     tiers.forEach { (label, sku) ->
                         val price = prices[sku]
                         UiSetPrimaryButton(
-                            if (busySku == sku) "Processing…"
-                            else if (price != null) "$label — $price"
-                            else label,
+                            if (busySku == sku) {
+                                "Processing…"
+                            } else if (price != null) {
+                                "$label — $price"
+                            } else {
+                                label
+                            },
                             onClick = { buy(sku) },
                             enabled = busySku == null && !restoring,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                     Spacer(Modifier.height(2.dp))
@@ -197,13 +213,17 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                         if (restoring) "Restoring…" else "Restore purchases",
                         onClick = ::restore,
                         enabled = busySku == null && !restoring,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
             error?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalColorScheme.current.negative.content
+                )
             }
         }
     }

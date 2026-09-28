@@ -84,7 +84,8 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
     fun dashboard() {
         withSamples()
         capture("dashboard") {
-            DashboardPanel(app = app, onOpenSettings = {}, onPopOut = { _, _ -> }, onPopOutActivity = { _, _ -> })
+            DashboardPanel(app = app, onOpenSettings = {
+            }, onPopOut = { _, _ -> }, onPopOutActivity = { _, _ -> })
         }
     }
 
@@ -95,7 +96,8 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
         // row whose buttons clipped at the narrowest width.
         val card = SampleData.makeCards().first { !it.actions.isNullOrEmpty() }
         capture("card-detail") {
-            CardDetailPanel(app = app, cardId = card.id, isSample = true, onOpenLink = {}, onDeleted = {})
+            CardDetailPanel(app = app, cardId = card.id, isSample = true, onOpenLink = {
+            }, onDeleted = {})
         }
     }
 

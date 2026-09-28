@@ -1,6 +1,5 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -12,10 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.selection.SelectionContainer
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
+import com.zerozerowidget.hzos.data.AgentTokenRotation
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DummyAccountData
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
@@ -38,6 +35,10 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Agent config entry: the "Dear agent" integration text iOS Settings shows,
@@ -51,11 +52,15 @@ import kotlinx.coroutines.launch
  * hiding it from.
  */
 @Composable
-internal fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpenAgentConnect: () -> Unit) {
+internal fun AgentConfigSection(
+    app: ZeroZeroWidgetApp,
+    cardAlpha: Float,
+    onOpenAgentConnect: () -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", ""),
+        initial = ConnectionStore.Connection("", "")
     )
     val showDummy by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var copied by remember { mutableStateOf(false) }
@@ -79,14 +84,16 @@ internal fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpen
                     Text(
                         agentConfig,
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
                 UiSetIconButton(
                     onClick = {
                         val clipboard =
                             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("00Widget agent config", agentConfig))
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("00Widget agent config", agentConfig)
+                        )
                         copied = true
                         scope.launch {
                             // Acknowledgement of the tap, not a running
@@ -97,7 +104,7 @@ internal fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpen
                             copied = false
                         }
                     },
-                    contentDescription = if (copied) "Agent config copied" else "Copy agent config",
+                    contentDescription = if (copied) "Agent config copied" else "Copy agent config"
                 ) {
                     UiSetCopyIcon(copied)
                 }
@@ -106,7 +113,7 @@ internal fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpen
                 Text(
                     "Copied",
                     style = LocalTypography.current.bodySmall,
-                    color = uiSetAccent(),
+                    color = uiSetAccent()
                 )
             }
             // The token path and the connector doorway are the two ways in;
@@ -116,12 +123,12 @@ internal fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpen
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(LocalColorScheme.current.divider),
+                    .background(LocalColorScheme.current.divider)
             )
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             UiSetSecondaryButton("Connect an agent", onClick = onOpenAgentConnect)
         }
@@ -142,7 +149,7 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
     var confirming by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var rotated by remember { mutableStateOf<com.zerozerowidget.hzos.data.AgentTokenRotation?>(null) }
+    var rotated by remember { mutableStateOf<AgentTokenRotation?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
 
@@ -153,38 +160,44 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                 "token stops working and one replacement is created — give " +
                 "it to your agents. This headset stays signed in.",
             style = LocalTypography.current.bodySmall,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
         error?.let {
-            Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+            Text(
+                it,
+                style = LocalTypography.current.bodySmall,
+                color = LocalColorScheme.current.negative.content
+            )
         }
         rotated?.let {
             Text(
                 "Rotated — ${it.revokedAgentTokens} old token(s) revoked. " +
                     "Copy the replacement now; it is shown once.",
                 style = LocalTypography.current.bodySmall,
-                color = uiSetAccent(),
+                color = uiSetAccent()
             )
             Row(verticalAlignment = Alignment.Top) {
                 SelectionContainer(Modifier.weight(1f)) {
                     Text(
                         it.token,
                         style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
+                        color = LocalContentColors.current.secondary
                     )
                 }
                 UiSetIconButton(
                     onClick = {
                         val clipboard =
                             context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("00Widget agent token", it.token))
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("00Widget agent token", it.token)
+                        )
                         copied = true
                         scope.launch {
                             delay(10_000)
                             copied = false
                         }
                     },
-                    contentDescription = if (copied) "Agent token copied" else "Copy agent token",
+                    contentDescription = if (copied) "Agent token copied" else "Copy agent token"
                 ) {
                     UiSetCopyIcon(copied)
                 }
@@ -193,7 +206,7 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
         UiSetSecondaryButton(
             if (busy) "Rotating…" else "Rotate agent token",
             onClick = { confirming = true },
-            enabled = !busy,
+            enabled = !busy
         )
     }
 
@@ -220,7 +233,7 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
             dismissLabel = "Cancel",
             onDismiss = { if (!busy) confirming = false },
             destructive = true,
-            confirmEnabled = !busy,
+            confirmEnabled = !busy
         )
     }
 }

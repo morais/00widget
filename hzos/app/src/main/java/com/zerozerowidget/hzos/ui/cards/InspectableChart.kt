@@ -1,8 +1,8 @@
 package com.zerozerowidget.hzos.ui.cards
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,12 +19,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardChart
+import com.zerozerowidget.hzos.ui.theme.spacing
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
@@ -45,7 +48,7 @@ fun InspectableChart(
     chart: DashboardChart,
     unit: String?,
     baseTint: Color,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     var selectedIndex by remember(chart) {
         mutableIntStateOf(maxOf(0, chart.points.size - 1))
@@ -78,24 +81,27 @@ fun InspectableChart(
                             }
                             when (event.type) {
                                 PointerEventType.Move,
-                                PointerEventType.Press,
+                                PointerEventType.Press
                                 -> {
                                     val width = size.width.toFloat()
                                     if (width > 0) {
                                         selectedIndex = indexAt(
                                             chart,
-                                            (x / width).coerceIn(0f, 1f),
+                                            (x / width).coerceIn(0f, 1f)
                                         )
                                     }
                                 }
+
                                 PointerEventType.Release,
-                                PointerEventType.Exit,
-                                -> Unit // selection sticks, like iOS
+                                PointerEventType.Exit
+                                -> Unit
+
+                                // selection sticks, like iOS
                                 else -> Unit
                             }
                         }
                     }
-                },
+                }
         ) {
             Sparkline(chart = chart, baseTint = baseTint, modifier = Modifier.matchParentSize())
             SelectionOverlay(chart = chart, index = selectedIndex, tint = baseTint)
@@ -128,19 +134,22 @@ private fun SelectionOverlay(chart: DashboardChart, index: Int, tint: Color) {
             drawRoundRect(
                 color = tint.copy(alpha = 0.12f),
                 topLeft = Offset(cx - maxOf(4f, slot * 0.78f) / 2, 0f),
-                size = androidx.compose.ui.geometry.Size(maxOf(4f, slot * 0.78f), size.height),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
+                size = Size(maxOf(4f, slot * 0.78f), size.height),
+                cornerRadius = CornerRadius(5f, 5f)
             )
             cx
         } else {
-            if (count == 1) size.width / 2
-            else size.width * index / (count - 1)
+            if (count == 1) {
+                size.width / 2
+            } else {
+                size.width * index / (count - 1)
+            }
         }
         drawLine(
             color = tint.copy(alpha = 0.9f),
             start = Offset(x.coerceIn(1f, size.width - 1f), 0f),
             end = Offset(x.coerceIn(1f, size.width - 1f), size.height),
-            strokeWidth = 2f,
+            strokeWidth = 2f
         )
     }
 }
@@ -155,10 +164,10 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
             .fillMaxWidth()
             .background(
                 LocalContentColors.current.primary.copy(alpha = 0.08f),
-                RoundedCornerShape(10.dp),
+                RoundedCornerShape(10.dp)
             )
             .padding(spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(spacing.small),
+        verticalArrangement = Arrangement.spacedBy(spacing.small)
     ) {
         snapshot.label?.let {
             Text(it, style = LocalTypography.current.label)
@@ -170,8 +179,8 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
                 color = signalColor(
                     it,
                     LocalContentColors.current.secondary,
-                    androidx.compose.foundation.isSystemInDarkTheme(),
-                ),
+                    isSystemInDarkTheme()
+                )
             )
         }
         readings.forEach { reading ->
@@ -180,28 +189,28 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
                     reading.label ?: "Value",
                     style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     formatChartValue(reading.value, unit),
-                    style = LocalTypography.current.body,
+                    style = LocalTypography.current.body
                 )
             }
         }
         reference?.let {
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     it.label ?: "Reference",
                     style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     formatChartValue(it.value, unit),
-                    style = LocalTypography.current.body,
+                    style = LocalTypography.current.body
                 )
             }
         }
@@ -209,7 +218,7 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
             Text(
                 it,
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
         }
     }

@@ -1,8 +1,8 @@
 package com.zerozerowidget.hzos.data
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -50,7 +50,7 @@ class DashboardRepositoryTest {
         store = store,
         apiFactory = { _, _ -> api },
         scope = TestScope(StandardTestDispatcher(testScheduler)),
-        defaultBaseUrl = "https://example.invalid",
+        defaultBaseUrl = "https://example.invalid"
     )
 
     @Test

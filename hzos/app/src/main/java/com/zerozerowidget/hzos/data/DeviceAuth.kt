@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.data
 
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -10,7 +11,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.IOException
 
 /**
  * RFC 8628 (OAuth Device Authorization Grant) client against the 00Widget
@@ -35,16 +35,14 @@ data class DeviceCodeResponse(
     // to send_auth_url. Falls back to verification_uri + user_code display.
     @SerialName("verification_uri_complete") val verificationUriComplete: String? = null,
     @SerialName("expires_in") val expiresInSeconds: Int = 600,
-    @SerialName("interval") val intervalSeconds: Int = 5,
+    @SerialName("interval") val intervalSeconds: Int = 5
 ) {
     val completeUri: String
         get() = verificationUriComplete ?: "$verificationUri?code=$userCode"
 }
 
 @Serializable
-private data class DeviceTokenRequest(
-    @SerialName("device_code") val deviceCode: String,
-)
+private data class DeviceTokenRequest(@SerialName("device_code") val deviceCode: String)
 
 @Serializable
 data class DeviceTokenResponse(
@@ -52,7 +50,7 @@ data class DeviceTokenResponse(
     val token: String? = null,
     // RFC 8628 errors while pending: authorization_pending | slow_down |
     // expired | denied. Absent (with a token) means approved.
-    val error: String? = null,
+    val error: String? = null
 )
 
 class DeviceFlowUnsupportedException(message: String) : IOException(message)
@@ -64,29 +62,30 @@ class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
     private val base: String = baseUrl.trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun pollToken(deviceCode: String): DeviceTokenResponse =
-        post("/v1/auth/device/token", json.encodeToString(DeviceTokenRequest.serializer(), DeviceTokenRequest(deviceCode)))
+    suspend fun pollToken(deviceCode: String): DeviceTokenResponse = post(
+        "/v1/auth/device/token",
+        json.encodeToString(DeviceTokenRequest.serializer(), DeviceTokenRequest(deviceCode))
+    )
 
-    private suspend inline fun <reified T> post(path: String, body: String): T =
-        withContext(Dispatchers.IO) {
-            val req = Request.Builder()
-                .url(base + path)
-                .header("Accept", "application/json")
-                .post(body.toRequestBody("application/json".toMediaType()))
-                .build()
-            http.newCall(req).execute().use { resp ->
-                val raw = resp.body?.string().orEmpty()
-                if (resp.code == 404) {
-                    throw DeviceFlowUnsupportedException(
-                        "This server doesn't support phone sign-in (404). Paste a token manually.",
-                    )
-                }
-                if (resp.code !in 200..299) {
-                    throw IOException("HTTP ${resp.code}: ${raw.take(160)}")
-                }
-                json.decodeFromString(raw)
+    private suspend inline fun <reified T> post(path: String, body: String): T = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url(base + path)
+            .header("Accept", "application/json")
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        http.newCall(req).execute().use { resp ->
+            val raw = resp.body?.string().orEmpty()
+            if (resp.code == 404) {
+                throw DeviceFlowUnsupportedException(
+                    "This server doesn't support phone sign-in (404). Paste a token manually."
+                )
             }
+            if (resp.code !in 200..299) {
+                throw IOException("HTTP ${resp.code}: ${raw.take(160)}")
+            }
+            json.decodeFromString(raw)
         }
+    }
 }
 
 /**
@@ -100,7 +99,7 @@ suspend fun awaitDeviceToken(
     deviceCode: String,
     intervalSeconds: Int,
     deadlineMs: Long,
-    onTick: () -> Unit = {},
+    onTick: () -> Unit = {}
 ): String {
     var intervalMs = (intervalSeconds.coerceAtLeast(1)) * 1000L
     while (System.currentTimeMillis() < deadlineMs) {

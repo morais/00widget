@@ -1,3 +1,8 @@
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,11 +10,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
 }
-
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.util.Properties
 
 // Horizon Platform app ID (developer portal → your app). Per-machine, read
 // from hzos/local.properties as `platformAppId=` (gitignored); empty means
@@ -81,30 +81,30 @@ android {
         buildConfigField(
             "String",
             "PLATFORM_APP_ID",
-            "\"$platformAppId\"",
+            "\"$platformAppId\""
         )
         // Default Worker URL, read from defaults.properties above.
         buildConfigField(
             "String",
             "DEFAULT_BASE_URL",
-            "\"$defaultBaseUrl\"",
+            "\"$defaultBaseUrl\""
         )
         // Listing URLs, read from store.properties above. Blank hides rows.
         buildConfigField(
             "String",
             "PRIVACY_URL",
-            "\"${storeProps.getProperty("PRIVACY_URL", "")}\"",
+            "\"${storeProps.getProperty("PRIVACY_URL", "")}\""
         )
         buildConfigField(
             "String",
             "TERMS_URL",
-            "\"${storeProps.getProperty("TERMS_URL", "")}\"",
+            "\"${storeProps.getProperty("TERMS_URL", "")}\""
         )
         // Default Worker URL (public production endpoint, safe to ship).
         buildConfigField(
             "String",
             "DEFAULT_BASE_URL",
-            "\"$defaultBaseUrl\"",
+            "\"$defaultBaseUrl\""
         )
         // Subscriptions (Meta IAP). Everything here comes from gitignored
         // store.properties (see store.properties.sample) — real SKU strings
@@ -114,17 +114,17 @@ android {
         buildConfigField(
             "boolean",
             "SUBSCRIPTIONS_ENABLED",
-            "${storeProps.getProperty("SUBSCRIPTIONS_ENABLED", "false")}",
+            "${storeProps.getProperty("SUBSCRIPTIONS_ENABLED", "false")}"
         )
         buildConfigField(
             "String",
             "SUBSCRIPTION_MONTHLY_SKU",
-            "\"${storeProps.getProperty("SUBSCRIPTION_MONTHLY_SKU", "")}\"",
+            "\"${storeProps.getProperty("SUBSCRIPTION_MONTHLY_SKU", "")}\""
         )
         buildConfigField(
             "String",
             "SUBSCRIPTION_YEARLY_SKU",
-            "\"${storeProps.getProperty("SUBSCRIPTION_YEARLY_SKU", "")}\"",
+            "\"${storeProps.getProperty("SUBSCRIPTION_YEARLY_SKU", "")}\""
         )
     }
 
@@ -150,7 +150,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
+                "proguard-rules.pro"
             )
             // No dev credential field exists at all outside debug. The
             // Worker URL and Platform app ID are public configuration and

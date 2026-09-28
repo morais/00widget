@@ -1,3 +1,7 @@
+// Palette members are UPPER_CASE on purpose: they mirror the iOS palette's
+// system colour names one to one, which is what keeps the two in lockstep.
+@file:Suppress("ktlint:standard:property-naming")
+
 package com.zerozerowidget.hzos.ui.cards
 
 import androidx.compose.ui.graphics.Color
@@ -113,7 +117,7 @@ fun seriesTints(semantics: List<MetricSemantic?>, dark: Boolean): List<Color> {
         palette.BLUE,
         palette.PURPLE,
         palette.TEAL,
-        palette.ORANGE,
+        palette.ORANGE
     )
     val used = mutableSetOf<Color>()
     return semantics.mapIndexed { index, semantic ->

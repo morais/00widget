@@ -1,15 +1,12 @@
 package com.zerozerowidget.hzos.ui.cards
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -29,7 +26,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.data.DashboardStatus
+import com.zerozerowidget.hzos.data.DashboardTimeline
+import com.zerozerowidget.hzos.data.MetricSemantic
+import com.zerozerowidget.hzos.ui.theme.spacing
 import kotlin.math.abs
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 /**
  * Reference legend: a short length of the actual dashed rule in its own
@@ -38,12 +41,12 @@ import kotlin.math.abs
  */
 @Composable
 internal fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: String) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val semantics = chart.referenceMetadata?.semantic
     val tint = semantics?.let { chartTint(0, baseTint, it, dark) } ?: chartPalette(dark).SECONDARY
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+        horizontalArrangement = Arrangement.spacedBy(spacing.small)
     ) {
         Canvas(Modifier.width(24.dp).height(8.dp)) {
             drawLine(
@@ -51,13 +54,13 @@ internal fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Stri
                 start = Offset(0f, size.height / 2),
                 end = Offset(size.width, size.height / 2),
                 strokeWidth = 2f,
-                pathEffect = PathEffect.dashPathEffect(referenceDash(semantics?.role), 0f),
+                pathEffect = PathEffect.dashPathEffect(referenceDash(semantics?.role), 0f)
             )
         }
         Text(
             label,
             style = LocalTypography.current.caption,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
     }
 }
@@ -74,7 +77,7 @@ internal fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Stri
  */
 @Composable
 fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modifier) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val secondary = chartPalette(dark).SECONDARY
     val points = chart.points
     if (points.size < 2) return
@@ -83,12 +86,18 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
         val dataMin = buildList {
             add(points.min())
             chart.series?.forEach { s -> s.points.minOrNull()?.let(::add) }
-            chart.ranges?.forEach { add(it.low); add(it.high) }
+            chart.ranges?.forEach {
+                add(it.low)
+                add(it.high)
+            }
         }.min()
         val dataMax = buildList {
             add(points.max())
             chart.series?.forEach { s -> s.points.maxOrNull()?.let(::add) }
-            chart.ranges?.forEach { add(it.low); add(it.high) }
+            chart.ranges?.forEach {
+                add(it.low)
+                add(it.high)
+            }
         }.max()
         var lo = chart.min ?: dataMin
         var hi = chart.max ?: dataMax
@@ -97,10 +106,16 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
         val ref = chart.reference
         var drawReference = ref != null
         if (ref != null) {
-            if (chart.min == null) lo = minOf(lo, ref)
-            else if (ref < lo) drawReference = false
-            if (chart.max == null) hi = maxOf(hi, ref)
-            else if (ref > hi) drawReference = false
+            if (chart.min == null) {
+                lo = minOf(lo, ref)
+            } else if (ref < lo) {
+                drawReference = false
+            }
+            if (chart.max == null) {
+                hi = maxOf(hi, ref)
+            } else if (ref > hi) {
+                drawReference = false
+            }
         }
         val span = (hi - lo).takeIf { it != 0.0 } ?: 1.0
         fun y(v: Double) = size.height - ((v - lo) / span * size.height).toFloat()
@@ -113,7 +128,7 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
                 start = Offset(0f, y(ref!!)),
                 end = Offset(size.width, y(ref)),
                 strokeWidth = 2f,
-                pathEffect = PathEffect.dashPathEffect(referenceDash(semantics?.role), 0f),
+                pathEffect = PathEffect.dashPathEffect(referenceDash(semantics?.role), 0f)
             )
         }
 
@@ -130,7 +145,7 @@ internal fun DrawScope.drawLineSeries(
     chart: DashboardChart,
     baseTint: Color,
     dark: Boolean,
-    y: (Double) -> Float,
+    y: (Double) -> Float
 ) {
     val points = chart.points
     val tint = chartTint(0, baseTint, chart.semantic, dark)
@@ -149,8 +164,8 @@ internal fun DrawScope.drawLineSeries(
             area,
             Brush.verticalGradient(
                 0f to tint.copy(alpha = 0.32f * opacity),
-                1f to tint.copy(alpha = 0.02f * opacity),
-            ),
+                1f to tint.copy(alpha = 0.02f * opacity)
+            )
         )
         val line = Path().apply {
             moveTo(xs(0), y(points[0]))
@@ -159,7 +174,7 @@ internal fun DrawScope.drawLineSeries(
         drawPath(
             line,
             tint.copy(alpha = opacity),
-            style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            style = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
     }
 }
@@ -169,7 +184,7 @@ internal fun DrawScope.drawBars(
     baseTint: Color,
     secondary: Color,
     dark: Boolean,
-    y: (Double) -> Float,
+    y: (Double) -> Float
 ) {
     val count = chart.points.size
     if (count == 0) return
@@ -185,8 +200,8 @@ internal fun DrawScope.drawBars(
             drawRoundRect(
                 color = tint.copy(alpha = alpha),
                 topLeft = Offset(size.width / count * i + (slot - bw) / 2, minOf(size.height, top)),
-                size = androidx.compose.ui.geometry.Size(bw, maxOf(1f, abs(size.height - top))),
-                cornerRadius = CornerRadius(radius, radius),
+                size = Size(bw, maxOf(1f, abs(size.height - top))),
+                cornerRadius = CornerRadius(radius, radius)
             )
         }
         return
@@ -195,10 +210,10 @@ internal fun DrawScope.drawBars(
     val semantics = series.map { s ->
         (s.semantic ?: chart.semantic)?.let {
             // Series inherits chart-level hints it omits (see types.ts).
-            com.zerozerowidget.hzos.data.MetricSemantic(
+            MetricSemantic(
                 role = s.semantic?.role ?: chart.semantic?.role,
                 flow = s.semantic?.flow ?: chart.semantic?.flow,
-                signal = s.semantic?.signal ?: chart.semantic?.signal,
+                signal = s.semantic?.signal ?: chart.semantic?.signal
             )
         }
     }
@@ -222,13 +237,13 @@ internal fun DrawScope.drawBars(
                 color = tints[si].copy(alpha = 0.85f * roleOp),
                 topLeft = Offset(
                     size.width / count * i + groupStart + if (stacked) 0f else columnWidth * si,
-                    minOf(lowerY, upperY),
+                    minOf(lowerY, upperY)
                 ),
-                size = androidx.compose.ui.geometry.Size(
+                size = Size(
                     columnWidth,
-                    maxOf(1f, abs(upperY - lowerY)),
+                    maxOf(1f, abs(upperY - lowerY))
                 ),
-                cornerRadius = CornerRadius(radius, radius),
+                cornerRadius = CornerRadius(radius, radius)
             )
         }
     }
@@ -241,7 +256,7 @@ internal fun DrawScope.drawDelta(
     dark: Boolean,
     lo: Double,
     hi: Double,
-    y: (Double) -> Float,
+    y: (Double) -> Float
 ) {
     val points = chart.points
     if (points.isEmpty()) return
@@ -258,10 +273,10 @@ internal fun DrawScope.drawDelta(
             color = tint.copy(alpha = (if (above) 0.85f else 0.4f) * opacity),
             topLeft = Offset(
                 size.width / points.size * i + (slot - bw) / 2,
-                minOf(zeroY, valueY),
+                minOf(zeroY, valueY)
             ),
-            size = androidx.compose.ui.geometry.Size(bw, maxOf(1f, abs(valueY - zeroY))),
-            cornerRadius = CornerRadius(radius, radius),
+            size = Size(bw, maxOf(1f, abs(valueY - zeroY))),
+            cornerRadius = CornerRadius(radius, radius)
         )
     }
     if (0.0 in lo..hi) {
@@ -280,7 +295,7 @@ internal fun DrawScope.drawRanges(
     chart: DashboardChart,
     baseTint: Color,
     dark: Boolean,
-    y: (Double) -> Float,
+    y: (Double) -> Float
 ) {
     val ranges = chart.ranges?.takeIf { it.size == chart.points.size }
     if (ranges.isNullOrEmpty()) {
@@ -299,10 +314,10 @@ internal fun DrawScope.drawRanges(
             color = tint.copy(alpha = 0.32f * opacity),
             topLeft = Offset(
                 size.width / ranges.size * i + (slot - barW) / 2,
-                minOf(lowY, highY),
+                minOf(lowY, highY)
             ),
-            size = androidx.compose.ui.geometry.Size(barW, maxOf(1f, abs(highY - lowY))),
-            cornerRadius = CornerRadius(radius, radius),
+            size = Size(barW, maxOf(1f, abs(highY - lowY))),
+            cornerRadius = CornerRadius(radius, radius)
         )
         r.value?.let { v ->
             val tickW = maxOf(2f, slot * 0.68f)
@@ -312,7 +327,7 @@ internal fun DrawScope.drawRanges(
                 start = Offset(cx - tickW / 2, y(v)),
                 end = Offset(cx + tickW / 2, y(v)),
                 strokeWidth = 4f,
-                cap = StrokeCap.Round,
+                cap = StrokeCap.Round
             )
         }
     }
@@ -339,19 +354,18 @@ internal fun formatHourMinute(iso: String): String = try {
  */
 @Composable
 fun TimelinePlot(
-    timeline: com.zerozerowidget.hzos.data.DashboardTimeline,
+    timeline: DashboardTimeline,
     baseTint: Color,
     selectedFraction: Float?,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = isSystemInDarkTheme()
     val secondary = chartPalette(dark).SECONDARY
     Canvas(modifier) {
         val start = parseEpochMs(timeline.startAt) ?: return@Canvas
         val end = parseEpochMs(timeline.endAt)?.takeIf { it > start } ?: return@Canvas
         val spanMs = (end - start).toFloat()
-        fun fractionOf(iso: String): Float? =
-            parseEpochMs(iso)?.let { ((it - start) / spanMs).coerceIn(0f, 1f) }
+        fun fractionOf(iso: String): Float? = parseEpochMs(iso)?.let { ((it - start) / spanMs).coerceIn(0f, 1f) }
         val laneCount = maxOf(1, timeline.lanes.size)
         val laneH = size.height / laneCount
         // Lane baselines.
@@ -361,13 +375,12 @@ fun TimelinePlot(
                 color = secondary.copy(alpha = 0.20f),
                 start = Offset(0f, y),
                 end = Offset(size.width, y),
-                strokeWidth = 2f,
+                strokeWidth = 2f
             )
         }
-        fun laneOf(laneId: String): Int =
-            timeline.lanes.indexOfFirst { it.id == laneId }
-        fun seriesTintOf(seriesId: String, status: com.zerozerowidget.hzos.data.DashboardStatus): Color {
-            status.takeIf { it != com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN }
+        fun laneOf(laneId: String): Int = timeline.lanes.indexOfFirst { it.id == laneId }
+        fun seriesTintOf(seriesId: String, status: DashboardStatus): Color {
+            status.takeIf { it != DashboardStatus.UNKNOWN }
                 ?.let { return statusColor(it, secondary, dark) }
             val si = timeline.series.indexOfFirst { it.id == seriesId }.takeIf { it >= 0 } ?: 0
             return chartTint(si, baseTint, null, dark)
@@ -383,8 +396,8 @@ fun TimelinePlot(
             drawRoundRect(
                 color = seriesTintOf(e.seriesId, e.status).copy(alpha = 0.24f),
                 topLeft = Offset(x1 * size.width, laneH * (lane + 0.5f) - barH / 2),
-                size = androidx.compose.ui.geometry.Size(maxOf(2f, (x2 - x1) * size.width), barH),
-                cornerRadius = CornerRadius(radius, radius),
+                size = Size(maxOf(2f, (x2 - x1) * size.width), barH),
+                cornerRadius = CornerRadius(radius, radius)
             )
         }
         timeline.entries.forEach { e ->
@@ -396,7 +409,7 @@ fun TimelinePlot(
             drawCircle(
                 color = seriesTintOf(e.seriesId, e.status),
                 radius = r,
-                center = Offset(x.coerceIn(r, maxOf(r, size.width - r)), laneH * (lane + 0.5f)),
+                center = Offset(x.coerceIn(r, maxOf(r, size.width - r)), laneH * (lane + 0.5f))
             )
         }
         selectedFraction?.let { f ->
@@ -405,7 +418,7 @@ fun TimelinePlot(
                 color = baseTint.copy(alpha = 0.9f),
                 start = Offset(x, 0f),
                 end = Offset(x, size.height),
-                strokeWidth = 2f,
+                strokeWidth = 2f
             )
         }
     }

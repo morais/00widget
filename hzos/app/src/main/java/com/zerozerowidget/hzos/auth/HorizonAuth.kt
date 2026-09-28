@@ -13,10 +13,7 @@ import kotlinx.coroutines.CoroutineScope
  * the cross-app Oculus id) plus one single-use proof nonce. See
  * [HorizonAuth.getMetaIdentity]; every sign-in attempt mints a fresh one.
  */
-data class MetaIdentity(
-    val userId: String,
-    val userProof: String,
-)
+data class MetaIdentity(val userId: String, val userProof: String)
 
 /**
  * Thin wrapper over the Horizon Platform SDK Login API (`send_auth_url`).
@@ -30,11 +27,7 @@ data class MetaIdentity(
  * hzos/local.properties → BuildConfig). With none, [isAvailable] is false
  * and the UI offers manual paste only.
  */
-class HorizonAuth(
-    context: Context,
-    private val scope: CoroutineScope,
-    val appId: String,
-) {
+class HorizonAuth(context: Context, private val scope: CoroutineScope, val appId: String) {
     private val appContext: Context = context.applicationContext
 
     val isAvailable: Boolean get() = appId.isNotBlank()

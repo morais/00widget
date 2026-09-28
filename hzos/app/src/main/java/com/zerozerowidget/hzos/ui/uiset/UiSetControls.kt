@@ -3,18 +3,19 @@ package com.zerozerowidget.hzos.ui.uiset
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import com.zerozerowidget.hzos.R
+import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.button.ButtonStyle
+import metavrx.uiset.compose.button.IconButton
 import metavrx.uiset.compose.button.LabelButton
 import metavrx.uiset.compose.control.Switch
 import metavrx.uiset.compose.dialog.BasicDialog
 import metavrx.uiset.compose.dialog.DialogAction
 import metavrx.uiset.compose.input.TextField
 import metavrx.uiset.compose.slider.Slider
-import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.theme.icons.Icons
-import androidx.compose.ui.res.painterResource
-import com.zerozerowidget.hzos.R
 
 /**
  * Thin aliases over Meta UI Set controls, so call sites stay short and
@@ -32,14 +33,14 @@ fun UiSetPrimaryButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+    enabled: Boolean = true
 ) {
     LabelButton(
         label = label,
         onClick = onClick,
         modifier = modifier,
         style = ButtonStyle.Primary,
-        enabled = enabled,
+        enabled = enabled
     )
 }
 
@@ -48,14 +49,14 @@ fun UiSetSecondaryButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+    enabled: Boolean = true
 ) {
     LabelButton(
         label = label,
         onClick = onClick,
         modifier = modifier,
         style = ButtonStyle.Secondary,
-        enabled = enabled,
+        enabled = enabled
     )
 }
 
@@ -64,14 +65,14 @@ fun UiSetDestructiveButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
+    enabled: Boolean = true
 ) {
     LabelButton(
         label = label,
         onClick = onClick,
         modifier = modifier,
         style = ButtonStyle.Destructive,
-        enabled = enabled,
+        enabled = enabled
     )
 }
 
@@ -81,14 +82,14 @@ fun UiSetIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     style: ButtonStyle = ButtonStyle.Borderless,
-    content: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
-    metavrx.uiset.compose.button.IconButton(
+    IconButton(
         icon = content,
         onClick = onClick,
         contentDescription = contentDescription,
         modifier = modifier,
-        style = style,
+        style = style
     )
 }
 
@@ -97,13 +98,13 @@ fun UiSetSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null,
+    contentDescription: String? = null
 ) {
     Switch(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier,
-        contentDescription = contentDescription,
+        contentDescription = contentDescription
     )
 }
 
@@ -113,14 +114,14 @@ fun UiSetSlider(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
-    onValueChangeFinished: (() -> Unit)? = null,
+    onValueChangeFinished: (() -> Unit)? = null
 ) {
     Slider(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
         valueRange = valueRange,
-        onValueChangeFinished = onValueChangeFinished,
+        onValueChangeFinished = onValueChangeFinished
     )
 }
 
@@ -137,7 +138,7 @@ fun UiSetConfirmDialog(
     dismissLabel: String,
     onDismiss: () -> Unit,
     destructive: Boolean = false,
-    confirmEnabled: Boolean = true,
+    confirmEnabled: Boolean = true
 ) {
     BasicDialog(
         title = title,
@@ -146,13 +147,13 @@ fun UiSetConfirmDialog(
             label = confirmLabel,
             onClick = onConfirm,
             enabled = confirmEnabled,
-            destructive = destructive,
+            destructive = destructive
         ),
         onDismissRequest = onDismiss,
         secondaryAction = DialogAction(
             label = dismissLabel,
-            onClick = onDismiss,
-        ),
+            onClick = onDismiss
+        )
     )
 }
 
@@ -172,7 +173,7 @@ fun UiSetTextField(
     singleLine: Boolean = true,
     keyboardType: KeyboardType = KeyboardType.Text,
     placeholder: String? = null,
-    supportingText: String? = null,
+    supportingText: String? = null
 ) {
     TextField(
         value = value,
@@ -183,7 +184,7 @@ fun UiSetTextField(
         supportingText = supportingText,
         enabled = enabled,
         singleLine = singleLine,
-        keyboardType = keyboardType,
+        keyboardType = keyboardType
     )
 }
 
@@ -208,7 +209,6 @@ fun UiSetCopyIcon(copied: Boolean) {
  * container brush internal. For accent-colored text on surfaces — the old
  * `primary` text role.
  */
-/** The iOS blue the root theme accents the UiSet scheme with. */
 internal val UiSetAccent = Color(0xFF0A84FF)
 
 fun uiSetAccent(): Color = UiSetAccent

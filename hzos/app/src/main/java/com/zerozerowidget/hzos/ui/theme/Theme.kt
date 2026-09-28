@@ -3,13 +3,15 @@ package com.zerozerowidget.hzos.ui.theme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import metavrx.uiset.compose.theme.LocalColorScheme
 import com.zerozerowidget.hzos.ui.uiset.UiSetAccent
 import metavrx.uiset.compose.theme.ContentColors
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.Spacing
 import metavrx.uiset.compose.theme.UiSetIndicationDefaults
 import metavrx.uiset.compose.theme.UiSetTheme
 import metavrx.uiset.compose.theme.darkColorScheme as uiSetDarkColorScheme
@@ -39,8 +41,8 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
             ContentColors(
                 primary = Color.White,
                 secondary = Color.White,
-                icon = Color.White,
-            ),
+                icon = Color.White
+            )
         )
     }
     UiSetTheme {
@@ -49,7 +51,7 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
             typography = UiSetTheme.typography,
             shapes = UiSetTheme.shapes,
             dimensions = UiSetTheme.dimensions,
-            indications = UiSetIndicationDefaults.rememberConfig(scheme),
+            indications = UiSetIndicationDefaults.rememberConfig(scheme)
         ) {
             content()
         }
@@ -65,20 +67,18 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
  * for passthrough-vs-immersive, so one static behavior has to serve
  * both: glass degrades gracefully where a void would show black and
  * stays calm over a bright room. Reads the theme, so it tracks
- * dark/light switches. Tune [LightGlassAlpha] on device.
+ * dark/light switches. Tune [LIGHT_GLASS_ALPHA] on device.
  */
-private const val LightGlassAlpha = 0.8f
+private const val LIGHT_GLASS_ALPHA = 0.8f
 
 @Composable
-fun Modifier.panelBackground(): Modifier {
-    return if (isSystemInDarkTheme()) {
-        this
-    } else {
-        // UI Set's panel colour: the darker stop of its light background
-        // gradient, so the white cards (GlassPrimaryCard) stand off it.
-        val panel = LocalColorScheme.current.background.container.colors.asList()
-        background(panel.minBy { it.luminance() }.copy(alpha = LightGlassAlpha))
-    }
+fun Modifier.panelBackground(): Modifier = if (isSystemInDarkTheme()) {
+    this
+} else {
+    // UI Set's panel colour: the darker stop of its light background
+    // gradient, so the white cards (GlassPrimaryCard) stand off it.
+    val panel = LocalColorScheme.current.background.container.colors.asList()
+    background(panel.minBy { it.luminance() }.copy(alpha = LIGHT_GLASS_ALPHA))
 }
 
 /**
@@ -87,7 +87,7 @@ fun Modifier.panelBackground(): Modifier {
  * and spacers use these; component sizes (chart heights, icon boxes) do
  * not, since those are geometry rather than rhythm.
  */
-val spacing: metavrx.uiset.compose.theme.Spacing
+val spacing: Spacing
     @Composable
-    @androidx.compose.runtime.ReadOnlyComposable
+    @ReadOnlyComposable
     get() = UiSetTheme.dimensions.spacing

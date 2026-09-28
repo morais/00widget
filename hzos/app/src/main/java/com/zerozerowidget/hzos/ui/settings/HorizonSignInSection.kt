@@ -1,18 +1,10 @@
 package com.zerozerowidget.hzos.ui.settings
 
-import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import metavrx.uiset.compose.dialog.BasicDialog
-import metavrx.uiset.compose.dialog.DialogAction
-import metavrx.uiset.compose.dialog.DialogProgress
-import metavrx.uiset.compose.Text
-import metavrx.uiset.compose.theme.LocalColorScheme
-import metavrx.uiset.compose.theme.LocalContentColors
-import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,11 +23,19 @@ import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.awaitDeviceToken
 import com.zerozerowidget.hzos.data.horizonSignInBody
 import com.zerozerowidget.hzos.data.runHorizonSignIn
+import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.dialog.BasicDialog
+import metavrx.uiset.compose.dialog.DialogAction
+import metavrx.uiset.compose.dialog.DialogProgress
+import metavrx.uiset.compose.theme.LocalColorScheme
+import metavrx.uiset.compose.theme.LocalContentColors
+import metavrx.uiset.compose.theme.LocalTypography
 
 internal enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 
@@ -54,7 +54,7 @@ internal fun HorizonSignInSection(
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
     onSignedIn: (baseUrl: String, token: String, metaUserId: String) -> Unit,
     signInRequest: Int = 0,
-    onSignInRequestConsumed: () -> Unit = {},
+    onSignInRequestConsumed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf(HorizonPhase.IDLE) }
@@ -97,14 +97,16 @@ internal fun HorizonSignInSection(
                             attemptUserId = userId
                             unauthed.postHorizonSignIn(horizonSignInBody(userId, proof, ch))
                         },
-                        choice = choice,
+                        choice = choice
                     )
                 ) {
                     is HorizonOutcome.SignedIn -> {
                         onSignedIn(normalized, outcome.token, outcome.userId)
                         phase = HorizonPhase.IDLE
                     }
+
                     HorizonOutcome.NeedChoice -> phase = HorizonPhase.CHOICE
+
                     is HorizonOutcome.JoinCode -> {
                         val code = outcome.code
                         userCode = code.userCode
@@ -119,11 +121,12 @@ internal fun HorizonSignInSection(
                             deviceApi,
                             code.deviceCode,
                             code.intervalSeconds,
-                            deadline,
+                            deadline
                         )
                         onSignedIn(normalized, token, attemptUserId)
                         phase = HorizonPhase.IDLE
                     }
+
                     is HorizonOutcome.Failed -> {
                         error = outcome.message
                         phase = HorizonPhase.IDLE
@@ -135,7 +138,7 @@ internal fun HorizonSignInSection(
             } catch (e: Exception) {
                 android.util.Log.e(
                     "HorizonAuth",
-                    "sign-in failed: ${e.javaClass.simpleName}: ${e.message}",
+                    "sign-in failed: ${e.javaClass.simpleName}: ${e.message}"
                 )
                 error = (e.message ?: e.javaClass.simpleName).take(200)
                 phase = HorizonPhase.IDLE
@@ -148,7 +151,7 @@ internal fun HorizonSignInSection(
             "Sign-in needs a Horizon Platform app ID " +
                 "(`platformAppId` in hzos/local.properties).",
             style = LocalTypography.current.bodySmall,
-            color = LocalContentColors.current.secondary,
+            color = LocalContentColors.current.secondary
         )
         return
     }
@@ -166,37 +169,43 @@ internal fun HorizonSignInSection(
     when (phase) {
         HorizonPhase.IDLE -> {
             error?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+                Text(
+                    it,
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalColorScheme.current.negative.content
+                )
             }
             UiSetPrimaryButton("Sign in", onClick = { begin(null) })
         }
+
         HorizonPhase.PROVING -> {
             Text("Signing in…", style = LocalTypography.current.body)
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
+
         HorizonPhase.CHOICE -> {
             // Said here rather than by choosing silently: a new account and
             // someone else's existing one are different tenants, and only
             // the operator knows which this headset should join.
             Text(
                 "This headset isn't linked to an account yet.",
-                style = LocalTypography.current.body,
+                style = LocalTypography.current.body
             )
             Text(
                 "Creating an account uses this headset's own Meta identity — " +
                     "nothing to approve on your phone.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             UiSetPrimaryButton(
                 "Create a new account",
                 onClick = { begin("create") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             Text(
                 "Already have an account? Join it here — you'll approve the link on your iPhone.",
                 style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
+                color = LocalContentColors.current.secondary
             )
             // UiSet labels are plain strings, so the bold brand phrase
             // becomes its own text: a wrapping row that reads as one
@@ -206,33 +215,34 @@ internal fun HorizonSignInSection(
                     .fillMaxWidth()
                     .clickable(onClick = { begin("join_apple") })
                     .padding(vertical = spacing.medium),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 FlowRow(Modifier.weight(1f)) {
                     Text(
                         "Use an existing ",
-                        style = LocalTypography.current.body,
+                        style = LocalTypography.current.body
                     )
                     Text(
                         "Sign in with Apple",
                         style = LocalTypography.current.body.copy(
-                            fontWeight = FontWeight.Bold,
-                        ),
+                            fontWeight = FontWeight.Bold
+                        )
                     )
                     Text(
                         " account",
-                        style = LocalTypography.current.body,
+                        style = LocalTypography.current.body
                     )
                 }
                 Text(
                     ">",
                     style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
-                    modifier = Modifier.padding(start = spacing.small),
+                    modifier = Modifier.padding(start = spacing.small)
                 )
             }
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
+
         HorizonPhase.WAITING -> {
             // A UI Set dialog rather than inline text: it sits centred, where
             // gaze targeting is most reliable, with one large Cancel — Meta's
@@ -250,7 +260,16 @@ internal fun HorizonSignInSection(
                 description = "$status\n\nCode: $userCode",
                 primaryAction = DialogAction(label = "Cancel", onClick = ::cancel),
                 onDismissRequest = {},
-                progress = DialogProgress(currentStep = if (linkSent == true) 2 else 1, totalSteps = 2),
+                progress = DialogProgress(
+                    currentStep = if (linkSent ==
+                        true
+                    ) {
+                        2
+                    } else {
+                        1
+                    },
+                    totalSteps = 2
+                )
             )
         }
     }
