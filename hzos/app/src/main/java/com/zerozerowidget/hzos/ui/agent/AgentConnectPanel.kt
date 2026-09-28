@@ -16,10 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
@@ -50,6 +46,7 @@ import com.zerozerowidget.hzos.data.describeBrowserApproval
 import com.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.openDeepLink
+import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
@@ -480,10 +477,7 @@ private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
         onClick = onCopy,
         contentDescription = if (copied) "Copied" else "Copy",
     ) {
-        Icon(
-            if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-            contentDescription = null,
-        )
+        UiSetCopyIcon(copied)
     }
 }
 

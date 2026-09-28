@@ -19,10 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
 import metavrx.uiset.compose.Icon as UiSetIcon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -62,6 +58,7 @@ import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
+import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
@@ -712,10 +709,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpenA
                     },
                     contentDescription = if (copied) "Agent config copied" else "Copy agent config",
                 ) {
-                    Icon(
-                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = null,
-                    )
+                    UiSetCopyIcon(copied)
                 }
             }
             if (copied) {
@@ -802,10 +796,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                     },
                     contentDescription = if (copied) "Agent token copied" else "Copy agent token",
                 ) {
-                    Icon(
-                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = null,
-                    )
+                    UiSetCopyIcon(copied)
                 }
             }
         }

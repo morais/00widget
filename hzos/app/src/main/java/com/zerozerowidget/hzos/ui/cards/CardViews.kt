@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.icons.Icons
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
@@ -39,7 +41,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.ActionDefinition
@@ -161,67 +162,27 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * Pop-out affordance drawn with Canvas strokes, never a font glyph — the
- * headset font lacks symbols like U+279A, which rendered prior icon
- * buttons invisible. Open-in-new shape: box with an arrow leaving top-right.
+ * Pop-out affordance: UI Set's open-in-new glyph (box with an arrow
+ * leaving top-right). These were Canvas strokes while the only glyph
+ * source was the headset font, which lacked the symbols; UI Set's icon
+ * set is vector and always present.
  */
 @Composable
 fun PopOutIconButton(onPopOut: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onPopOut, contentDescription = "Pop out", modifier = modifier) {
-        val color = LocalContentColors.current.secondary
-        Canvas(Modifier.size(22.dp)) {
-            val sw = 2.dp.toPx()
-            // Box outline; the arrow overlaps its top-right corner.
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(3.dp.toPx(), 8.dp.toPx()),
-                size = Size(12.dp.toPx(), 11.dp.toPx()),
-                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
-                style = Stroke(width = sw),
-            )
-            // Arrow leaving toward top-right.
-            val tip = Offset(19.dp.toPx(), 5.dp.toPx())
-            drawLine(color, Offset(9.dp.toPx(), 15.dp.toPx()), tip, strokeWidth = sw, cap = StrokeCap.Round)
-            drawLine(color, tip, Offset(tip.x - 4.5.dp.toPx(), tip.y), strokeWidth = sw, cap = StrokeCap.Round)
-            drawLine(color, tip, Offset(tip.x, tip.y + 4.5.dp.toPx()), strokeWidth = sw, cap = StrokeCap.Round)
-        }
+        Icon(Icons.Regular.OpenTab, contentDescription = null, tint = LocalContentColors.current.secondary)
     }
 }
 
 /**
- * Link affordance, same drawn-stroke rules as [PopOutIconButton]: two
- * interlocked rounded links. Sits left of the pop-out icon wherever both
- * appear, so the corner reads link-then-pop-out.
+ * Link affordance: a globe, since the link opens in the headset browser.
+ * Sits left of the pop-out icon wherever both appear, so the corner reads
+ * link-then-pop-out.
  */
 @Composable
 fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
     UiSetIconButton(onClick = onOpenLink, contentDescription = "Open link", modifier = modifier) {
-        val color = LocalContentColors.current.secondary
-        Canvas(Modifier.size(22.dp)) {
-            val sw = 2.dp.toPx()
-            val r = CornerRadius(3.5.dp.toPx(), 3.5.dp.toPx())
-            val style = Stroke(width = sw)
-            // Two rounded links rotated against each other, overlapping in
-            // the middle like a chain.
-            rotate(-25f, pivot = Offset(8.dp.toPx(), 13.dp.toPx())) {
-                drawRoundRect(
-                    color = color,
-                    topLeft = Offset(4.dp.toPx(), 8.dp.toPx()),
-                    size = Size(8.dp.toPx(), 10.dp.toPx()),
-                    cornerRadius = r,
-                    style = style,
-                )
-            }
-            rotate(25f, pivot = Offset(14.dp.toPx(), 13.dp.toPx())) {
-                drawRoundRect(
-                    color = color,
-                    topLeft = Offset(10.dp.toPx(), 8.dp.toPx()),
-                    size = Size(8.dp.toPx(), 10.dp.toPx()),
-                    cornerRadius = r,
-                    style = style,
-                )
-            }
-        }
+        Icon(Icons.Regular.World, contentDescription = null, tint = LocalContentColors.current.secondary)
     }
 }
 

@@ -11,6 +11,10 @@ import metavrx.uiset.compose.dialog.BasicDialog
 import metavrx.uiset.compose.dialog.DialogAction
 import metavrx.uiset.compose.input.TextField
 import metavrx.uiset.compose.slider.Slider
+import metavrx.uiset.compose.Icon
+import metavrx.uiset.compose.theme.icons.Icons
+import androidx.compose.ui.res.painterResource
+import com.zerozerowidget.hzos.R
 
 /**
  * Thin aliases over Meta UI Set controls, so call sites stay short and
@@ -181,6 +185,20 @@ fun UiSetTextField(
         singleLine = singleLine,
         keyboardType = keyboardType,
     )
+}
+
+/**
+ * Copy-button glyph: UI Set's check once copied, else the copy glyph.
+ * UI Set ships no copy icon, so that one is a vendored vector drawable
+ * rather than a reason to keep material-icons-extended.
+ */
+@Composable
+fun UiSetCopyIcon(copied: Boolean) {
+    if (copied) {
+        Icon(Icons.Regular.CheckAlt, contentDescription = null)
+    } else {
+        Icon(painterResource(R.drawable.ic_content_copy_24), contentDescription = null)
+    }
 }
 
 /**
