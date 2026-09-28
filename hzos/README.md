@@ -73,6 +73,16 @@ To add a panel type: add an activity + `<layout>` entry, and a launcher in
 **all three** in the same change. Unknown template/status strings fall back
 (`summary`/`unknown`) instead of failing the list decode — one newer-server
 card must not blank the dashboard, same rule as the Swift decoders.
+That fallback only works for a property with a default, because
+`WireJson` coerces an unknown enum value to the default rather than
+throwing — so every enum-typed field in `Models.kt` has one.
+`WireDecodingTest` decodes every card the `examples/` scripts publish (all
+nine templates) and checks the fallbacks; run it after touching the model.
+
+Decoded but not drawn, as of this writing: a card's `icon` and
+`statusIcon` (SF Symbol names, which Horizon has no glyph set for),
+`priority` (the server already sorts by it), and the iOS "Needs you" badge
+(`NeedsYouBadge` exists; the attention-status + action rule does not yet).
 
 ## Sample data
 

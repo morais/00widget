@@ -27,12 +27,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val apiKey: String) : DashboardApi {
     private val base = baseUrl.trimEnd('/')
-    val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-        coerceInputValues = true
-        explicitNulls = false
-    }
+    val json = WireJson
 
     class ApiException(val status: Int, message: String) : IOException(message)
 
@@ -336,4 +331,18 @@ data class SubscriptionState(
     /** Grace, expiry and refund are worth flagging; the rest are not. */
     val needsAttention: Boolean
         get() = status == "grace" || status == "expired" || status == "revoked"
+}
+
+/**
+ * How every Worker response is decoded — one instance, since kotlinx asks
+ * for configured Json objects to be reused rather than rebuilt per call.
+ * coerceInputValues is what turns an unknown enum value (a template or
+ * status from a newer server) into the property's default instead of an
+ * exception, so every such property needs a default; see DashboardCard.
+ */
+val WireJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+    explicitNulls = false
 }

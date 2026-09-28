@@ -131,7 +131,10 @@ data class ChartReferenceMetadata(val label: String? = null, val semantic: Metri
 
 @Serializable
 data class DashboardChart(
-    val points: List<Double>,
+    // The Worker derives legacy points for series and range charts before
+    // serving them; defaulted so a payload without them still decodes (the
+    // plot skips a chart with fewer than two).
+    val points: List<Double> = emptyList(),
     val min: Double? = null,
     val max: Double? = null,
     val reference: Double? = null,
@@ -197,7 +200,10 @@ data class ActionDefinition(
 @Serializable
 data class DashboardCard(
     val id: String,
-    val template: DashboardTemplate,
+    // Defaulted so an unknown template from a newer server decodes as a
+    // summary (WireJson coerces unknown enum values to the default) rather
+    // than failing the whole dashboard. The Worker always sends one.
+    val template: DashboardTemplate = DashboardTemplate.SUMMARY,
     val title: String,
     val subtitle: String? = null,
     val value: String? = null,
