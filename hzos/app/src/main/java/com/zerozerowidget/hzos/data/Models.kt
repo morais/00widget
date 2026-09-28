@@ -218,12 +218,7 @@ data class DashboardCard(
     val timeline: DashboardTimeline? = null,
     val briefing: DashboardBriefing? = null,
     val actions: List<ActionDefinition>? = null
-) {
-    /** Server returns cards pre-sorted; keep that order, it encodes priority. */
-    companion object {
-        fun sorted(cards: List<DashboardCard>): List<DashboardCard> = cards
-    }
-}
+)
 
 @Serializable
 data class LiveActivityItem(
@@ -261,12 +256,6 @@ data class LiveActivitySession(
     val staleAt: String? = null,
     val deepLink: String? = null
 )
-
-@Serializable
-data class CardsListResponse(val cards: List<DashboardCard> = emptyList())
-
-@Serializable
-data class LiveActivitiesListResponse(val activities: List<LiveActivitySession> = emptyList())
 
 @Serializable
 data class DashboardResponse(

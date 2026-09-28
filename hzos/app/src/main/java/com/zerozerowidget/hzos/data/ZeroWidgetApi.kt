@@ -36,21 +36,8 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
 
     class ApiException(val status: Int, message: String) : IOException(message)
 
-    suspend fun health(): Boolean = withContext(Dispatchers.IO) {
-        val code = getRaw("/health").use { it.code }
-        code == 200
-    }
-
     override suspend fun fetchDashboard(): DashboardResponse = withContext(Dispatchers.IO) {
         get("/v1/dashboard")
-    }
-
-    suspend fun fetchCards(): List<DashboardCard> = withContext(Dispatchers.IO) {
-        get<CardsListResponse>("/v1/cards").cards
-    }
-
-    suspend fun fetchLiveActivities(): List<LiveActivitySession> = withContext(Dispatchers.IO) {
-        get<LiveActivitiesListResponse>("/v1/live-activities").activities
     }
 
     /**

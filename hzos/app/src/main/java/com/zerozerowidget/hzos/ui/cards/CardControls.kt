@@ -305,7 +305,7 @@ fun DeleteRow(
         }
     }
     if (confirming) {
-        UiSetConfirmDialog(
+        DeleteConfirmDialog(
             title = confirmTitle,
             text = confirmText,
             confirmLabel = label,
@@ -313,11 +313,33 @@ fun DeleteRow(
                 confirming = false
                 onDelete()
             },
-            dismissLabel = "Cancel",
-            onDismiss = { confirming = false },
-            destructive = true
+            onDismiss = { confirming = false }
         )
     }
+}
+
+/**
+ * The one destructive confirm: every delete, remove, end and disconnect
+ * asks through this, so they read and behave alike. Cancel is the safe
+ * default; the confirm button carries the action's own label.
+ */
+@Composable
+fun DeleteConfirmDialog(
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    UiSetConfirmDialog(
+        title = title,
+        text = text,
+        confirmLabel = confirmLabel,
+        onConfirm = onConfirm,
+        dismissLabel = "Cancel",
+        onDismiss = onDismiss,
+        destructive = true
+    )
 }
 
 /**

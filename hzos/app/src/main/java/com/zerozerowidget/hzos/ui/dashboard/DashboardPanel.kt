@@ -52,6 +52,7 @@ import com.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.zerozerowidget.hzos.ui.cards.DeleteButton
+import com.zerozerowidget.hzos.ui.cards.DeleteConfirmDialog
 import com.zerozerowidget.hzos.ui.cards.DetailCard
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
@@ -534,7 +535,7 @@ fun CardDetailPanel(
                     }
                 }
                 if (confirmingDelete) {
-                    UiSetConfirmDialog(
+                    DeleteConfirmDialog(
                         title = if (isSample) "Remove this sample?" else "Delete this card?",
                         text = if (isSample) {
                             "It only exists on this headset and can be generated again."
@@ -547,9 +548,7 @@ fun CardDetailPanel(
                             confirmingDelete = false
                             fireDelete()
                         },
-                        dismissLabel = "Cancel",
-                        onDismiss = { confirmingDelete = false },
-                        destructive = true
+                        onDismiss = { confirmingDelete = false }
                     )
                 }
                 deleteError?.let {
