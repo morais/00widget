@@ -413,25 +413,45 @@ fun CardDetailPanel(
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            // Actions, link, and delete share one explicit row: the
-            // buttons take the weight on the left, link and delete sit
-            // right with fixed gaps. Samples keep their demo notice in
-            // the same slot instead of runners.
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            // Actions hug the left, link and delete sit right — but only
+            // while all three fit. Rows neither wrap nor clip, and three
+            // pills need roughly 400dp; below that they would spill off
+            // the window edge, so narrow stacks the actions above a
+            // right-aligned link/delete row instead. The buttons size
+            // themselves (a weight slot only recenters them, because UiSet
+            // caps button width inside oversized slots); a spacer does the
+            // pushing. Samples keep their demo notice in the actions slot.
+            val deleteLabel = if (isSample && !hideIndicators) "Remove sample" else "Delete"
+            fun fireDelete() {
+                if (deleteArmed) {
+                    deleteArmed = false
+                    scope.launch {
+                        deleting = true
+                        deleteError = null
+                        val ok = if (isSample) {
+                            app.sampleStore.removeCard(cardId)
+                            true
+                        } else {
+                            val result = app.repository.deleteCard(cardId)
+                            deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
+                            result.isSuccess
+                        }
+                        deleting = false
+                        if (ok) onDeleted()
+                    }
+                } else {
+                    deleteArmed = true
+                }
+            }
+            @Composable
+            fun actionSlot() {
                 if (isSample && !hideIndicators) {
                     if (!card.actions.isNullOrEmpty()) {
                         Text(
                             "Demo card — buttons don't run on samples.",
                             style = LocalTypography.current.bodySmall,
                             color = LocalContentColors.current.secondary,
-                            modifier = Modifier.weight(1f),
                         )
-                    } else {
-                        Spacer(Modifier.weight(1f))
                     }
                 } else {
                     ActionButtons(
@@ -447,38 +467,69 @@ fun CardDetailPanel(
                                 runError = result.exceptionOrNull()?.let(::describeRunError)
                             }
                         },
-                        modifier = Modifier.weight(1f),
                     )
                 }
-                card.deepLink?.let {
-                    UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
+            }
+            // Plain text fills and wraps; buttons size to content, so an
+            // actions slot reserves the weight with start alignment.
+            @Composable
+            fun wideActions() {
+                if (isSample && !hideIndicators && !card.actions.isNullOrEmpty()) {
+                    Text(
+                        "Demo card — buttons don't run on samples.",
+                        style = LocalTypography.current.bodySmall,
+                        color = LocalContentColors.current.secondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else if (isSample && !hideIndicators) {
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    Box(
+                        Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        actionSlot()
+                    }
                 }
-                DeleteButton(
-                    label = if (isSample && !hideIndicators) "Remove sample" else "Delete",
-                    busy = deleting,
-                    armed = deleteArmed,
-                    onClick = {
-                        if (deleteArmed) {
-                            deleteArmed = false
-                            scope.launch {
-                                deleting = true
-                                deleteError = null
-                                val ok = if (isSample) {
-                                    app.sampleStore.removeCard(cardId)
-                                    true
-                                } else {
-                                    val result = app.repository.deleteCard(cardId)
-                                    deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
-                                    result.isSuccess
-                                }
-                                deleting = false
-                                if (ok) onDeleted()
-                            }
-                        } else {
-                            deleteArmed = true
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth >= 400.dp) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        wideActions()
+                        card.deepLink?.let {
+                            UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
                         }
-                    },
-                )
+                        DeleteButton(
+                            label = deleteLabel,
+                            busy = deleting,
+                            armed = deleteArmed,
+                            onClick = ::fireDelete,
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        actionSlot()
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Spacer(Modifier.weight(1f))
+                            card.deepLink?.let {
+                                UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
+                            }
+                            DeleteButton(
+                                label = deleteLabel,
+                                busy = deleting,
+                                armed = deleteArmed,
+                                onClick = ::fireDelete,
+                            )
+                        }
+                    }
+                }
             }
             deleteError?.let {
                 Spacer(Modifier.height(4.dp))
