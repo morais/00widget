@@ -10,32 +10,15 @@ import kotlinx.coroutines.flow.map
 
 private val Context.panelPrefsStore by preferencesDataStore(name = "panel_prefs")
 
-/**
- * Look, not data: whether shell panels render transparent (passthrough shows
- * through the window) or opaque (the scheme surface, via panelBackground —
- * the window drawable underneath stays black in both cases). Separate
- * DataStore from ConnectionStore on purpose — wiping credentials must never
- * wipe this, and vice versa.
- */
+/** Look, not data: panel opacity, sample indicators, demo tokens. */
 class PanelPrefs(private val context: Context) {
     companion object {
-        private val TRANSPARENT = booleanPreferencesKey("transparent_panels")
         private val CARD_ALPHA = floatPreferencesKey("card_alpha")
         private val HIDE_INDICATORS = booleanPreferencesKey("hide_sample_indicators")
         private val SHOW_DUMMY_ACCOUNT_DATA = booleanPreferencesKey("show_dummy_account_data")
         /** Cards nearly solid by default — just a breath of passthrough. */
         const val DEFAULT_CARD_ALPHA = 0.85f
     }
-
-    /**
-     * Explicit transparency choice, or null when never chosen. The
-     * effective value follows the theme when unset — transparent in dark
-     * mode, opaque surfaces in light mode — and an explicit choice always
-     * wins. Callers resolve it where the theme is readable (composition
-     * via isSystemInDarkTheme, activities via uiMode).
-     */
-    val transparentOverride: Flow<Boolean?> =
-        context.panelPrefsStore.data.map { it[TRANSPARENT] }
 
     /** Card surface opacity, 0.5 (glassy) to 1.0 (solid). */
     val cardAlpha: Flow<Float> =
@@ -59,10 +42,6 @@ class PanelPrefs(private val context: Context) {
      */
     val showDummyAccountData: Flow<Boolean> =
         context.panelPrefsStore.data.map { it[SHOW_DUMMY_ACCOUNT_DATA] == true }
-
-    suspend fun setTransparent(value: Boolean) {
-        context.panelPrefsStore.edit { it[TRANSPARENT] = value }
-    }
 
     suspend fun setCardAlpha(value: Float) {
         context.panelPrefsStore.edit { it[CARD_ALPHA] = value.coerceIn(0.5f, 1f) }

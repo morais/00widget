@@ -2,14 +2,8 @@ package com.zerozerowidget.hzos.ui
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
 import com.zerozerowidget.hzos.CardDetailActivity
 import com.zerozerowidget.hzos.SettingsActivity
-import com.zerozerowidget.hzos.ZeroZeroWidgetApp
-import kotlinx.coroutines.launch
 
 /**
  * Multi-panel navigation. Each surface is its own activity; Horizon OS shows
@@ -69,33 +63,4 @@ fun Context.openActivityDetailPanel(externalActivityId: String) {
             )
         },
     )
-}
-
-/**
- * Applies the transparency preference to this panel's window, live. Called
- * from every panel activity's onCreate; the Flow keeps it applied for the
- * activity's whole life, so flipping the toggle in the Connection panel
- * re-skins every open panel without recreating anything.
- *
- * Deliberately touches ONLY the background drawable, never the pixel
- * format: every activity is born translucent (PanelAppTheme.Transparent in
- * the manifest), so the surface is always alpha-capable and opaque mode is
- * just black paint. Changing PixelFormat at runtime is what produced the
- * hover black-flashes and scroll smearing — never do that again.
- */
-fun ComponentActivity.trackPanelTransparency(app: ZeroZeroWidgetApp) {
-    lifecycleScope.launch {
-        // Unset follows the theme like panelBackground does; uiMode
-        // changes recreate the activity (not in configChanges), so reading
-        // it per emission is exact for this instance's whole life.
-        app.panelPrefs.transparentOverride.collect { override ->
-            val dark = resources.configuration.uiMode and
-                android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
-                android.content.res.Configuration.UI_MODE_NIGHT_YES
-            val transparent = override ?: dark
-            window.setBackgroundDrawable(
-                ColorDrawable(if (transparent) Color.TRANSPARENT else Color.BLACK),
-            )
-        }
-    }
 }

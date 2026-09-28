@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import com.zerozerowidget.hzos.ui.settings.SettingsPanel
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
-import com.zerozerowidget.hzos.ui.trackPanelTransparency
 import kotlinx.coroutines.launch
 
 /** Connection panel: phone sign-in + manual URL/key entry. Singleton. */
@@ -42,7 +41,6 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (intent.getBooleanExtra(EXTRA_AUTO_SIGN_IN, false)) signInRequest++
         val app = application as ZeroZeroWidgetApp
-        trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
                 SettingsPanel(

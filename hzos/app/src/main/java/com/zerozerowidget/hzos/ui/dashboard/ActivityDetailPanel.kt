@@ -82,7 +82,7 @@ fun ActivityDetailPanel(
     Column(
         Modifier
             .fillMaxSize()
-            .panelBackground(app)
+            .panelBackground()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {

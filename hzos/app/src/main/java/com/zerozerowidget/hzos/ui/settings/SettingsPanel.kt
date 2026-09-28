@@ -108,7 +108,7 @@ fun SettingsPanel(
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
 
-    Column(Modifier.fillMaxSize().panelBackground(app)) {
+    Column(Modifier.fillMaxSize().panelBackground()) {
         // Pinned: Back, title, and close stay put while the destination
         // below scrolls — the agent guide is long enough to lose them.
         Row(
@@ -884,10 +884,6 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
-    val transparentOverride by app.panelPrefs.transparentOverride.collectAsState(initial = null)
-    // The switch shows the effective value: unset follows the theme,
-    // so in light mode it reads off until someone chooses otherwise.
-    val transparent = transparentOverride ?: androidx.compose.foundation.isSystemInDarkTheme()
     val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
     val showDummyAccountData by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
@@ -995,26 +991,6 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 color = LocalContentColors.current.secondary,
             )
             Text("Look", style = LocalTypography.current.title)
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Transparent panels", style = LocalTypography.current.body)
-                    Text(
-                        "Passthrough shows through the window; cards stay solid.",
-                        style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
-                    )
-                }
-                UiSetSwitch(
-                    checked = transparent,
-                    onCheckedChange = { checked ->
-                        scope.launch { app.panelPrefs.setTransparent(checked) }
-                    },
-                    contentDescription = "Transparent panels",
-                )
-            }
             Column(Modifier.fillMaxWidth()) {
                 Text("Card opacity", style = LocalTypography.current.body)
                 Text(

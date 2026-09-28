@@ -8,7 +8,6 @@ import com.zerozerowidget.hzos.ui.openActivityDetailPanel
 import com.zerozerowidget.hzos.ui.openSettingsPanel
 import com.zerozerowidget.hzos.ui.openDetailPanel
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
-import com.zerozerowidget.hzos.ui.trackPanelTransparency
 import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import kotlinx.coroutines.launch
 
@@ -17,7 +16,6 @@ class DashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
-        trackPanelTransparency(app)
         setContent {
             ZeroZeroWidgetTheme {
                 DashboardPanel(

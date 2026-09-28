@@ -102,7 +102,7 @@ fun DashboardPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().panelBackground(app).padding(20.dp)) {
+    Column(Modifier.fillMaxSize().panelBackground().padding(20.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -389,7 +389,7 @@ fun CardDetailPanel(
     Column(
         Modifier
             .fillMaxSize()
-            .panelBackground(app)
+            .panelBackground()
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {

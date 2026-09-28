@@ -9,7 +9,6 @@ import com.zerozerowidget.hzos.ui.dashboard.ActivityDetailPanel
 import com.zerozerowidget.hzos.ui.dashboard.CardDetailPanel
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
-import com.zerozerowidget.hzos.ui.trackPanelTransparency
 
 /**
  * Detail panels for cards and activities. Launched with MULTIPLE_TASK, so
@@ -19,7 +18,6 @@ class CardDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as ZeroZeroWidgetApp
-        trackPanelTransparency(app)
         val cardId = intent.getStringExtra(EXTRA_CARD_ID)
         val activityId = intent.getStringExtra(EXTRA_ACTIVITY_ID)
         setContent {
