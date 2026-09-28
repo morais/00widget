@@ -100,12 +100,6 @@ android {
             "TERMS_URL",
             "\"${storeProps.getProperty("TERMS_URL", "")}\""
         )
-        // Default Worker URL (public production endpoint, safe to ship).
-        buildConfigField(
-            "String",
-            "DEFAULT_BASE_URL",
-            "\"$defaultBaseUrl\""
-        )
         // Subscriptions (Meta IAP). Everything here comes from gitignored
         // store.properties (see store.properties.sample) — real SKU strings
         // must never be committed. Off unless explicitly enabled, so
