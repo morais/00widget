@@ -108,10 +108,13 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
  * into passthrough; opaque paints the scheme surface — never the
  * window's black drawable, which is invisible in dark mode and glaring
  * in light mode. Reads the theme, so it tracks dark/light switches.
+ * Unset means follow the theme (transparent when dark, surfaces when
+ * light); an explicit toggle choice always wins.
  */
 @Composable
 fun Modifier.panelBackground(app: ZeroZeroWidgetApp): Modifier {
-    val transparent by app.panelPrefs.transparent.collectAsState(initial = true)
+    val override by app.panelPrefs.transparentOverride.collectAsState(initial = null)
+    val transparent = override ?: androidx.compose.foundation.isSystemInDarkTheme()
     return if (transparent) {
         this
     } else {

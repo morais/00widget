@@ -27,9 +27,15 @@ class PanelPrefs(private val context: Context) {
         const val DEFAULT_CARD_ALPHA = 0.85f
     }
 
-    /** Transparent windows by default; opaque is the opt-in. */
-    val transparent: Flow<Boolean> =
-        context.panelPrefsStore.data.map { it[TRANSPARENT] != false }
+    /**
+     * Explicit transparency choice, or null when never chosen. The
+     * effective value follows the theme when unset — transparent in dark
+     * mode, opaque surfaces in light mode — and an explicit choice always
+     * wins. Callers resolve it where the theme is readable (composition
+     * via isSystemInDarkTheme, activities via uiMode).
+     */
+    val transparentOverride: Flow<Boolean?> =
+        context.panelPrefsStore.data.map { it[TRANSPARENT] }
 
     /** Card surface opacity, 0.5 (glassy) to 1.0 (solid). */
     val cardAlpha: Flow<Float> =

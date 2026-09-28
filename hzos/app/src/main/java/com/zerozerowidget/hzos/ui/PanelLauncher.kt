@@ -85,7 +85,14 @@ fun Context.openActivityDetailPanel(externalActivityId: String) {
  */
 fun ComponentActivity.trackPanelTransparency(app: ZeroZeroWidgetApp) {
     lifecycleScope.launch {
-        app.panelPrefs.transparent.collect { transparent ->
+        // Unset follows the theme like panelBackground does; uiMode
+        // changes recreate the activity (not in configChanges), so reading
+        // it per emission is exact for this instance's whole life.
+        app.panelPrefs.transparentOverride.collect { override ->
+            val dark = resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val transparent = override ?: dark
             window.setBackgroundDrawable(
                 ColorDrawable(if (transparent) Color.TRANSPARENT else Color.BLACK),
             )

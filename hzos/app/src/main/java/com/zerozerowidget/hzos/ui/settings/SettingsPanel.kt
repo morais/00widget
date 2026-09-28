@@ -884,7 +884,10 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
-    val transparent by app.panelPrefs.transparent.collectAsState(initial = true)
+    val transparentOverride by app.panelPrefs.transparentOverride.collectAsState(initial = null)
+    // The switch shows the effective value: unset follows the theme,
+    // so in light mode it reads off until someone chooses otherwise.
+    val transparent = transparentOverride ?: androidx.compose.foundation.isSystemInDarkTheme()
     val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
     val showDummyAccountData by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
