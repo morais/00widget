@@ -372,9 +372,13 @@ private fun ListBody(card: DashboardCard) {
 
 @Composable
 private fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
-    // An action card can still carry a chart (the water heater does):
-    // iOS detail draws it for any template, so this draws it too rather
-    // than leaving the hint as the whole body.
+    // Subtitle and producer like every other template: iOS's action
+    // summary shows the subtitle beside the value, and without this the
+    // body is only ever the hint below.
+    CardMetaLine(card)
+    // An action card can still carry a chart: iOS detail draws it for any
+    // template that has one, so this draws it rather than leaving the
+    // hint as the whole body.
     val chart = card.chart?.takeIf { it.points.size >= 2 }
     if (chart != null) {
         val unknown = LocalContentColors.current.secondary
