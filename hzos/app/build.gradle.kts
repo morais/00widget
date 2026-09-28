@@ -123,9 +123,20 @@ android {
     }
 
     // Store signing. Keystore lives OUTSIDE the repo; point at it with env
-    // (see hzos/README.md "Store submission"). Without these vars the
-    // release build assembles unsigned — installable nowhere that matters.
+    // (see hzos/README.md "Publishing"). A release build without it would
+    // be unsigned — installable nowhere that matters — so asking for one
+    // fails here instead, unless -PallowUnsigned says that is intended.
     val hasReleaseKeystore = System.getenv("ZW_KEYSTORE_FILE") != null
+    val releaseRequested = gradle.startParameter.taskNames.any { task ->
+        listOf("assembleRelease", "bundleRelease", "packageRelease", "installRelease")
+            .any { task.endsWith(it) }
+    }
+    if (releaseRequested && !hasReleaseKeystore && !providers.gradleProperty("allowUnsigned").isPresent) {
+        throw GradleException(
+            "Release build without a keystore would be unsigned. Set ZW_KEYSTORE_FILE " +
+                "(+ _PASSWORD, ZW_KEY_ALIAS, ZW_KEY_PASSWORD), or pass -PallowUnsigned."
+        )
+    }
     signingConfigs {
         create("release") {
             storeFile = System.getenv("ZW_KEYSTORE_FILE")?.let(::file)
@@ -148,8 +159,7 @@ android {
             )
             // No dev credential field exists at all outside debug. The
             // Worker URL and Platform app ID are public configuration and
-            // remain embedded; a release APK built without the keystore
-            // below is unsigned and not submittable.
+            // remain embedded. Unsigned only with -PallowUnsigned (above).
             if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
