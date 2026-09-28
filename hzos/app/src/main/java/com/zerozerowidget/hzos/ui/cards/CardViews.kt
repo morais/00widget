@@ -14,10 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import metavrx.uiset.compose.Icon
+import metavrx.uiset.compose.card.PrimaryCard
+import metavrx.uiset.compose.card.CardDefaults as UiSetCardDefaults
+import metavrx.uiset.compose.theme.BrushSpec
+import metavrx.uiset.compose.theme.UiSetTheme
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.icons.Icons
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -35,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -954,9 +956,52 @@ fun ActionButtons(
 }
 
 /**
- * Shared glass container: the same surfaceVariant + cardAlpha + onSurface
- * surface every card uses, for non-card content (settings bodies, detail
- * wrappers) that should read as the same object family.
+ * The one card container. UI Set's PrimaryCard — its shape, padding,
+ * content colours, and (when [onClick] is set) its press and hover
+ * feedback — with the container made translucent by [cardAlpha] so the
+ * room still shows through. UI Set's CardColors take a BrushSpec, so the
+ * glass is a BrushSpec.Solid of UI Set's panel colour at that alpha.
+ *
+ * Non-null [onClick] makes the whole card one target; leave it null for
+ * cards that only hold content, so Look and Pinch does not highlight
+ * something that does nothing.
+ */
+@Composable
+fun GlassPrimaryCard(
+    cardAlpha: Float,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    contentPadding: androidx.compose.ui.unit.Dp = 16.dp,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    // UI Set's own card fill is a faint tint (white at 10% in dark, black
+    // at 9% in light) made to sit on UI Set's opaque panel background.
+    // Over passthrough there is no such background, so the card borrows
+    // the panel colour itself — the darker stop of its gradient in dark,
+    // the lighter in light — and cardAlpha decides how much room shows.
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val panel = LocalColorScheme.current.background.container.colors.asList()
+    val fill = if (dark) panel.minBy { it.luminance() } else panel.maxBy { it.luminance() }
+    val colors = UiSetCardDefaults.Primary.copy(
+        container = BrushSpec.Solid(fill.copy(alpha = cardAlpha)),
+    )
+    PrimaryCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+        colors = colors,
+        // No elevation: a shadow is drawn beneath the card, and through a
+        // translucent fill it shows as a second, darker box inside it.
+        dimensions = UiSetTheme.dimensions.cards.copy(
+            contentPadding = contentPadding,
+            primaryElevation = 0.dp,
+        ),
+        content = content,
+    )
+}
+
+/**
+ * Shared glass container for non-card content (settings bodies, detail
+ * wrappers) that should read as the same object family as the cards.
  */
 @Composable
 fun GlassCard(
@@ -964,33 +1009,16 @@ fun GlassCard(
     modifier: Modifier = Modifier,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp), content = content)
-    }
+    GlassPrimaryCard(cardAlpha = cardAlpha, modifier = modifier, content = content)
 }
 @Composable
 fun DetailCard(card: DashboardCard, cardAlpha: Float, isSample: Boolean, interactiveCharts: Boolean = false) {
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-            // Explicit: see DashboardRow — alpha breaks contentColorFor().
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            CardHeadline(card)
-            Spacer(Modifier.height(8.dp))
-            CardTemplateBody(card, interactiveCharts = interactiveCharts)
-        }
+    GlassPrimaryCard(cardAlpha = cardAlpha) {
+        CardHeadline(card)
+        Spacer(Modifier.height(8.dp))
+        CardTemplateBody(card, interactiveCharts = interactiveCharts)
     }
         if (isSample) {
             SampleBadge(

@@ -11,9 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
+import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
@@ -110,71 +108,21 @@ fun ActivityDetailPanel(
             // read as the same object family rather than naked text.
             // Overlay badge, not layout — see DashboardRow.
             Box(Modifier.fillMaxWidth()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                session.progress?.let {
-                    Text(
-                        "${(it * 100).toInt()}%",
-                        style = LocalTypography.current.label,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                } ?: StatusDot(
-                    com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
-                    Modifier.padding(end = 8.dp),
-                )
-                Column(Modifier.weight(1f)) {
-                    Text(session.state, style = LocalTypography.current.title)
-                    session.subtitle?.let {
+            GlassPrimaryCard(cardAlpha = cardAlpha, contentPadding = 16.dp) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    session.progress?.let {
                         Text(
-                            it,
-                            style = LocalTypography.current.bodySmall,
-                            color = LocalContentColors.current.secondary,
+                            "${(it * 100).toInt()}%",
+                            style = LocalTypography.current.label,
+                            modifier = Modifier.padding(end = 8.dp),
                         )
-                    }
-                }
-            }
-            session.value?.let {
-                Text(
-                    it + (session.unit?.let { u -> " $u" } ?: ""),
-                    style = LocalTypography.current.display,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            session.progress?.let {
-                Spacer(Modifier.height(6.dp))
-                ProgressBar(
-                    fraction = it.toFloat(),
-                    color = uiSetAccent(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            session.chart?.let { chart ->
-                Spacer(Modifier.height(8.dp))
-                InspectableChart(
-                    chart = chart,
-                    unit = session.unit,
-                    baseTint = activityTint(
-                        session.kind,
-                        session.signal,
-                        uiSetAccent(),
-                        dark,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            session.items.orEmpty().forEach { item ->
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusDot(item.status, Modifier.padding(end = 6.dp))
+                    } ?: StatusDot(
+                        com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
+                        Modifier.padding(end = 8.dp),
+                    )
                     Column(Modifier.weight(1f)) {
-                        Text(item.title, style = LocalTypography.current.body)
-                        item.subtitle?.let {
+                        Text(session.state, style = LocalTypography.current.title)
+                        session.subtitle?.let {
                             Text(
                                 it,
                                 style = LocalTypography.current.bodySmall,
@@ -182,70 +130,112 @@ fun ActivityDetailPanel(
                             )
                         }
                     }
-                    item.value?.let { v ->
-                        Text(
-                            v + (item.unit?.let { u -> " $u" } ?: ""),
-                            style = LocalTypography.current.body,
-                            color = LocalContentColors.current.secondary,
+                }
+                session.value?.let {
+                    Text(
+                        it + (session.unit?.let { u -> " $u" } ?: ""),
+                        style = LocalTypography.current.display,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                session.progress?.let {
+                    Spacer(Modifier.height(6.dp))
+                    ProgressBar(
+                        fraction = it.toFloat(),
+                        color = uiSetAccent(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                session.chart?.let { chart ->
+                    Spacer(Modifier.height(8.dp))
+                    InspectableChart(
+                        chart = chart,
+                        unit = session.unit,
+                        baseTint = activityTint(
+                            session.kind,
+                            session.signal,
+                            uiSetAccent(),
+                            dark,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                session.items.orEmpty().forEach { item ->
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        StatusDot(item.status, Modifier.padding(end = 6.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, style = LocalTypography.current.body)
+                            item.subtitle?.let {
+                                Text(
+                                    it,
+                                    style = LocalTypography.current.bodySmall,
+                                    color = LocalContentColors.current.secondary,
+                                )
+                            }
+                        }
+                        item.value?.let { v ->
+                            Text(
+                                v + (item.unit?.let { u -> " $u" } ?: ""),
+                                style = LocalTypography.current.body,
+                                color = LocalContentColors.current.secondary,
+                            )
+                        }
+                    }
+                    item.progress?.let { p ->
+                        ProgressBar(
+                            fraction = p.toFloat(),
+                            color = uiSetAccent(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                         )
                     }
                 }
-                item.progress?.let { p ->
-                    ProgressBar(
-                        fraction = p.toFloat(),
-                        color = uiSetAccent(),
-                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                    )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    session.endsAt?.let { endsAt ->
+                        Text(
+                            "Ends ${relativeTime(endsAt) ?: endsAt}",
+                            style = LocalTypography.current.bodySmall,
+                            color = LocalContentColors.current.secondary,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } ?: Spacer(Modifier.weight(1f))
+                    if (isStale(session.updatedAt, session.staleAt)) {
+                        Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+                    }
                 }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                session.endsAt?.let { endsAt ->
-                    Text(
-                        "Ends ${relativeTime(endsAt) ?: endsAt}",
-                        style = LocalTypography.current.bodySmall,
-                        color = LocalContentColors.current.secondary,
-                        modifier = Modifier.weight(1f),
-                    )
-                } ?: Spacer(Modifier.weight(1f))
-                if (isStale(session.updatedAt, session.staleAt)) {
-                    Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            SampleAwareDeleteRow(
-                isSample = isSample,
-                serverLabel = "End activity",
-                busy = ending,
-                error = endError,
-                onDelete = {
-                    scope.launch {
-                        ending = true
-                        endError = null
-                        val ok = if (isSample) {
-                            app.sampleStore.removeActivity(externalActivityId)
-                            true
-                        } else {
-                            val result = app.repository.endActivity(externalActivityId)
-                            endError = result.exceptionOrNull()?.let(::describeDeleteError)
-                            result.isSuccess
+                Spacer(Modifier.height(8.dp))
+                SampleAwareDeleteRow(
+                    isSample = isSample,
+                    serverLabel = "End activity",
+                    busy = ending,
+                    error = endError,
+                    onDelete = {
+                        scope.launch {
+                            ending = true
+                            endError = null
+                            val ok = if (isSample) {
+                                app.sampleStore.removeActivity(externalActivityId)
+                                true
+                            } else {
+                                val result = app.repository.endActivity(externalActivityId)
+                                endError = result.exceptionOrNull()?.let(::describeDeleteError)
+                                result.isSuccess
+                            }
+                            ending = false
+                            if (ok) onDeleted()
                         }
-                        ending = false
-                        if (ok) onDeleted()
-                    }
-                },
-                leading = {
-                    session.deepLink?.let {
-                        UiSetPrimaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-                }
+                    },
+                    leading = {
+                        session.deepLink?.let {
+                            UiSetPrimaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (isSample) {
                 SampleBadge(

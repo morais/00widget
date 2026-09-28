@@ -1,7 +1,6 @@
 package com.zerozerowidget.hzos.ui.dashboard
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Box
@@ -22,9 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +45,7 @@ import com.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.zerozerowidget.hzos.ui.cards.DeleteButton
+import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.DetailCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
@@ -312,17 +309,7 @@ private fun DashboardRow(
     // Overlay badge, not layout: the Box is exactly the card's size and the
     // pill draws over the bottom-right corner without moving anything.
     Box(Modifier.fillMaxWidth()) {
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-                // Explicit: an alpha-modified container no longer matches any
-                // theme color, so contentColorFor() can't derive this and text
-                // falls back to ambient black. See ChartColors.kt note.
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        ) {
-            Column(Modifier.padding(14.dp)) {
+        GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onToggle, contentPadding = 14.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardHeadline(card, Modifier.weight(1f))
                 card.deepLink?.let {
@@ -347,7 +334,6 @@ private fun DashboardRow(
                 CardTemplateBody(card)
                 actionSlot()
             }
-        }
         }
         if (isSample) {
             SampleBadge(
@@ -639,86 +625,77 @@ private fun ActivityRow(
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = cardAlpha),
-            // Explicit: see DashboardRow — alpha breaks contentColorFor().
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenDetail),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                session.progress?.let {
-                    Text(
-                        "${(it * 100).toInt()}%",
-                        style = LocalTypography.current.label,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                } ?: StatusDot(
-                    com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
-                    Modifier.padding(end = 8.dp),
-                )
-                Column(Modifier.weight(1f)) {
-                    Text(session.title, style = LocalTypography.current.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(session.state, style = LocalTypography.current.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                PopOutIconButton(onPopOut)
-            }
-            session.subtitle?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
-            }
-            session.value?.let {
-                Text(
-                    it + (session.unit?.let { u -> " $u" } ?: ""),
-                    style = LocalTypography.current.headline,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
+    GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onOpenDetail, contentPadding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             session.progress?.let {
-                Spacer(Modifier.height(6.dp))
-                ProgressBar(
-                    fraction = it.toFloat(),
-                    color = uiSetAccent(),
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    "${(it * 100).toInt()}%",
+                    style = LocalTypography.current.label,
+                    modifier = Modifier.padding(end = 8.dp),
                 )
+            } ?: StatusDot(
+                com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
+                Modifier.padding(end = 8.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(session.title, style = LocalTypography.current.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(session.state, style = LocalTypography.current.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            session.chart?.let {
-                Spacer(Modifier.height(6.dp))
-                Sparkline(
-                    it,
-                    activityTint(
-                        session.kind,
-                        session.signal,
-                        uiSetAccent(),
-                        dark,
-                    ),
-                    Modifier.fillMaxWidth().height(64.dp),
-                )
-            }
-            session.items.orEmpty().take(4).forEach { item ->
-                Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-                    Text(item.title, style = LocalTypography.current.bodySmall, modifier = Modifier.weight(1f))
-                    item.value?.let { v ->
-                        Text(v, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
-                    }
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                session.endsAt?.let { endsAt ->
-                    Text(
-                        "Ends ${relativeTime(endsAt) ?: endsAt}",
-                        style = LocalTypography.current.caption,
-                        color = LocalContentColors.current.secondary,
-                        modifier = Modifier.weight(1f),
-                    )
-                } ?: Spacer(Modifier.weight(1f))
-                if (isStale(session.updatedAt, session.staleAt)) {
-                    Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+            PopOutIconButton(onPopOut)
+        }
+        session.subtitle?.let {
+            Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+        }
+        session.value?.let {
+            Text(
+                it + (session.unit?.let { u -> " $u" } ?: ""),
+                style = LocalTypography.current.headline,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        session.progress?.let {
+            Spacer(Modifier.height(6.dp))
+            ProgressBar(
+                fraction = it.toFloat(),
+                color = uiSetAccent(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        session.chart?.let {
+            Spacer(Modifier.height(6.dp))
+            Sparkline(
+                it,
+                activityTint(
+                    session.kind,
+                    session.signal,
+                    uiSetAccent(),
+                    dark,
+                ),
+                Modifier.fillMaxWidth().height(64.dp),
+            )
+        }
+        session.items.orEmpty().take(4).forEach { item ->
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                Text(item.title, style = LocalTypography.current.bodySmall, modifier = Modifier.weight(1f))
+                item.value?.let { v ->
+                    Text(v, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
                 }
             }
         }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            session.endsAt?.let { endsAt ->
+                Text(
+                    "Ends ${relativeTime(endsAt) ?: endsAt}",
+                    style = LocalTypography.current.caption,
+                    color = LocalContentColors.current.secondary,
+                    modifier = Modifier.weight(1f),
+                )
+            } ?: Spacer(Modifier.weight(1f))
+            if (isStale(session.updatedAt, session.staleAt)) {
+                Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+            }
         }
+    }
         if (isSample) {
             SampleBadge(
                 Modifier
