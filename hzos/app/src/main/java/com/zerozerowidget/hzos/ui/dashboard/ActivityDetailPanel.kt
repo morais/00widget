@@ -73,6 +73,7 @@ fun ActivityDetailPanel(
     var endError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
 
     androidx.compose.runtime.CompositionLocalProvider(
         com.zerozerowidget.hzos.ui.LocalHideSampleIndicators provides hideIndicators,
@@ -160,6 +161,7 @@ fun ActivityDetailPanel(
                         session.kind,
                         session.signal,
                         uiSetAccent(),
+                        dark,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )

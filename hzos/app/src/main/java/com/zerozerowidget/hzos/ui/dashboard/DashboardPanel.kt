@@ -530,6 +530,7 @@ private fun SectionTitle(text: String) {    Text(
 
 @Composable
 private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit, onOpenDetail: () -> Unit) {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
     Card(
@@ -584,6 +585,7 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
                         session.kind,
                         session.signal,
                         uiSetAccent(),
+                        dark,
                     ),
                     Modifier.fillMaxWidth().height(64.dp),
                 )

@@ -58,9 +58,10 @@ import kotlin.math.abs
 
 @Composable
 fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val unknown = LocalContentColors.current.secondary
     Canvas(modifier = modifier.size(10.dp)) {
-        drawCircle(statusColor(status, unknown))
+        drawCircle(statusColor(status, unknown, dark))
     }
 }
 
@@ -386,7 +387,8 @@ private fun ChartBody(card: DashboardCard, interactive: Boolean) {
     // Base tint is the card's status tint, exactly like iOS (SparklineView
     // takes the card tint as its `tint` argument).
     val unknown = LocalContentColors.current.secondary
-    val base = statusColor(card.status, unknown)
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val base = statusColor(card.status, unknown, dark)
     if (interactive) {
         InspectableChart(
             chart = chart,
@@ -414,8 +416,9 @@ private fun ChartBody(card: DashboardCard, interactive: Boolean) {
  */
 @Composable
 private fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: String) {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val semantics = chart.referenceMetadata?.semantic
-    val tint = semantics?.let { chartTint(0, baseTint, it) } ?: IosChartColors.SECONDARY
+    val tint = semantics?.let { chartTint(0, baseTint, it, dark) } ?: chartPalette(dark).SECONDARY
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -449,7 +452,8 @@ private fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Strin
  */
 @Composable
 fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modifier) {
-    val secondary = IosChartColors.SECONDARY
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val secondary = chartPalette(dark).SECONDARY
     val points = chart.points
     if (points.size < 2) return
     Canvas(modifier) {
@@ -481,7 +485,7 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
 
         if (drawReference) {
             val semantics = chart.referenceMetadata?.semantic
-            val refTint = semantics?.let { chartTint(0, baseTint, it) } ?: secondary
+            val refTint = semantics?.let { chartTint(0, baseTint, it, dark) } ?: secondary
             drawLine(
                 color = refTint.copy(alpha = roleOpacity(semantics?.role)),
                 start = Offset(0f, y(ref!!)),
@@ -492,10 +496,10 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
         }
 
         when (chart.style) {
-            "bar" -> drawBars(chart, baseTint, secondary, ::y)
-            "delta" -> drawDelta(chart, baseTint, secondary, lo, hi, ::y)
-            "range" -> drawRanges(chart, baseTint, ::y)
-            else -> drawLineSeries(chart, baseTint, ::y)
+            "bar" -> drawBars(chart, baseTint, secondary, dark, ::y)
+            "delta" -> drawDelta(chart, baseTint, secondary, dark, lo, hi, ::y)
+            "range" -> drawRanges(chart, baseTint, dark, ::y)
+            else -> drawLineSeries(chart, baseTint, dark, ::y)
         }
     }
 }
@@ -503,10 +507,11 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
 private fun DrawScope.drawLineSeries(
     chart: DashboardChart,
     baseTint: Color,
+    dark: Boolean,
     y: (Double) -> Float,
 ) {
     val points = chart.points
-    val tint = chartTint(0, baseTint, chart.semantic)
+    val tint = chartTint(0, baseTint, chart.semantic, dark)
     val opacity = roleOpacity(chart.semantic?.role)
     val xs: (Int) -> Float = { i -> size.width * i / (points.size - 1) }
     if (points.size > 1) {
@@ -541,6 +546,7 @@ private fun DrawScope.drawBars(
     chart: DashboardChart,
     baseTint: Color,
     secondary: Color,
+    dark: Boolean,
     y: (Double) -> Float,
 ) {
     val count = chart.points.size
@@ -548,7 +554,7 @@ private fun DrawScope.drawBars(
     val slot = size.width / count
     val series = chart.series?.takeIf { it.isNotEmpty() }
     if (series == null) {
-        val tint = chartTint(0, baseTint, chart.semantic)
+        val tint = chartTint(0, baseTint, chart.semantic, dark)
         val alpha = 0.85f * roleOpacity(chart.semantic?.role)
         val bw = maxOf(1f, slot * 0.62f)
         val radius = minOf(2.dp.toPx(), bw / 2)
@@ -574,7 +580,7 @@ private fun DrawScope.drawBars(
             )
         }
     }
-    val tints = seriesTints(semantics)
+    val tints = seriesTints(semantics, dark)
     val groupWidth = slot * 0.76f
     val stacked = chart.stacking != "grouped"
     val columnWidth = if (stacked) groupWidth else maxOf(1f, groupWidth / series.size)
@@ -610,13 +616,14 @@ private fun DrawScope.drawDelta(
     chart: DashboardChart,
     baseTint: Color,
     secondary: Color,
+    dark: Boolean,
     lo: Double,
     hi: Double,
     y: (Double) -> Float,
 ) {
     val points = chart.points
     if (points.isEmpty()) return
-    val tint = chartTint(0, baseTint, chart.semantic)
+    val tint = chartTint(0, baseTint, chart.semantic, dark)
     val opacity = roleOpacity(chart.semantic?.role)
     val zeroY = if (0.0 in lo..hi) y(0.0) else size.height
     val slot = size.width / points.size
@@ -650,14 +657,15 @@ private fun DrawScope.drawDelta(
 private fun DrawScope.drawRanges(
     chart: DashboardChart,
     baseTint: Color,
+    dark: Boolean,
     y: (Double) -> Float,
 ) {
     val ranges = chart.ranges?.takeIf { it.size == chart.points.size }
     if (ranges.isNullOrEmpty()) {
-        drawLineSeries(chart, baseTint, y)
+        drawLineSeries(chart, baseTint, dark, y)
         return
     }
-    val tint = chartTint(0, baseTint, chart.semantic)
+    val tint = chartTint(0, baseTint, chart.semantic, dark)
     val opacity = roleOpacity(chart.semantic?.role)
     val slot = size.width / ranges.size
     val barW = maxOf(1f, slot * 0.56f)
@@ -694,9 +702,10 @@ private fun HistoryBody(card: DashboardCard) {
     Spacer(Modifier.height(8.dp))
     // Outcome pips, oldest first, most recent on the right (mirrors iOS).
     val unknown = LocalContentColors.current.secondary
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         card.items.orEmpty().forEach { item ->
-            Canvas(Modifier.size(14.dp)) { drawCircle(statusColor(item.status, unknown)) }
+            Canvas(Modifier.size(14.dp)) { drawCircle(statusColor(item.status, unknown, dark)) }
         }
     }
     Spacer(Modifier.height(4.dp))
@@ -716,9 +725,16 @@ private fun BreakdownBody(card: DashboardCard) {
     Spacer(Modifier.height(8.dp))
     val items = card.items.orEmpty()
     val total = items.sumOf { (it.amount ?: 0.0).coerceAtLeast(0.0) }.takeIf { it > 0 } ?: return
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    // Segment colors for rows without a status: light pastels on dark
+    // cards, saturated tones on light ones — neither reads on the other.
+    val palette = if (dark) {
+        listOf(Color(0xFF7DD3FC), Color(0xFFA5B4FC), Color(0xFF6EE7B7), Color(0xFFFCD34D), Color(0xFFF9A8D4))
+    } else {
+        listOf(Color(0xFF007AFF), Color(0xFFAF52DE), Color(0xFF34C759), Color(0xFFFF9500), Color(0xFFFF3B30))
+    }
     Canvas(Modifier.fillMaxWidth().height(18.dp)) {
         var acc = 0.0
-        val palette = listOf(Color(0xFF7DD3FC), Color(0xFFA5B4FC), Color(0xFF6EE7B7), Color(0xFFFCD34D), Color(0xFFF9A8D4))
         val unknown = Color(0xFFB9C2CC)
         items.forEachIndexed { i, item ->
             val share = (item.amount ?: 0.0).coerceAtLeast(0.0) / total
@@ -727,7 +743,7 @@ private fun BreakdownBody(card: DashboardCard) {
             val right = (acc / total * size.width).toFloat()
             val color = when (item.status) {
                 DashboardStatus.UNKNOWN -> palette[i % palette.size]
-                else -> statusColor(item.status, unknown)
+                else -> statusColor(item.status, unknown, dark)
             }
             drawRect(color, Offset(left, 0f), androidx.compose.ui.geometry.Size(right - left, size.height))
         }
@@ -759,7 +775,8 @@ private fun TimelineBody(card: DashboardCard) {
     CardMetaLine(card)
     val timeline = card.timeline ?: return
     val unknown = LocalContentColors.current.secondary
-    val base = statusColor(card.status, unknown)
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val base = statusColor(card.status, unknown, dark)
     Spacer(Modifier.height(4.dp))
     // Legend: series dot + label. FlowRow wraps long label sets onto
     // multiple lines instead of pushing the plot off the panel.
@@ -773,7 +790,7 @@ private fun TimelineBody(card: DashboardCard) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Canvas(Modifier.size(7.dp)) {
-                    drawCircle(chartTint(index, base, null))
+                    drawCircle(chartTint(index, base, null, dark))
                 }
                 Text(
                     series.label,
@@ -853,7 +870,8 @@ fun TimelinePlot(
     selectedFraction: Float?,
     modifier: Modifier = Modifier,
 ) {
-    val secondary = IosChartColors.SECONDARY
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val secondary = chartPalette(dark).SECONDARY
     Canvas(modifier) {
         val start = parseEpochMs(timeline.startAt) ?: return@Canvas
         val end = parseEpochMs(timeline.endAt)?.takeIf { it > start } ?: return@Canvas
@@ -876,9 +894,9 @@ fun TimelinePlot(
             timeline.lanes.indexOfFirst { it.id == laneId }
         fun seriesTintOf(seriesId: String, status: com.zerozerowidget.hzos.data.DashboardStatus): Color {
             status.takeIf { it != com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN }
-                ?.let { return statusColor(it, secondary) }
+                ?.let { return statusColor(it, secondary, dark) }
             val si = timeline.series.indexOfFirst { it.id == seriesId }.takeIf { it >= 0 } ?: 0
-            return chartTint(si, baseTint, null)
+            return chartTint(si, baseTint, null, dark)
         }
         // Duration spans first, instant markers over them.
         timeline.entries.forEach { e ->

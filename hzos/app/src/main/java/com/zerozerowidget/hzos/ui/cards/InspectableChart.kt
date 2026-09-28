@@ -167,7 +167,11 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
             Text(
                 it.replaceFirstChar(Char::titlecase),
                 style = LocalTypography.current.caption,
-                color = signalColor(it, LocalContentColors.current.secondary),
+                color = signalColor(
+                    it,
+                    LocalContentColors.current.secondary,
+                    androidx.compose.foundation.isSystemInDarkTheme(),
+                ),
             )
         }
         readings.forEach { reading ->

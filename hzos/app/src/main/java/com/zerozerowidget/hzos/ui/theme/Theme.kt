@@ -1,8 +1,10 @@
 package com.zerozerowidget.hzos.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -12,6 +14,7 @@ import metavrx.uiset.compose.theme.ContentColors
 import metavrx.uiset.compose.theme.UiSetIndicationDefaults
 import metavrx.uiset.compose.theme.UiSetTheme
 import metavrx.uiset.compose.theme.darkColorScheme as uiSetDarkColorScheme
+import metavrx.uiset.compose.theme.lightColorScheme as uiSetLightColorScheme
 import metavrx.uiset.compose.theme.withAccent
 
 private val Scheme = darkColorScheme(
@@ -29,13 +32,32 @@ private val Scheme = darkColorScheme(
     error = Color(0xFFF87171),
 )
 
-/** Dark theme for every panel. Panels float in passthrough, so surfaces stay dark. */
+/** iOS light-mode mirror of [Scheme]: white cards on grouped background. */
+private val LightScheme = lightColorScheme(
+    primary = Color(0xFF007AFF),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFF5E5CE6),
+    surface = Color(0xFFF2F2F7),
+    onSurface = Color(0xFF1C1C1E),
+    surfaceVariant = Color(0xFFFFFFFF),
+    onSurfaceVariant = Color(0xFF636366),
+    outline = Color(0xFFD1D1D6),
+    error = Color(0xFFFF3B30),
+)
+
+/**
+ * Panels follow the system theme on both layers. In practice Horizon OS
+ * reports dark, so the light path is dormant-correct rather than
+ * device-verified: same structure, mirrored values, charts included.
+ */
 @Composable
 fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = Scheme) {
+    val dark = isSystemInDarkTheme()
+    val materialScheme = if (dark) Scheme else LightScheme
+    MaterialTheme(colorScheme = materialScheme) {
         // Bare-column text (headers, labels outside cards) has no Surface to
         // derive a content color from and would fall back to ambient black.
-        CompositionLocalProvider(LocalContentColor provides Scheme.onSurface) {
+        CompositionLocalProvider(LocalContentColor provides materialScheme.onSurface) {
             // Full UiSet adoption for text and controls: the platform dark
             // scheme and type scale, with the iOS-blue accent carried over
             // so the brand (and the chart fallback tint) survives the move.
@@ -50,8 +72,8 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
             // reaches 4.5:1 on, so the content colors are explicit: white
             // on iOS blue is this app's long-standing button look, kept
             // deliberately rather than re-derived.
-            val scheme = remember {
-                uiSetDarkColorScheme().withAccent(
+            val scheme = remember(dark) {
+                (if (dark) uiSetDarkColorScheme() else uiSetLightColorScheme()).withAccent(
                     UiSetAccent,
                     ContentColors(
                         primary = Color.White,
