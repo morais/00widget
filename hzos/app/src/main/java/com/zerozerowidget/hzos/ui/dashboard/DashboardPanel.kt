@@ -670,7 +670,6 @@ private fun ActivityRow(
             Spacer(Modifier.height(6.dp))
             ProgressBar(
                 fraction = it.toFloat(),
-                color = uiSetAccent(),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

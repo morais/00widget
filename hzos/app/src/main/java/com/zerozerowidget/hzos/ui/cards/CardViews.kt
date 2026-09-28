@@ -71,14 +71,16 @@ fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
 /**
  * Determinate progress bar. UiSet ships progress *colors* but no bar
  * component, and every use here is a known fraction — so a rounded
- * track plus a rounded fill, no animation, nothing to configure.
+ * track plus a rounded fill, no animation, nothing to configure. The
+ * colours are UI Set's progress indicator and track, which also hold up
+ * in light mode, where an accent at a fixed alpha did not.
  */
 @Composable
 fun ProgressBar(
     fraction: Float,
-    color: Color,
     modifier: Modifier = Modifier,
-    trackColor: Color = color.copy(alpha = 0.24f),
+    color: Color = LocalColorScheme.current.progress.indicator,
+    trackColor: Color = LocalColorScheme.current.progress.track,
     height: androidx.compose.ui.unit.Dp = 4.dp,
 ) {
     Canvas(modifier.fillMaxWidth().height(height)) {
@@ -283,7 +285,6 @@ private fun ProgressBody(card: DashboardCard) {
     Spacer(Modifier.height(8.dp))
     ProgressBar(
         fraction = (card.progress ?: 0.0).toFloat(),
-        color = uiSetAccent(),
         modifier = Modifier.fillMaxWidth(),
     )
     card.value?.let {
@@ -322,7 +323,6 @@ private fun ListBody(card: DashboardCard) {
                 Spacer(Modifier.height(2.dp))
                 ProgressBar(
                     fraction = (item.amount / max).toFloat().coerceIn(0f, 1f),
-                    color = uiSetAccent(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

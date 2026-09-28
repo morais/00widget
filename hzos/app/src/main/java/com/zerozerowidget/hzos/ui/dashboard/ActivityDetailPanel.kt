@@ -142,7 +142,6 @@ fun ActivityDetailPanel(
                     Spacer(Modifier.height(6.dp))
                     ProgressBar(
                         fraction = it.toFloat(),
-                        color = uiSetAccent(),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -184,7 +183,6 @@ fun ActivityDetailPanel(
                     item.progress?.let { p ->
                         ProgressBar(
                             fraction = p.toFloat(),
-                            color = uiSetAccent(),
                             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                         )
                     }
