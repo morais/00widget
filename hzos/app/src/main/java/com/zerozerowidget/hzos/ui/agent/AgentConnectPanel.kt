@@ -143,12 +143,9 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
 
     if (!connectionKnown) {
         Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Connect an agent", style = LocalTypography.current.headline)
             GlassCard(cardAlpha = cardAlpha) {
                 Text(
                     "Loading…",
@@ -161,12 +158,9 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     }
 
     Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(20.dp),
+        Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Connect an agent", style = LocalTypography.current.headline)
         GlassCard(cardAlpha = cardAlpha) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(

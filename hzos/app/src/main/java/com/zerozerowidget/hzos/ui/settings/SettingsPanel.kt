@@ -107,14 +107,15 @@ fun SettingsPanel(
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize()) {
+        // Pinned: Back, title, and close stay put while the destination
+        // below scrolls — the agent guide is long enough to lose them.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (destination != SettingsDestination.ROOT) {
                 UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
                 Spacer(Modifier.width(8.dp))
@@ -131,6 +132,13 @@ fun SettingsPanel(
             }
         }
 
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
         when (destination) {
             SettingsDestination.ROOT -> SettingsRoot(
                 app = app,
@@ -152,6 +160,7 @@ fun SettingsPanel(
                 // screen with dead credentials behind it.
                 onSignedOut = { destination = SettingsDestination.ROOT },
             )
+        }
         }
     }
 }
