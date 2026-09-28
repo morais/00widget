@@ -81,6 +81,22 @@ fi
 APK="$HZOS_DIR/app/build/outputs/apk/release/app-release.apk"
 [ -f "$APK" ] || { echo "APK not found at $APK" >&2; exit 1; }
 
+# versionCode is the build's UTC hour (yyyyMMddHH, app/build.gradle.kts),
+# so two builds in one hour share it and the store rejects the second —
+# after a full upload. Refuse up front instead. The last successful upload
+# is recorded in gitignored hzos/.last-upload-version-code.
+LAST_UPLOAD_FILE="$HZOS_DIR/.last-upload-version-code"
+VERSION_CODE="$(grep -oE '"versionCode": *[0-9]+' "$HZOS_DIR/app/build/outputs/apk/release/output-metadata.json" | grep -oE '[0-9]+$')"
+[ -n "$VERSION_CODE" ] || { echo "Could not read versionCode from the build output" >&2; exit 1; }
+if [ -f "$LAST_UPLOAD_FILE" ]; then
+    LAST_CODE="$(tr -d '[:space:]' < "$LAST_UPLOAD_FILE")"
+    if [ "$VERSION_CODE" -le "$LAST_CODE" ]; then
+        echo "versionCode $VERSION_CODE is not above the last upload ($LAST_CODE)." >&2
+        echo "It is the build's UTC hour: rebuild after the hour turns." >&2
+        exit 1
+    fi
+fi
+
 echo "Uploading $APK to channel $CHANNEL..."
 # ${VAR:+...} instead of an array: macOS bash 3.2 chokes on
 # "${EMPTY_ARRAY[@]}" under `set -u`, which is exactly this script.
@@ -93,3 +109,5 @@ echo "Uploading $APK to channel $CHANNEL..."
     --notes "$NOTES" \
     ${DRAFT:+--draft} \
     --disable-progress-bar
+echo "$VERSION_CODE" > "$LAST_UPLOAD_FILE"
+echo "Uploaded versionCode $VERSION_CODE."
