@@ -15,5 +15,8 @@ suspend fun ensureMetaUserMatches(app: ZeroZeroWidgetApp): Boolean {
     if (stored.apiKey.isBlank() || stored.metaUserId.isBlank()) return true
     if (!isMetaUserSwitch(stored.metaUserId, app.horizonAuth.loggedInUserId())) return true
     app.connectionStore.clear()
+    // Drop the previous user's cards now, and fence off any refresh still
+    // in flight for them (see DashboardRepository).
+    app.repository.clearServerData()
     return false
 }

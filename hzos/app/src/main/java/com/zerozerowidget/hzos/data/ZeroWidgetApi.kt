@@ -29,7 +29,7 @@ class ZeroWidgetApi(
     private val http: OkHttpClient,
     baseUrl: String,
     private val apiKey: String,
-) {
+) : DashboardApi {
     private val base = baseUrl.trimEnd('/')
     val json = Json {
         ignoreUnknownKeys = true
@@ -46,7 +46,7 @@ class ZeroWidgetApi(
             code == 200
         }
 
-    suspend fun fetchDashboard(): DashboardResponse =
+    override suspend fun fetchDashboard(): DashboardResponse =
         withContext(Dispatchers.IO) {
             get("/v1/dashboard")
         }
@@ -66,7 +66,7 @@ class ZeroWidgetApi(
      * [ActionDefinition.isSafeFromPanel] first — the server also enforces it,
      * and a 403 naming the required scope means this credential cannot run it.
      */
-    suspend fun runAction(actionId: String, cardId: String?) =
+    override suspend fun runAction(actionId: String, cardId: String?) =
         withContext(Dispatchers.IO) {
             val body = json.encodeToString(
                 ActionRunBody.serializer(),
@@ -76,12 +76,12 @@ class ZeroWidgetApi(
         }
 
     /** Deletes a card / ends an activity using the Horizon app's `publish` scope. */
-    suspend fun deleteCard(id: String) =
+    override suspend fun deleteCard(id: String) =
         withContext(Dispatchers.IO) {
             delete("/v1/cards/${pathSegment(id)}")
         }
 
-    suspend fun endActivity(externalActivityId: String) =
+    override suspend fun endActivity(externalActivityId: String) =
         withContext(Dispatchers.IO) {
             val body = "{\"externalActivityId\":${json.encodeToString(externalActivityId)}}"
             postEmpty("/v1/live-activities/end", body)

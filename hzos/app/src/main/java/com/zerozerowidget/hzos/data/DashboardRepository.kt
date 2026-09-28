@@ -7,11 +7,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** What the panels render. One state object, every panel reads from it. */
 data class DashboardState(
@@ -24,27 +27,56 @@ data class DashboardState(
     val isConfigured: Boolean = false,
 )
 
+/** What the repository reads credentials from; [ConnectionStore] in the app. */
+interface ConnectionSource {
+    val connection: Flow<ConnectionStore.Connection>
+    suspend fun current(): ConnectionStore.Connection
+}
+
+/** The Worker calls the repository makes; [ZeroWidgetApi] in the app. */
+interface DashboardApi {
+    suspend fun fetchDashboard(): DashboardResponse
+    suspend fun runAction(actionId: String, cardId: String?)
+    suspend fun deleteCard(id: String)
+    suspend fun endActivity(externalActivityId: String)
+}
+
 /**
  * Polling repository over [ZeroWidgetApi]. Widgets on iOS reload on a
  * rationed budget; a headset panel has no such budget, but the server's rate
  * limits still apply — so poll slowly (60s) and refresh on demand (user tap,
  * panel open). Never poll faster than ~once a minute unless the value
  * actually needs it.
+ *
+ * Refreshes are serialised and fenced. The poll, a manual refresh, and the
+ * refresh after an action or delete used to run side by side, so a slow,
+ * older response could land last and win; and a manual refresh is not tied
+ * to the credential collector, so one in flight across a sign-out painted
+ * the old account's cards back onto the signed-out dashboard. Now one
+ * [refreshMutex] orders them, and a result is published only if neither
+ * [generation] nor the stored key moved while it was in flight.
  */
 class DashboardRepository(
-    private val store: ConnectionStore,
-    private val apiFactory: (baseUrl: String, apiKey: String) -> ZeroWidgetApi,
+    private val store: ConnectionSource,
+    private val apiFactory: (baseUrl: String, apiKey: String) -> DashboardApi,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val defaultBaseUrl: String = BuildConfig.DEFAULT_BASE_URL,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(DashboardState(isLoading = true))
     val state: StateFlow<DashboardState> = _state.asStateFlow()
 
     private var pollJob: Job? = null
+    private val refreshMutex = Mutex()
+
+    /** Bumped on every credential change and sign-out; stale results check it. */
+    @Volatile
+    private var generation = 0L
 
     fun start() {
         if (pollJob != null) return
         pollJob = scope.launch {
             store.connection.collectLatest { connection ->
+                generation++
                 if (effectiveBaseUrl(connection) == null || connection.apiKey.isBlank()) {
                     _state.value = DashboardState(isLoading = false, isConfigured = false)
                     return@collectLatest
@@ -90,7 +122,7 @@ class DashboardRepository(
     suspend fun endActivity(externalActivityId: String): Result<Unit> =
         writeOp { api, _ -> api.endActivity(externalActivityId) }
 
-    private suspend fun writeOp(op: suspend (ZeroWidgetApi, ConnectionStore.Connection) -> Unit): Result<Unit> {
+    private suspend fun writeOp(op: suspend (DashboardApi, ConnectionStore.Connection) -> Unit): Result<Unit> {
         val connection = store.current()
         val base = effectiveBaseUrl(connection)
         if (base == null || connection.apiKey.isBlank()) {
@@ -113,7 +145,7 @@ class DashboardRepository(
     private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? {
         val stored = connection.baseUrl.trim().trimEnd('/')
         if (stored.isNotEmpty()) return stored
-        return BuildConfig.DEFAULT_BASE_URL.trim().trimEnd('/').ifEmpty { null }
+        return defaultBaseUrl.trim().trimEnd('/').ifEmpty { null }
     }
 
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
@@ -126,18 +158,22 @@ class DashboardRepository(
      * (see below).
      */
     fun clearServerData() {
+        generation++
         _state.value = DashboardState(isLoading = false, isConfigured = false)
     }
 
-    private suspend fun refreshNow(connection: ConnectionStore.Connection) {
+    private suspend fun refreshNow(connection: ConnectionStore.Connection) = refreshMutex.withLock {
         // Callers guarantee resolvability; re-check defensively since the
         // stored values can change between guard and call.
-        val base = effectiveBaseUrl(connection) ?: return
+        val base = effectiveBaseUrl(connection) ?: return@withLock
+        val startedAt = generation
+        // Queued behind another refresh while the credential changed: the
+        // collector already owns the new one, so this one has nothing to say.
+        if (!stillCurrent(connection, startedAt)) return@withLock
         _state.value = _state.value.copy(isLoading = true, error = null)
-        try {
-            val api = apiFactory(base, connection.apiKey)
-            val dashboard = api.fetchDashboard()
-            _state.value = DashboardState(
+        val next: DashboardState = try {
+            val dashboard = apiFactory(base, connection.apiKey).fetchDashboard()
+            DashboardState(
                 cards = dashboard.cards,
                 activities = dashboard.activities,
                 isLoading = false,
@@ -146,7 +182,7 @@ class DashboardRepository(
                 isConfigured = true,
             )
         } catch (e: ZeroWidgetApi.ApiException) {
-            _state.value = _state.value.copy(
+            _state.value.copy(
                 isLoading = false,
                 error = if (e.status == 401) {
                     "Invalid or expired API key — check Connection settings."
@@ -160,12 +196,19 @@ class DashboardRepository(
             // signed-out reset — stands uncontradicted.
             throw e
         } catch (e: Exception) {
-            _state.value = _state.value.copy(
+            _state.value.copy(
                 isLoading = false,
                 error = (e.message ?: e.javaClass.simpleName).take(200),
             )
         }
+        // Signed out or switched accounts while this was in flight: the
+        // answer belongs to a credential that no longer applies.
+        if (!stillCurrent(connection, startedAt)) return@withLock
+        _state.value = next
     }
+
+    private suspend fun stillCurrent(connection: ConnectionStore.Connection, startedAt: Long): Boolean =
+        generation == startedAt && store.current().apiKey == connection.apiKey
 
     companion object {
         private const val POLL_MS = 60_000L

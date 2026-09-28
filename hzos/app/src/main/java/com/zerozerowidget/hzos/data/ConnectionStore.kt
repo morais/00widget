@@ -20,7 +20,7 @@ private val Context.connectionDataStore by preferencesDataStore(name = "connecti
  * The Meta user id is an opaque identity string, not a secret, but it is
  * still only ever sent to the configured base URL.
  */
-class ConnectionStore(private val context: Context) {
+class ConnectionStore(private val context: Context) : ConnectionSource {
 
     data class Connection(val baseUrl: String, val apiKey: String, val metaUserId: String = "") {
         val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
@@ -50,7 +50,7 @@ class ConnectionStore(private val context: Context) {
         }
     }
 
-    val connection: Flow<Connection> =
+    override val connection: Flow<Connection> =
         context.connectionDataStore.data.map { prefs ->
             Connection(
                 baseUrl = prefs[BASE_URL].orEmpty(),
@@ -59,7 +59,7 @@ class ConnectionStore(private val context: Context) {
             )
         }
 
-    suspend fun current(): Connection = connection.first()
+    override suspend fun current(): Connection = connection.first()
 
     suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "") {
         context.connectionDataStore.edit { prefs ->

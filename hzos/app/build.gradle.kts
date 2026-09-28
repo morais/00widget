@@ -203,4 +203,5 @@ dependencies {
 
     // JVM unit tests (src/test): pure decision logic only, no SDK, no device.
     testImplementation(libs.junit.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -496,7 +496,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSig
             // Server card, while this one would keep a dead session.
             suspend fun landSignedOut() {
                 app.connectionStore.clear()
-                app.repository.refresh()
+                app.repository.clearServerData()
                 onSignedOut()
             }
             try {
