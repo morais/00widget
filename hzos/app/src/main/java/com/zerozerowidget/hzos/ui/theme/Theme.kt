@@ -37,14 +37,16 @@ private val Scheme = darkColorScheme(
     error = Color(0xFFF87171),
 )
 
-/** iOS light-mode mirror of [Scheme]: white cards on grouped background. */
+/** iOS light-mode mirror of [Scheme]: grey cards on grouped background. */
 private val LightScheme = lightColorScheme(
     primary = Color(0xFF007AFF),
     onPrimary = Color(0xFFFFFFFF),
     secondary = Color(0xFF5E5CE6),
     surface = Color(0xFFF2F2F7),
     onSurface = Color(0xFF1C1C1E),
-    surfaceVariant = Color(0xFFFFFFFF),
+    // Deliberately grey, not white: without elevation shadows a white
+    // card on a near-white surface is invisible.
+    surfaceVariant = Color(0xFFE9E9EE),
     onSurfaceVariant = Color(0xFF636366),
     outline = Color(0xFFD1D1D6),
     error = Color(0xFFFF3B30),
