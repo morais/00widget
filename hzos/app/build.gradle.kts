@@ -177,6 +177,24 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        // New warnings fail the build; the existing ones are listed in
+        // lint-baseline.xml, to be burned down rather than grown. Regenerate
+        // it only after fixing entries: ./gradlew :app:updateLintBaseline.
+        baseline = file("lint-baseline.xml")
+        warningsAsErrors = true
+        abortOnError = true
+        // These fire when someone else publishes a newer version, not when
+        // this code changes, so as errors they would break CI at random.
+        // Dependency updates are Dependabot's job; targetSdk 34 is
+        // deliberate (Horizon OS supports up to API 34).
+        disable += setOf(
+            "GradleDependency",
+            "NewerVersionAvailable",
+            "AndroidGradlePluginVersion",
+            "OldTargetApi"
+        )
+    }
     testOptions {
         // Robolectric needs merged resources for the screenshot test.
         unitTests.isIncludeAndroidResources = true

@@ -34,6 +34,6 @@ jobs:
       # Layout screenshots render here but are not compared: the committed
       # baselines come from macOS, and font rasterisation differs on Linux.
       # verifyRoborazziDebug stays a local check (see hzos/README.md).
-      - name: Assemble, unit test, formatting
+      - name: Assemble, unit test, lint, formatting
         working-directory: hzos
-        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest spotlessCheck --console=plain
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug spotlessCheck --console=plain
