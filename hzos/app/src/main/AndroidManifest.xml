@@ -40,7 +40,7 @@
             <layout
                 android:defaultWidth="1280dp"
                 android:defaultHeight="800dp"
-                android:minWidth="360dp"
+                android:minWidth="320dp"
                 android:minHeight="500dp" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -66,13 +66,13 @@
             <layout
                 android:defaultWidth="480dp"
                 android:defaultHeight="700dp"
-                android:minWidth="360dp"
+                android:minWidth="320dp"
                 android:minHeight="450dp" />
         </activity>
 
         <!-- Card detail: one instance per popped-out card (MULTIPLE_TASK),
              so N cards sit side by side as N shell panels. Unlocked
-             orientation and a 360dp floor like the rest: a tall narrow
+             orientation and a 320dp floor like the rest: a tall narrow
              detail must fill, not letterbox. -->
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
@@ -82,7 +82,7 @@
             <layout
                 android:defaultWidth="1024dp"
                 android:defaultHeight="700dp"
-                android:minWidth="360dp"
+                android:minWidth="320dp"
                 android:minHeight="450dp" />
         </activity>
     </application>
