@@ -1108,10 +1108,22 @@ fun DeleteButton(
     )
 }
 
+/**
+ * "Needs you" pill, drawn — never a button. Look and Pinch highlights
+ * every clickable element, so a badge built from a button would light up
+ * as a target that does nothing. Mirrors the derived rule in llms.md
+ * (attention status + actionable button); callers decide, this only
+ * draws. No callers yet — kept so the first one starts here.
+ */
 @Composable
 fun NeedsYouBadge(modifier: Modifier = Modifier) {
-    // Mirrors the derived "Needs you" rule in llms.md: attention status +
-    // actionable button. Callers decide; this only draws the pill. No
-    // callers yet — kept in the new system so the first one starts there.
-    UiSetDestructiveButton(label = "Needs you", onClick = {}, modifier = modifier)
+    val colors = LocalColorScheme.current.notification
+    Box(
+        modifier = modifier
+            .background(colors.container, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("Needs you", style = LocalTypography.current.caption, color = colors.onContainer)
+    }
 }
