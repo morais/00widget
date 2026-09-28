@@ -13,7 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -511,9 +512,11 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
             busy = busy,
             error = null,
             onDelete = onDisconnect,
-            // Wrap, never a fixed width: the inner row fills its column,
-            // so a fixed width squeezed the label mid-word instead.
-            modifier = Modifier.wrapContentWidth(),
+            // Intrinsic, never fixed: the column takes the button's own
+            // text width, so the label cannot wrap at any type size. A
+            // fixed width squeezed the text column to nothing; wrap
+            // alone let the inner row fill the parent and did the same.
+            modifier = Modifier.width(IntrinsicSize.Max),
         )
     }
 }
