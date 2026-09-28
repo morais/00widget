@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -413,14 +415,15 @@ fun CardDetailPanel(
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            // Actions hug the left, link and delete sit right — but only
-            // while all three fit. Rows neither wrap nor clip, and three
-            // pills need roughly 400dp; below that they would spill off
-            // the window edge, so narrow stacks the actions above a
-            // right-aligned link/delete row instead. The buttons size
-            // themselves (a weight slot only recenters them, because UiSet
-            // caps button width inside oversized slots); a spacer does the
-            // pushing. Samples keep their demo notice in the actions slot.
+            // Actions, link and delete sit together on the right — but
+            // only while all three fit. Rows neither wrap nor clip, and
+            // three pills need roughly 400dp; below that they would spill
+            // off the window edge, so narrow stacks the actions above the
+            // link/delete row instead, still right-aligned. The actions
+            // column is only as wide as its widest button (a weight slot
+            // only recenters them, because UiSet caps button width inside
+            // oversized slots); a spacer does the pushing. Samples keep
+            // their demo notice in the actions slot.
             val deleteLabel = if (isSample && !hideIndicators) "Remove sample" else "Delete"
             fun fireDelete() {
                 if (deleteArmed) {
@@ -467,11 +470,12 @@ fun CardDetailPanel(
                                 runError = result.exceptionOrNull()?.let(::describeRunError)
                             }
                         },
+                        modifier = Modifier.width(IntrinsicSize.Max),
                     )
                 }
             }
-            // Plain text fills and wraps; buttons size to content, so an
-            // actions slot reserves the weight with start alignment.
+            // Plain text fills and wraps; buttons size to content, so the
+            // spacer takes the weight and pushes them right.
             @Composable
             fun wideActions() {
                 if (isSample && !hideIndicators && !card.actions.isNullOrEmpty()) {
@@ -484,17 +488,14 @@ fun CardDetailPanel(
                 } else if (isSample && !hideIndicators) {
                     Spacer(Modifier.weight(1f))
                 } else {
-                    Box(
-                        Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        actionSlot()
-                    }
+                    Spacer(Modifier.weight(1f))
+                    actionSlot()
                 }
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 if (maxWidth >= 400.dp) {
                     Row(
+                        Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -510,7 +511,11 @@ fun CardDetailPanel(
                         )
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.End,
+                    ) {
                         actionSlot()
                         Row(
                             Modifier.fillMaxWidth(),
