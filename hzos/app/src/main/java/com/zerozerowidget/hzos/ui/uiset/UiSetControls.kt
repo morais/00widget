@@ -11,34 +11,17 @@ import metavrx.uiset.compose.dialog.BasicDialog
 import metavrx.uiset.compose.dialog.DialogAction
 import metavrx.uiset.compose.input.TextField
 import metavrx.uiset.compose.slider.Slider
-import metavrx.uiset.compose.theme.UiSetTheme
 
 /**
- * Meta UI Set controls for the Settings pilot, one thin wrapper each.
+ * Thin aliases over Meta UI Set controls, so call sites stay short and
+ * the style mapping lives in one place: M3 Button → Primary, M3
+ * FilledTonalButton → Secondary, destructive confirms → Destructive.
+ * Switch, Slider, text fields, and confirm dialogs map one to one.
  *
- * Each wrapper applies [UiSetTheme] to its own subtree only. That is
- * deliberate containment, not layering taste: UiSetTheme owns colors,
- * type, shapes, and interaction feedback for everything under it, and
- * wrapping whole screens would restyle the Material 3 text and surfaces
- * around these controls. When a full screen migrates, the theme moves up
- * to that screen root and these wrappers go away.
- *
- * Mappings: M3 Button → Primary, M3 FilledTonalButton → Secondary,
- * destructive confirms → Destructive. Switch, Slider, text fields, and
- * confirm dialogs map one to one.
- *
- * What stays Material, and why it cannot just be swapped:
- * - Text, theme, and app colors: adopting UiSetTheme above the controls
- *   is a full visual restyle, a design decision to take on-device, not a
- *   mechanical mapping.
- * - Cards: GlassCard's translucency (surfaceVariant at cardAlpha over
- *   passthrough) has no expression in UiSet's brush-based CardColors.
- * - LinearProgressIndicator: uiset-compose ships no linear progress.
- * - HorizontalDivider: uiset-compose ships no divider.
- * - material-icons glyphs: a vector asset pack, and UiSet's own icon
- *   coverage for these five glyphs is unverified.
- * - The join-account button: UiSet labels are plain strings and cannot
- *   carry its bold brand phrase (see the call site).
+ * None of these opens its own UiSetTheme. ZeroZeroWidgetTheme provides
+ * the accented UiSet scheme at every panel root, so a wrapper-level theme
+ * only added provider layers per control — and a parameterless one could
+ * only ever restate or undercut the root's accent.
  */
 @Composable
 fun UiSetPrimaryButton(
@@ -47,15 +30,13 @@ fun UiSetPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    UiSetTheme {
-        LabelButton(
-            label = label,
-            onClick = onClick,
-            modifier = modifier,
-            style = ButtonStyle.Primary,
-            enabled = enabled,
-        )
-    }
+    LabelButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        style = ButtonStyle.Primary,
+        enabled = enabled,
+    )
 }
 
 @Composable
@@ -65,15 +46,13 @@ fun UiSetSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    UiSetTheme {
-        LabelButton(
-            label = label,
-            onClick = onClick,
-            modifier = modifier,
-            style = ButtonStyle.Secondary,
-            enabled = enabled,
-        )
-    }
+    LabelButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        style = ButtonStyle.Secondary,
+        enabled = enabled,
+    )
 }
 
 @Composable
@@ -83,15 +62,13 @@ fun UiSetDestructiveButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    UiSetTheme {
-        LabelButton(
-            label = label,
-            onClick = onClick,
-            modifier = modifier,
-            style = ButtonStyle.Destructive,
-            enabled = enabled,
-        )
-    }
+    LabelButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier,
+        style = ButtonStyle.Destructive,
+        enabled = enabled,
+    )
 }
 
 @Composable
@@ -102,15 +79,13 @@ fun UiSetIconButton(
     style: ButtonStyle = ButtonStyle.Borderless,
     content: @Composable () -> Unit,
 ) {
-    UiSetTheme {
-        metavrx.uiset.compose.button.IconButton(
-            icon = content,
-            onClick = onClick,
-            contentDescription = contentDescription,
-            modifier = modifier,
-            style = style,
-        )
-    }
+    metavrx.uiset.compose.button.IconButton(
+        icon = content,
+        onClick = onClick,
+        contentDescription = contentDescription,
+        modifier = modifier,
+        style = style,
+    )
 }
 
 @Composable
@@ -120,14 +95,12 @@ fun UiSetSwitch(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
 ) {
-    UiSetTheme {
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = modifier,
-            contentDescription = contentDescription,
-        )
-    }
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        contentDescription = contentDescription,
+    )
 }
 
 @Composable
@@ -138,15 +111,13 @@ fun UiSetSlider(
     modifier: Modifier = Modifier,
     onValueChangeFinished: (() -> Unit)? = null,
 ) {
-    UiSetTheme {
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = modifier,
-            valueRange = valueRange,
-            onValueChangeFinished = onValueChangeFinished,
-        )
-    }
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        valueRange = valueRange,
+        onValueChangeFinished = onValueChangeFinished,
+    )
 }
 
 /**
@@ -164,23 +135,21 @@ fun UiSetConfirmDialog(
     destructive: Boolean = false,
     confirmEnabled: Boolean = true,
 ) {
-    UiSetTheme {
-        BasicDialog(
-            title = title,
-            description = text,
-            primaryAction = DialogAction(
-                label = confirmLabel,
-                onClick = onConfirm,
-                enabled = confirmEnabled,
-                destructive = destructive,
-            ),
-            onDismissRequest = onDismiss,
-            secondaryAction = DialogAction(
-                label = dismissLabel,
-                onClick = onDismiss,
-            ),
-        )
-    }
+    BasicDialog(
+        title = title,
+        description = text,
+        primaryAction = DialogAction(
+            label = confirmLabel,
+            onClick = onConfirm,
+            enabled = confirmEnabled,
+            destructive = destructive,
+        ),
+        onDismissRequest = onDismiss,
+        secondaryAction = DialogAction(
+            label = dismissLabel,
+            onClick = onDismiss,
+        ),
+    )
 }
 
 /**
@@ -201,19 +170,17 @@ fun UiSetTextField(
     placeholder: String? = null,
     supportingText: String? = null,
 ) {
-    UiSetTheme {
-        TextField(
-            value = value,
-            label = label,
-            onValueChange = onValueChange,
-            modifier = modifier,
-            placeholder = placeholder,
-            supportingText = supportingText,
-            enabled = enabled,
-            singleLine = singleLine,
-            keyboardType = keyboardType,
-        )
-    }
+    TextField(
+        value = value,
+        label = label,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        placeholder = placeholder,
+        supportingText = supportingText,
+        enabled = enabled,
+        singleLine = singleLine,
+        keyboardType = keyboardType,
+    )
 }
 
 /**
