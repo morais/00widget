@@ -45,12 +45,11 @@ import com.zerozerowidget.hzos.data.isSample
 import com.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
-import com.zerozerowidget.hzos.ui.cards.DeleteRow
+import com.zerozerowidget.hzos.ui.cards.DeleteButton
 import com.zerozerowidget.hzos.ui.cards.DetailCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
-import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
 import com.zerozerowidget.hzos.ui.describeDeleteError
@@ -362,6 +361,7 @@ fun CardDetailPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    var deleteArmed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val card = state.cards.firstOrNull { it.id == cardId }
         ?: samples.firstOrNull { it.id == cardId }
@@ -400,64 +400,77 @@ fun CardDetailPanel(
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            // Actions, link, and delete share one row: the buttons take
-            // the weight, link and delete sit right. Samples keep their
-            // demo notice instead of runners.
-            SampleAwareDeleteRow(
-                isSample = isSample,
-                serverLabel = "Delete",
-                busy = deleting,
-                error = deleteError,
-                onDelete = {
-                    scope.launch {
-                        deleting = true
-                        deleteError = null
-                        val ok = if (isSample) {
-                            app.sampleStore.removeCard(cardId)
-                            true
-                        } else {
-                            val result = app.repository.deleteCard(cardId)
-                            deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
-                            result.isSuccess
-                        }
-                        deleting = false
-                        if (ok) onDeleted()
-                    }
-                },
-                leading = {
-                    if (isSample && !hideIndicators) {
-                        if (!card.actions.isNullOrEmpty()) {
-                            Text(
-                                "Demo card — buttons don't run on samples.",
-                                style = LocalTypography.current.bodySmall,
-                                color = LocalContentColors.current.secondary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    } else {
-                        ActionButtons(
-                            card = card,
-                            runningId = runningId,
-                            runError = runError,
-                            onRun = { action ->
-                                scope.launch {
-                                    runningId = action.id
-                                    runError = null
-                                    val result = app.repository.runAction(action.id, card.id)
-                                    runningId = null
-                                    runError = result.exceptionOrNull()?.let(::describeRunError)
-                                }
-                            },
+            // Actions, link, and delete share one explicit row: the
+            // buttons take the weight on the left, link and delete sit
+            // right with fixed gaps. Samples keep their demo notice in
+            // the same slot instead of runners.
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (isSample && !hideIndicators) {
+                    if (!card.actions.isNullOrEmpty()) {
+                        Text(
+                            "Demo card — buttons don't run on samples.",
+                            style = LocalTypography.current.bodySmall,
+                            color = LocalContentColors.current.secondary,
                             modifier = Modifier.weight(1f),
                         )
+                    } else {
+                        Spacer(Modifier.weight(1f))
                     }
-                    card.deepLink?.let {
-                        UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
-                    }
-                },
-                fillLeading = card.deepLink != null || !card.actions.isNullOrEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+                } else {
+                    ActionButtons(
+                        card = card,
+                        runningId = runningId,
+                        runError = runError,
+                        onRun = { action ->
+                            scope.launch {
+                                runningId = action.id
+                                runError = null
+                                val result = app.repository.runAction(action.id, card.id)
+                                runningId = null
+                                runError = result.exceptionOrNull()?.let(::describeRunError)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                card.deepLink?.let {
+                    UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
+                }
+                DeleteButton(
+                    label = if (isSample && !hideIndicators) "Remove sample" else "Delete",
+                    busy = deleting,
+                    armed = deleteArmed,
+                    onClick = {
+                        if (deleteArmed) {
+                            deleteArmed = false
+                            scope.launch {
+                                deleting = true
+                                deleteError = null
+                                val ok = if (isSample) {
+                                    app.sampleStore.removeCard(cardId)
+                                    true
+                                } else {
+                                    val result = app.repository.deleteCard(cardId)
+                                    deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
+                                    result.isSuccess
+                                }
+                                deleting = false
+                                if (ok) onDeleted()
+                            }
+                        } else {
+                            deleteArmed = true
+                        }
+                    },
+                )
+            }
+            deleteError?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+            }
             card.deadline?.let { deadline ->
                 Spacer(Modifier.height(6.dp))
                 Text(

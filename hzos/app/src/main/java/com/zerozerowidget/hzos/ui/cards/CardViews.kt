@@ -1103,10 +1103,10 @@ fun DeleteRow(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             leading()
             if (!fillLeading) Spacer(Modifier.weight(1f))
-            // Destructive throughout: this is the delete/end affordance,
-            // and the armed state is the confirm, not a style change.
-            UiSetDestructiveButton(
+            DeleteButton(
                 label = if (busy) "Working…" else if (armed) "Sure?" else label,
+                busy = busy,
+                armed = armed,
                 onClick = {
                     if (armed) {
                         armed = false
@@ -1115,7 +1115,6 @@ fun DeleteRow(
                         armed = true
                     }
                 },
-                enabled = !busy,
             )
         }
         error?.let {
@@ -1123,6 +1122,29 @@ fun DeleteRow(
             Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
     }
+}
+
+/**
+ * The destructive button alone, for rows composed explicitly — action
+ * buttons on a weight, then link, then this. The two-tap arm state
+ * lives with the caller.
+ */
+@Composable
+fun DeleteButton(
+    label: String,
+    busy: Boolean,
+    armed: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Destructive throughout: this is the delete/end affordance,
+    // and the armed state is the confirm, not a style change.
+    UiSetDestructiveButton(
+        label = if (busy) "Working…" else if (armed) "Sure?" else label,
+        onClick = onClick,
+        enabled = !busy,
+        modifier = modifier,
+    )
 }
 
 @Composable
