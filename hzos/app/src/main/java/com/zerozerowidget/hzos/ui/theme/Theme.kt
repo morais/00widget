@@ -112,7 +112,7 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
  * stays calm over a bright room. Reads the theme, so it tracks
  * dark/light switches. Tune [LightGlassAlpha] on device.
  */
-private const val LightGlassAlpha = 0.8f
+private const val LightGlassAlpha = 0.4f
 
 @Composable
 fun Modifier.panelBackground(): Modifier {
