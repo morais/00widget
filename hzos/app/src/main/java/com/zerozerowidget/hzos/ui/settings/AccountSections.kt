@@ -24,6 +24,7 @@ import com.zerozerowidget.hzos.data.SubscriptionState
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.accountIdAction
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
@@ -45,9 +46,7 @@ import metavrx.uiset.compose.theme.LocalTypography
 @Composable
 internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
 
     Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
         GlassCard(cardAlpha = cardAlpha) {

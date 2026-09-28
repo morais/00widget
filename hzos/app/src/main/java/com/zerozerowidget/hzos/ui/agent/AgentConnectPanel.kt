@@ -41,8 +41,10 @@ import com.zerozerowidget.hzos.data.MCPConnectionSummary
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.describeBrowserApproval
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.connectionState
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.theme.spacing
@@ -71,13 +73,9 @@ import metavrx.uiset.compose.theme.LocalTypography
 fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", "")
-    )
+    val connection by app.connectionStore.connectionState()
     val signedIn = connection.apiKey.isNotBlank()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsStateWithLifecycle(
-        initialValue = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
     var connections by remember { mutableStateOf<List<MCPConnectionSummary>>(emptyList()) }
     var connectionsError by remember { mutableStateOf<String?>(null) }
     var connectionsLoaded by remember { mutableStateOf(false) }
@@ -344,9 +342,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
         }
     }
 
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text("MCP login", style = LocalTypography.current.title)
@@ -402,9 +398,7 @@ private fun GuideSection(
     title: String,
     content: @Composable () -> Unit
 ) {
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
     GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text(title, style = LocalTypography.current.title)

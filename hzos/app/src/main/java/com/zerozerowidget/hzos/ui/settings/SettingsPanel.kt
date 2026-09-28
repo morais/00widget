@@ -32,7 +32,9 @@ import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.agent.AgentConnectPanel
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.connectionState
 import com.zerozerowidget.hzos.ui.theme.panelBackground
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
@@ -83,9 +85,7 @@ fun SettingsPanel(
     LaunchedEffect(signInRequest) {
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
-    val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", "")
-    )
+    val connection by app.connectionStore.connectionState()
     // What the rail offers mirrors what the root links to: account screens
     // only when signed in, subscription only when the build sells one.
     // Developer stays behind the version-number tap, as on iOS.
@@ -198,13 +198,9 @@ internal fun SettingsRoot(
     onSignInRequestConsumed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
-    val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", "")
-    )
+    val connection by app.connectionStore.connectionState()
     val signedIn = connection.apiKey.isNotBlank()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
 
     // Same switch check as the dashboard foreground: opening Settings on a
     // switched account lands on sign-in instead of a stranger's session.

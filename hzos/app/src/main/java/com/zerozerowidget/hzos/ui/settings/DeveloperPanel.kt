@@ -19,7 +19,10 @@ import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.hideSampleIndicatorsState
+import com.zerozerowidget.hzos.ui.showDummyAccountDataState
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSlider
@@ -39,11 +42,9 @@ import metavrx.uiset.compose.theme.LocalTypography
 @Composable
 internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
-    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
-    val showDummyAccountData by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
+    val cardAlpha by app.panelPrefs.cardAlphaState()
+    val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
+    val showDummyAccountData by app.panelPrefs.showDummyAccountDataState()
     var sliderAlpha by remember(cardAlpha) { mutableStateOf(cardAlpha) }
     val locked = BuildConfig.DEFAULT_BASE_URL.isNotBlank()
     var serverUrl by remember { mutableStateOf("") }

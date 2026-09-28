@@ -47,6 +47,7 @@ import com.zerozerowidget.hzos.data.SampleData
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
 import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
@@ -63,6 +64,7 @@ import com.zerozerowidget.hzos.ui.cards.StatusDot
 import com.zerozerowidget.hzos.ui.cards.activityTint
 import com.zerozerowidget.hzos.ui.describeDeleteError
 import com.zerozerowidget.hzos.ui.describeRunError
+import com.zerozerowidget.hzos.ui.hideSampleIndicatorsState
 import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
@@ -97,12 +99,10 @@ fun DashboardPanel(
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
-    val samples by app.sampleStore.cards.collectAsState()
-    val sampleActivities by app.sampleStore.activities.collectAsState()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
-    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    val samples by app.sampleStore.cards.collectAsStateWithLifecycle()
+    val sampleActivities by app.sampleStore.activities.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlphaState()
+    val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
     var selectedId by remember { mutableStateOf<String?>(null) }
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
@@ -369,11 +369,9 @@ fun CardDetailPanel(
     onDeleted: () -> Unit
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
-    val samples by app.sampleStore.cards.collectAsState()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
-    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    val samples by app.sampleStore.cards.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlphaState()
+    val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
     var runningId by remember { mutableStateOf<String?>(null) }
     var runError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }

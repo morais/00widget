@@ -22,6 +22,7 @@ import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.SubscriptionState
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
@@ -46,9 +47,7 @@ import metavrx.uiset.compose.theme.LocalTypography
 @Composable
 fun SubscriptionSection(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val cardAlpha by app.panelPrefs.cardAlphaState()
     val monthlySku = BuildConfig.SUBSCRIPTION_MONTHLY_SKU
     val yearlySku = BuildConfig.SUBSCRIPTION_YEARLY_SKU
     val tiers = listOf("Monthly" to monthlySku, "Yearly" to yearlySku)

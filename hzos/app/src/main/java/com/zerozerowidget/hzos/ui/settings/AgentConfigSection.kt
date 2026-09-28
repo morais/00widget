@@ -27,6 +27,8 @@ import com.zerozerowidget.hzos.data.AgentTokenRotation
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DummyAccountData
 import com.zerozerowidget.hzos.ui.cards.GlassCard
+import com.zerozerowidget.hzos.ui.connectionState
+import com.zerozerowidget.hzos.ui.showDummyAccountDataState
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
@@ -59,10 +61,8 @@ internal fun AgentConfigSection(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val connection by app.connectionStore.connection.collectAsState(
-        initial = ConnectionStore.Connection("", "")
-    )
-    val showDummy by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
+    val connection by app.connectionStore.connectionState()
+    val showDummy by app.panelPrefs.showDummyAccountDataState()
     var copied by remember { mutableStateOf(false) }
     val baseUrl = ConnectionStore.effectiveBaseUrl(connection.baseUrl).orEmpty()
     val signedIn = connection.apiKey.isNotBlank()

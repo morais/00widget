@@ -29,6 +29,7 @@ import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
@@ -37,6 +38,7 @@ import com.zerozerowidget.hzos.ui.cards.SampleBadge
 import com.zerozerowidget.hzos.ui.cards.StatusDot
 import com.zerozerowidget.hzos.ui.cards.activityTint
 import com.zerozerowidget.hzos.ui.describeDeleteError
+import com.zerozerowidget.hzos.ui.hideSampleIndicatorsState
 import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.theme.panelBackground
@@ -67,10 +69,8 @@ fun ActivityDetailPanel(
     onDeleted: () -> Unit
 ) {
     val state by app.repository.state.collectAsStateWithLifecycle()
-    val samples by app.sampleStore.activities.collectAsState()
-    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
-        initial = PanelPrefs.DEFAULT_CARD_ALPHA
-    )
+    val samples by app.sampleStore.activities.collectAsStateWithLifecycle()
+    val cardAlpha by app.panelPrefs.cardAlphaState()
     // Look in the store the panel was opened for, never both: a server
     // activity and a local sample may share an id.
     val session = (if (isSample) samples else state.activities)
@@ -78,7 +78,7 @@ fun ActivityDetailPanel(
     var ending by remember { mutableStateOf(false) }
     var endError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val hideIndicators by app.panelPrefs.hideSampleIndicators.collectAsState(initial = false)
+    val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
     val dark = isSystemInDarkTheme()
 
     CompositionLocalProvider(
