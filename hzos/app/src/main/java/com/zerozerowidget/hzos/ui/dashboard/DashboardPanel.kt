@@ -452,7 +452,7 @@ fun CardDetailPanel(
                         )
                     }
                     card.deepLink?.let {
-                        UiSetSecondaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
+                        UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
                     }
                 },
                 fillLeading = card.deepLink != null || !card.actions.isNullOrEmpty(),

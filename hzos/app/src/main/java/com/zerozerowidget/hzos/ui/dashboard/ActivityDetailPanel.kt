@@ -38,7 +38,7 @@ import com.zerozerowidget.hzos.ui.describeDeleteError
 import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
-import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
+import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
 import metavrx.uiset.compose.Icon
@@ -237,7 +237,7 @@ fun ActivityDetailPanel(
                 },
                 leading = {
                     session.deepLink?.let {
-                        UiSetSecondaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
+                        UiSetPrimaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
