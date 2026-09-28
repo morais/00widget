@@ -413,10 +413,11 @@ fun CardDetailPanel(
         } else {
             DetailCard(card, cardAlpha, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
-            // Actions, link, and delete share one explicit row: the
-            // buttons take the weight on the left, link and delete sit
-            // right with fixed gaps. Samples keep their demo notice in
-            // the same slot instead of runners.
+            // Actions hug the left, link and delete sit right with fixed
+            // gaps. The buttons size themselves (UiSet caps their width
+            // and centers a capped button in a wider slot, so no weight
+            // slot — a spacer does the pushing). Samples keep their demo
+            // notice, which does take the weight since plain text fills.
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -447,8 +448,8 @@ fun CardDetailPanel(
                                 runError = result.exceptionOrNull()?.let(::describeRunError)
                             }
                         },
-                        modifier = Modifier.weight(1f),
                     )
+                    Spacer(Modifier.weight(1f))
                 }
                 card.deepLink?.let {
                     UiSetPrimaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
