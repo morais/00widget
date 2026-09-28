@@ -93,6 +93,7 @@ __pycache__/
 # Horizon OS (Gradle / Android)
 hzos/build/
 hzos/.gradle/
+hzos/.kotlin/
 hzos/app/build/
 hzos/local.properties
 hzos/defaults.properties
