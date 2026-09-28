@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.roborazzi)
 }
 
 import java.time.ZoneOffset
@@ -172,6 +173,10 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        // Robolectric needs merged resources for the screenshot test.
+        unitTests.isIncludeAndroidResources = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -212,4 +217,13 @@ dependencies {
     // JVM unit tests (src/test): pure decision logic only, no SDK, no device.
     testImplementation(libs.junit.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Layout screenshots on the JVM (PanelLayoutScreenshotTest): Robolectric
+    // renders the real panels at every breakpoint width, Roborazzi records
+    // and compares the PNGs. Test-only; nothing here ships.
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(composeBom)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

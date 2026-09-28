@@ -58,6 +58,7 @@ import com.zerozerowidget.hzos.ui.describeRunError
 import com.zerozerowidget.hzos.ui.cards.Sparkline
 import com.zerozerowidget.hzos.ui.cards.StatusDot
 import com.zerozerowidget.hzos.ui.cards.activityTint
+import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
@@ -226,7 +227,7 @@ fun DashboardPanel(
                 // for both sections: the grid is chunked into rows because
                 // a lazy grid cannot live inside a lazy list.
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                    val twoCol = maxWidth >= 728.dp
+                    val twoCol = maxWidth >= PanelBreakpoints.DashboardTwoColumns
                     val listState = rememberLazyListState()
                     // Row keys change shape across the breakpoint (row ids
                     // vs card ids), and a retained scroll index can point
@@ -482,7 +483,7 @@ fun CardDetailPanel(
                 }
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth >= 400.dp) {
+                if (maxWidth >= PanelBreakpoints.DetailInlineActions) {
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,

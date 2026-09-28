@@ -12,6 +12,8 @@ okhttp = "5.5.0"
 kotlinxSerialization = "1.9.0"
 coroutines = "1.10.2"
 junit = "4.13.2"
+robolectric = "4.17"
+roborazzi = "1.75.0"
 metavrxBom = "1.2026.0.0"
 horizonPlatformSdk = "0.2.2"
 minSdk = "32"
@@ -31,6 +33,11 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp-jvm", version.ref = "o
 horizon-platform-core-kotlin = { module = "com.meta.horizon.platform.sdk:core-kotlin", version.ref = "horizonPlatformSdk" }
 horizon-platform-users-kotlin = { module = "com.meta.horizon.platform.sdk:users-kotlin", version.ref = "horizonPlatformSdk" }
 horizon-platform-iap-kotlin = { module = "com.meta.horizon.platform.sdk:iap-kotlin", version.ref = "horizonPlatformSdk" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 junit-junit = { group = "junit", name = "junit", version.ref = "junit" }
 metavrx-bom = { module = "com.meta.metavrx:metavrx-bom", version.ref = "metavrxBom" }
 metavrx-uiset-compose = { module = "com.meta.metavrx.uiset:uiset-compose-compat" }
@@ -43,3 +50,4 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }

@@ -1,5 +1,7 @@
 package com.zerozerowidget.hzos.ui.settings
 
+import androidx.compose.runtime.staticCompositionLocalOf
+import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.theme.spacing
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -85,8 +87,16 @@ private enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 
 private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION, ACCOUNT }
 
-/** Settings shows its destinations as a side rail from this width up. */
-private val SETTINGS_RAIL_MIN_WIDTH = 600.dp
+/**
+ * The About row's "Version 1.5 (2026092812-abc1234)". A composition local
+ * so the layout screenshot test can pin it: the real value changes with
+ * every commit and every hour.
+ */
+internal val LocalBuildStamp = staticCompositionLocalOf {
+    "Version ${com.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
+        "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE}-" +
+        "${com.zerozerowidget.hzos.BuildConfig.GIT_SHA})"
+}
 
 private fun titleOf(destination: SettingsDestination): String = when (destination) {
     SettingsDestination.ROOT -> "Settings"
@@ -145,7 +155,7 @@ fun SettingsPanel(
     // Wide panels get a UI Set side-nav rail: one pinch per destination
     // and no Back. Below the breakpoint the drill-in stays, since a rail
     // would take a third of a 480dp panel.
-    val showRail = maxWidth >= SETTINGS_RAIL_MIN_WIDTH
+    val showRail = maxWidth >= PanelBreakpoints.SettingsRail
     Row(Modifier.fillMaxSize()) {
     if (showRail) {
         Column(
@@ -911,9 +921,7 @@ private fun VersionRow(onOpenDeveloper: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "Version ${com.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
-                "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE}-" +
-                "${com.zerozerowidget.hzos.BuildConfig.GIT_SHA})",
+            LocalBuildStamp.current,
             style = LocalTypography.current.bodySmall,
             color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f),
