@@ -22,6 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import metavrx.uiset.compose.Icon as UiSetIcon
+import metavrx.uiset.compose.dialog.BasicDialog
+import metavrx.uiset.compose.dialog.DialogAction
+import metavrx.uiset.compose.dialog.DialogProgress
 import metavrx.uiset.compose.navigation.SideNavItem
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
@@ -1260,26 +1263,24 @@ private fun HorizonSignInSection(
             UiSetSecondaryButton("Cancel", onClick = ::cancel)
         }
         HorizonPhase.WAITING -> {
-            Text("Approve on your phone", style = LocalTypography.current.title)
-            Text(
-                userCode,
-                style = LocalTypography.current.display,
-                color = uiSetAccent(),
-            )
-            Text(
-                when (linkSent) {
-                    null -> "Sending to your phone…"
-                    true -> "Approval sent to your Horizon mobile app — tap the notification."
-                    false -> "Phone request wasn't sent — enter the code manually below."
-                },
-                style = LocalTypography.current.bodySmall,
-                color = LocalContentColors.current.secondary,
-            )
-            if (linkSent != true) {
-                Text(verifyUri, style = LocalTypography.current.bodySmall)
+            // A UI Set dialog rather than inline text: it sits centred, where
+            // gaze targeting is most reliable, with one large Cancel — Meta's
+            // eyes guidance asks for an explicit dismiss, so tapping outside
+            // does nothing. The two steps are sending to the phone, then
+            // waiting for the approval there.
+            val status = when (linkSent) {
+                null -> "Sending to your phone…"
+                true -> "Approval sent to your Horizon mobile app — tap the notification."
+                false -> "Phone request wasn't sent. Enter the code at $verifyUri."
             }
             Text("Waiting for approval…", style = LocalTypography.current.body)
-            UiSetSecondaryButton("Cancel", onClick = ::cancel)
+            BasicDialog(
+                title = "Approve on your phone",
+                description = "$status\n\nCode: $userCode",
+                primaryAction = DialogAction(label = "Cancel", onClick = ::cancel),
+                onDismissRequest = {},
+                progress = DialogProgress(currentStep = if (linkSent == true) 2 else 1, totalSteps = 2),
+            )
         }
     }
 }
