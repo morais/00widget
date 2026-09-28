@@ -8,6 +8,9 @@ import com.zerozerowidget.hzos.data.DashboardRepository
 import com.zerozerowidget.hzos.data.SampleStore
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.ui.PanelPrefs
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,5 +56,13 @@ class ZeroZeroWidgetApp : Application() {
         horizonAuth.connect()
         horizonIap = HorizonIap(appScope, BuildConfig.PLATFORM_APP_ID)
         repository.start()
+        // Poll only while some panel is on screen (STARTED); see
+        // DashboardRepository.setActive.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) = repository.setActive(true)
+                override fun onStop(owner: LifecycleOwner) = repository.setActive(false)
+            },
+        )
     }
 }

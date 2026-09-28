@@ -1,12 +1,15 @@
 package com.zerozerowidget.hzos.data
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -109,5 +112,49 @@ class DashboardRepositoryTest {
         advanceUntilIdle()
 
         assertTrue(repo.state.value.cards.isEmpty())
+    }
+
+    /** Answers every fetch at once; counts them. */
+    private class CountingApi : DashboardApi {
+        var fetches = 0
+        override suspend fun fetchDashboard(): DashboardResponse {
+            fetches++
+            return DashboardResponse()
+        }
+        override suspend fun runAction(actionId: String, cardId: String?) = Unit
+        override suspend fun deleteCard(id: String) = Unit
+        override suspend fun endActivity(externalActivityId: String) = Unit
+    }
+
+    @Test
+    fun pollsOnlyWhileAPanelIsVisible() = runTest {
+        val store = FakeStore(ConnectionStore.Connection("", "key-a"))
+        val api = CountingApi()
+        val repoScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repo = DashboardRepository(store, { _, _ -> api }, repoScope, "https://example.invalid")
+
+        // The poll loop never ends: cancel it however the test ends, or a
+        // failed assertion leaves runTest advancing virtual time forever.
+        try {
+            // Time is advanced explicitly; advanceUntilIdle never returns here.
+            repo.setActive(false)
+            repo.start()
+            runCurrent()
+            advanceTimeBy(5 * 60_000L)
+            assertEquals("no fetch while every panel is hidden", 0, api.fetches)
+
+            repo.setActive(true)
+            runCurrent()
+            assertEquals("a returning panel refreshes at once", 1, api.fetches)
+            advanceTimeBy(60_000L + 1)
+            assertEquals("then polls every minute", 2, api.fetches)
+
+            repo.setActive(false)
+            runCurrent()
+            advanceTimeBy(5 * 60_000L)
+            assertEquals("and stops again when hidden", 2, api.fetches)
+        } finally {
+            repoScope.cancel()
+        }
     }
 }

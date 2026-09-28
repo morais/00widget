@@ -68,6 +68,19 @@ class DashboardRepository(
     private var pollJob: Job? = null
     private val refreshMutex = Mutex()
 
+    /**
+     * Whether any panel is on screen. Polling runs only while it is: a
+     * process with every panel closed or backgrounded has nobody to show a
+     * refresh to, and on Meta VR Glasses battery is the product. The app
+     * drives this from ProcessLifecycleOwner; true by default so a
+     * repository nobody drives behaves as it always did.
+     */
+    private val active = MutableStateFlow(true)
+
+    fun setActive(isActive: Boolean) {
+        active.value = isActive
+    }
+
     /** Bumped on every credential change and sign-out; stale results check it. */
     @Volatile
     private var generation = 0L
@@ -82,12 +95,17 @@ class DashboardRepository(
                     return@collectLatest
                 }
                 _state.value = _state.value.copy(isConfigured = true)
-                refreshNow(connection)
-                // Slow poll while configured. Cancelled + restarted on every
-                // credential change by collectLatest.
-                while (true) {
-                    delay(POLL_MS)
+                // Slow poll while configured and visible. Cancelled and
+                // restarted on every credential change and every time a
+                // panel comes back, which also refreshes immediately so a
+                // returning panel never shows a minutes-old dashboard.
+                active.collectLatest { isActive ->
+                    if (!isActive) return@collectLatest
                     refreshNow(connection)
+                    while (true) {
+                        delay(POLL_MS)
+                        refreshNow(connection)
+                    }
                 }
             }
         }
