@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -494,7 +493,10 @@ private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
 
 @Composable
 private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnect: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Column(Modifier.weight(1f)) {
             Text(item.clientName, style = LocalTypography.current.body)
             Text(
@@ -508,7 +510,6 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
             busy = busy,
             error = null,
             onDelete = onDisconnect,
-            modifier = Modifier.width(110.dp),
         )
     }
 }

@@ -1064,7 +1064,10 @@ fun DeleteRow(
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
     var armed by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxWidth()) {
+    // The caller owns the width: details stretch full width with the
+    // button right-aligned, list rows wrap the button. A fixed width
+    // here wrapped "Disconnect" onto two lines at larger type.
+    Column(modifier) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             leading()
             Spacer(Modifier.weight(1f))

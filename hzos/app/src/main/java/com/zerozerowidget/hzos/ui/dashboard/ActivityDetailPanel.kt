@@ -240,6 +240,7 @@ fun ActivityDetailPanel(
                         UiSetSecondaryButton("Open link", onClick = { onOpenLink(session.deepLink) })
                     }
                 },
+                modifier = Modifier.fillMaxWidth(),
             )
                 }
             }

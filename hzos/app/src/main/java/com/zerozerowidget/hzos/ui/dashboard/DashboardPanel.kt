@@ -445,6 +445,7 @@ fun CardDetailPanel(
                         UiSetSecondaryButton("Open link", onClick = { onOpenLink(card.deepLink) })
                     }
                 },
+                modifier = Modifier.fillMaxWidth(),
             )
             card.deadline?.let { deadline ->
                 Spacer(Modifier.height(6.dp))
