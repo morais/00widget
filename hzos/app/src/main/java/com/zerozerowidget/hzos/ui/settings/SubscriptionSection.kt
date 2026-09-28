@@ -59,14 +59,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
     var restoring by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    suspend fun api(): ZeroWidgetApi? {
-        val current = app.connectionStore.current()
-        val base = current.baseUrl.ifBlank {
-            com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-        }
-        if (current.apiKey.isBlank() || base.isBlank()) return null
-        return ZeroWidgetApi(app.http, base, current.apiKey)
-    }
+    suspend fun api(): ZeroWidgetApi? = app.authedApi()
 
     suspend fun refreshStatus() {
         status = try {

@@ -44,6 +44,16 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
             return null
         }
 
+        /**
+         * The Worker URL requests go to: the saved one, else the build's
+         * default, normalised either way. Null when neither resolves. The
+         * one place this rule lives — seven hand copies of it had drifted.
+         */
+        fun effectiveBaseUrl(
+            stored: String,
+            default: String = com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL,
+        ): String? = normalizeBaseUrl(stored.ifBlank { default })
+
         private fun isLocalHost(host: String): Boolean {
             val h = host.lowercase()
             return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" || h.endsWith(".localhost")

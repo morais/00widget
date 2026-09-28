@@ -87,15 +87,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     // so the layout below renders once, in its final shape.
     var connectionKnown by remember { mutableStateOf(false) }
 
-    suspend fun authedApi(): ZeroWidgetApi? {
-        val current = app.connectionStore.current()
-        if (current.apiKey.isBlank()) return null
-        val base = current.baseUrl.ifBlank {
-            com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-        }
-        if (base.isBlank()) return null
-        return ZeroWidgetApi(app.http, base, current.apiKey)
-    }
+    suspend fun authedApi(): ZeroWidgetApi? = app.authedApi()
 
     suspend fun loadConnections() {
         val api = authedApi() ?: run {
@@ -134,9 +126,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         onDispose { lifecycle.removeObserver(observer) }
     }
 
-    val baseUrl = connection.baseUrl.ifBlank {
-        com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-    }
+    val baseUrl = ConnectionStore.effectiveBaseUrl(connection.baseUrl).orEmpty()
     val mcpEndpoint = baseUrl.ifBlank { null }?.trimEnd('/')?.plus("/mcp")
 
     if (!connectionKnown) {
@@ -335,14 +325,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
         notice = null
         scope.launch {
             try {
-                val current = app.connectionStore.current()
-                val base = current.baseUrl.ifBlank {
-                    com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                }
-                if (current.apiKey.isBlank() || base.isBlank()) {
-                    throw IllegalStateException("Not connected.")
-                }
-                val api = ZeroWidgetApi(app.http, base, current.apiKey)
+                val api = app.authedApi() ?: throw IllegalStateException("Not connected.")
                 val (status, body) = api.approveBrowserSignIn(
                     normalized,
                     if (approved) "approve" else "deny",

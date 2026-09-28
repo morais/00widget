@@ -37,6 +37,18 @@ class ZeroZeroWidgetApp : Application() {
     lateinit var sampleStore: SampleStore
         private set
 
+    /**
+     * A client on the stored credential and effective Worker URL, or null
+     * when signed out or no URL resolves. Every screen that calls the
+     * Worker directly goes through this.
+     */
+    suspend fun authedApi(): ZeroWidgetApi? {
+        val connection = connectionStore.current()
+        if (connection.apiKey.isBlank()) return null
+        val base = ConnectionStore.effectiveBaseUrl(connection.baseUrl) ?: return null
+        return ZeroWidgetApi(http, base, connection.apiKey)
+    }
+
     /** Process-wide scope for work that outlives any one panel. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 

@@ -160,11 +160,8 @@ class DashboardRepository(
      * — the URL alone authenticates nothing — so `isConfigured` now means
      * "has a key and a resolvable URL", wherever the URL came from.
      */
-    private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? {
-        val stored = connection.baseUrl.trim().trimEnd('/')
-        if (stored.isNotEmpty()) return stored
-        return defaultBaseUrl.trim().trimEnd('/').ifEmpty { null }
-    }
+    private fun effectiveBaseUrl(connection: ConnectionStore.Connection): String? =
+        ConnectionStore.effectiveBaseUrl(connection.baseUrl, defaultBaseUrl)
 
     fun cardById(id: String): DashboardCard? = _state.value.cards.firstOrNull { it.id == id }
 

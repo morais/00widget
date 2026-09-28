@@ -368,12 +368,7 @@ private fun AccountSection(
 
     LaunchedEffect(Unit) {
         try {
-            val current = app.connectionStore.current()
-            val base = current.baseUrl.ifBlank {
-                com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-            }
-            if (current.apiKey.isBlank() || base.isBlank()) return@LaunchedEffect
-            val api = ZeroWidgetApi(app.http, base, current.apiKey)
+            val api = app.authedApi() ?: return@LaunchedEffect
             // Parallel: account and subscription are independent reads,
             // and sequential await was the visible fill-up. Both states
             // land together below, so the rows below never reshape twice.
@@ -516,15 +511,11 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSig
 
     LaunchedEffect(Unit) {
         action = try {
-            val current = app.connectionStore.current()
-            val base = current.baseUrl.ifBlank {
-                com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-            }
-            if (current.apiKey.isBlank() || base.isBlank()) {
+            val api = app.authedApi()
+            if (api == null) {
                 AccountIdAction.NONE
             } else {
-                val info = ZeroWidgetApi(app.http, base, current.apiKey).fetchAccount()
-                accountIdAction(info.identities.map { it.provider })
+                accountIdAction(api.fetchAccount().identities.map { it.provider })
             }
         } catch (e: Exception) {
             AccountIdAction.NONE
@@ -547,14 +538,8 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSig
     }
     if (action == AccountIdAction.NONE) return
 
-    suspend fun api(): ZeroWidgetApi {
-        val current = app.connectionStore.current()
-        val base = current.baseUrl.ifBlank {
-            com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-        }
-        if (current.apiKey.isBlank() || base.isBlank()) throw IllegalStateException("Not connected.")
-        return ZeroWidgetApi(app.http, base, current.apiKey)
-    }
+    suspend fun api(): ZeroWidgetApi =
+        app.authedApi() ?: throw IllegalStateException("Not connected.")
 
     fun execute(act: AccountIdAction) {
         if (busy) return
@@ -738,9 +723,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpenA
     )
     val showDummy by app.panelPrefs.showDummyAccountData.collectAsState(initial = false)
     var copied by remember { mutableStateOf(false) }
-    val baseUrl = connection.baseUrl.ifBlank {
-        com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-    }
+    val baseUrl = ConnectionStore.effectiveBaseUrl(connection.baseUrl).orEmpty()
     val signedIn = connection.apiKey.isNotBlank()
     val displayedToken = if (showDummy) DummyAccountData.API_KEY else connection.apiKey
     val agentConfig = if (!signedIn) {
@@ -889,13 +872,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                 error = null
                 scope.launch {
                     try {
-                        val current = app.connectionStore.current()
-                        val base = current.baseUrl.ifBlank {
-                            com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-                        }
-                        val api = com.zerozerowidget.hzos.data.ZeroWidgetApi(
-                            app.http, base, current.apiKey,
-                        )
+                        val api = app.authedApi() ?: throw IllegalStateException("Not connected.")
                         rotated = api.rotateAgentToken()
                     } catch (e: Exception) {
                         error = (e.message ?: e.javaClass.simpleName).take(200)
@@ -1110,11 +1087,7 @@ private fun HorizonSignInSection(
     suspend fun resolveBaseUrl(): String {
         // Server URL resolves here, not in a text field: saved value
         // first, build default second.
-        val stored = app.connectionStore.current()
-        val raw = stored.baseUrl.ifBlank {
-            com.zerozerowidget.hzos.BuildConfig.DEFAULT_BASE_URL
-        }
-        return ConnectionStore.normalizeBaseUrl(raw)
+        return ConnectionStore.effectiveBaseUrl(app.connectionStore.current().baseUrl)
             ?: throw IllegalArgumentException("No Worker URL configured (Developer screen).")
     }
 
