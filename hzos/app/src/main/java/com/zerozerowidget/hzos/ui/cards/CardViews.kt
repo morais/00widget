@@ -270,7 +270,7 @@ fun CardTemplateBody(card: DashboardCard, modifier: Modifier = Modifier, interac
             com.zerozerowidget.hzos.data.DashboardTemplate.SUMMARY -> SummaryBody(card)
             com.zerozerowidget.hzos.data.DashboardTemplate.PROGRESS -> ProgressBody(card)
             com.zerozerowidget.hzos.data.DashboardTemplate.LIST -> ListBody(card)
-            com.zerozerowidget.hzos.data.DashboardTemplate.ACTION -> ActionHintBody()
+            com.zerozerowidget.hzos.data.DashboardTemplate.ACTION -> ActionHintBody(card, interactiveCharts)
             com.zerozerowidget.hzos.data.DashboardTemplate.CHART -> ChartBody(card, interactiveCharts)
             com.zerozerowidget.hzos.data.DashboardTemplate.HISTORY -> HistoryBody(card)
             com.zerozerowidget.hzos.data.DashboardTemplate.BREAKDOWN -> BreakdownBody(card)
@@ -371,7 +371,31 @@ private fun ListBody(card: DashboardCard) {
 }
 
 @Composable
-private fun ActionHintBody() {
+private fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
+    // An action card can still carry a chart (the water heater does):
+    // iOS detail draws it for any template, so this draws it too rather
+    // than leaving the hint as the whole body.
+    val chart = card.chart?.takeIf { it.points.size >= 2 }
+    if (chart != null) {
+        val unknown = LocalContentColors.current.secondary
+        val dark = androidx.compose.foundation.isSystemInDarkTheme()
+        val base = statusColor(card.status, unknown, dark)
+        Spacer(Modifier.height(8.dp))
+        if (interactive) {
+            InspectableChart(
+                chart = chart,
+                unit = card.unit,
+                baseTint = base,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Sparkline(
+                chart = chart,
+                baseTint = base,
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+            )
+        }
+    }
     Text(
         "Buttons are below.",
         style = LocalTypography.current.body,
