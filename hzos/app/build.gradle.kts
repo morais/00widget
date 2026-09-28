@@ -59,13 +59,13 @@ android {
         // Short commit hash for the About screen, so a screenshot proves
         // which source a build came from. versionCode alone cannot: its
         // hour precision collides across same-hour builds, which is how
-        // three different builds all reported 2026092812. Evaluated at
-        // configuration time like versionCode above, so it needs a fresh
-        // configure (no configuration cache) to be exact.
+        // three different builds all reported 2026092812. providers.exec
+        // (not raw ProcessBuilder) keeps this configuration-cache safe.
         val gitSha: String = try {
-            ProcessBuilder("git", "rev-parse", "--short", "HEAD")
-                .directory(rootProject.projectDir.parentFile)
-                .start().inputStream.bufferedReader().readText().trim()
+            providers.exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+                workingDir(rootProject.projectDir.parentFile)
+            }.standardOutput.asText.get().trim()
                 .takeIf { it.matches(Regex("[0-9a-f]+")) } ?: "unknown"
         } catch (_: Exception) {
             "unknown"
