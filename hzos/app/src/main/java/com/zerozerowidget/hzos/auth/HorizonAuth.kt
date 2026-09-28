@@ -46,6 +46,11 @@ class HorizonAuth(
         } catch (_: Exception) {
             // Platform service absent (non-Quest device, old OS): stay
             // unavailable; the UI falls back to the manual code display.
+        } catch (_: LinkageError) {
+            // The OS lacks the optional platform-client supplement the SDK
+            // links against (its manifest marks it required="false"), which
+            // surfaces as NoClassDefFoundError — an Error, not an Exception.
+            // Same fallback; without this the app crashed in onCreate.
         }
     }
 
@@ -63,6 +68,9 @@ class HorizonAuth(
             // so the UI can fall back to the manual code display.
             Users().sendAuthUrl(authUrl)
         } catch (e: Exception) {
+            Log.e(TAG, "sendAuthUrl failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        } catch (e: LinkageError) {
             Log.e(TAG, "sendAuthUrl failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
@@ -87,6 +95,9 @@ class HorizonAuth(
         } catch (e: Exception) {
             Log.e(TAG, "getMetaIdentity failed: ${e.javaClass.simpleName}: ${e.message}")
             null
+        } catch (e: LinkageError) {
+            Log.e(TAG, "getMetaIdentity failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
         }
     }
 
@@ -101,6 +112,9 @@ class HorizonAuth(
         return try {
             Users().getLoggedInUser().id.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
+            Log.e(TAG, "loggedInUserId failed: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        } catch (e: LinkageError) {
             Log.e(TAG, "loggedInUserId failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }

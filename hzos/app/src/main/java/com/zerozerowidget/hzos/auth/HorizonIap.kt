@@ -58,6 +58,9 @@ class HorizonIap(
         } catch (e: Exception) {
             Log.e(TAG, "fetchProducts failed: ${e.javaClass.simpleName}: ${e.message}")
             emptyList()
+        } catch (e: LinkageError) {
+            Log.e(TAG, "fetchProducts failed: ${e.javaClass.simpleName}: ${e.message}")
+            emptyList()
         }
     }
 
@@ -75,6 +78,9 @@ class HorizonIap(
         } catch (e: Exception) {
             Log.e(TAG, "checkout failed: ${e.javaClass.simpleName}: ${e.message}")
             Result.failure(e)
+        } catch (e: LinkageError) {
+            Log.e(TAG, "checkout failed: ${e.javaClass.simpleName}: ${e.message}")
+            Result.failure(e)
         }
     }
 
@@ -84,6 +90,9 @@ class HorizonIap(
         return try {
             Iap().getViewerPurchases().map { it.sku }.toSet()
         } catch (e: Exception) {
+            Log.e(TAG, "ownedSkus failed: ${e.javaClass.simpleName}: ${e.message}")
+            emptySet()
+        } catch (e: LinkageError) {
             Log.e(TAG, "ownedSkus failed: ${e.javaClass.simpleName}: ${e.message}")
             emptySet()
         }
