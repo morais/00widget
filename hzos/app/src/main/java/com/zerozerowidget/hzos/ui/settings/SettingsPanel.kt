@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import metavrx.uiset.compose.Icon as UiSetIcon
+import metavrx.uiset.compose.navigation.SideNavItem
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
@@ -78,6 +81,26 @@ private enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 
 private enum class SettingsDestination { ROOT, AGENT, DEVELOPER, SUBSCRIPTION, ACCOUNT }
 
+/** Settings shows its destinations as a side rail from this width up. */
+private val SETTINGS_RAIL_MIN_WIDTH = 600.dp
+
+private fun titleOf(destination: SettingsDestination): String = when (destination) {
+    SettingsDestination.ROOT -> "Settings"
+    SettingsDestination.AGENT -> "Connect an agent"
+    SettingsDestination.DEVELOPER -> "Developer"
+    SettingsDestination.SUBSCRIPTION -> "Subscription"
+    SettingsDestination.ACCOUNT -> "Account and access"
+}
+
+@Composable
+private fun railIcon(destination: SettingsDestination) = when (destination) {
+    SettingsDestination.ROOT -> UiSetIcons.Regular.Settings
+    SettingsDestination.AGENT -> UiSetIcons.Regular.Chat
+    SettingsDestination.DEVELOPER -> UiSetIcons.Regular.CommandCenter
+    SettingsDestination.SUBSCRIPTION -> UiSetIcons.Regular.Purchase
+    SettingsDestination.ACCOUNT -> UiSetIcons.Regular.Profile
+}
+
 /**
  * Settings is one panel with drill-in destinations, not separate shell
  * panels: the root (connection, agent doorway, about), the agent guide,
@@ -92,20 +115,52 @@ fun SettingsPanel(
     onSignInRequestConsumed: () -> Unit = {},
 ) {
     var destination by remember { mutableStateOf(SettingsDestination.ROOT) }
-    val title = when (destination) {
-        SettingsDestination.ROOT -> "Settings"
-        SettingsDestination.AGENT -> "Connect an agent"
-        SettingsDestination.DEVELOPER -> "Developer"
-        SettingsDestination.SUBSCRIPTION -> "Subscription"
-        SettingsDestination.ACCOUNT -> "Account and access"
-    }
+    val title = titleOf(destination)
     // A dashboard "Sign in" press lands here mid-flow: come back to the
     // root where the sign-in section lives, wherever the panel was left.
     LaunchedEffect(signInRequest) {
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
+    val connection by app.connectionStore.connection.collectAsState(
+        initial = ConnectionStore.Connection("", ""),
+    )
+    // What the rail offers mirrors what the root links to: account screens
+    // only when signed in, subscription only when the build sells one.
+    // Developer stays behind the version-number tap, as on iOS.
+    val signedIn = connection.apiKey.isNotBlank()
+    val railDestinations = buildList {
+        add(SettingsDestination.ROOT)
+        add(SettingsDestination.AGENT)
+        if (signedIn) add(SettingsDestination.ACCOUNT)
+        if (signedIn && com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTIONS_ENABLED) {
+            add(SettingsDestination.SUBSCRIPTION)
+        }
+    }
 
-    Column(Modifier.fillMaxSize().panelBackground()) {
+    BoxWithConstraints(Modifier.fillMaxSize().panelBackground()) {
+    // Wide panels get a UI Set side-nav rail: one pinch per destination
+    // and no Back. Below the breakpoint the drill-in stays, since a rail
+    // would take a third of a 480dp panel.
+    val showRail = maxWidth >= SETTINGS_RAIL_MIN_WIDTH
+    Row(Modifier.fillMaxSize()) {
+    if (showRail) {
+        Column(
+            Modifier
+                .width(220.dp)
+                .padding(start = 12.dp, top = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            railDestinations.forEach { dest ->
+                SideNavItem(
+                    icon = { UiSetIcon(railIcon(dest), contentDescription = null) },
+                    onClick = { destination = dest },
+                    primaryLabel = titleOf(dest),
+                    selected = destination == dest,
+                )
+            }
+        }
+    }
+    Column(Modifier.weight(1f).fillMaxHeight()) {
         // Pinned: Back, title, and close stay put while the destination
         // below scrolls — the agent guide is long enough to lose them.
         Row(
@@ -114,7 +169,7 @@ fun SettingsPanel(
                 .padding(start = 20.dp, end = 20.dp, top = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (destination != SettingsDestination.ROOT) {
+            if (destination != SettingsDestination.ROOT && !(showRail && destination in railDestinations)) {
                 UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
                 Spacer(Modifier.width(8.dp))
             }
@@ -160,6 +215,8 @@ fun SettingsPanel(
             )
         }
         }
+    }
+    }
     }
 }
 
