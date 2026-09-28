@@ -11,11 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,7 +41,9 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.icons.Icons
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
@@ -93,7 +92,7 @@ fun ActivityDetailPanel(
                 overflow = TextOverflow.Ellipsis,
             )
             UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
-                Icon(Icons.Filled.Refresh, contentDescription = null)
+                Icon(Icons.Regular.Refresh, contentDescription = null)
             }
         }
         Spacer(Modifier.height(8.dp))

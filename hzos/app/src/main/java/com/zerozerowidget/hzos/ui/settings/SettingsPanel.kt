@@ -21,9 +21,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
+import metavrx.uiset.compose.Icon as UiSetIcon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
@@ -67,6 +67,7 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetSlider
 import com.zerozerowidget.hzos.ui.uiset.UiSetSwitch
 import com.zerozerowidget.hzos.ui.uiset.UiSetTextField
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
+import metavrx.uiset.compose.theme.icons.Icons as UiSetIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -123,7 +124,7 @@ fun SettingsPanel(
                 modifier = Modifier.weight(1f),
             )
             UiSetIconButton(onClick = onClose, contentDescription = "Close") {
-                Icon(Icons.Filled.Close, contentDescription = null)
+                UiSetIcon(UiSetIcons.Regular.Close, contentDescription = null)
             }
         }
 

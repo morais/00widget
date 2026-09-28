@@ -19,12 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -71,10 +67,12 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
 import kotlinx.coroutines.launch
+import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
+import metavrx.uiset.compose.theme.icons.Icons
 
 /**
  * Main dashboard panel, mirroring the Apple TV layout: an "Ongoing
@@ -121,11 +119,11 @@ fun DashboardPanel(
             // refetch, and the button suggests otherwise.
             if (state.isConfigured) {
                 UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
-                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                    Icon(Icons.Regular.Refresh, contentDescription = null)
                 }
             }
             UiSetIconButton(onClick = onOpenSettings, contentDescription = "Settings") {
-                Icon(Icons.Filled.Settings, contentDescription = null)
+                Icon(Icons.Regular.Settings, contentDescription = null)
             }
         }
         androidx.compose.runtime.CompositionLocalProvider(
@@ -385,7 +383,7 @@ fun CardDetailPanel(
                 overflow = TextOverflow.Ellipsis,
             )
                         UiSetIconButton(onClick = { app.repository.refresh() }, contentDescription = "Refresh") {
-                Icon(Icons.Filled.Refresh, contentDescription = null)
+                Icon(Icons.Regular.Refresh, contentDescription = null)
             }
         }
         Spacer(Modifier.height(8.dp))
