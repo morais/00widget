@@ -1,0 +1,60 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:AccountSections.kt:@Composable internal fun AccountAccessSection</ID>
+    <ID>CyclomaticComplexMethod:ActivityDetailPanel.kt:@Composable fun ActivityDetailPanel</ID>
+    <ID>CyclomaticComplexMethod:AgentConnectPanel.kt:@Composable fun AgentConnectPanel</ID>
+    <ID>CyclomaticComplexMethod:ChartInspection.kt:fun inspectChart: InspectionSnapshot?</ID>
+    <ID>CyclomaticComplexMethod:DashboardPanel.kt:@Composable fun CardDetailPanel</ID>
+    <ID>CyclomaticComplexMethod:DashboardPanel.kt:@Composable fun DashboardPanel</ID>
+    <ID>CyclomaticComplexMethod:DashboardPanel.kt:@Composable private fun ActivityRow</ID>
+    <ID>CyclomaticComplexMethod:HorizonLogin.kt:fun classifyHorizonSignIn: HorizonStep</ID>
+    <ID>CyclomaticComplexMethod:HorizonSignInSection.kt:@Composable internal fun HorizonSignInSection</ID>
+    <ID>CyclomaticComplexMethod:Plots.kt:@Composable fun Sparkline</ID>
+    <ID>CyclomaticComplexMethod:Plots.kt:@Composable fun TimelinePlot</ID>
+    <ID>CyclomaticComplexMethod:SettingsPanel.kt:@Composable fun SettingsPanel</ID>
+    <ID>CyclomaticComplexMethod:SubscriptionSection.kt:@Composable fun SubscriptionSection</ID>
+    <ID>LongMethod:ChartInspection.kt:fun inspectChart: InspectionSnapshot?</ID>
+    <ID>LongMethod:Plots.kt:internal fun DrawScope.drawBars</ID>
+    <ID>LongMethod:SampleData.kt:SampleData$fun makeCards: List&lt;DashboardCard&gt;</ID>
+    <ID>MatchingDeclarationName:HorizonSignInSection.kt:HorizonPhase</ID>
+    <ID>MatchingDeclarationName:SettingsPanel.kt:SettingsDestination</ID>
+    <ID>ReturnCount:ChartColors.kt:fun chartTint: Color</ID>
+    <ID>ReturnCount:ConnectionStore.kt:ConnectionStore.Companion$fun normalizeBaseUrl: String?</ID>
+    <ID>ReturnCount:HorizonLogin.kt:fun classifyHorizonSignIn: HorizonStep</ID>
+    <ID>ReturnCount:HorizonLogin.kt:suspend fun runHorizonSignIn: HorizonOutcome</ID>
+    <ID>ReturnCount:MetaUserGuard.kt:suspend fun ensureMetaUserMatches: Boolean</ID>
+    <ID>ReturnCount:UiHelpers.kt:fun describeDeleteError: String</ID>
+    <ID>ReturnCount:UiHelpers.kt:fun isStale: Boolean</ID>
+    <ID>ReturnCount:UiHelpers.kt:fun openDeepLink: Boolean</ID>
+    <ID>ReturnCount:ZeroZeroWidgetApp.kt:ZeroZeroWidgetApp$suspend fun authedApi: ZeroWidgetApi?</ID>
+    <ID>SwallowedException:AccountSections.kt:e: Exception</ID>
+    <ID>SwallowedException:SubscriptionSection.kt:e: Exception</ID>
+    <ID>SwallowedException:ZeroWidgetApi.kt:ZeroWidgetApi$e: ApiException</ID>
+    <ID>ThrowsCount:DeviceAuth.kt:suspend fun awaitDeviceToken: String</ID>
+    <ID>ThrowsCount:SubscriptionSection.kt:fun buy</ID>
+    <ID>ThrowsCount:SubscriptionSection.kt:fun restore</ID>
+    <ID>TooGenericExceptionCaught:AccountSections.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentConfigSection.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AgentConnectPanel.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DashboardRepository.kt:DashboardRepository$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HorizonAuth.kt:HorizonAuth$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HorizonIap.kt:HorizonIap$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HorizonSignInSection.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsActivity.kt:SettingsActivity$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SubscriptionSection.kt:e: Exception</ID>
+    <ID>TooManyFunctions:CardControls.kt:com.zerozerowidget.hzos.ui.cards.CardControls.kt</ID>
+    <ID>TooManyFunctions:CardViews.kt:com.zerozerowidget.hzos.ui.cards.CardViews.kt</ID>
+    <ID>TooManyFunctions:DashboardRepository.kt:DashboardRepository</ID>
+    <ID>TooManyFunctions:ZeroWidgetApi.kt:ZeroWidgetApi : DashboardApi</ID>
+    <ID>UnusedParameter:Plots.kt:secondary: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val BLUE: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val GREEN: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val ORANGE: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val PURPLE: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val RED: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val SECONDARY: Color</ID>
+    <ID>VariableNaming:ChartColors.kt:ChartPalette$val TEAL: Color</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -11,6 +11,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.roborazzi) apply false
     alias(libs.plugins.spotless)
+    alias(libs.plugins.detekt) apply false
 }
 
 // Formatting (audit M3): ktlint through Spotless, rules in .editorconfig.

@@ -1,0 +1,25 @@
+# Adjustments to detekt's defaults for a Jetpack Compose codebase. Anything
+# not listed runs with its default settings (buildUponDefaultConfig).
+naming:
+  FunctionNaming:
+    # Composables are PascalCase by convention.
+    ignoreAnnotated: ["Composable"]
+  TopLevelPropertyNaming:
+    # UiSetAccent-style constants mirror UI Set and iOS names.
+    active: false
+complexity:
+  LongParameterList:
+    # Composables take a modifier and slot lambdas by design.
+    ignoreAnnotated: ["Composable"]
+  LongMethod:
+    ignoreAnnotated: ["Composable"]
+style:
+  MagicNumber:
+    # dp values, alphas and colours are literals in Compose.
+    active: false
+  UnusedPrivateFunction:
+    ignoreAnnotated: ["Preview"]
+  MaxLineLength:
+    # Same call as ktlint (.editorconfig): the long lines are user-facing
+    # strings and URLs, which read worse split.
+    active: false

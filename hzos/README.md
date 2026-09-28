@@ -186,7 +186,7 @@ per-developer files; env vars override the file for CI):
 ## Verification
 
 ```
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:verifyRoborazziDebug spotlessCheck
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:verifyRoborazziDebug :app:lintDebug :app:detekt spotlessCheck
 ```
 
 - Unit tests are JVM and Robolectric: repository ordering and polling,
@@ -197,4 +197,7 @@ per-developer files; env vars override the file for CI):
   them. It proves layout only — check Look and Pinch, resizing and
   passthrough on a headset.
 - `spotlessCheck` fails on formatting drift; `spotlessApply` fixes it.
+- Lint and detekt fail on anything new; what existed when they were
+  introduced is in `app/lint-baseline.xml` and `app/detekt-baseline.xml`,
+  to be burned down. Regenerate a baseline only after fixing entries.
 - `cd ../server && npm test` covers the device-code endpoints this app reads.

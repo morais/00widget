@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.detekt)
 }
 
 // Horizon Platform app ID (developer portal → your app). Per-machine, read
@@ -249,4 +250,16 @@ dependencies {
     testImplementation(composeBom)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Static analysis (audit B7): detekt 2 (an alpha: 1.23 cannot run on this
+// project's Kotlin 2.2 or on JDK 25), with its default rules, with detekt.yml
+// adjusting the few that fight Compose, and today's findings in
+// detekt-baseline.xml so new ones fail. Formatting is ktlint's job
+// (Spotless), not detekt's.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("detekt.yml"))
+    baseline = file("detekt-baseline.xml")
+    source.setFrom("src/main/java", "src/test/java")
 }
