@@ -35,7 +35,8 @@
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".DashboardActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density">
             <layout
                 android:defaultWidth="1280dp"
                 android:defaultHeight="800dp"
@@ -53,6 +54,7 @@
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".SettingsActivity"
             android:exported="false"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density"
             android:launchMode="singleTask">
             <!-- No screenOrientation lock: a locked-landscape activity in a
                  tall resized window gets system-letterboxed (the grey slab
@@ -75,6 +77,7 @@
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".CardDetailActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density"
             android:exported="false">
             <layout
                 android:defaultWidth="1024dp"
