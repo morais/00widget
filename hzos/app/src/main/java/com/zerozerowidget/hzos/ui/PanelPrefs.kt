@@ -12,9 +12,10 @@ private val Context.panelPrefsStore by preferencesDataStore(name = "panel_prefs"
 
 /**
  * Look, not data: whether shell panels render transparent (passthrough shows
- * through the window) or opaque black. Separate DataStore from
- * ConnectionStore on purpose — wiping credentials must never wipe this, and
- * vice versa.
+ * through the window) or opaque (the scheme surface, via panelBackground —
+ * the window drawable underneath stays black in both cases). Separate
+ * DataStore from ConnectionStore on purpose — wiping credentials must never
+ * wipe this, and vice versa.
  */
 class PanelPrefs(private val context: Context) {
     companion object {

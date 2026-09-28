@@ -72,6 +72,7 @@ import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
+import com.zerozerowidget.hzos.ui.theme.panelBackground
 import metavrx.uiset.compose.theme.LocalTypography
 import metavrx.uiset.compose.theme.icons.Icons
 
@@ -101,7 +102,7 @@ fun DashboardPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
+    Column(Modifier.fillMaxSize().panelBackground(app).padding(20.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -388,6 +389,7 @@ fun CardDetailPanel(
     Column(
         Modifier
             .fillMaxSize()
+            .panelBackground(app)
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {

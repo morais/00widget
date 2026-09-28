@@ -46,6 +46,7 @@ import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.icons.Icons
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
+import com.zerozerowidget.hzos.ui.theme.panelBackground
 import metavrx.uiset.compose.theme.LocalTypography
 
 /**
@@ -81,6 +82,7 @@ fun ActivityDetailPanel(
     Column(
         Modifier
             .fillMaxSize()
+            .panelBackground(app)
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {

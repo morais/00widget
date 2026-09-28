@@ -27,6 +27,7 @@ import metavrx.uiset.compose.Icon as UiSetIcon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
+import com.zerozerowidget.hzos.ui.theme.panelBackground
 import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +108,7 @@ fun SettingsPanel(
         if (signInRequest > 0) destination = SettingsDestination.ROOT
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().panelBackground(app)) {
         // Pinned: Back, title, and close stay put while the destination
         // below scrolls — the agent guide is long enough to lose them.
         Row(
