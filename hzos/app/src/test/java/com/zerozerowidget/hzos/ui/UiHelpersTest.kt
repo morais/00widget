@@ -1,0 +1,48 @@
+package com.zerozerowidget.hzos.ui
+
+import java.time.Instant
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** The relative-time and staleness rules every card and activity shows. */
+class UiHelpersTest {
+    private val now = Instant.parse("2026-09-28T12:00:00Z")
+
+    @Test
+    fun relativeTimeReadsPastAndFuture() {
+        assertEquals("5m ago", relativeTime("2026-09-28T11:55:00Z", now))
+        assertEquals("in 2h", relativeTime("2026-09-28T14:00:00Z", now))
+        assertEquals("3d ago", relativeTime("2026-09-25T12:00:00Z", now))
+        assertEquals("just now", relativeTime("2026-09-28T11:59:30Z", now))
+    }
+
+    @Test
+    fun relativeTimeIgnoresWhatItCannotParse() {
+        assertNull(relativeTime(null, now))
+        assertNull(relativeTime("", now))
+        assertNull(relativeTime("yesterday", now))
+    }
+
+    @Test
+    fun staleAfterWinsOverTheHourFallback() {
+        // staleAfter still ahead: fresh, however old updatedAt is.
+        assertFalse(isStale("2026-09-28T08:00:00Z", "2026-09-28T13:00:00Z", now))
+        assertTrue(isStale("2026-09-28T11:59:00Z", "2026-09-28T11:30:00Z", now))
+    }
+
+    @Test
+    fun withoutStaleAfterAnHourSinceUpdateIsStale() {
+        assertFalse(isStale("2026-09-28T11:30:00Z", null, now))
+        assertTrue(isStale("2026-09-28T10:30:00Z", null, now))
+    }
+
+    @Test
+    fun unparseableDatesNeverMarkACardStale() {
+        assertFalse(isStale("garbage", null, now))
+        assertFalse(isStale(null, "garbage", now))
+        assertFalse(isStale(null, null, now))
+    }
+}
