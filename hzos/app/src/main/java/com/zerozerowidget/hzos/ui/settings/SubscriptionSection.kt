@@ -12,6 +12,7 @@ import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun SubscriptionSection(app: ZeroZeroWidgetApp) {
     val scope = rememberCoroutineScope()
+    val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
+        initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
+    )
     val monthlySku = com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTION_MONTHLY_SKU
     val yearlySku = com.zerozerowidget.hzos.BuildConfig.SUBSCRIPTION_YEARLY_SKU
     val tiers = listOf("Monthly" to monthlySku, "Yearly" to yearlySku)
@@ -134,7 +138,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
         }
     }
 
-    GlassCard(cardAlpha = 1f) {
+    GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Subscription", style = LocalTypography.current.title)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

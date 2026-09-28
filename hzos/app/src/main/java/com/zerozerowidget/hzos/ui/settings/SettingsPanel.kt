@@ -215,9 +215,9 @@ private fun SettingsRoot(
         }
 
         Spacer(Modifier.height(4.dp))
-        AgentConfigSection(app = app, onOpenAgentConnect = onOpenAgent)
+        AgentConfigSection(app = app, cardAlpha = cardAlpha, onOpenAgentConnect = onOpenAgent)
         Spacer(Modifier.height(4.dp))
-        AboutSection(onOpenDeveloper = onOpenDeveloper)
+        AboutSection(cardAlpha = cardAlpha, onOpenDeveloper = onOpenDeveloper)
     }
 }
 
@@ -259,7 +259,7 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> 
             RotateAgentTokensSection(app = app)
         }
         Spacer(Modifier.height(4.dp))
-        AccountAccessSection(app = app, onSignedOut = onSignedOut)
+        AccountAccessSection(app = app, cardAlpha = cardAlpha, onSignedOut = onSignedOut)
     }
 }
 
@@ -426,7 +426,7 @@ private fun AccountSection(
  * the account or the link — and refreshes into the signed-out view.
  */
 @Composable
-private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit) {
+private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSignedOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     var action by remember { mutableStateOf<AccountIdAction?>(null) }
     var confirming by remember { mutableStateOf<AccountIdAction?>(null) }
@@ -455,7 +455,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit
     // delete-or-unlink card arrives. Nothing determinable, nothing
     // offered. Hooks stay above this return.
     if (action == null) {
-        GlassCard(cardAlpha = 1f) {
+        GlassCard(cardAlpha = cardAlpha) {
             Text(
                 "Loading…",
                 style = LocalTypography.current.body,
@@ -537,7 +537,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit
     }
 
     val isDelete = action == AccountIdAction.DELETE
-    GlassCard(cardAlpha = 1f) {
+    GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 if (isDelete) {
@@ -597,9 +597,9 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, onSignedOut: () -> Unit
  * listing metadata show version alone.
  */
 @Composable
-private fun AboutSection(onOpenDeveloper: () -> Unit) {
+private fun AboutSection(cardAlpha: Float, onOpenDeveloper: () -> Unit) {
     val context = LocalContext.current
-    GlassCard(cardAlpha = 1f) {
+    GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("About", style = LocalTypography.current.title)
             VersionRow(onOpenDeveloper = onOpenDeveloper)
@@ -649,7 +649,7 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
  * hiding it from.
  */
 @Composable
-private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () -> Unit) {
+private fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpenAgentConnect: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val connection by app.connectionStore.connection.collectAsState(
@@ -671,7 +671,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, onOpenAgentConnect: () ->
             "use that as the base URL, and use $displayedToken as the authorization token."
     }
 
-    GlassCard(cardAlpha = 1f) {
+    GlassCard(cardAlpha = cardAlpha) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Agent config", style = LocalTypography.current.title)
             Row(verticalAlignment = Alignment.Top) {
