@@ -400,11 +400,6 @@ private fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
             )
         }
     }
-    Text(
-        "Buttons are below.",
-        style = LocalTypography.current.body,
-        color = LocalContentColors.current.secondary,
-    )
 }
 
 @Composable
