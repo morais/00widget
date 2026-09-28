@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.cards
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -149,7 +150,7 @@ private fun SelectionOverlay(chart: DashboardChart, index: Int, tint: Color) {
 private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
     val readings = snapshot.values.filter { it.kind != InspectionValue.Kind.REFERENCE }
     val reference = snapshot.values.firstOrNull { it.kind == InspectionValue.Kind.REFERENCE }
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.small))
     Column(
         Modifier
             .fillMaxWidth()
@@ -157,8 +158,8 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                 RoundedCornerShape(10.dp),
             )
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(spacing.small),
     ) {
         snapshot.label?.let {
             Text(it, style = LocalTypography.current.label)

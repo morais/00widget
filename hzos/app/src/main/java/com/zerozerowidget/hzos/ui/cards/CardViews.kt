@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.cards
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -116,7 +117,7 @@ fun SampleBadge(modifier: Modifier = Modifier) {
                 uiSetAccent(),
                 androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
             )
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = spacing.small, vertical = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -142,9 +143,9 @@ fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
                 uiSetAccent(),
                 androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = spacing.medium, vertical = spacing.medium),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -194,7 +195,7 @@ fun LinkIconButton(onOpenLink: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         StatusDot(card.status)
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(spacing.small))
         Column(Modifier.weight(1f)) {
             Text(
                 card.title,
@@ -253,7 +254,7 @@ private fun CardMetaLine(card: DashboardCard) {
     card.subtitle?.let {
         Text(it, style = LocalTypography.current.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         card.producer?.let {
             Text(
                 it.label,
@@ -282,13 +283,13 @@ private fun SummaryBody(card: DashboardCard) {
 @Composable
 private fun ProgressBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.small))
     ProgressBar(
         fraction = (card.progress ?: 0.0).toFloat(),
         modifier = Modifier.fillMaxWidth(),
     )
     card.value?.let {
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         Text(it, style = LocalTypography.current.body)
     }
 }
@@ -296,13 +297,13 @@ private fun ProgressBody(card: DashboardCard) {
 @Composable
 private fun ListBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(spacing.xSmall))
     val items = card.items.orEmpty()
     val max = items.mapNotNull { it.amount }.maxOrNull()?.takeIf { it > 0 }
     items.forEach { item ->
         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                StatusDot(item.status, Modifier.padding(end = 6.dp))
+                StatusDot(item.status, Modifier.padding(end = spacing.small))
                 Text(
                     item.title,
                     style = LocalTypography.current.body,
@@ -347,7 +348,7 @@ private fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
         val unknown = LocalContentColors.current.secondary
         val dark = androidx.compose.foundation.isSystemInDarkTheme()
         val base = statusColor(card.status, unknown, dark)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.small))
         if (interactive) {
             InspectableChart(
                 chart = chart,
@@ -369,7 +370,7 @@ private fun ActionHintBody(card: DashboardCard, interactive: Boolean) {
 private fun ChartBody(card: DashboardCard, interactive: Boolean) {
     CardMetaLine(card)
     val chart = card.chart ?: return
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.small))
     // Base tint is the card's status tint, exactly like iOS (SparklineView
     // takes the card tint as its `tint` argument).
     val unknown = LocalContentColors.current.secondary
@@ -390,7 +391,7 @@ private fun ChartBody(card: DashboardCard, interactive: Boolean) {
         )
     }
     chart.referenceMetadata?.label?.let { label ->
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         ReferenceLegend(chart = chart, baseTint = base, label = label)
     }
 }
@@ -407,7 +408,7 @@ private fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Strin
     val tint = semantics?.let { chartTint(0, baseTint, it, dark) } ?: chartPalette(dark).SECONDARY
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
     ) {
         Canvas(Modifier.width(24.dp).height(8.dp)) {
             drawLine(
@@ -685,16 +686,16 @@ private fun DrawScope.drawRanges(
 @Composable
 private fun HistoryBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.small))
     // Outcome pips, oldest first, most recent on the right (mirrors iOS).
     val unknown = LocalContentColors.current.secondary
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         card.items.orEmpty().forEach { item ->
             Canvas(Modifier.size(14.dp)) { drawCircle(statusColor(item.status, unknown, dark)) }
         }
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(spacing.xSmall))
     card.items.orEmpty().takeLast(5).reversed().forEach { item ->
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
@@ -708,7 +709,7 @@ private fun HistoryBody(card: DashboardCard) {
 @Composable
 private fun BreakdownBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.small))
     val items = card.items.orEmpty()
     val total = items.sumOf { (it.amount ?: 0.0).coerceAtLeast(0.0) }.takeIf { it > 0 } ?: return
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -747,10 +748,10 @@ private fun BreakdownBody(card: DashboardCard) {
 @Composable
 private fun BriefingBody(card: DashboardCard) {
     CardMetaLine(card)
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(spacing.xSmall))
     card.briefing?.sections.orEmpty().forEach { section ->
         section.label?.let {
-            Text(it, style = LocalTypography.current.label, modifier = Modifier.padding(top = 6.dp))
+            Text(it, style = LocalTypography.current.label, modifier = Modifier.padding(top = spacing.small))
         }
         Text(section.text, style = LocalTypography.current.body)
     }
@@ -763,17 +764,17 @@ private fun TimelineBody(card: DashboardCard) {
     val unknown = LocalContentColors.current.secondary
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     val base = statusColor(card.status, unknown, dark)
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(spacing.xSmall))
     // Legend: series dot + label. FlowRow wraps long label sets onto
     // multiple lines instead of pushing the plot off the panel.
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
     ) {
         timeline.series.take(4).forEachIndexed { index, series ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing.xSmall),
             ) {
                 Canvas(Modifier.size(7.dp)) {
                     drawCircle(chartTint(index, base, null, dark))
@@ -787,7 +788,7 @@ private fun TimelineBody(card: DashboardCard) {
             }
         }
     }
-    Spacer(Modifier.height(6.dp))
+    Spacer(Modifier.height(spacing.small))
     Row {
         if (timeline.lanes.size > 1) {
             Column(Modifier.width(72.dp)) {
@@ -805,7 +806,7 @@ private fun TimelineBody(card: DashboardCard) {
                     }
                 }
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(spacing.small))
         }
         TimelinePlot(
             timeline = timeline,
@@ -814,7 +815,7 @@ private fun TimelineBody(card: DashboardCard) {
             modifier = Modifier.weight(1f).height(120.dp),
         )
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(spacing.xSmall))
     Row(Modifier.fillMaxWidth()) {
         Text(
             formatHourMinute(timeline.startAt),
@@ -932,7 +933,7 @@ fun ActionButtons(
     runError: String?,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
         card.actions.orEmpty().forEach { action ->
             if (action.isSafeFromPanel) {
                 UiSetPrimaryButton(
@@ -1018,14 +1019,14 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, isSample: Boolean, interac
     Box(Modifier.fillMaxWidth()) {
     GlassPrimaryCard(cardAlpha = cardAlpha) {
         CardHeadline(card)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.small))
         CardTemplateBody(card, interactiveCharts = interactiveCharts)
     }
         if (isSample) {
             SampleBadge(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(8.dp),
+                    .padding(spacing.small),
             )
         }
     }
@@ -1105,7 +1106,7 @@ fun DeleteRow(
             DeleteButton(label = label, busy = busy, onClick = { confirming = true })
         }
         error?.let {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.xSmall))
             Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
     }
@@ -1158,7 +1159,7 @@ fun NeedsYouBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .background(colors.container, androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = spacing.small, vertical = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text("Needs you", style = LocalTypography.current.caption, color = colors.onContainer)

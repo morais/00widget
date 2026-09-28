@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.settings
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -139,7 +140,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
     }
 
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text("Subscription", style = LocalTypography.current.title)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(

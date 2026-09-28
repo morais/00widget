@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.dashboard
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,7 +84,7 @@ fun ActivityDetailPanel(
             .fillMaxSize()
             .panelBackground()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(spacing.twoXLarge),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -97,7 +98,7 @@ fun ActivityDetailPanel(
                 Icon(Icons.Regular.Refresh, contentDescription = null)
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.small))
         if (session == null) {
             Text(
                 "This activity has ended.",
@@ -108,17 +109,17 @@ fun ActivityDetailPanel(
             // read as the same object family rather than naked text.
             // Overlay badge, not layout — see DashboardRow.
             Box(Modifier.fillMaxWidth()) {
-            GlassPrimaryCard(cardAlpha = cardAlpha, contentPadding = 16.dp) {
+            GlassPrimaryCard(cardAlpha = cardAlpha, contentPadding = spacing.large) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     session.progress?.let {
                         Text(
                             "${(it * 100).toInt()}%",
                             style = LocalTypography.current.label,
-                            modifier = Modifier.padding(end = 8.dp),
+                            modifier = Modifier.padding(end = spacing.small),
                         )
                     } ?: StatusDot(
                         com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
-                        Modifier.padding(end = 8.dp),
+                        Modifier.padding(end = spacing.small),
                     )
                     Column(Modifier.weight(1f)) {
                         Text(session.state, style = LocalTypography.current.title)
@@ -135,18 +136,18 @@ fun ActivityDetailPanel(
                     Text(
                         it + (session.unit?.let { u -> " $u" } ?: ""),
                         style = LocalTypography.current.display,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = spacing.xSmall),
                     )
                 }
                 session.progress?.let {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(spacing.small))
                     ProgressBar(
                         fraction = it.toFloat(),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 session.chart?.let { chart ->
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(spacing.small))
                     InspectableChart(
                         chart = chart,
                         unit = session.unit,
@@ -160,8 +161,8 @@ fun ActivityDetailPanel(
                     )
                 }
                 session.items.orEmpty().forEach { item ->
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        StatusDot(item.status, Modifier.padding(end = 6.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = spacing.xSmall), verticalAlignment = Alignment.CenterVertically) {
+                        StatusDot(item.status, Modifier.padding(end = spacing.small))
                         Column(Modifier.weight(1f)) {
                             Text(item.title, style = LocalTypography.current.body)
                             item.subtitle?.let {
@@ -187,11 +188,11 @@ fun ActivityDetailPanel(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(spacing.small))
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.small),
                 ) {
                     session.endsAt?.let { endsAt ->
                         Text(
@@ -205,7 +206,7 @@ fun ActivityDetailPanel(
                         Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(spacing.small))
                 SampleAwareDeleteRow(
                     isSample = isSample,
                     serverLabel = "End activity",
@@ -245,7 +246,7 @@ fun ActivityDetailPanel(
                 SampleBadge(
                     Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(8.dp),
+                        .padding(spacing.small),
                 )
             }
             }

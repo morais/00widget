@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.dashboard
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -101,11 +102,11 @@ fun DashboardPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().panelBackground().padding(20.dp)) {
+    Column(Modifier.fillMaxSize().panelBackground().padding(spacing.twoXLarge)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
             Text(
                 "Dashboard",
@@ -119,7 +120,7 @@ fun DashboardPanel(
                     "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString()) ?: ""}",
                     style = LocalTypography.current.caption,
                     color = LocalContentColors.current.secondary,
-                    modifier = Modifier.padding(end = 4.dp),
+                    modifier = Modifier.padding(end = spacing.xSmall),
                 )
             }
             // Refresh only signs in states: logged out there is nothing to
@@ -138,7 +139,7 @@ fun DashboardPanel(
         ) {
         if ((samples.isNotEmpty() || sampleActivities.isNotEmpty()) && !hideIndicators) {
             SampleNoticeBanner(onRemoveAll = { app.sampleStore.clearSamples() })
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.xSmall))
         }
 
         // Server cards first, local samples after — never mixed, never sent.
@@ -158,8 +159,8 @@ fun DashboardPanel(
             }
             state.error != null && nothingToShow -> {
                 Text(state.error!!, color = LocalColorScheme.current.negative.content)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(spacing.small))
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
                     UiSetPrimaryButton("Retry", onClick = { app.repository.refresh() })
                     UiSetSecondaryButton("Generate samples", onClick = { app.sampleStore.generateCards() })
                 }
@@ -236,11 +237,11 @@ fun DashboardPanel(
                     }
                     LazyColumn(
                         state = listState,
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(spacing.medium),
                         // Bottom breathing room: without it the last card
                         // ends flush against the window edge when the list
                         // is scrolled to the end.
-                        contentPadding = PaddingValues(bottom = 10.dp),
+                        contentPadding = PaddingValues(bottom = spacing.medium),
                     ) {
                         if (visibleActivities.isNotEmpty()) {
                             item(key = "activities-title") {
@@ -276,7 +277,7 @@ fun DashboardPanel(
                                     visible.chunked(2),
                                     key = { row -> "row-" + row.first().key },
                                 ) { row ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(spacing.medium)) {
                                         Box(Modifier.weight(1f)) { cardRow(row[0]) }
                                         if (row.size > 1) {
                                             Box(Modifier.weight(1f)) { cardRow(row[1]) }
@@ -310,7 +311,7 @@ private fun DashboardRow(
     // Overlay badge, not layout: the Box is exactly the card's size and the
     // pill draws over the bottom-right corner without moving anything.
     Box(Modifier.fillMaxWidth()) {
-        GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onToggle, contentPadding = 14.dp) {
+        GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onToggle, contentPadding = spacing.large) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CardHeadline(card, Modifier.weight(1f))
                 card.deepLink?.let {
@@ -331,7 +332,7 @@ private fun DashboardRow(
                 Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
             }
             if (expanded) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(spacing.small))
                 CardTemplateBody(card)
                 actionSlot()
             }
@@ -340,7 +341,7 @@ private fun DashboardRow(
             SampleBadge(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(8.dp),
+                    .padding(spacing.small),
             )
         }
     }
@@ -386,7 +387,7 @@ fun CardDetailPanel(
             .fillMaxSize()
             .panelBackground()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(spacing.twoXLarge),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -400,14 +401,14 @@ fun CardDetailPanel(
                 Icon(Icons.Regular.Refresh, contentDescription = null)
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.small))
         if (card == null) {            Text(
                 "This card is no longer on the dashboard.",
                 style = LocalTypography.current.body,
             )
         } else {
             DetailCard(card, cardAlpha, isSample = isSample, interactiveCharts = true)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(spacing.medium))
             // Actions, link and delete sit together on the right — but
             // only while all three fit. Rows neither wrap nor clip, and
             // three pills need roughly 400dp; below that they would spill
@@ -485,7 +486,7 @@ fun CardDetailPanel(
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.small),
                     ) {
                         wideActions()
                         card.deepLink?.let {
@@ -500,14 +501,14 @@ fun CardDetailPanel(
                 } else {
                     Column(
                         Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(spacing.small),
                         horizontalAlignment = Alignment.End,
                     ) {
                         actionSlot()
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.small),
                         ) {
                             Spacer(Modifier.weight(1f))
                             card.deepLink?.let {
@@ -542,11 +543,11 @@ fun CardDetailPanel(
                 )
             }
             deleteError?.let {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(spacing.xSmall))
                 Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
             }
             card.deadline?.let { deadline ->
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(spacing.small))
                 Text(
                     "Due ${relativeTime(deadline) ?: deadline}",
                     style = LocalTypography.current.bodySmall,
@@ -567,7 +568,7 @@ fun CardDetailPanel(
 @Composable
 private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(vertical = 24.dp),
+        Modifier.fillMaxSize().padding(vertical = spacing.twoXLarge),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -578,20 +579,20 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
             contentDescription = "00Widget",
             modifier = Modifier.size(192.dp),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.medium))
         Text(
             "00Widget",
             style = LocalTypography.current.display,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         Text(
             "Widgets for all your agents.",
             style = LocalTypography.current.title,
             color = uiSetAccent(),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.medium))
         Text(
             "Your agents publish cards and activities here — builds, " +
                 "deploys, balances, queues — floating around you while you work.",
@@ -600,13 +601,13 @@ private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(0.85f),
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(spacing.twoXLarge))
         onSignIn?.let { signIn ->
             UiSetPrimaryButton("Sign in", onClick = signIn)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacing.small))
         }
         UiSetSecondaryButton("Try demo data", onClick = onTryDemo)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.medium))
         Text(
             if (onSignIn != null) {
                 "Demo data never leaves this device. No account needed to look around."
@@ -638,17 +639,17 @@ private fun ActivityRow(
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
-    GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onOpenDetail, contentPadding = 14.dp) {
+    GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onOpenDetail, contentPadding = spacing.large) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             session.progress?.let {
                 Text(
                     "${(it * 100).toInt()}%",
                     style = LocalTypography.current.label,
-                    modifier = Modifier.padding(end = 8.dp),
+                    modifier = Modifier.padding(end = spacing.small),
                 )
             } ?: StatusDot(
                 com.zerozerowidget.hzos.data.DashboardStatus.UNKNOWN,
-                Modifier.padding(end = 8.dp),
+                Modifier.padding(end = spacing.small),
             )
             Column(Modifier.weight(1f)) {
                 Text(session.title, style = LocalTypography.current.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -663,18 +664,18 @@ private fun ActivityRow(
             Text(
                 it + (session.unit?.let { u -> " $u" } ?: ""),
                 style = LocalTypography.current.headline,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = spacing.xSmall),
             )
         }
         session.progress?.let {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(spacing.small))
             ProgressBar(
                 fraction = it.toFloat(),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         session.chart?.let {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(spacing.small))
             Sparkline(
                 it,
                 activityTint(
@@ -694,7 +695,7 @@ private fun ActivityRow(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = spacing.small)) {
             session.endsAt?.let { endsAt ->
                 Text(
                     "Ends ${relativeTime(endsAt) ?: endsAt}",
@@ -712,7 +713,7 @@ private fun ActivityRow(
             SampleBadge(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(8.dp),
+                    .padding(spacing.small),
             )
         }
     }

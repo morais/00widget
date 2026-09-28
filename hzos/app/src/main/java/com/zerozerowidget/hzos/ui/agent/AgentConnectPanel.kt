@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.agent
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -141,7 +142,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
     if (!connectionKnown) {
         Column(
             Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
             GlassCard(cardAlpha = cardAlpha) {
                 Text(
@@ -156,10 +157,10 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
         GlassCard(cardAlpha = cardAlpha) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
                 Text(
                     "A connector lets an assistant publish cards and Live Activities on your behalf " +
                         "without you handing it a token. It asks for permission once, you approve it " +
@@ -186,7 +187,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
         // the per-client guides begin.
         if (signedIn) {
             GlassCard(cardAlpha = cardAlpha) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                     Text("Connected agents", style = LocalTypography.current.title)
                     connectionsError?.let {
                         Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
@@ -362,7 +363,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text("MCP login", style = LocalTypography.current.title)
             Text(
                 "Connecting an assistant? It shows an 8-character code — " +
@@ -378,7 +379,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
                 UiSetPrimaryButton(
                     "Approve",
                     onClick = { decide(true) },
@@ -414,7 +415,7 @@ private fun GuideSection(
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text(title, style = LocalTypography.current.title)
             content()
         }
@@ -423,7 +424,7 @@ private fun GuideSection(
 
 @Composable
 private fun Step(number: Int, text: String) {
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(spacing.medium)) {
         Box(
             Modifier.size(22.dp).background(uiSetAccent(), CircleShape),
             contentAlignment = Alignment.Center,
@@ -452,7 +453,7 @@ private fun CodeBlock(text: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         Text(
             text,
             style = LocalTypography.current.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -485,7 +486,7 @@ private fun UiSetIconButtonCopy(copied: Boolean, onCopy: () -> Unit) {
 private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnect: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
     ) {
         Column(Modifier.weight(1f)) {
             Text(item.clientName, style = LocalTypography.current.body)

@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.settings
 
+import com.zerozerowidget.hzos.ui.theme.spacing
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -150,8 +151,8 @@ fun SettingsPanel(
         Column(
             Modifier
                 .width(220.dp)
-                .padding(start = 12.dp, top = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(start = spacing.medium, top = spacing.twoXLarge),
+            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
         ) {
             railDestinations.forEach { dest ->
                 SideNavItem(
@@ -169,12 +170,12 @@ fun SettingsPanel(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp),
+                .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.twoXLarge),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (destination != SettingsDestination.ROOT && !(showRail && destination in railDestinations)) {
                 UiSetSecondaryButton("Back", onClick = { destination = SettingsDestination.ROOT })
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(spacing.small))
             }
             Text(
                 title,
@@ -192,8 +193,8 @@ fun SettingsPanel(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(start = spacing.twoXLarge, end = spacing.twoXLarge, top = spacing.medium, bottom = spacing.twoXLarge),
+            verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
         when (destination) {
             SettingsDestination.ROOT -> SettingsRoot(
@@ -249,9 +250,9 @@ private fun SettingsRoot(
         ensureMetaUserMatches(app)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
         GlassCard(cardAlpha = cardAlpha) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
                 // Section title like every other card on this screen —
                 // "Server", as on iOS.
                 Text("Server", style = LocalTypography.current.title)
@@ -284,9 +285,9 @@ private fun SettingsRoot(
             }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         AgentConfigSection(app = app, cardAlpha = cardAlpha, onOpenAgentConnect = onOpenAgent)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         AboutSection(cardAlpha = cardAlpha, onOpenDeveloper = onOpenDeveloper)
     }
 }
@@ -303,9 +304,9 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> 
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
         GlassCard(cardAlpha = cardAlpha) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 Text("This device", style = LocalTypography.current.title)
                 Text(
                     "Signing out forgets this device's credential and clears " +
@@ -324,11 +325,11 @@ private fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () -> 
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         GlassCard(cardAlpha = cardAlpha) {
             RotateAgentTokensSection(app = app)
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xSmall))
         AccountAccessSection(app = app, cardAlpha = cardAlpha, onSignedOut = onSignedOut)
     }
 }
@@ -382,13 +383,13 @@ private fun AccountSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
         // Same roomy row as the doors below: without the padding this
         // line reads visually smaller than its neighbours. The shape
         // never changes while loading — label plus a Loading… value —
         // so the row below does not move when the name arrives.
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(vertical = spacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (loaded && accountName.isNullOrBlank()) {
@@ -414,7 +415,7 @@ private fun AccountSection(
             // Reserved while the parallel fetch answers: without it the
             // Account door jumps when this row arrives or stays away.
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                Modifier.fillMaxWidth().padding(vertical = spacing.medium),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -438,7 +439,7 @@ private fun AccountSection(
                 Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onOpenSubscription)
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = spacing.medium)
             } else {
                 Modifier.fillMaxWidth()
             }
@@ -462,7 +463,7 @@ private fun AccountSection(
                         ">",
                         style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary,
-                        modifier = Modifier.padding(start = 8.dp),
+                        modifier = Modifier.padding(start = spacing.small),
                     )
                 }
             }
@@ -471,7 +472,7 @@ private fun AccountSection(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onOpenAccountAccess)
-                .padding(vertical = 12.dp),
+                .padding(vertical = spacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -608,7 +609,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSig
 
     val isDelete = action == AccountIdAction.DELETE
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text(
                 if (isDelete) {
                     "Horizon is the only way into this account. Deleting removes " +
@@ -670,7 +671,7 @@ private fun AccountAccessSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onSig
 private fun AboutSection(cardAlpha: Float, onOpenDeveloper: () -> Unit) {
     val context = LocalContext.current
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
             Text("About", style = LocalTypography.current.title)
             VersionRow(onOpenDeveloper = onOpenDeveloper)
             val privacy = com.zerozerowidget.hzos.BuildConfig.PRIVACY_URL
@@ -742,7 +743,7 @@ private fun AgentConfigSection(app: ZeroZeroWidgetApp, cardAlpha: Float, onOpenA
     }
 
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text("Agent config", style = LocalTypography.current.title)
             Row(verticalAlignment = Alignment.Top) {
                 SelectionContainer(Modifier.weight(1f)) {
@@ -816,7 +817,7 @@ private fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
     var error by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
         Text("Agent tokens", style = LocalTypography.current.title)
         Text(
             "Use this if an agent token may have been exposed. Every old agent " +
@@ -947,7 +948,7 @@ private fun DeveloperPanel(app: ZeroZeroWidgetApp) {
     }
 
     GlassCard(cardAlpha = cardAlpha) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
             Text("Server", style = LocalTypography.current.title)
             if (locked) {
                 // No label, no field: the section already says Server, so
@@ -1234,7 +1235,7 @@ private fun HorizonSignInSection(
                 Modifier
                     .fillMaxWidth()
                     .clickable(onClick = { begin("join_apple") })
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = spacing.medium),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FlowRow(Modifier.weight(1f)) {
@@ -1257,7 +1258,7 @@ private fun HorizonSignInSection(
                     ">",
                     style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
-                    modifier = Modifier.padding(start = 8.dp),
+                    modifier = Modifier.padding(start = spacing.small),
                 )
             }
             UiSetSecondaryButton("Cancel", onClick = ::cancel)

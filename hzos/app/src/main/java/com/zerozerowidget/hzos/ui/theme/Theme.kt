@@ -122,3 +122,14 @@ fun Modifier.panelBackground(): Modifier {
         background(MaterialTheme.colorScheme.surface.copy(alpha = LightGlassAlpha))
     }
 }
+
+/**
+ * UI Set's spacing scale (4, 8, 12, 16, 24, 32 dp), read from the theme so
+ * a platform density change reaches every panel at once. Paddings, gaps
+ * and spacers use these; component sizes (chart heights, icon boxes) do
+ * not, since those are geometry rather than rhythm.
+ */
+val spacing: metavrx.uiset.compose.theme.Spacing
+    @Composable
+    @androidx.compose.runtime.ReadOnlyComposable
+    get() = UiSetTheme.dimensions.spacing
