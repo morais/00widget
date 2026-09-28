@@ -21,8 +21,8 @@ class DashboardActivity : ComponentActivity() {
                 DashboardPanel(
                     app = app,
                     onOpenSettings = { openSettingsPanel() },
-                    onPopOut = { cardId -> openDetailPanel(cardId) },
-                    onPopOutActivity = { id -> openActivityDetailPanel(id) },
+                    onPopOut = { cardId, isSample -> openDetailPanel(cardId, isSample) },
+                    onPopOutActivity = { id, isSample -> openActivityDetailPanel(id, isSample) },
                 )
             }
         }

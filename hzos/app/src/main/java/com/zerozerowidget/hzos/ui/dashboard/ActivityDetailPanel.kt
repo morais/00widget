@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
-import com.zerozerowidget.hzos.data.isSample
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
@@ -59,6 +58,7 @@ import metavrx.uiset.compose.theme.LocalTypography
 fun ActivityDetailPanel(
     app: ZeroZeroWidgetApp,
     externalActivityId: String,
+    isSample: Boolean,
     onOpenLink: (String?) -> Unit,
     onDeleted: () -> Unit,
 ) {
@@ -67,9 +67,10 @@ fun ActivityDetailPanel(
     val cardAlpha by app.panelPrefs.cardAlpha.collectAsState(
         initial = com.zerozerowidget.hzos.ui.PanelPrefs.DEFAULT_CARD_ALPHA,
     )
-    val session = state.activities.firstOrNull { it.externalActivityId == externalActivityId }
-        ?: samples.firstOrNull { it.externalActivityId == externalActivityId }
-    val isSample = session?.isSample() == true
+    // Look in the store the panel was opened for, never both: a server
+    // activity and a local sample may share an id.
+    val session = (if (isSample) samples else state.activities)
+        .firstOrNull { it.externalActivityId == externalActivityId }
     var ending by remember { mutableStateOf(false) }
     var endError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -246,7 +247,7 @@ fun ActivityDetailPanel(
             )
                 }
             }
-            if (session.isSample()) {
+            if (isSample) {
                 SampleBadge(
                     Modifier
                         .align(Alignment.BottomEnd)

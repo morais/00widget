@@ -45,7 +45,6 @@ import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.LiveActivitySession
 import com.zerozerowidget.hzos.data.SampleData
-import com.zerozerowidget.hzos.data.isSample
 import com.zerozerowidget.hzos.ui.cards.ActionButtons
 import com.zerozerowidget.hzos.ui.cards.CardHeadline
 import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
@@ -88,8 +87,8 @@ import metavrx.uiset.compose.theme.icons.Icons
 fun DashboardPanel(
     app: ZeroZeroWidgetApp,
     onOpenSettings: () -> Unit,
-    onPopOut: (cardId: String) -> Unit,
-    onPopOutActivity: (externalActivityId: String) -> Unit,
+    onPopOut: (cardId: String, isSample: Boolean) -> Unit,
+    onPopOutActivity: (externalActivityId: String, isSample: Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val state by app.repository.state.collectAsStateWithLifecycle()
@@ -145,8 +144,12 @@ fun DashboardPanel(
         }
 
         // Server cards first, local samples after — never mixed, never sent.
-        val visible = state.cards + samples
-        val visibleActivities = state.activities + sampleActivities
+        // Origin travels with each entry: ids cannot tell the two apart, since
+        // the server accepts any id, including one a sample already uses.
+        val visible = state.cards.map { Sourced(it, isSample = false) } +
+            samples.map { Sourced(it, isSample = true) }
+        val visibleActivities = state.activities.map { Sourced(it, isSample = false) } +
+            sampleActivities.map { Sourced(it, isSample = true) }
         val nothingToShow = visible.isEmpty() && visibleActivities.isEmpty()
         when {
             !state.isConfigured && nothingToShow -> {
@@ -173,15 +176,16 @@ fun DashboardPanel(
                 state.error?.let {
                     Text(it, color = LocalColorScheme.current.negative.content, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                val cardRow: @Composable (DashboardCard) -> Unit = { card ->
-                    val isSample = card.isSample()
+                val cardRow: @Composable (Sourced<DashboardCard>) -> Unit = { entry ->
+                    val card = entry.item
+                    val isSample = entry.isSample
                     DashboardRow(
                         card = card,
                         cardAlpha = cardAlpha,
                         isSample = isSample,
-                        expanded = selectedId == card.id,
-                        onToggle = { selectedId = if (selectedId == card.id) null else card.id },
-                        onPopOut = { onPopOut(card.id) },
+                        expanded = selectedId == entry.key,
+                        onToggle = { selectedId = if (selectedId == entry.key) null else entry.key },
+                        onPopOut = { onPopOut(card.id, isSample) },
                         onOpenLink = { openDeepLink(context, card.deepLink) },
                             actionSlot = {
                                 // Sample cards are local demos: their buttons
@@ -246,13 +250,14 @@ fun DashboardPanel(
                             }
                             items(
                                 visibleActivities,
-                                key = { "act-" + it.externalActivityId },
-                            ) { session ->
+                                key = { "act-" + it.key },
+                            ) { entry ->
                                 ActivityRow(
-                                    session = session,
+                                    session = entry.item,
+                                    isSample = entry.isSample,
                                     cardAlpha = cardAlpha,
-                                    onPopOut = { onPopOutActivity(session.externalActivityId) },
-                                    onOpenDetail = { onPopOutActivity(session.externalActivityId) },
+                                    onPopOut = { onPopOutActivity(entry.item.externalActivityId, entry.isSample) },
+                                    onOpenDetail = { onPopOutActivity(entry.item.externalActivityId, entry.isSample) },
                                 )
                             }
                         }
@@ -271,7 +276,7 @@ fun DashboardPanel(
                         } else if (twoCol) {
                                 items(
                                     visible.chunked(2),
-                                    key = { row -> "row-" + row.first().id },
+                                    key = { row -> "row-" + row.first().key },
                                 ) { row ->
                                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Box(Modifier.weight(1f)) { cardRow(row[0]) }
@@ -283,7 +288,7 @@ fun DashboardPanel(
                                     }
                                 }
                             } else {
-                                items(visible, key = { it.id }) { card -> cardRow(card) }
+                                items(visible, key = { it.key }) { entry -> cardRow(entry) }
                             }
                     }
                 }
@@ -362,6 +367,7 @@ private fun DashboardRow(
 fun CardDetailPanel(
     app: ZeroZeroWidgetApp,
     cardId: String,
+    isSample: Boolean,
     onOpenLink: (String?) -> Unit,
     onDeleted: () -> Unit,
 ) {
@@ -377,9 +383,9 @@ fun CardDetailPanel(
     var deleteError by remember { mutableStateOf<String?>(null) }
     var deleteArmed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val card = state.cards.firstOrNull { it.id == cardId }
-        ?: samples.firstOrNull { it.id == cardId }
-    val isSample = card?.isSample() == true
+    // Look in the store the panel was opened for, never both: a server card
+    // and a local sample may share an id.
+    val card = (if (isSample) samples else state.cards).firstOrNull { it.id == cardId }
 
     // Shell panels have one fixed window height each; tall content (long
     // briefings, full item lists, inspection panels) scrolls inside it.
@@ -413,7 +419,7 @@ fun CardDetailPanel(
                 style = LocalTypography.current.body,
             )
         } else {
-            DetailCard(card, cardAlpha, interactiveCharts = true)
+            DetailCard(card, cardAlpha, isSample = isSample, interactiveCharts = true)
             Spacer(Modifier.height(10.dp))
             // Actions, link and delete sit together on the right — but
             // only while all three fit. Rows neither wrap nor clip, and
@@ -623,7 +629,13 @@ private fun SectionTitle(text: String) {    Text(
 }
 
 @Composable
-private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut: () -> Unit, onOpenDetail: () -> Unit) {
+private fun ActivityRow(
+    session: LiveActivitySession,
+    isSample: Boolean,
+    cardAlpha: Float,
+    onPopOut: () -> Unit,
+    onOpenDetail: () -> Unit,
+) {
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
@@ -707,7 +719,7 @@ private fun ActivityRow(session: LiveActivitySession, cardAlpha: Float, onPopOut
             }
         }
         }
-        if (session.isSample()) {
+        if (isSample) {
             SampleBadge(
                 Modifier
                     .align(Alignment.BottomEnd)

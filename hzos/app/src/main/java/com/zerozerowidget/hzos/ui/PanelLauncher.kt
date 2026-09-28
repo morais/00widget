@@ -38,10 +38,11 @@ fun Context.openSettingsPanelAndSignIn() {
 }
 
 /** One card or activity detail per pop-out: MULTIPLE_TASK gives every pop-out its own panel. */
-fun Context.openDetailPanel(cardId: String) {
+fun Context.openDetailPanel(cardId: String, isSample: Boolean) {
     startActivity(
         Intent(this, CardDetailActivity::class.java).apply {
             putExtra(CardDetailActivity.EXTRA_CARD_ID, cardId)
+            putExtra(CardDetailActivity.EXTRA_IS_SAMPLE, isSample)
             addFlags(
                 Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
                     or Intent.FLAG_ACTIVITY_NEW_TASK
@@ -52,10 +53,11 @@ fun Context.openDetailPanel(cardId: String) {
 }
 
 /** Same pop-out story for activities: every one gets its own panel. */
-fun Context.openActivityDetailPanel(externalActivityId: String) {
+fun Context.openActivityDetailPanel(externalActivityId: String, isSample: Boolean) {
     startActivity(
         Intent(this, CardDetailActivity::class.java).apply {
             putExtra(CardDetailActivity.EXTRA_ACTIVITY_ID, externalActivityId)
+            putExtra(CardDetailActivity.EXTRA_IS_SAMPLE, isSample)
             addFlags(
                 Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
                     or Intent.FLAG_ACTIVITY_NEW_TASK

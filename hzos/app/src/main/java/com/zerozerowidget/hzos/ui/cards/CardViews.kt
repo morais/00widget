@@ -47,7 +47,6 @@ import com.zerozerowidget.hzos.data.ActionDefinition
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.data.DashboardStatus
-import com.zerozerowidget.hzos.data.isSample
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
@@ -976,7 +975,7 @@ fun GlassCard(
     }
 }
 @Composable
-fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean = false) {
+fun DetailCard(card: DashboardCard, cardAlpha: Float, isSample: Boolean, interactiveCharts: Boolean = false) {
     // Overlay badge, not layout — see DashboardRow.
     Box(Modifier.fillMaxWidth()) {
     Card(
@@ -993,7 +992,7 @@ fun DetailCard(card: DashboardCard, cardAlpha: Float, interactiveCharts: Boolean
             CardTemplateBody(card, interactiveCharts = interactiveCharts)
         }
     }
-        if (card.isSample()) {
+        if (isSample) {
             SampleBadge(
                 Modifier
                     .align(Alignment.BottomEnd)

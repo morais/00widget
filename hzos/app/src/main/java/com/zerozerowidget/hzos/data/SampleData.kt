@@ -2,10 +2,6 @@ package com.zerozerowidget.hzos.data
 
 import java.time.Instant
 
-/** Reserved id namespace: demo data the UI badges and clears as a unit. */
-fun DashboardCard.isSample(): Boolean = id.startsWith(SampleData.PREFIX)
-fun LiveActivitySession.isSample(): Boolean = externalActivityId.startsWith(SampleData.PREFIX)
-
 /**
  * Kotlin port of ios/Sources/Shared/SampleDataFactory.swift's user-facing
  * deck: `makeCards()` plus the App launch demo activity. The home-energy
@@ -13,9 +9,12 @@ fun LiveActivitySession.isSample(): Boolean = externalActivityId.startsWith(Samp
  * excluded: the first two belong to other campaigns, and the last was
  * dropped for a single demo with no picker.
  *
- * Same rules as iOS: ids live in the reserved `sample-` namespace so UI can
- * badge them and removal never mistakes a published card for a demo one;
- * samples never touch the server (generate/clear is local in SampleStore).
+ * Ids carry a `sample-` prefix for readability only. Whether something is a
+ * sample is decided by where it came from — SampleStore, never the server —
+ * not by its id: the Worker accepts any id, so a producer publishing
+ * `sample-launch` must not become an undeletable demo, nor collide with
+ * the real sample in a LazyColumn. Samples never touch the server
+ * (generate/clear is local in SampleStore).
  * Values mirror the Swift source field-for-field; only dates are fresh
  * (`now`), since stale timestamps would render every sample stale.
  */
