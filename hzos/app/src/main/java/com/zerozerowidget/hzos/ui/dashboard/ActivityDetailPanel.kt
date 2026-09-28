@@ -211,6 +211,12 @@ fun ActivityDetailPanel(
                 SampleAwareDeleteRow(
                     isSample = isSample,
                     serverLabel = "End activity",
+                    confirmTitle = if (isSample) "Remove this sample?" else "End this activity?",
+                    confirmText = if (isSample) {
+                        "It only exists on this headset and can be generated again."
+                    } else {
+                        "It ends everywhere it is shown, not just here."
+                    },
                     busy = ending,
                     error = endError,
                     onDelete = {

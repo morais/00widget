@@ -61,6 +61,7 @@ import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
 import com.zerozerowidget.hzos.ui.relativeTime
+import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
@@ -367,7 +368,7 @@ fun CardDetailPanel(
     var runError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
-    var deleteArmed by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // Look in the store the panel was opened for, never both: a server card
     // and a local sample may share an id.
@@ -418,24 +419,19 @@ fun CardDetailPanel(
             // their demo notice in the actions slot.
             val deleteLabel = if (isSample && !hideIndicators) "Remove sample" else "Delete"
             fun fireDelete() {
-                if (deleteArmed) {
-                    deleteArmed = false
-                    scope.launch {
-                        deleting = true
-                        deleteError = null
-                        val ok = if (isSample) {
-                            app.sampleStore.removeCard(cardId)
-                            true
-                        } else {
-                            val result = app.repository.deleteCard(cardId)
-                            deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
-                            result.isSuccess
-                        }
-                        deleting = false
-                        if (ok) onDeleted()
+                scope.launch {
+                    deleting = true
+                    deleteError = null
+                    val ok = if (isSample) {
+                        app.sampleStore.removeCard(cardId)
+                        true
+                    } else {
+                        val result = app.repository.deleteCard(cardId)
+                        deleteError = result.exceptionOrNull()?.let(::describeDeleteError)
+                        result.isSuccess
                     }
-                } else {
-                    deleteArmed = true
+                    deleting = false
+                    if (ok) onDeleted()
                 }
             }
             @Composable
@@ -498,8 +494,7 @@ fun CardDetailPanel(
                         DeleteButton(
                             label = deleteLabel,
                             busy = deleting,
-                            armed = deleteArmed,
-                            onClick = ::fireDelete,
+                            onClick = { confirmingDelete = true },
                         )
                     }
                 } else {
@@ -521,12 +516,30 @@ fun CardDetailPanel(
                             DeleteButton(
                                 label = deleteLabel,
                                 busy = deleting,
-                                armed = deleteArmed,
-                                onClick = ::fireDelete,
+                                onClick = { confirmingDelete = true },
                             )
                         }
                     }
                 }
+            }
+            if (confirmingDelete) {
+                UiSetConfirmDialog(
+                    title = if (isSample) "Remove this sample?" else "Delete this card?",
+                    text = if (isSample) {
+                        "It only exists on this headset and can be generated again."
+                    } else {
+                        "It is removed from your account, not just this headset. " +
+                            "The agent that published it can publish it again."
+                    },
+                    confirmLabel = deleteLabel,
+                    onConfirm = {
+                        confirmingDelete = false
+                        fireDelete()
+                    },
+                    dismissLabel = "Cancel",
+                    onDismiss = { confirmingDelete = false },
+                    destructive = true,
+                )
             }
             deleteError?.let {
                 Spacer(Modifier.height(4.dp))

@@ -49,6 +49,7 @@ import com.zerozerowidget.hzos.data.ActionDefinition
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.data.DashboardStatus
+import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
@@ -1044,6 +1045,8 @@ fun SampleAwareDeleteRow(
     busy: Boolean,
     error: String?,
     onDelete: () -> Unit,
+    confirmTitle: String,
+    confirmText: String,
     modifier: Modifier = Modifier,
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
     fillLeading: Boolean = false,
@@ -1057,6 +1060,8 @@ fun SampleAwareDeleteRow(
         busy = busy,
         error = error,
         onDelete = onDelete,
+        confirmTitle = confirmTitle,
+        confirmText = confirmText,
         modifier = modifier,
         leading = leading,
         fillLeading = fillLeading,
@@ -1064,9 +1069,13 @@ fun SampleAwareDeleteRow(
 }
 
 /**
- * Destructive action with inline two-tap confirm, iOS detail-screen style.
- * Compact and right-aligned: a small red-tonal button, never a full-width
- * banner. First tap arms ("Sure?"), second fires.
+ * Destructive action behind a UI Set confirm dialog. Compact and
+ * right-aligned: a small destructive button, never a full-width banner.
+ *
+ * This used to be a two-tap arm ("Sure?") on the button itself. Armed
+ * never expired, and under Look and Pinch a second pinch at the same gaze
+ * point is the easiest gesture there is — an accidental double pinch
+ * deleted. A dialog moves the confirm somewhere else and names the thing.
  */
 @Composable
 fun DeleteRow(
@@ -1074,6 +1083,8 @@ fun DeleteRow(
     busy: Boolean,
     error: String?,
     onDelete: () -> Unit,
+    confirmTitle: String,
+    confirmText: String,
     modifier: Modifier = Modifier,
     leading: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
     /**
@@ -1083,7 +1094,7 @@ fun DeleteRow(
      */
     fillLeading: Boolean = false,
 ) {
-    var armed by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
     // The caller owns the width: details stretch full width with the
     // button right-aligned, list rows wrap the button. A fixed width
     // here wrapped "Disconnect" onto two lines at larger type.
@@ -1091,44 +1102,43 @@ fun DeleteRow(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             leading()
             if (!fillLeading) Spacer(Modifier.weight(1f))
-            DeleteButton(
-                label = if (busy) "Working…" else if (armed) "Sure?" else label,
-                busy = busy,
-                armed = armed,
-                onClick = {
-                    if (armed) {
-                        armed = false
-                        onDelete()
-                    } else {
-                        armed = true
-                    }
-                },
-            )
+            DeleteButton(label = label, busy = busy, onClick = { confirming = true })
         }
         error?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
         }
     }
+    if (confirming) {
+        UiSetConfirmDialog(
+            title = confirmTitle,
+            text = confirmText,
+            confirmLabel = label,
+            onConfirm = {
+                confirming = false
+                onDelete()
+            },
+            dismissLabel = "Cancel",
+            onDismiss = { confirming = false },
+            destructive = true,
+        )
+    }
 }
 
 /**
  * The destructive button alone, for rows composed explicitly — action
- * buttons on a weight, then link, then this. The two-tap arm state
- * lives with the caller.
+ * buttons on a weight, then link, then this. It only asks: the caller
+ * owns the confirm dialog, as [DeleteRow] does.
  */
 @Composable
 fun DeleteButton(
     label: String,
     busy: Boolean,
-    armed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Destructive throughout: this is the delete/end affordance,
-    // and the armed state is the confirm, not a style change.
     UiSetDestructiveButton(
-        label = if (busy) "Working…" else if (armed) "Sure?" else label,
+        label = if (busy) "Working…" else label,
         onClick = onClick,
         enabled = !busy,
         modifier = modifier,

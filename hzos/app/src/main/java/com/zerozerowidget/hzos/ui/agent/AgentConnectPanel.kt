@@ -500,6 +500,8 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
             busy = busy,
             error = null,
             onDelete = onDisconnect,
+            confirmTitle = "Disconnect ${item.clientName}?",
+            confirmText = "It stops publishing to 00Widget until it is connected again.",
             // Intrinsic, never fixed: the column takes the button's own
             // text width, so the label cannot wrap at any type size. A
             // fixed width squeezed the text column to nothing; wrap
