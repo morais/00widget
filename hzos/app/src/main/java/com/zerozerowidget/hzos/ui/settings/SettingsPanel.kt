@@ -860,7 +860,8 @@ private fun VersionRow(onOpenDeveloper: () -> Unit) {
     ) {
         Text(
             "Version ${com.zerozerowidget.hzos.BuildConfig.VERSION_NAME} " +
-                "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE})",
+                "(${com.zerozerowidget.hzos.BuildConfig.VERSION_CODE}-" +
+                "${com.zerozerowidget.hzos.BuildConfig.GIT_SHA})",
             style = LocalTypography.current.bodySmall,
             color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f),

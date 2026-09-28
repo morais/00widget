@@ -56,6 +56,21 @@ android {
             .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
             .toInt()
         versionName = "1.5"
+        // Short commit hash for the About screen, so a screenshot proves
+        // which source a build came from. versionCode alone cannot: its
+        // hour precision collides across same-hour builds, which is how
+        // three different builds all reported 2026092812. Evaluated at
+        // configuration time like versionCode above, so it needs a fresh
+        // configure (no configuration cache) to be exact.
+        val gitSha: String = try {
+            ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                .directory(rootProject.projectDir.parentFile)
+                .start().inputStream.bufferedReader().readText().trim()
+                .takeIf { it.matches(Regex("[0-9a-f]+")) } ?: "unknown"
+        } catch (_: Exception) {
+            "unknown"
+        }
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
 
         // Horizon Platform app ID, read from local.properties above.
         buildConfigField(
