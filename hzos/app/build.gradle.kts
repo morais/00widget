@@ -142,7 +142,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: the unminified release was 48.8 MB, 47 MB of it dex. Keep
+            // rules live in proguard-rules.pro; every library but the
+            // Horizon Platform SDK brings its own.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             // No dev credential field exists at all outside debug. The
             // Worker URL and Platform app ID are public configuration and
             // remain embedded; a release APK built without the keystore
