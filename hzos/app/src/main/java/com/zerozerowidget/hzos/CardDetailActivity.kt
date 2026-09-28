@@ -3,8 +3,8 @@ package com.zerozerowidget.hzos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import metavrx.uiset.compose.Text
+import metavrx.uiset.compose.theme.LocalTypography
 import com.zerozerowidget.hzos.ui.dashboard.ActivityDetailPanel
 import com.zerozerowidget.hzos.ui.dashboard.CardDetailPanel
 import com.zerozerowidget.hzos.ui.openDeepLink
@@ -42,7 +42,7 @@ class CardDetailActivity : ComponentActivity() {
                     )
                     else -> Text(
                         "Nothing to show.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = LocalTypography.current.body,
                     )
                 }
             }
