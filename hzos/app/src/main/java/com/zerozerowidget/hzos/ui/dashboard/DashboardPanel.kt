@@ -76,6 +76,7 @@ import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
 import com.zerozerowidget.hzos.ui.relativeTime
+import com.zerozerowidget.hzos.ui.relativeTimeAgo
 import com.zerozerowidget.hzos.ui.theme.panelBackground
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
@@ -134,7 +135,7 @@ fun DashboardPanel(
             )
             state.lastSyncEpochMs?.let {
                 Text(
-                    "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString(), LocalNow.current) ?: ""}",
+                    "synced ${relativeTimeAgo(java.time.Instant.ofEpochMilli(it).toString(), LocalNow.current) ?: ""}",
                     style = LocalTypography.current.caption,
                     color = LocalContentColors.current.secondary,
                     modifier = Modifier.padding(end = spacing.xSmall)

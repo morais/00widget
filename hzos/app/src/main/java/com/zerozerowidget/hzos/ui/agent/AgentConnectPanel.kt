@@ -47,7 +47,7 @@ import com.zerozerowidget.hzos.ui.cards.DeleteRow
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.connectionState
 import com.zerozerowidget.hzos.ui.openDeepLink
-import com.zerozerowidget.hzos.ui.relativeTime
+import com.zerozerowidget.hzos.ui.relativeTimeAgo
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetCopyIcon
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
@@ -499,7 +499,7 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
 }
 
 private fun connectionSubtitle(item: MCPConnectionSummary, now: java.time.Instant): String {
-    val use = item.lastUsedAt?.let { relativeTime(it, now)?.let { r -> "Used $r" } } ?: "Never used"
+    val use = item.lastUsedAt?.let { relativeTimeAgo(it, now)?.let { r -> "Used $r" } } ?: "Never used"
     val access = if ("publish" in item.scopes) "Read and publish" else "Read only"
     return "$use · $access"
 }

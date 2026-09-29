@@ -26,6 +26,16 @@ class UiHelpersTest {
     }
 
     @Test
+    fun aPastOnlyMomentAheadOfTheClockReadsAsNow() {
+        // A sync that landed after the last clock tick, or a server clock
+        // running ahead: never "synced in <1m".
+        assertEquals("just now", relativeTimeAgo("2026-09-28T12:00:15Z", now))
+        assertEquals("just now", relativeTimeAgo("2026-09-28T12:05:00Z", now))
+        assertEquals("5m ago", relativeTimeAgo("2026-09-28T11:55:00Z", now))
+        assertNull(relativeTimeAgo("yesterday", now))
+    }
+
+    @Test
     fun relativeTimeIgnoresWhatItCannotParse() {
         assertNull(relativeTime(null, now))
         assertNull(relativeTime("", now))

@@ -47,6 +47,22 @@ fun relativeTime(iso: String?, now: Instant = Instant.now()): String? {
     }
 }
 
+/**
+ * [relativeTime] for moments that can only be past (a sync, a last use).
+ * Such a moment can still sit a little ahead of [now]: the ticking clock
+ * lags the sync that just landed by up to one tick, and a server clock can
+ * run ahead of the headset's. Either read as "synced in <1m", so a future
+ * moment counts as now.
+ */
+fun relativeTimeAgo(iso: String?, now: Instant = Instant.now()): String? {
+    val then = try {
+        Instant.parse(iso)
+    } catch (_: Exception) {
+        null
+    }
+    return then?.let { relativeTime(minOf(it, now).toString(), now) }
+}
+
 /** True when the card should read as stale (mirrors DashboardCard.isStale). */
 fun isStale(updatedAt: String?, staleAfter: String?, now: Instant = Instant.now()): Boolean {
     try {
