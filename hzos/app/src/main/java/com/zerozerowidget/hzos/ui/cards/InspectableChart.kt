@@ -27,12 +27,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.ui.theme.spacing
+import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
+import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
+import metavrx.uiset.compose.theme.icons.Icons
 
 /**
  * Chart plot + pointed-at readout, mirroring InspectableChartView: the plot
@@ -40,10 +47,12 @@ import metavrx.uiset.compose.theme.LocalTypography
  * categorical styles), and a panel below lists the label, per-series or
  * range values, the reference row, and the comparison sentence.
  *
- * Pointing works with hover (ray/mouse Move, no press) and touch (press or
- * drag). Events are never consumed, so a vertical drag still scrolls the
- * surrounding list while the readout follows the pointer — the pragmatic
- * counterpart to iOS's gesture arbitration.
+ * Three ways to pick a point, because eyes cannot hover: a pinch or tap
+ * selects the point under it, the step buttons below the plot move one at
+ * a time, and a controller ray's hover (Move without a press) still
+ * follows the pointer. Events are never consumed, so a vertical drag
+ * still scrolls the surrounding list — the pragmatic counterpart to iOS's
+ * gesture arbitration.
  */
 @Composable
 fun InspectableChart(
@@ -66,6 +75,17 @@ fun InspectableChart(
             Modifier
                 .fillMaxWidth()
                 .height(140.dp)
+                // Look and Pinch never delivers hover, and recognises only
+                // elements with click semantics: this makes the plot a
+                // target (a pinch selects the point under it, through the
+                // Press branch below) and says which point is selected.
+                .semantics {
+                    stateDescription = snapshot?.let { readout(it, unit) }.orEmpty()
+                    onClick(label = "Select next point") {
+                        selectedIndex = (selectedIndex + 1) % count
+                        true
+                    }
+                }
                 .pointerInput(chart) {
                     awaitPointerEventScope {
                         while (true) {
@@ -118,8 +138,38 @@ fun InspectableChart(
                     }
             )
         }
+        // Stepping without hover: controllers could point, eyes cannot
+        // (readiness #15). UI Set icon buttons keep a 48dp target.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            UiSetIconButton(
+                onClick = { selectedIndex = (selectedIndex - 1).coerceAtLeast(0) },
+                contentDescription = "Previous point",
+                enabled = selectedIndex > 0
+            ) { Icon(Icons.Regular.ChevronLeft, contentDescription = null) }
+            Text(
+                "${selectedIndex + 1} of $count",
+                style = LocalTypography.current.bodySmall,
+                color = LocalContentColors.current.secondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
+            )
+            UiSetIconButton(
+                onClick = { selectedIndex = (selectedIndex + 1).coerceAtMost(count - 1) },
+                contentDescription = "Next point",
+                enabled = selectedIndex < count - 1
+            ) { Icon(Icons.Regular.ChevronRight, contentDescription = null) }
+        }
         snapshot?.let { InspectionPanel(snapshot = it, unit = unit) }
     }
+}
+
+/** The selected point in words, e.g. "Mon: 12 kW, 2 kW above target". */
+private fun readout(snapshot: InspectionSnapshot, unit: String?): String {
+    val reading = snapshot.values.firstOrNull { it.kind != InspectionValue.Kind.REFERENCE }
+    return listOfNotNull(
+        listOfNotNull(snapshot.label, reading?.let { formatChartValue(it.value, unit) }).joinToString(": "),
+        snapshot.comparison
+    ).joinToString(", ")
 }
 
 /** Slot for categorical styles, proportional position for lines (mirrors iOS). */

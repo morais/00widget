@@ -96,6 +96,16 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
     }
 
     @Test
+    fun chartDetail() {
+        withSamples()
+        // A chart card: the plot, its step buttons and the readout.
+        val card = SampleData.makeCards().first { it.chart != null }
+        capture("chart-detail") {
+            CardDetailPanel(app = app, cardId = card.id, isSample = true, onOpenLink = {}, onDeleted = {})
+        }
+    }
+
+    @Test
     fun settings() {
         capture("settings") {
             // The real stamp changes with every commit and hour.

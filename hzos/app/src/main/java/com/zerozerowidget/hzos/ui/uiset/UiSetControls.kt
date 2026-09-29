@@ -94,6 +94,7 @@ fun UiSetIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     style: ButtonStyle = ButtonStyle.Borderless,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     IconButton(
@@ -101,7 +102,8 @@ fun UiSetIconButton(
         onClick = onClick,
         contentDescription = contentDescription,
         modifier = modifier,
-        style = style
+        style = style,
+        enabled = enabled
     )
 }
 
