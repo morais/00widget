@@ -218,12 +218,6 @@ internal fun SettingsRoot(
                     HorizonSignInSection(
                         app = app,
                         onSendAuthUrl = onSendAuthUrl,
-                        onSignedIn = { base, token, metaUserId ->
-                            scope.launch {
-                                app.connectionStore.save(base, token, metaUserId)
-                                app.repository.refresh()
-                            }
-                        },
                         signInRequest = signInRequest,
                         onSignInRequestConsumed = onSignInRequestConsumed
                     )

@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.zerozerowidget.hzos.auth.HorizonAuth
 import com.zerozerowidget.hzos.auth.HorizonIap
+import com.zerozerowidget.hzos.auth.HorizonSignInController
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DashboardRepository
 import com.zerozerowidget.hzos.data.SampleStore
@@ -35,6 +36,8 @@ class ZeroZeroWidgetApp : Application() {
     lateinit var panelPrefs: PanelPrefs
         private set
     lateinit var sampleStore: SampleStore
+        private set
+    lateinit var horizonSignIn: HorizonSignInController
         private set
 
     /**
@@ -73,6 +76,7 @@ class ZeroZeroWidgetApp : Application() {
         horizonAuth = HorizonAuth(this, appScope, BuildConfig.PLATFORM_APP_ID)
         horizonAuth.connect()
         horizonIap = HorizonIap(appScope, BuildConfig.PLATFORM_APP_ID)
+        horizonSignIn = HorizonSignInController(this)
         repository.start()
         // Poll only while some panel is on screen (STARTED); see
         // DashboardRepository.setActive.

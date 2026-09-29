@@ -15,7 +15,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
+import com.zerozerowidget.hzos.auth.HorizonPhase
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DeviceAuthApi
 import com.zerozerowidget.hzos.data.HorizonOutcome
@@ -37,14 +39,12 @@ import metavrx.uiset.compose.theme.LocalColorScheme
 import metavrx.uiset.compose.theme.LocalContentColors
 import metavrx.uiset.compose.theme.LocalTypography
 
-internal enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
-
 /**
  * Horizon sign-in: one button proving the headset's Meta identity to the
  * Worker (`POST /v1/auth/horizon`), then either done, an explicit
- * create/join choice, or iPhone approval polling for a join. Hands the
- * resulting token plus the Meta id it was issued for to [onSignedIn], so a
- * later account switch is detectable. Every failure names its cause; the
+ * create/join choice, or iPhone approval polling for a join. The flow
+ * itself is HorizonSignInController, which saves the token with the Meta
+ * id it was issued for, so a later account switch is detectable. Every failure names its cause; the
  * join fallback (manual code entry) doubles as the path where
  * `send_auth_url` is unavailable.
  */
@@ -52,99 +52,22 @@ internal enum class HorizonPhase { IDLE, PROVING, CHOICE, WAITING }
 internal fun HorizonSignInSection(
     app: ZeroZeroWidgetApp,
     onSendAuthUrl: (authUrl: String, onSent: (Boolean) -> Unit) -> Unit,
-    onSignedIn: (baseUrl: String, token: String, metaUserId: String) -> Unit,
     signInRequest: Int = 0,
     onSignInRequestConsumed: () -> Unit = {}
 ) {
-    val scope = rememberCoroutineScope()
-    var phase by remember { mutableStateOf(HorizonPhase.IDLE) }
-    var userCode by remember { mutableStateOf("") }
-    var verifyUri by remember { mutableStateOf("") }
-    var linkSent by remember { mutableStateOf<Boolean?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var pollJob by remember { mutableStateOf<Job?>(null) }
-    // The Meta id the in-flight attempt proved, saved with the token.
-    // Retries re-prove (fresh proof, same user), so this trails the latest.
-    var attemptUserId by remember { mutableStateOf("") }
+    // The flow lives in the app, not this panel, so closing Settings while
+    // the phone approves does not abandon it (audit C7).
+    val signIn = app.horizonSignIn
+    val state by signIn.state.collectAsStateWithLifecycle()
+    val phase = state.phase
+    val userCode = state.userCode
+    val verifyUri = state.verifyUri
+    val linkSent = state.linkSent
+    val error = state.error
 
-    fun cancel() {
-        pollJob?.cancel()
-        pollJob = null
-        phase = HorizonPhase.IDLE
-    }
+    fun begin(choice: String?) = signIn.begin(choice, onSendAuthUrl)
 
-    suspend fun resolveBaseUrl(): String {
-        // Server URL resolves here, not in a text field: saved value
-        // first, build default second.
-        return ConnectionStore.effectiveBaseUrl(app.connectionStore.current().baseUrl)
-            ?: throw IllegalArgumentException("No Worker URL configured (Developer screen).")
-    }
-
-    fun begin(choice: String?) {
-        if (phase != HorizonPhase.IDLE && phase != HorizonPhase.CHOICE) return
-        error = null
-        phase = HorizonPhase.PROVING
-        pollJob = scope.launch {
-            try {
-                val normalized = resolveBaseUrl()
-                // Pre-credential: the key is unused, and the horizon call
-                // sends no Authorization header at all.
-                val unauthed = ZeroWidgetApi(app.http, normalized, "")
-                when (
-                    val outcome = runHorizonSignIn(
-                        identity = { app.horizonAuth.getMetaIdentity() },
-                        request = { userId, proof, ch ->
-                            attemptUserId = userId
-                            unauthed.postHorizonSignIn(horizonSignInBody(userId, proof, ch))
-                        },
-                        choice = choice
-                    )
-                ) {
-                    is HorizonOutcome.SignedIn -> {
-                        onSignedIn(normalized, outcome.token, outcome.userId)
-                        phase = HorizonPhase.IDLE
-                    }
-
-                    HorizonOutcome.NeedChoice -> phase = HorizonPhase.CHOICE
-
-                    is HorizonOutcome.JoinCode -> {
-                        val code = outcome.code
-                        userCode = code.userCode
-                        verifyUri = code.verificationUri
-                        linkSent = null
-                        phase = HorizonPhase.WAITING
-                        onSendAuthUrl(code.completeUri) { sent -> linkSent = sent }
-                        val deadline = System.currentTimeMillis() +
-                            minOf(code.expiresInSeconds * 1000L, 600_000L)
-                        val deviceApi = DeviceAuthApi(app.http, normalized)
-                        val token = awaitDeviceToken(
-                            deviceApi,
-                            code.deviceCode,
-                            code.intervalSeconds,
-                            deadline
-                        )
-                        onSignedIn(normalized, token, attemptUserId)
-                        phase = HorizonPhase.IDLE
-                    }
-
-                    is HorizonOutcome.Failed -> {
-                        error = outcome.message
-                        phase = HorizonPhase.IDLE
-                    }
-                }
-            } catch (e: CancellationException) {
-                phase = HorizonPhase.IDLE
-                throw e
-            } catch (e: Exception) {
-                android.util.Log.e(
-                    "HorizonAuth",
-                    "sign-in failed: ${e.javaClass.simpleName}: ${e.message}"
-                )
-                error = (e.message ?: e.javaClass.simpleName).take(200)
-                phase = HorizonPhase.IDLE
-            }
-        }
-    }
+    fun cancel() = signIn.cancel()
 
     if (!app.horizonAuth.isAvailable) {
         Text(
