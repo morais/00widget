@@ -31,11 +31,15 @@
         <!-- Dashboard: the launcher panel. minWidth lets the shell shrink
              it below the 728dp two-column break (minus 40dp padding) so a
              narrow panel genuinely drops to one column. No orientation lock:
-             a tall narrow window must fill, not letterbox (see Settings). -->
+             a tall narrow window must fill, not letterbox (see Settings).
+             singleTop, plus a launcher check in DashboardActivity: a second
+             launch must not stack another dashboard on the first, which
+             the translucent window shows through as a doubled screen. -->
         <activity
             android:theme="@style/PanelAppTheme.Transparent"
             android:name=".DashboardActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density">
             <layout
                 android:defaultWidth="1280dp"
