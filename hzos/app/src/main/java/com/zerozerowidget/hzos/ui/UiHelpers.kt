@@ -30,17 +30,17 @@ fun relativeTime(iso: String?, now: Instant = Instant.now()): String? {
         val d = Duration.between(now, then)
         val abs = d.abs()
         val text = when {
-            abs.toMinutes() < 1 -> "just now"
+            abs.toMinutes() < 1 -> "<1m"
             abs.toHours() < 1 -> "${abs.toMinutes()}m"
             abs.toDays() < 1 -> "${abs.toHours()}h"
             else -> "${abs.toDays()}d"
         }
-        if (text == "just now") {
-            text
-        } else if (d.isNegative) {
-            "$text ago"
-        } else {
-            "in $text"
+        // Under a minute ago is "just now"; under a minute ahead is not —
+        // "Ends just now" read as over for something 40 seconds away.
+        when {
+            !d.isNegative && !d.isZero -> "in $text"
+            text == "<1m" -> "just now"
+            else -> "$text ago"
         }
     } catch (_: Exception) {
         null

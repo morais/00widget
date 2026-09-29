@@ -20,6 +20,12 @@ class UiHelpersTest {
     }
 
     @Test
+    fun underAMinuteAheadIsNotJustNow() {
+        assertEquals("in <1m", relativeTime("2026-09-28T12:00:40Z", now))
+        assertEquals("just now", relativeTime("2026-09-28T12:00:00Z", now))
+    }
+
+    @Test
     fun relativeTimeIgnoresWhatItCannotParse() {
         assertNull(relativeTime(null, now))
         assertNull(relativeTime("", now))
