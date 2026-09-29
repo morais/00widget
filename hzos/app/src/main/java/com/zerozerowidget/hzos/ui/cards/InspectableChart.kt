@@ -148,7 +148,7 @@ fun InspectableChart(
             ) { Icon(Icons.Regular.ChevronLeft, contentDescription = null) }
             Text(
                 "${selectedIndex + 1} of $count",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
@@ -234,7 +234,7 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
         snapshot.signal?.let {
             Text(
                 it.replaceFirstChar(Char::titlecase),
-                style = LocalTypography.current.caption,
+                style = LocalTypography.current.body,
                 color = signalColor(
                     it,
                     LocalContentColors.current.secondary,
@@ -276,7 +276,7 @@ private fun InspectionPanel(snapshot: InspectionSnapshot, unit: String?) {
         snapshot.comparison?.let {
             Text(
                 it,
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
         }

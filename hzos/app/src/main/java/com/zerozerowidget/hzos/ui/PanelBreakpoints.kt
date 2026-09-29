@@ -15,6 +15,13 @@ object PanelBreakpoints {
     /** Card detail keeps actions, link and delete on one row from here up. */
     val DetailInlineActions = 400.dp
 
+    /**
+     * The samples banner keeps its button beside the text from here up;
+     * below it the button goes underneath, or the text is squeezed into a
+     * column a word or two wide.
+     */
+    val SampleBannerInline = 600.dp
+
     /** Settings shows its destinations as a side rail from here up. */
     val SettingsRail = 600.dp
 

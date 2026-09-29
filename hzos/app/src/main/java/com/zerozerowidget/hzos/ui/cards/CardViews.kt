@@ -113,7 +113,7 @@ internal fun CardMetaLine(card: DashboardCard) {
         card.producer?.let {
             Text(
                 it.label,
-                style = LocalTypography.current.caption,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary,
                 maxLines = 1
             )
@@ -121,7 +121,7 @@ internal fun CardMetaLine(card: DashboardCard) {
         card.comparison?.let {
             Text(
                 "${it.value} ${it.label}",
-                style = LocalTypography.current.caption,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -185,7 +185,7 @@ internal fun ListBody(card: DashboardCard) {
             item.subtitle?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }
@@ -274,7 +274,7 @@ internal fun HistoryBody(card: DashboardCard) {
             item.value?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }
@@ -329,7 +329,7 @@ internal fun BreakdownBody(card: DashboardCard) {
             item.value?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }

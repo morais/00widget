@@ -35,7 +35,7 @@ import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
-import com.zerozerowidget.hzos.ui.cards.SampleBadge
+import com.zerozerowidget.hzos.ui.cards.SampleBadgeRow
 import com.zerozerowidget.hzos.ui.cards.StatusDot
 import com.zerozerowidget.hzos.ui.cards.activityTint
 import com.zerozerowidget.hzos.ui.describeDeleteError
@@ -113,7 +113,7 @@ fun ActivityDetailPanel(
             } else {
                 // Same glass container as widget details, so activity panels
                 // read as the same object family rather than naked text.
-                // Overlay badge, not layout — see DashboardRow.
+                // SAMPLE sits in the card's last row — see SampleBadgeRow.
                 Box(Modifier.fillMaxWidth()) {
                     GlassPrimaryCard(cardAlpha = cardAlpha, contentPadding = spacing.large) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -132,7 +132,7 @@ fun ActivityDetailPanel(
                                 session.subtitle?.let {
                                     Text(
                                         it,
-                                        style = LocalTypography.current.bodySmall,
+                                        style = LocalTypography.current.body,
                                         color = LocalContentColors.current.secondary
                                     )
                                 }
@@ -174,7 +174,7 @@ fun ActivityDetailPanel(
                                     item.subtitle?.let {
                                         Text(
                                             it,
-                                            style = LocalTypography.current.bodySmall,
+                                            style = LocalTypography.current.body,
                                             color = LocalContentColors.current.secondary
                                         )
                                     }
@@ -203,13 +203,13 @@ fun ActivityDetailPanel(
                             session.endsAt?.let { endsAt ->
                                 Text(
                                     "Ends ${relativeTime(endsAt, LocalNow.current) ?: endsAt}",
-                                    style = LocalTypography.current.bodySmall,
+                                    style = LocalTypography.current.body,
                                     color = LocalContentColors.current.secondary,
                                     modifier = Modifier.weight(1f)
                                 )
                             } ?: Spacer(Modifier.weight(1f))
                             if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
-                                Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+                                Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                             }
                         }
                         Spacer(Modifier.height(spacing.small))
@@ -247,13 +247,7 @@ fun ActivityDetailPanel(
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
-                    if (isSample) {
-                        SampleBadge(
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(spacing.small)
-                        )
+                        if (isSample) SampleBadgeRow()
                     }
                 }
             }

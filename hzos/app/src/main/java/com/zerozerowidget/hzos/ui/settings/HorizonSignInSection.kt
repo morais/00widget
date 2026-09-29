@@ -75,7 +75,7 @@ internal fun HorizonSignInSection(
         Text(
             "Sign-in needs a Horizon Platform app ID " +
                 "(`platformAppId` in hzos/local.properties).",
-            style = LocalTypography.current.bodySmall,
+            style = LocalTypography.current.body,
             color = LocalContentColors.current.secondary
         )
         return
@@ -96,7 +96,7 @@ internal fun HorizonSignInSection(
             error?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalColorScheme.current.negative.content
                 )
             }
@@ -119,7 +119,7 @@ internal fun HorizonSignInSection(
             Text(
                 "Creating an account uses this headset's own Meta identity — " +
                     "nothing to approve on your phone.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             UiSetPrimaryButton(
@@ -129,7 +129,7 @@ internal fun HorizonSignInSection(
             )
             Text(
                 "Already have an account? Join it here — you'll approve the link on your iPhone.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             // UiSet labels are plain strings, so the bold brand phrase

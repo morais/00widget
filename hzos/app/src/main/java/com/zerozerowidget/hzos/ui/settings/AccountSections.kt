@@ -57,7 +57,7 @@ internal fun AccountAccessDestination(app: ZeroZeroWidgetApp, onSignedOut: () ->
                 Text(
                     "Signing out forgets this device's credential and clears " +
                         "its cards straight away.",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
                 UiSetSecondaryButton(
@@ -147,7 +147,7 @@ internal fun AccountSection(
                 )
                 Text(
                     if (!loaded) "Loading…" else accountName!!,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }
@@ -166,7 +166,7 @@ internal fun AccountSection(
                 )
                 Text(
                     "Loading…",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }
@@ -193,7 +193,7 @@ internal fun AccountSection(
                 )
                 Text(
                     subscription!!.displayLabel,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = if (subscription!!.needsAttention) {
                         LocalColorScheme.current.negative.content
                     } else {
@@ -356,13 +356,13 @@ internal fun AccountAccessSection(
                         "working. Unlinking removes this headset's Meta identity " +
                         "and signs this device out."
                 },
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             error?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalColorScheme.current.negative.content
                 )
             }

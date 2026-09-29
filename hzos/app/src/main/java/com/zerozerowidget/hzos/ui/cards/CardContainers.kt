@@ -88,19 +88,13 @@ fun DetailCard(
     isSample: Boolean,
     interactiveCharts: Boolean = false
 ) {
-    // Overlay badge, not layout — see DashboardRow.
+    // SAMPLE sits in the card's last row — see SampleBadgeRow.
     Box(Modifier.fillMaxWidth()) {
         GlassPrimaryCard(cardAlpha = cardAlpha) {
             CardHeadline(card)
             Spacer(Modifier.height(spacing.small))
             CardTemplateBody(card, interactiveCharts = interactiveCharts)
-        }
-        if (isSample) {
-            SampleBadge(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(spacing.small)
-            )
+            if (isSample) SampleBadgeRow()
         }
     }
 }

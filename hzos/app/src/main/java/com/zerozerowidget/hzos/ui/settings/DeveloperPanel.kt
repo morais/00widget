@@ -62,7 +62,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 // here was chrome around a value nobody can change.
                 Text(
                     BuildConfig.DEFAULT_BASE_URL,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             } else {
@@ -82,7 +82,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 savedNote?.let {
                     Text(
                         it,
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = uiSetAccent()
                     )
                 }
@@ -118,7 +118,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     Text("Show dummy account data", style = LocalTypography.current.body)
                     Text(
                         "A visibly fake token on the Settings screen instead of your own.",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }
@@ -138,7 +138,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     Text("Hide sample indicators", style = LocalTypography.current.body)
                     Text(
                         "Demo data stays; badges and notice go away.",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }
@@ -155,7 +155,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                     "your own. The real token still authorizes every request, and Copy " +
                     "agent config copies what is on screen — so turn this off before " +
                     "handing the token to an agent.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             Text("Look", style = LocalTypography.current.title)
@@ -163,7 +163,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                 Text("Card opacity", style = LocalTypography.current.body)
                 Text(
                     "How solid cards are over passthrough: ${(sliderAlpha * 100).toInt()}%.",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             }

@@ -84,7 +84,7 @@ internal fun AgentConfigSection(
                 SelectionContainer(Modifier.weight(1f)) {
                     Text(
                         agentConfig,
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }
@@ -109,7 +109,7 @@ internal fun AgentConfigSection(
             if (copied) {
                 Text(
                     "Copied",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = uiSetAccent()
                 )
             }
@@ -124,7 +124,7 @@ internal fun AgentConfigSection(
             )
             Text(
                 "Connect assistants (Claude, ChatGPT, OpenCode…) without handing them a token.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             UiSetSecondaryButton("Connect an agent", onClick = onOpenAgentConnect)
@@ -156,13 +156,13 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
             "Use this if an agent token may have been exposed. Every old agent " +
                 "token stops working and one replacement is created — give " +
                 "it to your agents. This headset stays signed in.",
-            style = LocalTypography.current.bodySmall,
+            style = LocalTypography.current.body,
             color = LocalContentColors.current.secondary
         )
         error?.let {
             Text(
                 it,
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalColorScheme.current.negative.content
             )
         }
@@ -170,14 +170,14 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
             Text(
                 "Rotated — ${it.revokedAgentTokens} old token(s) revoked. " +
                     "Copy the replacement now; it is shown once.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = uiSetAccent()
             )
             Row(verticalAlignment = Alignment.Top) {
                 SelectionContainer(Modifier.weight(1f)) {
                     Text(
                         it.token,
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }

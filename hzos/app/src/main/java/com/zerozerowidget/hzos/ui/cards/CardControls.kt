@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -34,6 +35,7 @@ import com.zerozerowidget.hzos.data.ActionDefinition
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
+import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
 import com.zerozerowidget.hzos.ui.uiset.UiSetDestructiveButton
@@ -93,6 +95,19 @@ fun ProgressBar(
 }
 
 /**
+ * [SampleBadge] as a sample card's last row, right-aligned. It used to be
+ * drawn over the card's bottom-right corner so it moved nothing, which
+ * covered the last line of text whenever that line reached the corner;
+ * the text floor (readiness #21) made that most cards.
+ */
+@Composable
+fun SampleBadgeRow() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        SampleBadge()
+    }
+}
+
+/**
  * Demo-data pill. Solid primary lozenge, white text, fixed padding — an
  * inline element that can sit anywhere a label sits, so it never disturbs
  * the surrounding layout (no rotation, no overflow, no offsets).
@@ -112,7 +127,7 @@ fun SampleBadge(modifier: Modifier = Modifier) {
     ) {
         Text(
             "SAMPLE",
-            style = LocalTypography.current.caption,
+            style = LocalTypography.current.label,
             color = Color.White
         )
     }
@@ -126,33 +141,49 @@ fun SampleBadge(modifier: Modifier = Modifier) {
  */
 @Composable
 fun SampleNoticeBanner(onRemoveAll: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .background(
                 uiSetAccent(),
                 RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = spacing.medium, vertical = spacing.medium),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.medium)
+            .padding(horizontal = spacing.medium, vertical = spacing.medium)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                "These are samples",
-                style = LocalTypography.current.title,
-                color = Color.White
-            )
-            Text(
-                "These samples were generated on this device to show what 00Widget looks like. No agent published them.",
-                style = LocalTypography.current.bodySmall,
-                color = Color.White
+        val text: @Composable (Modifier) -> Unit = { textModifier ->
+            Column(textModifier) {
+                Text(
+                    "These are samples",
+                    style = LocalTypography.current.title,
+                    color = Color.White
+                )
+                Text(
+                    "These samples were generated on this device to show what 00Widget looks like. No agent published them.",
+                    style = LocalTypography.current.body,
+                    color = Color.White
+                )
+            }
+        }
+        val button: @Composable () -> Unit = {
+            UiSetSecondaryButton(
+                label = "Remove samples",
+                onClick = onRemoveAll
             )
         }
-        UiSetSecondaryButton(
-            label = "Remove samples",
-            onClick = onRemoveAll
-        )
+        if (maxWidth >= PanelBreakpoints.SampleBannerInline) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.medium)
+            ) {
+                text(Modifier.weight(1f))
+                button()
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {
+                text(Modifier)
+                button()
+            }
+        }
     }
 }
 
@@ -219,7 +250,7 @@ fun ActionButtons(
         runError?.let {
             Text(
                 it,
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalColorScheme.current.negative.content
             )
         }
@@ -303,7 +334,7 @@ fun DeleteRow(
             Spacer(Modifier.height(spacing.xSmall))
             Text(
                 it,
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalColorScheme.current.negative.content
             )
         }
@@ -377,6 +408,6 @@ fun NeedsYouBadge(modifier: Modifier = Modifier) {
             .padding(horizontal = spacing.small, vertical = 2.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text("Needs you", style = LocalTypography.current.caption, color = colors.onContainer)
+        Text("Needs you", style = LocalTypography.current.body, color = colors.onContainer)
     }
 }

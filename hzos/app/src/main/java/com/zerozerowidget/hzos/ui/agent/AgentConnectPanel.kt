@@ -181,7 +181,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                     Text("Connected agents", style = LocalTypography.current.title)
                     connectionsError?.let {
-                        Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+                        Text(it, style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                     }
                     // The list answers over the network: hold a Loading…
                     // row instead of flashing "No agents" before the rows
@@ -222,7 +222,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
                     Text(
                         "Disconnecting stops that agent's 00Widget access immediately. It may remain " +
                             "listed in that client until you remove it there.",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }
@@ -240,7 +240,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             mcpEndpoint?.let { endpoint ->
                 Text(
                     "Using Claude Code? Run this command, then open /mcp in Claude Code to complete OAuth.",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
                 CodeBlock(text = "claude mcp add --transport http 00widget $endpoint")
@@ -248,7 +248,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             Text(
                 "You only do this once. A connector belongs to your Claude account rather than to a " +
                     "device, so it is there afterwards wherever you use Claude.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
         }
@@ -295,7 +295,7 @@ fun AgentConnectPanel(app: ZeroZeroWidgetApp) {
             mcpEndpoint?.let { CodeBlock(text = it) }
             Text(
                 "Works with MCP clients that support remote Streamable HTTP and OAuth.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             LinkButton(context, "Cursor", "https://cursor.com/docs/mcp")
@@ -351,7 +351,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
                 "Connecting an assistant? It shows an 8-character code — " +
                     "approve it here and the login completes. Only approve " +
                     "a code shown on your own screen.",
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
             UiSetTextField(
@@ -381,7 +381,7 @@ private fun McpLoginSection(app: ZeroZeroWidgetApp) {
             notice?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = if (noticeError) {
                         LocalColorScheme.current.negative.content
                     } else {
@@ -417,7 +417,7 @@ private fun Step(number: Int, text: String) {
         ) {
             Text(
                 number.toString(),
-                style = LocalTypography.current.caption,
+                style = LocalTypography.current.label,
                 color = Color.White
             )
         }
@@ -442,7 +442,7 @@ private fun CodeBlock(text: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
         Text(
             text,
-            style = LocalTypography.current.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            style = LocalTypography.current.body.copy(fontFamily = FontFamily.Monospace),
             color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f)
         )
@@ -478,7 +478,7 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
             Text(item.clientName, style = LocalTypography.current.body)
             Text(
                 connectionSubtitle(item, LocalNow.current),
-                style = LocalTypography.current.bodySmall,
+                style = LocalTypography.current.body,
                 color = LocalContentColors.current.secondary
             )
         }

@@ -48,6 +48,11 @@ fun ZeroZeroWidgetTheme(content: @Composable () -> Unit) {
     UiSetTheme {
         UiSetTheme(
             colorScheme = scheme,
+            // Text floor (readiness #21): Glasses may scale a whole window
+            // down to fit a 70° view, and small text goes first. Anything a
+            // user must read is body (14sp) or larger; caption (11sp) is for
+            // chart annotations only, and label (12sp) for badges. Enforced
+            // by TextFloorTest.
             typography = UiSetTheme.typography,
             shapes = UiSetTheme.shapes,
             dimensions = UiSetTheme.dimensions,

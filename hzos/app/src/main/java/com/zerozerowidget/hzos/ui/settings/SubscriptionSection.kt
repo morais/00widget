@@ -155,13 +155,13 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                 if (!statusLoaded) {
                     Text(
                         "Loading…",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 } else {
                     Text(
                         status?.displayLabel ?: "Unknown",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = if (status?.needsAttention == true) {
                             LocalColorScheme.current.negative.content
                         } else {
@@ -174,7 +174,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
             if (status?.active == true) {
                 Text(
                     "Manage or cancel in the Meta Horizon mobile app.",
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary
                 )
             } else {
@@ -182,13 +182,13 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
                     Text(
                         "Subscriptions need a Horizon Platform app ID " +
                             "(`platformAppId` in hzos/local.properties).",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 } else if (tiers.isEmpty()) {
                     Text(
                         "No subscription products configured on this build.",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 } else {
@@ -220,7 +220,7 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
             error?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalColorScheme.current.negative.content
                 )
             }

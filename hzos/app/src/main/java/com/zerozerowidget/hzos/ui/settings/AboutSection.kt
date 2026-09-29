@@ -77,7 +77,7 @@ internal fun LinkRow(label: String, onClick: () -> Unit) {
     ) {
         Text(
             label,
-            style = LocalTypography.current.bodySmall,
+            style = LocalTypography.current.body,
             color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f)
         )
@@ -100,7 +100,7 @@ internal fun VersionRow(onOpenDeveloper: () -> Unit) {
     ) {
         Text(
             LocalBuildStamp.current,
-            style = LocalTypography.current.bodySmall,
+            style = LocalTypography.current.body,
             color = LocalContentColors.current.secondary,
             modifier = Modifier.weight(1f)
         )

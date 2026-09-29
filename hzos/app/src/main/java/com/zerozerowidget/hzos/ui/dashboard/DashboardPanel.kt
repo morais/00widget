@@ -66,7 +66,7 @@ import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
-import com.zerozerowidget.hzos.ui.cards.SampleBadge
+import com.zerozerowidget.hzos.ui.cards.SampleBadgeRow
 import com.zerozerowidget.hzos.ui.cards.SampleNoticeBanner
 import com.zerozerowidget.hzos.ui.cards.Sparkline
 import com.zerozerowidget.hzos.ui.cards.StatusDot
@@ -138,7 +138,7 @@ fun DashboardPanel(
             state.lastSyncEpochMs?.let {
                 Text(
                     "synced ${relativeTimeAgo(java.time.Instant.ofEpochMilli(it).toString(), LocalNow.current) ?: ""}",
-                    style = LocalTypography.current.caption,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
                     modifier = Modifier.padding(end = spacing.xSmall)
                 )
@@ -227,7 +227,7 @@ fun DashboardPanel(
                                     if (!card.actions.isNullOrEmpty()) {
                                         Text(
                                             "Demo card — buttons don't run on samples.",
-                                            style = LocalTypography.current.bodySmall,
+                                            style = LocalTypography.current.body,
                                             color = LocalContentColors.current.secondary
                                         )
                                     }
@@ -340,8 +340,7 @@ private fun DashboardRow(
     onOpenLink: () -> Unit,
     actionSlot: @Composable () -> Unit
 ) {
-    // Overlay badge, not layout: the Box is exactly the card's size and the
-    // pill draws over the bottom-right corner without moving anything.
+    // SAMPLE sits in the card's last row — see SampleBadgeRow.
     Box(Modifier.fillMaxWidth()) {
         // Expanding is the headline's job, not the whole card's: with the
         // card as one target, a pinch landing just off the link or pop-out
@@ -367,27 +366,21 @@ private fun DashboardRow(
             card.subtitle?.let {
                 Text(
                     it,
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             if (isStale(card.updatedAt, card.staleAfter, LocalNow.current)) {
-                Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+                Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
             }
             if (expanded) {
                 Spacer(Modifier.height(spacing.small))
                 CardTemplateBody(card)
                 actionSlot()
             }
-        }
-        if (isSample) {
-            SampleBadge(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(spacing.small)
-            )
+            if (isSample) SampleBadgeRow()
         }
     }
 }
@@ -486,7 +479,7 @@ fun CardDetailPanel(
                         if (!card.actions.isNullOrEmpty()) {
                             Text(
                                 "Demo card — buttons don't run on samples.",
-                                style = LocalTypography.current.bodySmall,
+                                style = LocalTypography.current.body,
                                 color = LocalContentColors.current.secondary
                             )
                         }
@@ -516,7 +509,7 @@ fun CardDetailPanel(
                     if (isSample && !hideIndicators && !card.actions.isNullOrEmpty()) {
                         Text(
                             "Demo card — buttons don't run on samples.",
-                            style = LocalTypography.current.bodySmall,
+                            style = LocalTypography.current.body,
                             color = LocalContentColors.current.secondary,
                             modifier = Modifier.weight(1f)
                         )
@@ -588,13 +581,13 @@ fun CardDetailPanel(
                 }
                 deleteError?.let {
                     Spacer(Modifier.height(spacing.xSmall))
-                    Text(it, style = LocalTypography.current.bodySmall, color = LocalColorScheme.current.negative.content)
+                    Text(it, style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                 }
                 card.deadline?.let { deadline ->
                     Spacer(Modifier.height(spacing.small))
                     Text(
                         "Due ${relativeTime(deadline, LocalNow.current) ?: deadline}",
-                        style = LocalTypography.current.bodySmall,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary
                     )
                 }
@@ -663,7 +656,7 @@ private fun WelcomePanel(cardAlpha: Float, onSignIn: (() -> Unit)?, onTryDemo: (
                     } else {
                         "Demo data never leaves this device."
                     },
-                    style = LocalTypography.current.bodySmall,
+                    style = LocalTypography.current.body,
                     color = LocalContentColors.current.secondary,
                     textAlign = TextAlign.Center
                 )
@@ -692,7 +685,7 @@ private fun ActivityRow(
     onOpenDetail: () -> Unit
 ) {
     val dark = isSystemInDarkTheme()
-    // Overlay badge, not layout — see DashboardRow.
+    // SAMPLE sits in the card's last row — see SampleBadgeRow.
     Box(Modifier.fillMaxWidth()) {
         GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onOpenDetail, contentPadding = spacing.large) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -713,7 +706,7 @@ private fun ActivityRow(
                 PopOutIconButton(onPopOut)
             }
             session.subtitle?.let {
-                Text(it, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+                Text(it, style = LocalTypography.current.body, color = LocalContentColors.current.secondary)
             }
             session.value?.let {
                 Text(
@@ -744,9 +737,9 @@ private fun ActivityRow(
             }
             session.items.orEmpty().take(4).forEach { item ->
                 Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-                    Text(item.title, style = LocalTypography.current.bodySmall, modifier = Modifier.weight(1f))
+                    Text(item.title, style = LocalTypography.current.body, modifier = Modifier.weight(1f))
                     item.value?.let { v ->
-                        Text(v, style = LocalTypography.current.bodySmall, color = LocalContentColors.current.secondary)
+                        Text(v, style = LocalTypography.current.body, color = LocalContentColors.current.secondary)
                     }
                 }
             }
@@ -754,22 +747,16 @@ private fun ActivityRow(
                 session.endsAt?.let { endsAt ->
                     Text(
                         "Ends ${relativeTime(endsAt, LocalNow.current) ?: endsAt}",
-                        style = LocalTypography.current.caption,
+                        style = LocalTypography.current.body,
                         color = LocalContentColors.current.secondary,
                         modifier = Modifier.weight(1f)
                     )
                 } ?: Spacer(Modifier.weight(1f))
                 if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
-                    Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
+                    Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                 }
             }
-        }
-        if (isSample) {
-            SampleBadge(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(spacing.small)
-            )
+            if (isSample) SampleBadgeRow()
         }
     }
 }
