@@ -28,6 +28,17 @@ class HorizonLoginTest {
     }
 
     @Test
+    fun `a sign-in carrying an agent token keeps it apart from the session token`() = runBlocking {
+        val outcome = runHorizonSignIn(
+            identity = { identity },
+            request = { _, _, _ ->
+                201 to """{"status":"signed_in","token":"zwa_new","publisherCredential":"zw_agent"}"""
+            }
+        )
+        assertEquals(HorizonOutcome.SignedIn("zwa_new", "meta-user-1", "zw_agent"), outcome)
+    }
+
+    @Test
     fun `create choice is sent through and signs in`() = runBlocking {
         val seen = mutableListOf<String?>()
         val outcome = runHorizonSignIn(

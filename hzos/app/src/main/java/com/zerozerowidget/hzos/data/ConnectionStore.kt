@@ -30,7 +30,19 @@ class ConnectionStore(
 ) : ConnectionSource {
     constructor(context: Context) : this(context.connectionDataStore)
 
-    data class Connection(val baseUrl: String, val apiKey: String, val metaUserId: String = "") {
+    /**
+     * [apiKey] is this headset's own credential, never shown or copied: it is
+     * an app credential, which can delete the account. [agentKey] is the
+     * separate publisher token Agent config hands to agents (read, publish,
+     * webhooks), blank until the Worker issues one at sign-in or a rotation
+     * creates one.
+     */
+    data class Connection(
+        val baseUrl: String,
+        val apiKey: String,
+        val metaUserId: String = "",
+        val agentKey: String = ""
+    ) {
         val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
     }
 
@@ -41,6 +53,7 @@ class ConnectionStore(
         private val API_KEY = stringPreferencesKey("api_key")
         private val API_KEY_ENCRYPTED = stringPreferencesKey("api_key_enc")
         private val META_USER_ID = stringPreferencesKey("meta_user_id")
+        private val AGENT_KEY_ENCRYPTED = stringPreferencesKey("agent_key_enc")
 
         /**
          * The Worker URL as stored: trimmed, https assumed when no scheme is
@@ -75,13 +88,14 @@ class ConnectionStore(
                 baseUrl = prefs[BASE_URL].orEmpty(),
                 // Undecryptable (the Keystore key is gone): signed out.
                 apiKey = prefs[API_KEY_ENCRYPTED]?.let(cipher::decrypt).orEmpty(),
-                metaUserId = prefs[META_USER_ID].orEmpty()
+                metaUserId = prefs[META_USER_ID].orEmpty(),
+                agentKey = prefs[AGENT_KEY_ENCRYPTED]?.let(cipher::decrypt).orEmpty()
             )
         }
 
     override suspend fun current(): Connection = connection.first()
 
-    suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "") {
+    suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "", agentKey: String = "") {
         dataStore.edit { prefs ->
             prefs[BASE_URL] = baseUrl.trim().trimEnd('/')
             if (apiKey.isNotBlank()) {
@@ -95,6 +109,22 @@ class ConnectionStore(
             } else {
                 prefs.remove(META_USER_ID)
             }
+            if (agentKey.isNotBlank()) {
+                prefs[AGENT_KEY_ENCRYPTED] = cipher.encrypt(agentKey.trim())
+            } else {
+                prefs.remove(AGENT_KEY_ENCRYPTED)
+            }
+        }
+    }
+
+    /** Stores the agent token a rotation just created (see [Connection.agentKey]). */
+    suspend fun saveAgentKey(agentKey: String) {
+        dataStore.edit { prefs ->
+            if (agentKey.isNotBlank()) {
+                prefs[AGENT_KEY_ENCRYPTED] = cipher.encrypt(agentKey.trim())
+            } else {
+                prefs.remove(AGENT_KEY_ENCRYPTED)
+            }
         }
     }
 
@@ -104,6 +134,7 @@ class ConnectionStore(
             prefs.remove(API_KEY)
             prefs.remove(API_KEY_ENCRYPTED)
             prefs.remove(META_USER_ID)
+            prefs.remove(AGENT_KEY_ENCRYPTED)
         }
     }
 
@@ -121,7 +152,7 @@ class ConnectionStore(
         val current = current()
         val oldOrigin = effectiveBaseUrl(current.baseUrl, defaultBaseUrl)?.let(::originOf)
         val keep = current.apiKey.isNotBlank() && oldOrigin == originOf(newBaseUrl)
-        if (keep) save(newBaseUrl, current.apiKey, current.metaUserId) else save(newBaseUrl, "", "")
+        if (keep) save(newBaseUrl, current.apiKey, current.metaUserId, current.agentKey) else save(newBaseUrl, "", "")
         return !keep && current.apiKey.isNotBlank()
     }
 

@@ -32,7 +32,7 @@
     <ID>SwallowedException:AccountSections.kt:e: Exception</ID>
     <ID>SwallowedException:SubscriptionSection.kt:e: Exception</ID>
     <ID>SwallowedException:ZeroWidgetApi.kt:ZeroWidgetApi$e: ApiException</ID>
-    <ID>ThrowsCount:DeviceAuth.kt:suspend fun awaitDeviceToken: String</ID>
+    <ID>ThrowsCount:DeviceAuth.kt:suspend fun awaitDeviceToken: DeviceTokenResponse</ID>
     <ID>ThrowsCount:SubscriptionSection.kt:fun buy</ID>
     <ID>ThrowsCount:SubscriptionSection.kt:fun restore</ID>
     <ID>TooGenericExceptionCaught:AccountSections.kt:e: Exception</ID>

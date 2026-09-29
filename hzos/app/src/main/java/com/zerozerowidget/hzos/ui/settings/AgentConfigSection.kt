@@ -47,6 +47,13 @@ import metavrx.uiset.compose.theme.LocalTypography
  * Agent config entry: the "Dear agent" integration text iOS Settings shows,
  * plus the connector doorway below it.
  *
+ * The token it names is the agent token (ConnectionStore agentKey: read,
+ * publish, webhooks), never this headset's own credential. That one is an
+ * app credential, which can delete the account and mint agent tokens, and
+ * rotating agent tokens would not revoke a copy of it. With no agent token
+ * yet (a Worker that doesn't issue one at sign-in, or a session from before
+ * it did) the text says how to create one instead.
+ *
  * Signed out, the text names the server and says the token arrives after
  * sign-in; signed in, it names the token too. The displayed string and the
  * copied string are deliberately the same: a copy button that quietly puts
@@ -67,14 +74,22 @@ internal fun AgentConfigSection(
     var copied by remember { mutableStateOf(false) }
     val baseUrl = ConnectionStore.effectiveBaseUrl(connection.baseUrl).orEmpty()
     val signedIn = connection.apiKey.isNotBlank()
-    val displayedToken = if (showDummy) DummyAccountData.API_KEY else connection.apiKey
-    val agentConfig = if (!signedIn) {
-        "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
-            "use that as the base URL. You'll need an authorization token, " +
-            "which will be available after you sign in."
-    } else {
-        "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
-            "use that as the base URL, and use $displayedToken as the authorization token."
+    val agentKey = connection.agentKey
+    val displayedToken = if (showDummy) DummyAccountData.API_KEY else agentKey
+    val agentConfig = when {
+        !signedIn ->
+            "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
+                "use that as the base URL. You'll need an authorization token, " +
+                "which will be available after you sign in."
+
+        agentKey.isBlank() ->
+            "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
+                "use that as the base URL. You'll need an agent token: create one in " +
+                "Settings, Account and access, Rotate agent token."
+
+        else ->
+            "Dear agent: To integrate with 00Widget, read the instructions at $baseUrl; " +
+                "use that as the base URL, and use $displayedToken as the authorization token."
     }
 
     GlassCard(cardAlpha = cardAlpha) {
@@ -135,10 +150,11 @@ internal fun AgentConfigSection(
 /**
  * Replaces the tokens the account's agents publish with. Logged-in only,
  * mirroring the rotation in iOS AccountExitView — but note what it is and
- * is not: it revokes `publisher`/`agent` purpose keys, never the token
- * shown above (this headset's own sign-in) and never connectors, so the
- * headset stays signed in and assistants stay connected. The replacement
- * is answered once, so it is shown here for handoff, not stored anywhere.
+ * is not: it revokes `publisher`/`agent` purpose keys, never this headset's
+ * own sign-in and never connectors, so the headset stays signed in and
+ * assistants stay connected. The replacement is answered once: it is shown
+ * here for handoff and stored (encrypted) as the agent token Agent config
+ * hands out.
  */
 @Composable
 internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
@@ -215,7 +231,9 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                 scope.launch {
                     try {
                         val api = app.authedApi() ?: throw IllegalStateException("Not connected.")
-                        rotated = api.rotateAgentToken()
+                        rotated = api.rotateAgentToken().also {
+                            app.connectionStore.saveAgentKey(it.token)
+                        }
                     } catch (e: Exception) {
                         error = (e.message ?: e.javaClass.simpleName).take(200)
                     } finally {

@@ -48,6 +48,8 @@ private data class DeviceTokenRequest(@SerialName("device_code") val deviceCode:
 data class DeviceTokenResponse(
     // Present once approved: the API token to store in ConnectionStore.
     val token: String? = null,
+    // Also once approved, from a Worker that issues one: the agent token.
+    val publisherCredential: String? = null,
     // RFC 8628 errors while pending: authorization_pending | slow_down |
     // expired | denied. Absent (with a token) means approved.
     val error: String? = null
@@ -100,13 +102,13 @@ suspend fun awaitDeviceToken(
     intervalSeconds: Int,
     deadlineMs: Long,
     onTick: () -> Unit = {}
-): String {
+): DeviceTokenResponse {
     var intervalMs = (intervalSeconds.coerceAtLeast(1)) * 1000L
     while (System.currentTimeMillis() < deadlineMs) {
         delay(intervalMs)
         onTick()
         val resp = api.pollToken(deviceCode)
-        resp.token?.takeIf { it.isNotBlank() }?.let { return it }
+        if (!resp.token.isNullOrBlank()) return resp
         when (resp.error) {
             null, "authorization_pending" -> { /* keep waiting */ }
             "slow_down" -> intervalMs += 5000L

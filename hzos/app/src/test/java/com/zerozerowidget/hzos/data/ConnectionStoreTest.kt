@@ -96,4 +96,25 @@ class ConnectionStoreTest {
         assertTrue(store.changeServer("https://other.example", "https://default.example"))
         assertEquals("", store.current().apiKey)
     }
+
+    @Test
+    fun theAgentTokenIsSeparateEncryptedAndGoesWithTheSession() = runBlocking {
+        val store = ConnectionStore(dataStore, FakeCipher())
+        store.save("https://worker.example", "zwa_secret", "meta-1", "zw_agent")
+        assertEquals("zw_agent", store.current().agentKey)
+        assertEquals("zwa_secret", store.current().apiKey)
+        assertEquals("enc:tnega_wz", raw("agent_key_enc"))
+
+        // A rotation replaces only the agent token.
+        store.saveAgentKey("zw_rotated")
+        assertEquals("zw_rotated", store.current().agentKey)
+        assertEquals("zwa_secret", store.current().apiKey)
+
+        // Another server, or signing out, takes it with the session.
+        assertTrue(store.changeServer("https://attacker.example", "https://default.example"))
+        assertEquals("", store.current().agentKey)
+        store.save("https://worker.example", "zwa_secret", "meta-1", "zw_agent")
+        store.clear()
+        assertNull(raw("agent_key_enc"))
+    }
 }

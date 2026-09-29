@@ -24,7 +24,6 @@ import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DeviceAuthApi
 import com.zerozerowidget.hzos.data.HorizonOutcome
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
-import com.zerozerowidget.hzos.data.awaitDeviceToken
 import com.zerozerowidget.hzos.data.horizonSignInBody
 import com.zerozerowidget.hzos.data.runHorizonSignIn
 import com.zerozerowidget.hzos.ui.theme.spacing

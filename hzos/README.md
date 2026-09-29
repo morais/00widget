@@ -144,10 +144,19 @@ the Worker and gets a Horizon credential back (`data/HorizonLogin.kt`,
    in the 00Widget iPhone app (or the Worker's web page), and the headset
    polls `POST /v1/auth/device/token` until it is approved.
 
-The token is an `app` credential with the narrowed `device` preset
-(`read`, `device:register`, `actions:run`), stored in `ConnectionStore`
-together with the Meta id it was issued for; a later Meta account switch
-on the headset clears it (`auth/MetaUserGuard.kt`). If `send_auth_url`
+The token is an `app` credential (`zwa_`) with the `horizonApp` preset
+(`read`, `publish`, `device:register`, `actions:run`). Being kind `app`,
+it also reaches the account's app-only routes: deleting the account,
+rotating agent tokens, approving devices. So it never leaves the headset.
+It is stored encrypted in `ConnectionStore` together with the Meta id it
+was issued for; a later Meta account switch on the headset clears it, and
+while the current Meta user can't be read the app withholds the session's
+data (`auth/MetaUserGuard.kt`).
+
+Agent config hands agents a separate publisher token (`read`, `publish`,
+`webhook:manage`), stored alongside as `agentKey`. It comes from sign-in
+when the Worker issues one (`publisherCredential`), or from Rotate agent
+token, which also revokes every earlier agent token. If `send_auth_url`
 cannot run, the code and URL are shown for manual entry on the phone.
 `cd ../server && npm test` covers the Worker side
 (`server/src/deviceAuth.ts`, `server/src/horizonIdentity.ts`).

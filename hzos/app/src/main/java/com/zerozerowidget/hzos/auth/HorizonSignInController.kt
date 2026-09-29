@@ -89,7 +89,7 @@ class HorizonSignInController(private val app: ZeroZeroWidgetApp) {
             choice = choice
         )
         when (outcome) {
-            is HorizonOutcome.SignedIn -> signedIn(base, outcome.token, outcome.userId)
+            is HorizonOutcome.SignedIn -> signedIn(base, outcome.token, outcome.userId, outcome.agentToken)
 
             HorizonOutcome.NeedChoice -> _state.update { it.copy(phase = HorizonPhase.CHOICE) }
 
@@ -107,14 +107,14 @@ class HorizonSignInController(private val app: ZeroZeroWidgetApp) {
                 }
                 sendAuthUrl(code.completeUri) { sent -> _state.update { it.copy(linkSent = sent) } }
                 val deadline = System.currentTimeMillis() + minOf(code.expiresInSeconds * 1000L, MAX_WAIT_MS)
-                val token = awaitDeviceToken(DeviceAuthApi(app.http, base), code.deviceCode, code.intervalSeconds, deadline)
-                signedIn(base, token, attemptUserId)
+                val approved = awaitDeviceToken(DeviceAuthApi(app.http, base), code.deviceCode, code.intervalSeconds, deadline)
+                signedIn(base, approved.token.orEmpty(), attemptUserId, approved.publisherCredential)
             }
         }
     }
 
-    private suspend fun signedIn(base: String, token: String, metaUserId: String) {
-        app.connectionStore.save(base, token, metaUserId)
+    private suspend fun signedIn(base: String, token: String, metaUserId: String, agentToken: String?) {
+        app.connectionStore.save(base, token, metaUserId, agentToken.orEmpty())
         app.repository.refresh()
         _state.value = State()
     }

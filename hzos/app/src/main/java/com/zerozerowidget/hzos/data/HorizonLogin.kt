@@ -37,8 +37,11 @@ fun horizonSignInBody(userId: String, userProof: String, choice: String?): Strin
 )
 
 sealed interface HorizonOutcome {
-    /** Verified and credentialed: store the token against [userId]. */
-    data class SignedIn(val token: String, val userId: String) : HorizonOutcome
+    /**
+     * Verified and credentialed: store the token against [userId], with
+     * [agentToken] (the publisher token for agents) when the Worker issues one.
+     */
+    data class SignedIn(val token: String, val userId: String, val agentToken: String? = null) : HorizonOutcome
 
     /** Unknown Meta id: the user must pick create or join_apple. */
     data object NeedChoice : HorizonOutcome
@@ -71,7 +74,8 @@ fun classifyHorizonSignIn(
     if (httpCode == 201) {
         val token = stringField(body, "token")
         if (stringField(body, "status") == "signed_in" && !token.isNullOrBlank()) {
-            return HorizonStep.Done(HorizonOutcome.SignedIn(token, userId))
+            val agentToken = stringField(body, "publisherCredential")?.takeIf { it.isNotBlank() }
+            return HorizonStep.Done(HorizonOutcome.SignedIn(token, userId, agentToken))
         }
         try {
             val code = horizonJson.decodeFromString<DeviceCodeResponse>(body)
