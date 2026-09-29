@@ -81,7 +81,7 @@ class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
                 )
             }
             if (resp.code !in 200..299) {
-                throw IOException("HTTP ${resp.code}: ${raw.take(160)}")
+                throw IOException(ZeroWidgetApi.ApiException.summarize(resp.code, raw))
             }
             json.decodeFromString(raw)
         }

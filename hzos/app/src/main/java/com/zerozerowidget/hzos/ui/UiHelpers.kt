@@ -83,18 +83,22 @@ fun describeDeleteError(e: Throwable): String {
 fun describeRunError(e: Throwable): String {
     val api = e as? ZeroWidgetApi.ApiException
         ?: return (e.message ?: e.javaClass.simpleName).take(200)
-    val serverError = """"error"\s*:\s*"([^"]*)""""
-        .toRegex()
-        .find(api.message ?: "")
-        ?.groupValues?.getOrNull(1)
     return when (api.status) {
         401 -> "Not signed in — sign in again in Settings."
+
         402 -> "Publishing needs an active subscription."
+
         403 -> "This action needs confirming in the app."
+
         404 -> "That action is gone — refresh and try again."
+
         409 -> "This action has nowhere to run yet."
+
         429 -> "Rate limited — try again shortly."
+
         502 -> "The producer didn't answer — it may be offline. Try again in a bit."
-        else -> (serverError ?: "Request failed (${api.status}).").take(200)
+
+        // The message is already the server's `error` string or "HTTP n".
+        else -> api.message ?: "Request failed (${api.status})."
     }
 }

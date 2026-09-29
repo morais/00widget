@@ -213,7 +213,7 @@ class DashboardRepository(
                 error = if (e.status == 401) {
                     "Invalid or expired API key — check Connection settings."
                 } else {
-                    "HTTP ${e.status}: ${e.message?.take(160)}"
+                    e.message ?: "Request failed (HTTP ${e.status})."
                 }
             )
         } catch (e: CancellationException) {

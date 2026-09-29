@@ -6,6 +6,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -29,7 +32,23 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
     private val base = baseUrl.trimEnd('/')
     val json = WireJson
 
-    class ApiException(val status: Int, message: String) : IOException(message)
+    /**
+     * A non-2xx answer. [message] is the server's own `error` string when
+     * the body carries one, else "HTTP <status>" — never the raw body, which
+     * went on screen ("HTTP 500: <html>…") and into logs (audit S6).
+     */
+    class ApiException(val status: Int, body: String) : IOException(summarize(status, body)) {
+        companion object {
+            fun summarize(status: Int, body: String): String {
+                val error = runCatching {
+                    WireJson.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+                return error?.takeIf { it.isNotBlank() }?.take(MAX_ERROR_LENGTH) ?: "HTTP $status"
+            }
+
+            private const val MAX_ERROR_LENGTH = 160
+        }
+    }
 
     override suspend fun fetchDashboard(): DashboardResponse = withContext(Dispatchers.IO) {
         get("/v1/dashboard")
@@ -191,7 +210,7 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
         if (resp.code !in 200..299) {
             val msg = resp.body?.string().orEmpty()
             resp.close()
-            throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+            throw ApiException(resp.code, msg)
         }
         return resp
     }
@@ -209,7 +228,7 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
         http.newCall(req).execute().use { resp ->
             if (resp.code !in 200..299) {
                 val msg = resp.body?.string().orEmpty()
-                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+                throw ApiException(resp.code, msg)
             }
             return parse(resp.body?.string().orEmpty())
         }
@@ -247,7 +266,7 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
         http.newCall(req).execute().use { resp ->
             if (resp.code !in 200..299) {
                 val msg = resp.body?.string().orEmpty()
-                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+                throw ApiException(resp.code, msg)
             }
         }
     }
@@ -257,7 +276,7 @@ class ZeroWidgetApi(private val http: OkHttpClient, baseUrl: String, private val
         http.newCall(req).execute().use { resp ->
             if (resp.code !in 200..299) {
                 val msg = resp.body?.string().orEmpty()
-                throw ApiException(resp.code, msg.ifEmpty { "HTTP ${resp.code}" })
+                throw ApiException(resp.code, msg)
             }
         }
     }
