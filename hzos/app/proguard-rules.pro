@@ -17,5 +17,19 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**
 
+# Those probes only pass when that provider is installed first in the
+# security provider list, which on Android is always the platform's own
+# (AndroidOpenSSL), so OkHttp always picks Jdk9Platform here. Saying so
+# lets R8 delete the three alternative platforms. The store's security
+# scan flagged ConscryptPlatform's no-op DisabledHostnameVerifier as an
+# "Insecure HostnameVerifier"; it is harmless (OkHttp verifies hostnames
+# itself) and was never reachable, but it is now gone from the APK.
+# okhttp-android, which lacks these classes, needs compileSdk 37.
+-assumevalues class okhttp3.internal.platform.PlatformRegistry {
+    private boolean isConscryptPreferred() return false;
+    private boolean isBouncyCastlePreferred() return false;
+    private boolean isOpenJSSEPreferred() return false;
+}
+
 # Nullability annotations referenced by the Platform SDK; compile-time only.
 -dontwarn javax.annotation.**
