@@ -365,14 +365,18 @@ private fun DashboardRow(
                 }
                 PopOutIconButton(onPopOut)
             }
-            card.subtitle?.let {
-                Text(
-                    it,
-                    style = LocalTypography.current.body,
-                    color = LocalContentColors.current.secondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            // Collapsed only: every template body opens with CardMetaLine,
+            // which shows the subtitle again, so expanded it read twice.
+            if (!expanded) {
+                card.subtitle?.let {
+                    Text(
+                        it,
+                        style = LocalTypography.current.body,
+                        color = LocalContentColors.current.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             if (isStale(card.updatedAt, card.staleAfter, LocalNow.current)) {
                 Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
