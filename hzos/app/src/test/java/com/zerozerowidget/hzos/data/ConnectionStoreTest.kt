@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -70,5 +71,29 @@ class ConnectionStoreTest {
         val connection = ConnectionStore(dataStore, LostKeyCipher()).current()
         assertEquals("", connection.apiKey)
         assertFalse(connection.isConfigured)
+    }
+
+    @Test
+    fun anotherServerSignsOutButTheSameServerKeepsTheSession() = runBlocking {
+        val store = ConnectionStore(dataStore, FakeCipher())
+        store.save("https://worker.example", "zwa_secret", "meta-1")
+
+        // Same origin, different path: the token belongs to this server.
+        assertFalse(store.changeServer("https://worker.example/v2", "https://default.example"))
+        assertEquals("zwa_secret", store.current().apiKey)
+
+        // Different host: the token must not follow the URL.
+        assertTrue(store.changeServer("https://attacker.example", "https://default.example"))
+        assertEquals("", store.current().apiKey)
+        assertEquals("", store.current().metaUserId)
+        assertNull(raw("api_key_enc"))
+    }
+
+    @Test
+    fun movingOffTheBuildDefaultIsAChangeOfServer() = runBlocking {
+        val store = ConnectionStore(dataStore, FakeCipher())
+        store.save("", "zwa_secret") // signed in against the build default
+        assertTrue(store.changeServer("https://other.example", "https://default.example"))
+        assertEquals("", store.current().apiKey)
     }
 }

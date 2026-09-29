@@ -84,7 +84,11 @@ class ConnectionStore(
     suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "") {
         dataStore.edit { prefs ->
             prefs[BASE_URL] = baseUrl.trim().trimEnd('/')
-            prefs[API_KEY_ENCRYPTED] = cipher.encrypt(apiKey.trim())
+            if (apiKey.isNotBlank()) {
+                prefs[API_KEY_ENCRYPTED] = cipher.encrypt(apiKey.trim())
+            } else {
+                prefs.remove(API_KEY_ENCRYPTED)
+            }
             prefs.remove(API_KEY)
             if (metaUserId.isNotBlank()) {
                 prefs[META_USER_ID] = metaUserId.trim()
@@ -102,6 +106,29 @@ class ConnectionStore(
             prefs.remove(META_USER_ID)
         }
     }
+
+    /**
+     * Points the app at [newBaseUrl] (already normalised). A credential is
+     * only ever sent to the server that issued it, so a change of origin —
+     * host or port — signs out, dropping the key and its Meta id; the same
+     * origin with another path keeps the session (audit S4). Returns true
+     * when it signed out. [defaultBaseUrl] is what an unset URL resolves to.
+     */
+    suspend fun changeServer(
+        newBaseUrl: String,
+        defaultBaseUrl: String = BuildConfig.DEFAULT_BASE_URL
+    ): Boolean {
+        val current = current()
+        val oldOrigin = effectiveBaseUrl(current.baseUrl, defaultBaseUrl)?.let(::originOf)
+        val keep = current.apiKey.isNotBlank() && oldOrigin == originOf(newBaseUrl)
+        if (keep) save(newBaseUrl, current.apiKey, current.metaUserId) else save(newBaseUrl, "", "")
+        return !keep && current.apiKey.isNotBlank()
+    }
+
+    private fun originOf(url: String): String? = runCatching {
+        val uri = java.net.URI(url)
+        "${uri.scheme?.lowercase()}://${uri.host?.lowercase()}:${uri.port}"
+    }.getOrNull()
 
     /**
      * Moves a plaintext key written by an older build into encrypted

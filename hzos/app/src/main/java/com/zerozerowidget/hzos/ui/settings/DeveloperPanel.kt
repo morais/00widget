@@ -95,10 +95,16 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                                 savedNote = "URL must be https."
                                 return@launch
                             }
-                            val current = app.connectionStore.current()
-                            app.connectionStore.save(normalized, current.apiKey, current.metaUserId)
-                            app.repository.refresh()
-                            savedNote = "Saved — dashboard is refreshing."
+                            // A token never follows the URL to another server.
+                            val signedOut = app.connectionStore.changeServer(normalized)
+                            if (signedOut) {
+                                app.repository.clearServerData()
+                                savedNote = "Saved. That is a different server, so this " +
+                                    "headset signed out — sign in to it in Settings."
+                            } else {
+                                app.repository.refresh()
+                                savedNote = "Saved — dashboard is refreshing."
+                            }
                         }
                     }
                 )
