@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,43 @@ internal fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Stri
     }
 }
 
+/** The vertical range a chart is drawn against, and whether its reference rule fits. */
+internal data class ChartScale(val lo: Double, val hi: Double, val drawReference: Boolean)
+
+/**
+ * One scale for everything drawn (see SparklineView's `plotted`): points,
+ * series and ranges together. An unpinned edge stretches to keep the
+ * reference visible; a pinned edge with the reference outside omits the
+ * rule instead.
+ */
+internal fun chartScale(chart: DashboardChart): ChartScale {
+    val values = buildList {
+        addAll(chart.points)
+        chart.series?.forEach { addAll(it.points) }
+        chart.ranges?.forEach {
+            add(it.low)
+            add(it.high)
+        }
+    }
+    var lo = chart.min ?: values.min()
+    var hi = chart.max ?: values.max()
+    val ref = chart.reference
+    var drawReference = ref != null
+    if (ref != null) {
+        if (chart.min == null) {
+            lo = minOf(lo, ref)
+        } else if (ref < lo) {
+            drawReference = false
+        }
+        if (chart.max == null) {
+            hi = maxOf(hi, ref)
+        } else if (ref > hi) {
+            drawReference = false
+        }
+    }
+    return ChartScale(lo, hi, drawReference)
+}
+
 /**
  * Hand-rolled Canvas plot — no chart dependency, per the repo's no-new-framework
  * rule. Mirrors SparklineView's geometry branch-for-branch: one normalized
@@ -81,42 +119,14 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
     val secondary = chartPalette(dark).SECONDARY
     val points = chart.points
     if (points.size < 2) return
+    // The scale depends only on the chart, so it is worked out once per
+    // chart rather than on every frame the Canvas draws (audit P6).
+    val scale = remember(chart) { chartScale(chart) }
     Canvas(modifier) {
-        // One scale for everything drawn (see SparklineView's `plotted`).
-        val dataMin = buildList {
-            add(points.min())
-            chart.series?.forEach { s -> s.points.minOrNull()?.let(::add) }
-            chart.ranges?.forEach {
-                add(it.low)
-                add(it.high)
-            }
-        }.min()
-        val dataMax = buildList {
-            add(points.max())
-            chart.series?.forEach { s -> s.points.maxOrNull()?.let(::add) }
-            chart.ranges?.forEach {
-                add(it.low)
-                add(it.high)
-            }
-        }.max()
-        var lo = chart.min ?: dataMin
-        var hi = chart.max ?: dataMax
-        // An unpinned edge stretches to keep the reference visible; a pinned
-        // edge with the reference outside omits the rule instead.
+        val lo = scale.lo
+        val hi = scale.hi
         val ref = chart.reference
-        var drawReference = ref != null
-        if (ref != null) {
-            if (chart.min == null) {
-                lo = minOf(lo, ref)
-            } else if (ref < lo) {
-                drawReference = false
-            }
-            if (chart.max == null) {
-                hi = maxOf(hi, ref)
-            } else if (ref > hi) {
-                drawReference = false
-            }
-        }
+        val drawReference = scale.drawReference
         val span = (hi - lo).takeIf { it != 0.0 } ?: 1.0
         fun y(v: Double) = size.height - ((v - lo) / span * size.height).toFloat()
 

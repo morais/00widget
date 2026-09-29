@@ -19,10 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -103,8 +105,18 @@ fun InspectableChart(
                     }
                 }
         ) {
-            Sparkline(chart = chart, baseTint = baseTint, modifier = Modifier.matchParentSize())
-            SelectionOverlay(chart = chart, index = selectedIndex, tint = baseTint)
+            // The selection is drawn over the plot by the plot's own node,
+            // not by a second full-size Canvas (audit P6).
+            Sparkline(
+                chart = chart,
+                baseTint = baseTint,
+                modifier = Modifier
+                    .matchParentSize()
+                    .drawWithContent {
+                        drawContent()
+                        drawSelection(chart, selectedIndex, baseTint)
+                    }
+            )
         }
         snapshot?.let { InspectionPanel(snapshot = it, unit = unit) }
     }
@@ -121,37 +133,34 @@ private fun indexAt(chart: DashboardChart, fraction: Float): Int {
     }
 }
 
-@Composable
-private fun SelectionOverlay(chart: DashboardChart, index: Int, tint: Color) {
-    Canvas(Modifier.fillMaxWidth().height(140.dp)) {
-        val count = chart.points.size
-        if (count == 0) return@Canvas
-        val categorical = chart.style != "line"
-        val x = if (categorical) {
-            val slot = size.width / count
-            val cx = slot * (index + 0.5f)
-            // Wash band over the inspected slot.
-            drawRoundRect(
-                color = tint.copy(alpha = 0.12f),
-                topLeft = Offset(cx - maxOf(4f, slot * 0.78f) / 2, 0f),
-                size = Size(maxOf(4f, slot * 0.78f), size.height),
-                cornerRadius = CornerRadius(5f, 5f)
-            )
-            cx
-        } else {
-            if (count == 1) {
-                size.width / 2
-            } else {
-                size.width * index / (count - 1)
-            }
-        }
-        drawLine(
-            color = tint.copy(alpha = 0.9f),
-            start = Offset(x.coerceIn(1f, size.width - 1f), 0f),
-            end = Offset(x.coerceIn(1f, size.width - 1f), size.height),
-            strokeWidth = 2f
+private fun DrawScope.drawSelection(chart: DashboardChart, index: Int, tint: Color) {
+    val count = chart.points.size
+    if (count == 0) return
+    val categorical = chart.style != "line"
+    val x = if (categorical) {
+        val slot = size.width / count
+        val cx = slot * (index + 0.5f)
+        // Wash band over the inspected slot.
+        drawRoundRect(
+            color = tint.copy(alpha = 0.12f),
+            topLeft = Offset(cx - maxOf(4f, slot * 0.78f) / 2, 0f),
+            size = Size(maxOf(4f, slot * 0.78f), size.height),
+            cornerRadius = CornerRadius(5f, 5f)
         )
+        cx
+    } else {
+        if (count == 1) {
+            size.width / 2
+        } else {
+            size.width * index / (count - 1)
+        }
     }
+    drawLine(
+        color = tint.copy(alpha = 0.9f),
+        start = Offset(x.coerceIn(1f, size.width - 1f), 0f),
+        end = Offset(x.coerceIn(1f, size.width - 1f), size.height),
+        strokeWidth = 2f
+    )
 }
 
 @Composable
