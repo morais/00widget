@@ -78,11 +78,11 @@ import com.zerozerowidget.hzos.ui.cards.activityTint
 import com.zerozerowidget.hzos.ui.describeDeleteError
 import com.zerozerowidget.hzos.ui.describeRunError
 import com.zerozerowidget.hzos.ui.hideSampleIndicatorsState
-import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.openDeepLink
 import com.zerozerowidget.hzos.ui.openSettingsPanelAndSignIn
 import com.zerozerowidget.hzos.ui.relativeTime
 import com.zerozerowidget.hzos.ui.relativeTimeAgo
+import com.zerozerowidget.hzos.ui.showsStale
 import com.zerozerowidget.hzos.ui.theme.panelBackground
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
@@ -401,7 +401,7 @@ private fun DashboardRow(
                     )
                 }
             }
-            if (isStale(card.updatedAt, card.staleAfter, LocalNow.current)) {
+            if (showsStale(isSample, card.updatedAt, card.staleAfter, LocalNow.current)) {
                 Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
             }
             if (expanded) {
@@ -802,7 +802,7 @@ private fun ActivityRow(
                         modifier = Modifier.weight(1f)
                     )
                 } ?: Spacer(Modifier.weight(1f))
-                if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
+                if (showsStale(isSample, session.updatedAt, session.staleAt, LocalNow.current)) {
                     Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                 }
             }

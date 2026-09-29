@@ -42,8 +42,8 @@ import com.zerozerowidget.hzos.ui.cards.StatusDot
 import com.zerozerowidget.hzos.ui.cards.activityTint
 import com.zerozerowidget.hzos.ui.describeDeleteError
 import com.zerozerowidget.hzos.ui.hideSampleIndicatorsState
-import com.zerozerowidget.hzos.ui.isStale
 import com.zerozerowidget.hzos.ui.relativeTime
+import com.zerozerowidget.hzos.ui.showsStale
 import com.zerozerowidget.hzos.ui.theme.panelBackground
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
@@ -213,7 +213,7 @@ fun ActivityDetailPanel(
                                     modifier = Modifier.weight(1f)
                                 )
                             } ?: Spacer(Modifier.weight(1f))
-                            if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
+                            if (showsStale(isSample, session.updatedAt, session.staleAt, LocalNow.current)) {
                                 Text("stale", style = LocalTypography.current.body, color = LocalColorScheme.current.negative.content)
                             }
                         }

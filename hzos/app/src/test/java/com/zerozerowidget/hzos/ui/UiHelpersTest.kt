@@ -61,4 +61,13 @@ class UiHelpersTest {
         assertFalse(isStale(null, "garbage", now))
         assertFalse(isStale(null, null, now))
     }
+
+    @Test
+    fun aSampleIsNeverStale() {
+        // Past its staleAfter: stale for a real card, never for a sample.
+        assertTrue(showsStale(false, "2026-09-28T11:59:00Z", "2026-09-28T11:30:00Z", now))
+        assertFalse(showsStale(true, "2026-09-28T11:59:00Z", "2026-09-28T11:30:00Z", now))
+        // Old with no staleAfter: likewise.
+        assertFalse(showsStale(true, "2026-09-27T08:00:00Z", null, now))
+    }
 }

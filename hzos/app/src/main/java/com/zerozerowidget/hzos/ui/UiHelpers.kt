@@ -75,6 +75,14 @@ fun isStale(updatedAt: String?, staleAfter: String?, now: Instant = Instant.now(
 }
 
 /**
+ * Whether to draw the "stale" label. Never on a sample: its timestamps are
+ * set when the deck is generated, so it goes "stale" on its own while
+ * nothing is wrong, and a demo meant to show the app working reads as one
+ * that isn't. Staleness says a producer has gone quiet; a sample has none.
+ */
+fun showsStale(isSample: Boolean, updatedAt: String?, staleAfter: String?, now: Instant = Instant.now()): Boolean = !isSample && isStale(updatedAt, staleAfter, now)
+
+/**
  * Honest delete/end failure text. Current Horizon credentials can publish;
  * a 403 usually means an older credential survived the server upgrade.
  */
