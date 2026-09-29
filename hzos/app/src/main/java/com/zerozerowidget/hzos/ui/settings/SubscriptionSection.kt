@@ -85,22 +85,48 @@ fun SubscriptionSection(app: ZeroZeroWidgetApp) {
         error = null
         scope.launch {
             try {
-                val purchased = app.horizonIap.checkout(sku).getOrElse { throw it }
+                // Everything the sync after payment needs is checked before
+                // any money moves: the Meta id, a session, and that the
+                // session still works (fetchSubscription is the cheapest
+                // authenticated call on this screen). Checking afterwards
+                // let a payment go through with nowhere to record it.
                 val userId = app.horizonAuth.loggedInUserId()
                     ?: throw IllegalStateException(
-                        "Signed into Meta, but the account id is unreadable."
+                        "Your Meta account id can't be read yet — try again in a moment."
                     )
+                val client = api()
+                    ?: throw IllegalStateException("Sign in to 00Widget before subscribing.")
                 try {
-                    status = api()?.syncMetaSubscription(userId, purchased)
-                    statusLoaded = true
+                    client.fetchSubscription()
                 } catch (e: ZeroWidgetApi.ApiException) {
-                    throw if (e.status == 404) {
-                        IllegalStateException(
-                            "Purchase done — now update the Worker so it can record it."
-                        )
-                    } else {
+                    throw IllegalStateException(
+                        if (e.status == 401) {
+                            "Your 00Widget session has expired — sign in again, then subscribe."
+                        } else {
+                            "00Widget can't be reached to record a purchase (${e.status}). Try again later."
+                        },
                         e
-                    }
+                    )
+                }
+                val purchased = app.horizonIap.checkout(sku).getOrElse { throw it }
+                try {
+                    status = client.syncMetaSubscription(userId, purchased)
+                    statusLoaded = true
+                } catch (e: Exception) {
+                    // Paid, not recorded. Meta keeps the purchase, and
+                    // Restore purchases re-syncs everything it owns, so
+                    // that button (still shown: status isn't active) is
+                    // the retry.
+                    throw IllegalStateException(
+                        if (e is ZeroWidgetApi.ApiException && e.status == 404) {
+                            "Payment complete, but this Worker can't record it yet — " +
+                                "update it, then tap Restore purchases."
+                        } else {
+                            "Payment complete, but 00Widget hasn't recorded it yet — " +
+                                "tap Restore purchases to finish."
+                        },
+                        e
+                    )
                 }
                 refreshStatus()
             } catch (e: Exception) {
