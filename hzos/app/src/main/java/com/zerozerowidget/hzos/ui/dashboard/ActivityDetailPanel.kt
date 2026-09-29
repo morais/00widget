@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
+import com.zerozerowidget.hzos.ui.LocalNow
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
@@ -201,13 +202,13 @@ fun ActivityDetailPanel(
                         ) {
                             session.endsAt?.let { endsAt ->
                                 Text(
-                                    "Ends ${relativeTime(endsAt) ?: endsAt}",
+                                    "Ends ${relativeTime(endsAt, LocalNow.current) ?: endsAt}",
                                     style = LocalTypography.current.bodySmall,
                                     color = LocalContentColors.current.secondary,
                                     modifier = Modifier.weight(1f)
                                 )
                             } ?: Spacer(Modifier.weight(1f))
-                            if (isStale(session.updatedAt, session.staleAt)) {
+                            if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
                                 Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
                             }
                         }

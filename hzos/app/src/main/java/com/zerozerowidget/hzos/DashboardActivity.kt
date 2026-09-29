@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
+import com.zerozerowidget.hzos.ui.ProvideTickingNow
 import com.zerozerowidget.hzos.ui.dashboard.DashboardPanel
 import com.zerozerowidget.hzos.ui.openActivityDetailPanel
 import com.zerozerowidget.hzos.ui.openDetailPanel
@@ -18,12 +19,14 @@ class DashboardActivity : ComponentActivity() {
         val app = application as ZeroZeroWidgetApp
         setContent {
             ZeroZeroWidgetTheme {
-                DashboardPanel(
-                    app = app,
-                    onOpenSettings = { openSettingsPanel() },
-                    onPopOut = { cardId, isSample -> openDetailPanel(cardId, isSample) },
-                    onPopOutActivity = { id, isSample -> openActivityDetailPanel(id, isSample) }
-                )
+                ProvideTickingNow {
+                    DashboardPanel(
+                        app = app,
+                        onOpenSettings = { openSettingsPanel() },
+                        onPopOut = { cardId, isSample -> openDetailPanel(cardId, isSample) },
+                        onPopOutActivity = { id, isSample -> openActivityDetailPanel(id, isSample) }
+                    )
+                }
             }
         }
     }

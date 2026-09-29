@@ -45,6 +45,7 @@ import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.data.LiveActivitySession
 import com.zerozerowidget.hzos.data.SampleData
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
+import com.zerozerowidget.hzos.ui.LocalNow
 import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cardAlphaState
@@ -124,7 +125,7 @@ fun DashboardPanel(
             )
             state.lastSyncEpochMs?.let {
                 Text(
-                    "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString()) ?: ""}",
+                    "synced ${relativeTime(java.time.Instant.ofEpochMilli(it).toString(), LocalNow.current) ?: ""}",
                     style = LocalTypography.current.caption,
                     color = LocalContentColors.current.secondary,
                     modifier = Modifier.padding(end = spacing.xSmall)
@@ -338,7 +339,7 @@ private fun DashboardRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (isStale(card.updatedAt, card.staleAfter)) {
+            if (isStale(card.updatedAt, card.staleAfter, LocalNow.current)) {
                 Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
             }
             if (expanded) {
@@ -558,7 +559,7 @@ fun CardDetailPanel(
                 card.deadline?.let { deadline ->
                     Spacer(Modifier.height(spacing.small))
                     Text(
-                        "Due ${relativeTime(deadline) ?: deadline}",
+                        "Due ${relativeTime(deadline, LocalNow.current) ?: deadline}",
                         style = LocalTypography.current.bodySmall,
                         color = LocalContentColors.current.secondary
                     )
@@ -708,13 +709,13 @@ private fun ActivityRow(
             Row(Modifier.fillMaxWidth().padding(top = spacing.small)) {
                 session.endsAt?.let { endsAt ->
                     Text(
-                        "Ends ${relativeTime(endsAt) ?: endsAt}",
+                        "Ends ${relativeTime(endsAt, LocalNow.current) ?: endsAt}",
                         style = LocalTypography.current.caption,
                         color = LocalContentColors.current.secondary,
                         modifier = Modifier.weight(1f)
                     )
                 } ?: Spacer(Modifier.weight(1f))
-                if (isStale(session.updatedAt, session.staleAt)) {
+                if (isStale(session.updatedAt, session.staleAt, LocalNow.current)) {
                     Text("stale", style = LocalTypography.current.caption, color = LocalColorScheme.current.negative.content)
                 }
             }

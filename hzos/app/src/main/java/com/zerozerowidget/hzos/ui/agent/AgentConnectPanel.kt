@@ -40,6 +40,7 @@ import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.MCPConnectionSummary
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.describeBrowserApproval
+import com.zerozerowidget.hzos.ui.LocalNow
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.DeleteRow
@@ -476,7 +477,7 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
         Column(Modifier.weight(1f)) {
             Text(item.clientName, style = LocalTypography.current.body)
             Text(
-                connectionSubtitle(item),
+                connectionSubtitle(item, LocalNow.current),
                 style = LocalTypography.current.bodySmall,
                 color = LocalContentColors.current.secondary
             )
@@ -497,8 +498,8 @@ private fun ConnectionRow(item: MCPConnectionSummary, busy: Boolean, onDisconnec
     }
 }
 
-private fun connectionSubtitle(item: MCPConnectionSummary): String {
-    val use = item.lastUsedAt?.let { relativeTime(it)?.let { r -> "Used $r" } } ?: "Never used"
+private fun connectionSubtitle(item: MCPConnectionSummary, now: java.time.Instant): String {
+    val use = item.lastUsedAt?.let { relativeTime(it, now)?.let { r -> "Used $r" } } ?: "Never used"
     val access = if ("publish" in item.scopes) "Read and publish" else "Read only"
     return "$use · $access"
 }

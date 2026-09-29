@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import com.zerozerowidget.hzos.ui.ProvideTickingNow
 import com.zerozerowidget.hzos.ui.settings.SettingsPanel
 import com.zerozerowidget.hzos.ui.theme.ZeroZeroWidgetTheme
 import kotlinx.coroutines.launch
@@ -43,15 +44,17 @@ class SettingsActivity : ComponentActivity() {
         val app = application as ZeroZeroWidgetApp
         setContent {
             ZeroZeroWidgetTheme {
-                SettingsPanel(
-                    app = app,
-                    onClose = { finishAndRemoveTask() },
-                    onSendAuthUrl = { authUrl, onSent ->
-                        sendAuthUrl(authUrl, onSent)
-                    },
-                    signInRequest = signInRequest,
-                    onSignInRequestConsumed = { signInRequest = 0 }
-                )
+                ProvideTickingNow {
+                    SettingsPanel(
+                        app = app,
+                        onClose = { finishAndRemoveTask() },
+                        onSendAuthUrl = { authUrl, onSent ->
+                            sendAuthUrl(authUrl, onSent)
+                        },
+                        signInRequest = signInRequest,
+                        onSignInRequestConsumed = { signInRequest = 0 }
+                    )
+                }
             }
         }
     }

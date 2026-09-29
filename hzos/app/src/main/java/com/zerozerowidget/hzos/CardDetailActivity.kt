@@ -3,6 +3,7 @@ package com.zerozerowidget.hzos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.zerozerowidget.hzos.ui.ProvideTickingNow
 import com.zerozerowidget.hzos.ui.dashboard.ActivityDetailPanel
 import com.zerozerowidget.hzos.ui.dashboard.CardDetailPanel
 import com.zerozerowidget.hzos.ui.openDeepLink
@@ -25,27 +26,29 @@ class CardDetailActivity : ComponentActivity() {
         val isSample = intent.getBooleanExtra(EXTRA_IS_SAMPLE, false)
         setContent {
             ZeroZeroWidgetTheme {
-                when {
-                    !cardId.isNullOrBlank() -> CardDetailPanel(
-                        app = app,
-                        cardId = cardId,
-                        isSample = isSample,
-                        onOpenLink = { url -> openDeepLink(this, url) },
-                        onDeleted = { finishAndRemoveTask() }
-                    )
+                ProvideTickingNow {
+                    when {
+                        !cardId.isNullOrBlank() -> CardDetailPanel(
+                            app = app,
+                            cardId = cardId,
+                            isSample = isSample,
+                            onOpenLink = { url -> openDeepLink(this, url) },
+                            onDeleted = { finishAndRemoveTask() }
+                        )
 
-                    !activityId.isNullOrBlank() -> ActivityDetailPanel(
-                        app = app,
-                        externalActivityId = activityId,
-                        isSample = isSample,
-                        onOpenLink = { url -> openDeepLink(this, url) },
-                        onDeleted = { finishAndRemoveTask() }
-                    )
+                        !activityId.isNullOrBlank() -> ActivityDetailPanel(
+                            app = app,
+                            externalActivityId = activityId,
+                            isSample = isSample,
+                            onOpenLink = { url -> openDeepLink(this, url) },
+                            onDeleted = { finishAndRemoveTask() }
+                        )
 
-                    else -> Text(
-                        "Nothing to show.",
-                        style = LocalTypography.current.body
-                    )
+                        else -> Text(
+                            "Nothing to show.",
+                            style = LocalTypography.current.body
+                        )
+                    }
                 }
             }
         }
