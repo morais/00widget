@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,6 +61,7 @@ import com.zerozerowidget.hzos.ui.cards.CardTemplateBody
 import com.zerozerowidget.hzos.ui.cards.DeleteButton
 import com.zerozerowidget.hzos.ui.cards.DeleteConfirmDialog
 import com.zerozerowidget.hzos.ui.cards.DetailCard
+import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
@@ -177,6 +179,7 @@ fun DashboardPanel(
 
                 !state.isConfigured && nothingToShow -> {
                     WelcomePanel(
+                        cardAlpha = cardAlpha,
                         onSignIn = { context.openSettingsPanelAndSignIn() },
                         onTryDemo = { app.sampleStore.generateCards() }
                     )
@@ -193,6 +196,7 @@ fun DashboardPanel(
 
                 nothingToShow -> {
                     WelcomePanel(
+                        cardAlpha = cardAlpha,
                         onSignIn = null,
                         onTryDemo = { app.sampleStore.generateCards() }
                     )
@@ -602,64 +606,73 @@ fun CardDetailPanel(
 /**
  * First-run face of the app: signed out with nothing cached, the panel is
  * an empty window, so say what 00Widget is and offer the two ways in —
- * sign in, or look around with on-device demo data. Fills the panel so
- * the empty state reads as a screen, not a gap.
+ * sign in, or look around with on-device demo data. One card, centred:
+ * dark panels paint no background, so loose text would sit straight on
+ * the room (or on another window) behind it.
  */
 @Composable
-private fun WelcomePanel(onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(vertical = spacing.twoXLarge),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun WelcomePanel(cardAlpha: Float, onSignIn: (() -> Unit)?, onTryDemo: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().padding(vertical = spacing.large),
+        contentAlignment = Alignment.Center
     ) {
-        // Brand mark, same transparent master the launcher icon is
-        // generated from. nodpi bucket: sized here, never by density.
-        Image(
-            painter = painterResource(id = R.drawable.zw_mark),
-            contentDescription = "00Widget",
-            modifier = Modifier.size(192.dp)
-        )
-        Spacer(Modifier.height(spacing.medium))
-        Text(
-            "00Widget",
-            style = LocalTypography.current.display,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(spacing.xSmall))
-        Text(
-            "Widgets for all your agents.",
-            style = LocalTypography.current.title,
-            color = uiSetAccent(),
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(spacing.medium))
-        Text(
-            "Your agents publish cards and activities here — builds, " +
-                "deploys, balances, queues — floating around you while you work.",
-            style = LocalTypography.current.body,
-            color = LocalContentColors.current.secondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(0.85f)
-        )
-        Spacer(Modifier.height(spacing.twoXLarge))
-        onSignIn?.let { signIn ->
-            UiSetPrimaryButton("Sign in", onClick = signIn)
-            Spacer(Modifier.height(spacing.small))
+        GlassCard(cardAlpha = cardAlpha, modifier = Modifier.widthIn(max = WELCOME_MAX_WIDTH)) {
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = spacing.large),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Brand mark, same transparent master the launcher icon is
+                // generated from. nodpi bucket: sized here, never by density.
+                Image(
+                    painter = painterResource(id = R.drawable.zw_mark),
+                    contentDescription = "00Widget",
+                    modifier = Modifier.size(192.dp)
+                )
+                Spacer(Modifier.height(spacing.medium))
+                Text(
+                    "00Widget",
+                    style = LocalTypography.current.display,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(spacing.xSmall))
+                Text(
+                    "Widgets for all your agents.",
+                    style = LocalTypography.current.title,
+                    color = uiSetAccent(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(spacing.medium))
+                Text(
+                    "Your agents publish cards and activities here — builds, " +
+                        "deploys, balances, queues — floating around you while you work.",
+                    style = LocalTypography.current.body,
+                    color = LocalContentColors.current.secondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(0.85f)
+                )
+                Spacer(Modifier.height(spacing.twoXLarge))
+                onSignIn?.let { signIn ->
+                    UiSetPrimaryButton("Sign in", onClick = signIn)
+                    Spacer(Modifier.height(spacing.small))
+                }
+                UiSetSecondaryButton("Try demo data", onClick = onTryDemo)
+                Spacer(Modifier.height(spacing.medium))
+                Text(
+                    if (onSignIn != null) {
+                        "Demo data never leaves this device. No account needed to look around."
+                    } else {
+                        "Demo data never leaves this device."
+                    },
+                    style = LocalTypography.current.bodySmall,
+                    color = LocalContentColors.current.secondary,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
-        UiSetSecondaryButton("Try demo data", onClick = onTryDemo)
-        Spacer(Modifier.height(spacing.medium))
-        Text(
-            if (onSignIn != null) {
-                "Demo data never leaves this device. No account needed to look around."
-            } else {
-                "Demo data never leaves this device."
-            },
-            style = LocalTypography.current.bodySmall,
-            color = LocalContentColors.current.secondary,
-            textAlign = TextAlign.Center
-        )
     }
 }
+
+private val WELCOME_MAX_WIDTH = 640.dp
 
 @Composable
 private fun SectionTitle(text: String) {

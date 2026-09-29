@@ -50,6 +50,7 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
         fun widths() = PanelBreakpoints.TestedWidthsDp.map { arrayOf<Any>(it) }
 
         private const val HEIGHT_DP = 800
+        private const val WAIT_MS = 5_000L
     }
 
     @get:Rule
@@ -104,6 +105,23 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
             CardDetailPanel(app = app, cardId = card.id, isSample = true, onOpenLink = {}, onDeleted = {})
         }
     }
+
+    /** Signed out, no samples: the first-run screen, once both are known. */
+    private fun welcome(name: String) {
+        app.sampleStore.clearSamples()
+        compose.waitUntil(WAIT_MS) { !app.repository.state.value.awaitingFirstAnswer }
+        capture(name) {
+            DashboardPanel(app = app, onOpenSettings = {}, onPopOut = { _, _ -> }, onPopOutActivity = { _, _ -> })
+        }
+    }
+
+    @Test
+    fun welcome() = welcome("welcome")
+
+    // Dark panels paint no background: the card is all that backs the text.
+    @Test
+    @Config(qualifiers = "+night")
+    fun welcomeDark() = welcome("welcome-dark")
 
     @Test
     fun settings() {
