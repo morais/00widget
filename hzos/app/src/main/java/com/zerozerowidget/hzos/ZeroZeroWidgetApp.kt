@@ -7,6 +7,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.zerozerowidget.hzos.auth.HorizonAuth
 import com.zerozerowidget.hzos.auth.HorizonIap
 import com.zerozerowidget.hzos.auth.HorizonSignInController
+import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DashboardRepository
 import com.zerozerowidget.hzos.data.SampleStore
@@ -15,6 +16,7 @@ import com.zerozerowidget.hzos.ui.PanelPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 /**
@@ -82,7 +84,15 @@ class ZeroZeroWidgetApp : Application() {
         // DashboardRepository.setActive.
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             object : DefaultLifecycleObserver {
-                override fun onStart(owner: LifecycleOwner) = repository.setActive(true)
+                override fun onStart(owner: LifecycleOwner) {
+                    repository.setActive(true)
+                    // A Meta account switch doesn't restart panels: re-check
+                    // whenever any panel comes to the foreground — a detail
+                    // panel alone included — so a stranger's token never
+                    // survives one (audit S8).
+                    appScope.launch { ensureMetaUserMatches(this@ZeroZeroWidgetApp) }
+                }
+
                 override fun onStop(owner: LifecycleOwner) = repository.setActive(false)
             }
         )
