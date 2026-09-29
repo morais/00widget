@@ -90,6 +90,13 @@ fun SettingsPanel(
     // only when signed in, subscription only when the build sells one.
     // Developer stays behind the version-number tap, as on iOS.
     val signedIn = connection.apiKey.isNotBlank()
+    // Signing out, however it happens (the Sign out button, a Meta account
+    // switch, a server change), leaves the screens that only exist signed
+    // in, landing on the root's signed-out Server card. Sign out used to
+    // leave you on Account and access, whose button then did nothing.
+    LaunchedEffect(signedIn) {
+        if (!signedIn && destination in SIGNED_IN_ONLY) destination = SettingsDestination.ROOT
+    }
     val railDestinations = buildList {
         add(SettingsDestination.ROOT)
         add(SettingsDestination.AGENT)
@@ -243,3 +250,6 @@ internal fun SettingsRoot(
         AboutSection(cardAlpha = cardAlpha, onOpenDeveloper = onOpenDeveloper)
     }
 }
+
+/** Destinations that only make sense with a credential. */
+private val SIGNED_IN_ONLY = setOf(SettingsDestination.ACCOUNT, SettingsDestination.SUBSCRIPTION)
