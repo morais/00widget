@@ -26,6 +26,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.ActionDefinition
@@ -50,7 +52,9 @@ import metavrx.uiset.compose.theme.icons.Icons
 fun StatusDot(status: DashboardStatus, modifier: Modifier = Modifier) {
     val dark = isSystemInDarkTheme()
     val unknown = LocalContentColors.current.secondary
-    Canvas(modifier = modifier.size(10.dp)) {
+    // Colour alone says nothing to a screen reader or to Look and Pinch's
+    // UI understanding, so the dot names its status (readiness #20).
+    Canvas(modifier = modifier.size(10.dp).semantics { contentDescription = "Status: ${status.raw}" }) {
         drawCircle(statusColor(status, unknown, dark))
     }
 }

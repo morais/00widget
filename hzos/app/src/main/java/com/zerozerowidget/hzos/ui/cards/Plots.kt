@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.data.DashboardStatus
@@ -64,6 +66,27 @@ internal fun ReferenceLegend(chart: DashboardChart, baseTint: Color, label: Stri
             color = LocalContentColors.current.secondary
         )
     }
+}
+
+/**
+ * What a chart says in words, for screen readers and Look and Pinch's UI
+ * understanding: how many points, their range, the latest, and the
+ * reference when there is one. Reads the full series, as iOS does for
+ * VoiceOver (readiness #20).
+ */
+internal fun chartSummary(chart: DashboardChart, unit: String? = null): String {
+    val points = chart.points
+    if (points.isEmpty()) return "Chart, no data"
+    val parts = mutableListOf(
+        "Chart, ${points.size} points",
+        "from ${formatChartValue(points.min(), unit)} to ${formatChartValue(points.max(), unit)}",
+        "latest ${formatChartValue(points.last(), unit)}"
+    )
+    chart.reference?.let {
+        val label = (chart.referenceMetadata?.label ?: "reference").lowercase()
+        parts += "$label ${formatChartValue(it, unit)}"
+    }
+    return parts.joinToString(", ")
 }
 
 /** The vertical range a chart is drawn against, and whether its reference rule fits. */
@@ -122,7 +145,8 @@ fun Sparkline(chart: DashboardChart, baseTint: Color, modifier: Modifier = Modif
     // The scale depends only on the chart, so it is worked out once per
     // chart rather than on every frame the Canvas draws (audit P6).
     val scale = remember(chart) { chartScale(chart) }
-    Canvas(modifier) {
+    val summary = remember(chart) { chartSummary(chart) }
+    Canvas(modifier.semantics { contentDescription = summary }) {
         val lo = scale.lo
         val hi = scale.hi
         val ref = chart.reference

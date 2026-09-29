@@ -4,6 +4,8 @@ import com.zerozerowidget.hzos.data.DashboardChart
 import com.zerozerowidget.hzos.data.DashboardChartRange
 import com.zerozerowidget.hzos.ui.cards.ChartScale
 import com.zerozerowidget.hzos.ui.cards.chartScale
+import com.zerozerowidget.hzos.ui.cards.chartSummary
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -33,5 +35,20 @@ class ChartScaleTest {
             ranges = listOf(DashboardChartRange(low = 1.0, high = 7.0), DashboardChartRange(low = 4.0, high = 11.0))
         )
         assertEquals(ChartScale(1.0, 11.0, false), chartScale(chart))
+    }
+
+    @Test
+    fun aChartDescribesItselfInWords() {
+        val saved = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            assertEquals(
+                "Chart, 3 points, from 2 to 9, latest 9, reference 12",
+                chartSummary(DashboardChart(points = listOf(4.0, 2.0, 9.0), reference = 12.0))
+            )
+            assertEquals("Chart, no data", chartSummary(DashboardChart(points = emptyList())))
+        } finally {
+            Locale.setDefault(saved)
+        }
     }
 }
