@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -620,13 +622,26 @@ private fun WelcomePanel(cardAlpha: Float, onSignIn: (() -> Unit)?, onTryDemo: (
                 Modifier.fillMaxWidth().padding(vertical = spacing.large),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Brand mark, same transparent master the launcher icon is
-                // generated from. nodpi bucket: sized here, never by density.
-                Image(
-                    painter = painterResource(id = R.drawable.zw_mark),
-                    contentDescription = "00Widget",
-                    modifier = Modifier.size(192.dp)
-                )
+                // Brand mark. The mark is mostly white, so on the light card its
+                // edges vanished; there it is the app-icon tile (docs/brand
+                // mark-1024.png, the mark on its deep-navy backdrop, used as
+                // supplied: the brand rules forbid recolouring). Dark keeps the
+                // transparent mark. nodpi: sized here, never by density.
+                if (isSystemInDarkTheme()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.zw_mark),
+                        contentDescription = "00Widget",
+                        modifier = Modifier.size(192.dp)
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.zw_mark_tile),
+                        contentDescription = "00Widget",
+                        modifier = Modifier
+                            .size(WELCOME_TILE_SIZE)
+                            .clip(RoundedCornerShape(WELCOME_TILE_SIZE * 0.22f))
+                    )
+                }
                 Spacer(Modifier.height(spacing.medium))
                 Text(
                     "00Widget",
@@ -672,6 +687,7 @@ private fun WelcomePanel(cardAlpha: Float, onSignIn: (() -> Unit)?, onTryDemo: (
 }
 
 private val WELCOME_MAX_WIDTH = 640.dp
+private val WELCOME_TILE_SIZE = 160.dp
 
 @Composable
 private fun SectionTitle(text: String) {
