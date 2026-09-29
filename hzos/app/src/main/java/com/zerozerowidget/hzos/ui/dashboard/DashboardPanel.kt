@@ -1,6 +1,7 @@
 package com.zerozerowidget.hzos.ui.dashboard
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -328,11 +330,24 @@ private fun DashboardRow(
     // Overlay badge, not layout: the Box is exactly the card's size and the
     // pill draws over the bottom-right corner without moving anything.
     Box(Modifier.fillMaxWidth()) {
-        GlassPrimaryCard(cardAlpha = cardAlpha, onClick = onToggle, contentPadding = spacing.large) {
+        // Expanding is the headline's job, not the whole card's: with the
+        // card as one target, a pinch landing just off the link or pop-out
+        // icon toggled it instead (readiness #18).
+        GlassPrimaryCard(cardAlpha = cardAlpha, contentPadding = spacing.large) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CardHeadline(card, Modifier.weight(1f))
+                CardHeadline(
+                    card,
+                    Modifier
+                        .weight(1f)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = if (expanded) "Collapse" else "Expand",
+                            onClick = onToggle
+                        )
+                )
                 card.deepLink?.let {
                     LinkIconButton(onOpenLink = onOpenLink)
+                    Spacer(Modifier.width(spacing.medium))
                 }
                 PopOutIconButton(onPopOut)
             }
