@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -29,6 +30,17 @@ private val Context.sampleDataStore by preferencesDataStore(name = "samples")
 class SampleStore(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Writes run one at a time, in the order they were made, each carrying
+    // the value it was made with — so quick successive removals cannot land
+    // on disk out of order (audit C6).
+    private val writer = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+
+    // Set by the first in-memory change. The initial disk load applies only
+    // if nothing has changed since the store was built, so a generate or a
+    // clear made before the load finishes is never overwritten by it.
+    private val lock = Any()
+    private var changed = false
     private val json = WireJson
 
     private val _cards = MutableStateFlow<List<DashboardCard>>(emptyList())
@@ -44,15 +56,27 @@ class SampleStore(context: Context) {
 
     init {
         scope.launch {
-            _cards.value = readList(CARDS_JSON, DashboardCard.serializer())
-            _activities.value = readList(ACTIVITIES_JSON, LiveActivitySession.serializer())
+            val cards = readList(CARDS_JSON, DashboardCard.serializer())
+            val activities = readList(ACTIVITIES_JSON, LiveActivitySession.serializer())
+            synchronized(lock) {
+                if (!changed) {
+                    _cards.value = cards
+                    _activities.value = activities
+                }
+            }
         }
+    }
+
+    /** Applies one in-memory change, marked so the initial load never undoes it. */
+    private inline fun <T> change(block: () -> T): T = synchronized(lock) {
+        changed = true
+        block()
     }
 
     fun generateCards() {
         val samples = SampleData.makeCards()
-        _cards.value = samples
-        scope.launch { writeList(CARDS_JSON, samples, DashboardCard.serializer()) }
+        change { _cards.value = samples }
+        writer.launch { writeList(CARDS_JSON, samples, DashboardCard.serializer()) }
         // Generating samples includes the App launch demo activity, so one
         // tap populates both sections.
         generateSampleActivity()
@@ -61,14 +85,16 @@ class SampleStore(context: Context) {
     /** The one demo activity (generating replaces). */
     fun generateSampleActivity() {
         val sessions = listOf(SampleData.makeSampleActivity())
-        _activities.value = sessions
-        scope.launch { writeList(ACTIVITIES_JSON, sessions, LiveActivitySession.serializer()) }
+        change { _activities.value = sessions }
+        writer.launch { writeList(ACTIVITIES_JSON, sessions, LiveActivitySession.serializer()) }
     }
 
     fun clearSamples() {
-        _cards.value = emptyList()
-        _activities.value = emptyList()
-        scope.launch {
+        change {
+            _cards.value = emptyList()
+            _activities.value = emptyList()
+        }
+        writer.launch {
             appContext.sampleDataStore.edit { prefs ->
                 prefs.remove(CARDS_JSON)
                 prefs.remove(ACTIVITIES_JSON)
@@ -78,17 +104,18 @@ class SampleStore(context: Context) {
 
     /** Removes one sample card (no server involved, by definition). */
     fun removeCard(id: String) {
-        _cards.value = _cards.value.filterNot { it.id == id }
-        scope.launch { writeList(CARDS_JSON, _cards.value, DashboardCard.serializer()) }
+        val remaining = change { _cards.updateAndGet { cards -> cards.filterNot { it.id == id } } }
+        writer.launch { writeList(CARDS_JSON, remaining, DashboardCard.serializer()) }
     }
 
     /** Removes one sample activity. */
     fun removeActivity(externalActivityId: String) {
-        _activities.value =
-            _activities.value.filterNot { it.externalActivityId == externalActivityId }
-        scope.launch {
-            writeList(ACTIVITIES_JSON, _activities.value, LiveActivitySession.serializer())
+        val remaining = change {
+            _activities.updateAndGet { sessions ->
+                sessions.filterNot { it.externalActivityId == externalActivityId }
+            }
         }
+        writer.launch { writeList(ACTIVITIES_JSON, remaining, LiveActivitySession.serializer()) }
     }
 
     private suspend fun <T> readList(

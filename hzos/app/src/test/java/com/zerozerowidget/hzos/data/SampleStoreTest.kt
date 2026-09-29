@@ -10,8 +10,9 @@ import org.robolectric.annotation.Config
 
 /**
  * The on-device sample deck: generate, remove one, clear, and survive a
- * restart. Robolectric supplies the Context DataStore needs. The disk-load
- * race in audit C6 is not covered here; it belongs with that fix.
+ * restart, and the disk-load race (audit C6): a change made before the
+ * initial load lands must not be undone by it. Robolectric supplies the
+ * Context DataStore needs.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -27,11 +28,7 @@ class SampleStoreTest {
         }
     }
 
-    private fun loadedStore(): SampleStore {
-        val store = SampleStore(context)
-        Thread.sleep(200) // let the initial disk read land (see C6)
-        return store
-    }
+    private fun loadedStore(): SampleStore = SampleStore(context)
 
     @Test
     fun generatingFillsCardsAndTheDemoActivity() {
@@ -59,5 +56,26 @@ class SampleStoreTest {
         val expected = SampleData.makeCards().map { it.id }
         // A second store is what a relaunched process builds.
         eventually { SampleStore(context).also { Thread.sleep(100) }.cards.value.map { it.id } == expected }
+    }
+
+    @Test
+    fun aClearBeforeTheInitialLoadIsNotUndoneByIt() {
+        loadedStore().generateCards()
+        eventually { SampleStore(context).also { Thread.sleep(100) }.cards.value.isNotEmpty() }
+        // A fresh store, cleared at once — before its disk read can land.
+        val store = SampleStore(context)
+        store.clearSamples()
+        Thread.sleep(300)
+        assertTrue(store.cards.value.isEmpty())
+    }
+
+    @Test
+    fun aGenerateBeforeTheInitialLoadSticks() {
+        loadedStore().clearSamples()
+        Thread.sleep(200)
+        val store = SampleStore(context)
+        store.generateCards()
+        Thread.sleep(300)
+        assertEquals(SampleData.makeCards().size, store.cards.value.size)
     }
 }

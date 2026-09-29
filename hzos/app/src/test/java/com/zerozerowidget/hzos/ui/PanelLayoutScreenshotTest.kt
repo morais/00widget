@@ -58,13 +58,7 @@ class PanelLayoutScreenshotTest(private val widthDp: Int) {
     private val app: ZeroZeroWidgetApp get() = ApplicationProvider.getApplicationContext()
 
     private fun withSamples() {
-        // SampleStore loads from disk on a background thread after it is
-        // built, and a generate that lands first is overwritten by that
-        // (empty) load — audit C6. Regenerate until the deck sticks.
-        compose.waitUntil(timeoutMillis = 5_000) {
-            if (app.sampleStore.cards.value.isEmpty()) app.sampleStore.generateCards()
-            app.sampleStore.cards.value.isNotEmpty()
-        }
+        app.sampleStore.generateCards()
     }
 
     private fun capture(name: String, content: @Composable () -> Unit) {
