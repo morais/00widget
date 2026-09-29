@@ -17,8 +17,10 @@ plate under `sources/`.
 | Icon | `assets/00widget-icon-512x512.png` |
 | Logo | `assets/00widget-logo-transparent-1254x1254.png` |
 | Hero cover | `assets/00widget-hero-cover-3000x900.png` |
-| Spatialized tile — Background | `assets/00widget-spatialized-background-180x180.png` |
-| Spatialized tile — Foreground | `assets/00widget-spatialized-foreground-180x180.png` |
+| Spatialized tile — Background (512×512) | `assets/00widget-spatialized-background-512x512.png` |
+| Spatialized tile — Foreground (512×512) | `assets/00widget-spatialized-foreground-512x512.png` |
+| Spatialized tile — Background (optional 180×180) | `assets/00widget-spatialized-background-180x180.png` |
+| Spatialized tile — Foreground (optional 180×180) | `assets/00widget-spatialized-foreground-180x180.png` |
 
 The Universal Basic Asset is the 16:9 source Meta can use to generate the cover
 variants. Meta's September 2026 generator moved the title outside its own safe
@@ -42,9 +44,11 @@ draw the enforced rectangle.
 - The store icon is an opaque, square-cornered 24-bit PNG derived mechanically
   from `docs/brand/app-icon-master.png`.
 - The logo preserves the approved U2 mark and its real transparent alpha.
-- The optional spatialized tile uses an opaque atmosphere layer plus the exact
-  mark on a separate transparent 180×180 foreground. The mark is wholly inside
-  Meta's centered 138×138 safe area and carries no added hover shadow.
+- The spatialized tile uses an opaque atmosphere layer plus the exact mark on
+  a separate transparent foreground. The required 512×512 foreground keeps
+  the mark wholly inside Meta's centered 392×392 safe area; the optional
+  180×180 pair observes its corresponding 138×138 safe area. Neither
+  foreground carries an added shadow, because Horizon OS supplies it on hover.
 - The dashboard panels are cover-art illustrations, not screenshots. Do not
   reuse them as Store screenshots: Meta requires five unembellished images of
   actual in-experience content for that separate field.

@@ -79,6 +79,24 @@
       "sha256": "5a7f90f20d8369f93a1159d5370efc769bfbf26971c58e54bba7ec9c25de6514"
     },
     {
+      "filename": "00widget-spatialized-background-512x512.png",
+      "dimensions": [
+        512,
+        512
+      ],
+      "mode": "RGB",
+      "sha256": "36e862028dc43fbca871cf5abbd0dc4eb11a7fb1032e13cc3962dd1bc95e0edb"
+    },
+    {
+      "filename": "00widget-spatialized-foreground-512x512.png",
+      "dimensions": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "sha256": "170d25547a45c4e1194a54a258f51abeb485222fd4451ee7b27d7e4c0d6a02eb"
+    },
+    {
       "filename": "00widget-spatialized-background-180x180.png",
       "dimensions": [
         180,

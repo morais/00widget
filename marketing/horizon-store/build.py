@@ -34,8 +34,10 @@ MINI_LANDSCAPE_NAME = "00widget-mini-landscape-1080x360.png"
 HERO_NAME = "00widget-hero-cover-3000x900.png"
 ICON_NAME = "00widget-icon-512x512.png"
 LOGO_NAME = "00widget-logo-transparent-1254x1254.png"
-SPATIAL_BACKGROUND_NAME = "00widget-spatialized-background-180x180.png"
-SPATIAL_FOREGROUND_NAME = "00widget-spatialized-foreground-180x180.png"
+SPATIAL_BACKGROUND_512_NAME = "00widget-spatialized-background-512x512.png"
+SPATIAL_FOREGROUND_512_NAME = "00widget-spatialized-foreground-512x512.png"
+SPATIAL_BACKGROUND_180_NAME = "00widget-spatialized-background-180x180.png"
+SPATIAL_FOREGROUND_180_NAME = "00widget-spatialized-foreground-180x180.png"
 
 # Conservative inset of the blue safe rectangle shown by Meta's Developer
 # Dashboard for the 3000x900 Hero Cover. The title is the essential element
@@ -45,7 +47,8 @@ COVER_LANDSCAPE_SAFE_AREA = (300, 330, 2260, 1110)
 COVER_SQUARE_SAFE_AREA = (190, 190, 1250, 1150)
 COVER_PORTRAIT_SAFE_AREA = (170, 160, 838, 1090)
 MINI_LANDSCAPE_SAFE_AREA = (100, 50, 980, 310)
-SPATIAL_FOREGROUND_SAFE_AREA = (21, 21, 159, 159)
+SPATIAL_FOREGROUND_512_SAFE_AREA = (60, 60, 452, 452)
+SPATIAL_FOREGROUND_180_SAFE_AREA = (21, 21, 159, 159)
 
 DEEP_NAVY = (6, 21, 42, 255)
 PANEL = (8, 14, 27, 232)
@@ -421,28 +424,32 @@ def build_logo() -> Image.Image:
     return Image.open(MARK).convert("RGBA")
 
 
-def build_spatial_background() -> Image.Image:
+def build_spatial_background(size: tuple[int, int]) -> Image.Image:
     # The Store needs an opaque base layer. Reusing the cover atmosphere keeps
     # the hover tile in the same campaign without baking the mascot into both
     # depth planes.
     return ImageOps.fit(
         Image.open(BACKGROUND).convert("RGB"),
-        (180, 180),
+        size,
         method=Image.Resampling.LANCZOS,
         centering=(0.5, 0.52),
     )
 
 
-def build_spatial_foreground() -> Image.Image:
-    # Meta supplies a 138x138 safe area inside the 180px transparent layer.
-    # Fit the exact approved U2 mark into that box and add no extra shadow;
-    # Horizon OS applies the depth shadow on hover.
-    canvas = Image.new("RGBA", (180, 180), (0, 0, 0, 0))
-    mark = contain(trim_alpha(Image.open(MARK)), (138, 138))
-    xy = ((180 - mark.width) // 2, (180 - mark.height) // 2)
+def build_spatial_foreground(
+    size: tuple[int, int],
+    safe_area: tuple[int, int, int, int],
+) -> Image.Image:
+    # Fit the exact approved U2 mark into Meta's centered safe area and add no
+    # extra shadow; Horizon OS applies the depth shadow on hover.
+    canvas = Image.new("RGBA", size, (0, 0, 0, 0))
+    safe_width = safe_area[2] - safe_area[0]
+    safe_height = safe_area[3] - safe_area[1]
+    mark = contain(trim_alpha(Image.open(MARK)), (safe_width, safe_height))
+    xy = ((size[0] - mark.width) // 2, (size[1] - mark.height) // 2)
     inside(
         (xy[0], xy[1], xy[0] + mark.width, xy[1] + mark.height),
-        SPATIAL_FOREGROUND_SAFE_AREA,
+        safe_area,
     )
     canvas.alpha_composite(mark, xy)
     return canvas
@@ -488,9 +495,16 @@ def build_previews(outputs: dict[str, Image.Image]) -> None:
     ):
         save(safe_area_preview(outputs[name], safe_area), PREVIEW_DIR / preview_name)
 
-    spatial = outputs[SPATIAL_BACKGROUND_NAME].convert("RGBA")
-    spatial.alpha_composite(outputs[SPATIAL_FOREGROUND_NAME])
+    spatial = outputs[SPATIAL_BACKGROUND_512_NAME].convert("RGBA")
+    spatial.alpha_composite(outputs[SPATIAL_FOREGROUND_512_NAME])
     save(spatial.convert("RGB"), PREVIEW_DIR / "spatialized-tile-flat-preview.png")
+    save(
+        safe_area_preview(spatial, SPATIAL_FOREGROUND_512_SAFE_AREA),
+        PREVIEW_DIR / "spatialized-tile-512-safe-area-preview.png",
+    )
+    spatial_180 = outputs[SPATIAL_BACKGROUND_180_NAME].convert("RGBA")
+    spatial_180.alpha_composite(outputs[SPATIAL_FOREGROUND_180_NAME])
+    save(spatial_180.convert("RGB"), PREVIEW_DIR / "spatialized-tile-180-flat-preview.png")
 
 
 def validate(outputs: dict[str, Image.Image]) -> None:
@@ -503,8 +517,10 @@ def validate(outputs: dict[str, Image.Image]) -> None:
         HERO_NAME: ((3000, 900), "RGB"),
         ICON_NAME: ((512, 512), "RGB"),
         LOGO_NAME: ((1254, 1254), "RGBA"),
-        SPATIAL_BACKGROUND_NAME: ((180, 180), "RGB"),
-        SPATIAL_FOREGROUND_NAME: ((180, 180), "RGBA"),
+        SPATIAL_BACKGROUND_512_NAME: ((512, 512), "RGB"),
+        SPATIAL_FOREGROUND_512_NAME: ((512, 512), "RGBA"),
+        SPATIAL_BACKGROUND_180_NAME: ((180, 180), "RGB"),
+        SPATIAL_FOREGROUND_180_NAME: ((180, 180), "RGBA"),
     }
     for name, image in outputs.items():
         if (image.size, image.mode) != expected[name]:
@@ -513,13 +529,17 @@ def validate(outputs: dict[str, Image.Image]) -> None:
             )
     if outputs[LOGO_NAME].getchannel("A").getextrema() != (0, 255):
         raise AssertionError("Transparent logo must contain both clear and opaque pixels")
-    foreground = outputs[SPATIAL_FOREGROUND_NAME]
-    if foreground.getchannel("A").getextrema() != (0, 255):
-        raise AssertionError("Spatial foreground must contain both clear and opaque pixels")
-    bbox = foreground.getbbox()
-    if bbox is None:
-        raise AssertionError("Spatial foreground cannot be empty")
-    inside(bbox, SPATIAL_FOREGROUND_SAFE_AREA)
+    for name, safe_area in (
+        (SPATIAL_FOREGROUND_512_NAME, SPATIAL_FOREGROUND_512_SAFE_AREA),
+        (SPATIAL_FOREGROUND_180_NAME, SPATIAL_FOREGROUND_180_SAFE_AREA),
+    ):
+        foreground = outputs[name]
+        if foreground.getchannel("A").getextrema() != (0, 255):
+            raise AssertionError(f"{name} must contain both clear and opaque pixels")
+        bbox = foreground.getbbox()
+        if bbox is None:
+            raise AssertionError(f"{name} cannot be empty")
+        inside(bbox, safe_area)
 
 
 def main() -> None:
@@ -536,8 +556,14 @@ def main() -> None:
         HERO_NAME: build_hero(),
         ICON_NAME: build_icon(),
         LOGO_NAME: build_logo(),
-        SPATIAL_BACKGROUND_NAME: build_spatial_background(),
-        SPATIAL_FOREGROUND_NAME: build_spatial_foreground(),
+        SPATIAL_BACKGROUND_512_NAME: build_spatial_background((512, 512)),
+        SPATIAL_FOREGROUND_512_NAME: build_spatial_foreground(
+            (512, 512), SPATIAL_FOREGROUND_512_SAFE_AREA
+        ),
+        SPATIAL_BACKGROUND_180_NAME: build_spatial_background((180, 180)),
+        SPATIAL_FOREGROUND_180_NAME: build_spatial_foreground(
+            (180, 180), SPATIAL_FOREGROUND_180_SAFE_AREA
+        ),
     }
     validate(outputs)
     for name, image in outputs.items():
