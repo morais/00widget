@@ -148,6 +148,41 @@ fun accountIdAction(providers: List<String>): AccountIdAction {
     return if (providers.any { it != "horizon" }) AccountIdAction.UNLINK else AccountIdAction.DELETE
 }
 
+/** What an unlink answer means for the local session. */
+sealed interface UnlinkOutcome {
+    /** The link is gone (or the session already was): sign out here. */
+    data object SignedOut : UnlinkOutcome
+
+    /** The link is still there: keep the session, show [message]. */
+    data class Failed(val message: String) : UnlinkOutcome
+}
+
+/**
+ * Reads a `DELETE /v1/account/horizon` answer. Only a confirmed unlink may
+ * sign out, because signing out after a failed one looks like success while
+ * the Horizon identity stays linked and signs straight back in.
+ *
+ * A 404 is two different answers. The handler's own "Horizon identity is
+ * not linked" means there is nothing left to unlink, which is done. The
+ * router's catch-all "not found" means a Worker without the endpoint, which
+ * unlinked nothing. A 401 is a dead credential: nothing more can be done
+ * with this session, and the server keeps whatever link there was.
+ */
+fun unlinkOutcome(status: Int, body: String): UnlinkOutcome {
+    val serverError = "\"error\"\\s*:\\s*\"([^\"]*)\"".toRegex().find(body)?.groupValues?.getOrNull(1)
+    return when {
+        status in 200..299 -> UnlinkOutcome.SignedOut
+        status == 401 -> UnlinkOutcome.SignedOut
+        status == 404 && serverError == UNLINK_NOT_LINKED -> UnlinkOutcome.SignedOut
+        status == 404 -> UnlinkOutcome.Failed("This server can't unlink accounts yet — update the Worker.")
+        status == 409 -> UnlinkOutcome.Failed("Horizon is the only way into this account — delete it instead.")
+        else -> UnlinkOutcome.Failed(serverError?.takeIf { it.isNotBlank() } ?: "Request failed ($status).")
+    }
+}
+
+/** The unlink handler's 404 body (server/src/account.ts). */
+internal const val UNLINK_NOT_LINKED = "Horizon identity is not linked"
+
 /**
  * Maps one browser-approval answer onto UI text. Success echoes the
  * decision the user made; failures name the cause.

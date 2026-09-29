@@ -198,4 +198,33 @@ class HorizonLoginTest {
             describeBrowserApproval(403, "{}", true)
         )
     }
+
+    @Test
+    fun unlinkSignsOutOnlyWhenTheLinkIsGone() {
+        assertEquals(UnlinkOutcome.SignedOut, unlinkOutcome(200, "{}"))
+        assertEquals(UnlinkOutcome.SignedOut, unlinkOutcome(401, """{"error":"unauthorized"}"""))
+        // The handler's own 404: nothing left to unlink.
+        assertEquals(UnlinkOutcome.SignedOut, unlinkOutcome(404, """{"error":"Horizon identity is not linked"}"""))
+    }
+
+    @Test
+    fun aWorkerWithoutTheEndpointIsNotAnUnlink() {
+        // The router's catch-all 404: the identity is still linked.
+        val outcome = unlinkOutcome(404, """{"error":"not found"}""")
+        assertTrue(outcome is UnlinkOutcome.Failed)
+        assertEquals(
+            "This server can't unlink accounts yet — update the Worker.",
+            (outcome as UnlinkOutcome.Failed).message
+        )
+    }
+
+    @Test
+    fun otherUnlinkFailuresKeepTheSession() {
+        assertTrue(unlinkOutcome(409, "{}") is UnlinkOutcome.Failed)
+        assertEquals(
+            UnlinkOutcome.Failed("Try later"),
+            unlinkOutcome(500, """{"error":"Try later"}""")
+        )
+        assertEquals(UnlinkOutcome.Failed("Request failed (502)."), unlinkOutcome(502, "<html>"))
+    }
 }

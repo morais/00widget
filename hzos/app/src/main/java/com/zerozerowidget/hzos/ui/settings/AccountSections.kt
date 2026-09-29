@@ -23,8 +23,10 @@ import androidx.compose.ui.semantics.Role
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.AccountIdAction
 import com.zerozerowidget.hzos.data.SubscriptionState
+import com.zerozerowidget.hzos.data.UnlinkOutcome
 import com.zerozerowidget.hzos.data.ZeroWidgetApi
 import com.zerozerowidget.hzos.data.accountIdAction
+import com.zerozerowidget.hzos.data.unlinkOutcome
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassCard
@@ -302,24 +304,9 @@ internal fun AccountAccessSection(
                     landSignedOut()
                 } else {
                     val (status, body) = api().unlinkHorizonAccount()
-                    if (status in 200..299) {
-                        landSignedOut()
-                    } else if (status == 401 || status == 404) {
-                        // Dead credential or already-gone link: the session
-                        // is useless either way, so land signed out. A 404
-                        // from a Worker predating the endpoint reads the
-                        // same — both mean there is nothing to unlink.
-                        landSignedOut()
-                    } else if (status == 409) {
-                        throw IllegalStateException(
-                            "Horizon is the only way into this account — delete it instead."
-                        )
-                    } else {
-                        val serverError = """"error"\s*:\s*"([^"]*)""""
-                            .toRegex().find(body)?.groupValues?.getOrNull(1)
-                        throw IllegalStateException(
-                            serverError?.takeIf { it.isNotBlank() } ?: "Request failed ($status)."
-                        )
+                    when (val outcome = unlinkOutcome(status, body)) {
+                        UnlinkOutcome.SignedOut -> landSignedOut()
+                        is UnlinkOutcome.Failed -> throw IllegalStateException(outcome.message)
                     }
                 }
                 app.repository.refresh()
