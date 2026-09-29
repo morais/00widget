@@ -28,6 +28,7 @@ import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.data.DummyAccountData
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.connectionState
+import com.zerozerowidget.hzos.ui.copySecret
 import com.zerozerowidget.hzos.ui.showDummyAccountDataState
 import com.zerozerowidget.hzos.ui.theme.spacing
 import com.zerozerowidget.hzos.ui.uiset.UiSetConfirmDialog
@@ -89,17 +90,13 @@ internal fun AgentConfigSection(
                 }
                 UiSetIconButton(
                     onClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(
-                            ClipData.newPlainText("00Widget agent config", agentConfig)
-                        )
+                        // Signed in, the config carries the token: copied
+                        // as a secret (sensitive, cleared after a minute).
+                        copySecret(app, "00Widget agent config", agentConfig)
                         copied = true
                         scope.launch {
                             // Acknowledgement of the tap, not a running
                             // clipboard status — matches iOS (10s there).
-                            // Unlike iOS there is no pasteboard expiry here,
-                            // so the row promises nothing about clearing.
                             delay(10_000)
                             copied = false
                         }
@@ -186,11 +183,7 @@ internal fun RotateAgentTokensSection(app: ZeroZeroWidgetApp) {
                 }
                 UiSetIconButton(
                     onClick = {
-                        val clipboard =
-                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(
-                            ClipData.newPlainText("00Widget agent token", it.token)
-                        )
+                        copySecret(app, "00Widget agent token", it.token)
                         copied = true
                         scope.launch {
                             delay(10_000)
