@@ -54,9 +54,18 @@ android {
         // UTC date/time (ISO basic, hour precision). Full ISO doesn't fit:
         // versionCode is a signed 32-bit int, and yyyyMMddHHmm already
         // overflows it — yyyyMMddHH fits until 2038.
-        versionCode = ZonedDateTime.now(ZoneOffset.UTC)
-            .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
-            .toInt()
+        //
+        // A store build passes it in (-PversionCode, see upload-store.sh).
+        // The configuration cache is on, and the clock is not one of its
+        // inputs: a rebuild at a later hour with nothing else changed
+        // reused the cached configuration and kept the earlier hour, an
+        // unuploadable duplicate. A Gradle property is an input, so an
+        // explicit value always lands. The clock stays as the fallback for
+        // local builds, where a stale hour is harmless.
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt()
+            ?: ZonedDateTime.now(ZoneOffset.UTC)
+                .format(DateTimeFormatter.ofPattern("yyyyMMddHH"))
+                .toInt()
         versionName = "1.5"
         // Quest and Meta VR Glasses are arm64-only, and Glasses refuses a
         // binary without 64-bit native code. Say so explicitly instead of

@@ -73,28 +73,43 @@ if [ -z "$APP_ID" ] && [ -f "$HZOS_DIR/local.properties" ]; then
 fi
 [ -n "$APP_ID" ] || { echo "No app id: set platformAppId in hzos/local.properties or pass --app-id" >&2; exit 1; }
 
+# versionCode is the UTC hour (yyyyMMddHH), chosen here and passed to Gradle
+# as -PversionCode rather than read from the clock inside the build: the
+# configuration cache would otherwise replay an earlier hour (see
+# app/build.gradle.kts). Two uploads in one hour would share it and the
+# store rejects the second — after a full upload — so refuse before
+# building. The last successful upload is recorded in gitignored
+# hzos/.last-upload-version-code.
+LAST_UPLOAD_FILE="$HZOS_DIR/.last-upload-version-code"
+WANT_CODE="$(date -u +%Y%m%d%H)"
+if [ -f "$LAST_UPLOAD_FILE" ]; then
+    LAST_CODE="$(tr -d '[:space:]' < "$LAST_UPLOAD_FILE")"
+    if [ "$WANT_CODE" -le "$LAST_CODE" ]; then
+        echo "versionCode $WANT_CODE is not above the last upload ($LAST_CODE)." >&2
+        echo "It is the UTC hour: upload again after the hour turns." >&2
+        exit 1
+    fi
+fi
+
 if [ -z "$SKIP_BUILD" ]; then
-    echo "Building signed release..."
-    (cd "$HZOS_DIR" && ./gradlew :app:assembleRelease --console=plain)
+    echo "Building signed release (versionCode $WANT_CODE)..."
+    (cd "$HZOS_DIR" && ./gradlew :app:assembleRelease -PversionCode="$WANT_CODE" --console=plain)
 fi
 
 APK="$HZOS_DIR/app/build/outputs/apk/release/app-release.apk"
 [ -f "$APK" ] || { echo "APK not found at $APK" >&2; exit 1; }
 
-# versionCode is the build's UTC hour (yyyyMMddHH, app/build.gradle.kts),
-# so two builds in one hour share it and the store rejects the second —
-# after a full upload. Refuse up front instead. The last successful upload
-# is recorded in gitignored hzos/.last-upload-version-code.
-LAST_UPLOAD_FILE="$HZOS_DIR/.last-upload-version-code"
+# What the APK actually carries: with --skip-build it is whatever was built
+# last, which must still clear the last upload.
 VERSION_CODE="$(grep -oE '"versionCode": *[0-9]+' "$HZOS_DIR/app/build/outputs/apk/release/output-metadata.json" | grep -oE '[0-9]+$')"
 [ -n "$VERSION_CODE" ] || { echo "Could not read versionCode from the build output" >&2; exit 1; }
-if [ -f "$LAST_UPLOAD_FILE" ]; then
-    LAST_CODE="$(tr -d '[:space:]' < "$LAST_UPLOAD_FILE")"
-    if [ "$VERSION_CODE" -le "$LAST_CODE" ]; then
-        echo "versionCode $VERSION_CODE is not above the last upload ($LAST_CODE)." >&2
-        echo "It is the build's UTC hour: rebuild after the hour turns." >&2
-        exit 1
-    fi
+if [ -z "$SKIP_BUILD" ] && [ "$VERSION_CODE" != "$WANT_CODE" ]; then
+    echo "Built versionCode $VERSION_CODE, asked for $WANT_CODE." >&2
+    exit 1
+fi
+if [ -f "$LAST_UPLOAD_FILE" ] && [ "$VERSION_CODE" -le "$LAST_CODE" ]; then
+    echo "versionCode $VERSION_CODE is not above the last upload ($LAST_CODE)." >&2
+    exit 1
 fi
 
 echo "Uploading $APK to channel $CHANNEL..."
