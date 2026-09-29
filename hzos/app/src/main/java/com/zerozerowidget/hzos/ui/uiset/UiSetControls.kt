@@ -1,5 +1,6 @@
 package com.zerozerowidget.hzos.ui.uiset
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,14 +52,25 @@ fun UiSetSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    // UI Set's dark Secondary fill is white at 10%, a tint made for its own
+    // opaque panel background. On a translucent card over passthrough it
+    // picks up the room and nearly vanishes, so in dark it is an opaque
+    // grey instead: separate from the #272727 card, white text at ~7:1.
+    val style = if (isSystemInDarkTheme()) {
+        ButtonStyle.Secondary.copy(containerColor = DARK_SECONDARY_CONTAINER)
+    } else {
+        ButtonStyle.Secondary
+    }
     LabelButton(
         label = label,
         onClick = onClick,
         modifier = modifier,
-        style = ButtonStyle.Secondary,
+        style = style,
         enabled = enabled
     )
 }
+
+private val DARK_SECONDARY_CONTAINER = Color(0xFF5A5A5A)
 
 @Composable
 fun UiSetDestructiveButton(
