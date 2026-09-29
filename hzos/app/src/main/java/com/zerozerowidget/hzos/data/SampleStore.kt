@@ -49,6 +49,11 @@ class SampleStore(context: Context) {
     private val _activities = MutableStateFlow<List<LiveActivitySession>>(emptyList())
     val activities: StateFlow<List<LiveActivitySession>> = _activities.asStateFlow()
 
+    // False until the saved samples are read (or a change beats the read),
+    // so the dashboard can tell "no samples" from "not read yet".
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     companion object {
         private val CARDS_JSON = stringPreferencesKey("sample_cards_json")
         private val ACTIVITIES_JSON = stringPreferencesKey("sample_activities_json")
@@ -63,6 +68,7 @@ class SampleStore(context: Context) {
                     _cards.value = cards
                     _activities.value = activities
                 }
+                _loaded.value = true
             }
         }
     }
@@ -70,6 +76,7 @@ class SampleStore(context: Context) {
     /** Applies one in-memory change, marked so the initial load never undoes it. */
     private inline fun <T> change(block: () -> T): T = synchronized(lock) {
         changed = true
+        _loaded.value = true
         block()
     }
 

@@ -116,6 +116,34 @@ class DashboardRepositoryTest {
         assertTrue(repo.state.value.cards.isEmpty())
     }
 
+    @Test
+    fun aSignedInLaunchAwaitsItsFirstAnswerInsteadOfLookingEmpty() = runTest {
+        val store = FakeStore(ConnectionStore.Connection("", "key-a"))
+        val api = GatedApi()
+        val answer = CompletableDeferred<DashboardResponse>().also(api.answers::addLast)
+        val repo = repo(store, api)
+
+        assertTrue("before the connection is read", repo.state.value.awaitingFirstAnswer)
+        repo.start()
+        runCurrent()
+        assertTrue(repo.state.value.isConfigured)
+        assertTrue("fetch in flight", repo.state.value.awaitingFirstAnswer)
+
+        answer.complete(response())
+        runCurrent()
+        assertFalse("an empty answer is still an answer", repo.state.value.awaitingFirstAnswer)
+        repo.setActive(false)
+    }
+
+    @Test
+    fun aSignedOutLaunchSettlesAtOnce() = runTest {
+        val repo = repo(FakeStore(ConnectionStore.Connection("", "")), GatedApi())
+        repo.start()
+        runCurrent()
+        assertFalse(repo.state.value.awaitingFirstAnswer)
+        assertFalse(repo.state.value.isConfigured)
+    }
+
     /** Answers every fetch at once; counts them. */
     private class CountingApi : DashboardApi {
         var fetches = 0

@@ -25,7 +25,16 @@ data class DashboardState(
     val error: String? = null,
     val lastSyncEpochMs: Long? = null,
     val isConfigured: Boolean = false
-)
+) {
+    /**
+     * Signed in (or not yet known to be signed out) with no answer yet. The
+     * dashboard shows neither the welcome screen nor an empty list here: a
+     * signed-in launch used to flash the welcome screen while the key was
+     * still being decrypted and the first fetch was in flight.
+     */
+    val awaitingFirstAnswer: Boolean
+        get() = isLoading && lastSyncEpochMs == null && error == null
+}
 
 /** What the repository reads credentials from; [ConnectionStore] in the app. */
 interface ConnectionSource {
@@ -94,7 +103,12 @@ class DashboardRepository(
                     _state.value = DashboardState(isLoading = false, isConfigured = false)
                     return@collectLatest
                 }
-                _state.value = _state.value.copy(isConfigured = true)
+                // No answer yet for this credential (launch, fresh sign-in):
+                // loading until the first one lands, so the panel waits
+                // instead of showing the welcome screen or an empty list.
+                _state.value = _state.value.let {
+                    it.copy(isConfigured = true, isLoading = it.isLoading || it.lastSyncEpochMs == null)
+                }
                 // Slow poll while configured and visible. Cancelled and
                 // restarted on every credential change and every time a
                 // panel comes back, which also refreshes immediately so a

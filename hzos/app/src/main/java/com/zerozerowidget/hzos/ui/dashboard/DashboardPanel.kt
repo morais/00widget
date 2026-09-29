@@ -83,6 +83,7 @@ import com.zerozerowidget.hzos.ui.uiset.UiSetIconButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetPrimaryButton
 import com.zerozerowidget.hzos.ui.uiset.UiSetSecondaryButton
 import com.zerozerowidget.hzos.ui.uiset.uiSetAccent
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import metavrx.uiset.compose.Icon
 import metavrx.uiset.compose.Text
@@ -108,6 +109,7 @@ fun DashboardPanel(
     val state by app.repository.state.collectAsStateWithLifecycle()
     val samples by app.sampleStore.cards.collectAsStateWithLifecycle()
     val sampleActivities by app.sampleStore.activities.collectAsStateWithLifecycle()
+    val samplesLoaded by app.sampleStore.loaded.collectAsStateWithLifecycle()
     val cardAlpha by app.panelPrefs.cardAlphaState()
     val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -166,6 +168,12 @@ fun DashboardPanel(
                 sampleActivities.map { Sourced(it, isSample = true) }
             val nothingToShow = visible.isEmpty() && visibleActivities.isEmpty()
             when {
+                // Not known yet whether there is anything: wait rather than
+                // flash the welcome screen at a signed-in user.
+                nothingToShow && (!samplesLoaded || state.awaitingFirstAnswer) -> {
+                    DashboardLoading()
+                }
+
                 !state.isConfigured && nothingToShow -> {
                     WelcomePanel(
                         onSignIn = { context.openSettingsPanelAndSignIn() },
@@ -751,3 +759,27 @@ private fun ActivityRow(
         }
     }
 }
+
+/**
+ * The wait before the first answer. Blank at first, so the usual launch
+ * (well under a second) shows nothing at all; a line of text only once
+ * the wait is long enough to need explaining.
+ */
+@Composable
+private fun DashboardLoading() {
+    var showText by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(LOADING_TEXT_DELAY_MS)
+        showText = true
+    }
+    if (showText) {
+        Text(
+            "Loading…",
+            style = LocalTypography.current.body,
+            color = LocalContentColors.current.secondary,
+            modifier = Modifier.padding(top = spacing.large)
+        )
+    }
+}
+
+private const val LOADING_TEXT_DELAY_MS = 500L
