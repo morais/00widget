@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.data.DashboardTemplate
+import com.zerozerowidget.hzos.data.needsUserAttention
 import com.zerozerowidget.hzos.ui.theme.spacing
 import metavrx.uiset.compose.Text
 import metavrx.uiset.compose.theme.LocalContentColors
@@ -59,6 +60,9 @@ fun CardHeadline(card: DashboardCard, modifier: Modifier = Modifier) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+        if (card.needsUserAttention) {
+            NeedsYouBadge(Modifier.padding(horizontal = spacing.small))
         }
         card.progress?.let {
             Text(

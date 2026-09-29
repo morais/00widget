@@ -395,13 +395,15 @@ fun DeleteButton(label: String, busy: Boolean, onClick: () -> Unit, modifier: Mo
 /**
  * "Needs you" pill, drawn — never a button. Look and Pinch highlights
  * every clickable element, so a badge built from a button would light up
- * as a target that does nothing. Mirrors the derived rule in llms.md
- * (attention status + actionable button); callers decide, this only
- * draws. No callers yet — kept so the first one starts here.
+ * as a target that does nothing. Callers decide with needsUserAttention
+ * (data/Attention.kt, the iOS rule); this only draws.
  */
 @Composable
 fun NeedsYouBadge(modifier: Modifier = Modifier) {
-    val colors = LocalColorScheme.current.notification
+    // Orange like iOS's AttentionBadge, but as UI Set's solid warning pill:
+    // iOS's orange text on a faint orange capsule is hard to read at panel
+    // distance, and notification is the accent blue the SAMPLE badge uses.
+    val colors = LocalColorScheme.current.warning
     Box(
         modifier = modifier
             .background(colors.container, RoundedCornerShape(4.dp))

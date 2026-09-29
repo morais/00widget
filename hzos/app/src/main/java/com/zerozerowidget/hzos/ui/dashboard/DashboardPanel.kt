@@ -50,6 +50,7 @@ import com.zerozerowidget.hzos.data.DashboardCard
 import com.zerozerowidget.hzos.data.DashboardStatus
 import com.zerozerowidget.hzos.data.LiveActivitySession
 import com.zerozerowidget.hzos.data.SampleData
+import com.zerozerowidget.hzos.data.needsUserAttention
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
 import com.zerozerowidget.hzos.ui.LocalNow
 import com.zerozerowidget.hzos.ui.PanelBreakpoints
@@ -64,6 +65,7 @@ import com.zerozerowidget.hzos.ui.cards.DetailCard
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.LinkIconButton
+import com.zerozerowidget.hzos.ui.cards.NeedsYouBadge
 import com.zerozerowidget.hzos.ui.cards.PopOutIconButton
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleBadgeRow
@@ -702,6 +704,9 @@ private fun ActivityRow(
                 Column(Modifier.weight(1f)) {
                     Text(session.title, style = LocalTypography.current.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(session.state, style = LocalTypography.current.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (session.needsUserAttention) {
+                    NeedsYouBadge(Modifier.padding(horizontal = spacing.small))
                 }
                 PopOutIconButton(onPopOut)
             }

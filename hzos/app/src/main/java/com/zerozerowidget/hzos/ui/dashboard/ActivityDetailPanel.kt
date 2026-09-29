@@ -27,12 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
 import com.zerozerowidget.hzos.data.DashboardStatus
+import com.zerozerowidget.hzos.data.needsUserAttention
 import com.zerozerowidget.hzos.ui.LocalHideSampleIndicators
 import com.zerozerowidget.hzos.ui.LocalNow
 import com.zerozerowidget.hzos.ui.PanelPrefs
 import com.zerozerowidget.hzos.ui.cardAlphaState
 import com.zerozerowidget.hzos.ui.cards.GlassPrimaryCard
 import com.zerozerowidget.hzos.ui.cards.InspectableChart
+import com.zerozerowidget.hzos.ui.cards.NeedsYouBadge
 import com.zerozerowidget.hzos.ui.cards.ProgressBar
 import com.zerozerowidget.hzos.ui.cards.SampleAwareDeleteRow
 import com.zerozerowidget.hzos.ui.cards.SampleBadgeRow
@@ -136,6 +138,9 @@ fun ActivityDetailPanel(
                                         color = LocalContentColors.current.secondary
                                     )
                                 }
+                            }
+                            if (session.needsUserAttention) {
+                                NeedsYouBadge(Modifier.padding(start = spacing.small))
                             }
                         }
                         session.value?.let {
