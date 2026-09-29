@@ -526,6 +526,12 @@ The production registry currently recognizes these exact HTTPS callbacks:
 | --- | --- |
 | ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect` |
 | Claude | `https://claude.ai/api/mcp/auth_callback` |
+| Claude | `https://claude.com/api/mcp/auth_callback` |
+| Cursor | `https://www.cursor.com/agents/mcp/oauth/callback` |
+| VS Code | `https://vscode.dev/redirect` |
+| VS Code Insiders | `https://insiders.vscode.dev/redirect` |
+| Mistral | `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback` |
+| Windsurf | `https://api.devin.ai/mcp/oauth/callback` |
 | Manus | `https://manus.im/api/webhook/mcp/callback` |
 
 OpenCode defaults to `http://127.0.0.1:19876/mcp/oauth/callback`. It remains
