@@ -59,11 +59,12 @@ internal fun AboutSection(cardAlpha: Float, onOpenDeveloper: () -> Unit) {
 }
 
 /**
- * Look and Pinch target floor. These rows are a line of small text; sized
- * to it, each was about 20dp and the simulator's interactive-element
- * overlay showed their outlines overlapping.
+ * Look and Pinch target floor for Settings rows that are a line of text.
+ * Sized to the text, the About rows were about 20dp and the simulator's
+ * interactive-element overlay showed their outlines overlapping; padded
+ * rows came out a dp or two short once their text was small.
  */
-private val MIN_ROW_HEIGHT = 48.dp
+internal val MIN_ROW_HEIGHT = 48.dp
 
 @Composable
 internal fun LinkRow(label: String, onClick: () -> Unit) {
