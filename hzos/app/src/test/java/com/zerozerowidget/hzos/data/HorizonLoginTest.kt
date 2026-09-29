@@ -164,12 +164,15 @@ class HorizonLoginTest {
     }
 
     @Test
-    fun `account switch only fires on present and different ids`() {
-        assertEquals(false, isMetaUserSwitch("", "someone"))
-        assertEquals(false, isMetaUserSwitch("a", null))
-        assertEquals(false, isMetaUserSwitch("a", ""))
-        assertEquals(false, isMetaUserSwitch("a", "a"))
-        assertEquals(true, isMetaUserSwitch("a", "b"))
+    fun `meta user check tells a switch from an unreadable user`() {
+        // A legacy session has no Meta binding to check.
+        assertEquals(MetaUserCheck.MATCHES, metaUserCheck("", "someone"))
+        assertEquals(MetaUserCheck.MATCHES, metaUserCheck("", null))
+        // Unreadable is not a match: the session's data must wait.
+        assertEquals(MetaUserCheck.UNKNOWN, metaUserCheck("a", null))
+        assertEquals(MetaUserCheck.UNKNOWN, metaUserCheck("a", ""))
+        assertEquals(MetaUserCheck.MATCHES, metaUserCheck("a", "a"))
+        assertEquals(MetaUserCheck.SWITCHED, metaUserCheck("a", "b"))
     }
 
     @Test

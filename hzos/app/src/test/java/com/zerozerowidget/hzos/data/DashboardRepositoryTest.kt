@@ -144,6 +144,56 @@ class DashboardRepositoryTest {
         assertFalse(repo.state.value.isConfigured)
     }
 
+    @Test
+    fun noPollRunsBeforeTheMetaUserIsConfirmed() = runTest {
+        val store = FakeStore(ConnectionStore.Connection("", "key-a"))
+        val api = CountingApi()
+        val repoScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repo = DashboardRepository(store, { _, _ -> api }, repoScope, "https://example.invalid")
+        try {
+            repo.holdForIdentityCheck()
+            repo.start()
+            advanceTimeBy(5 * 60_000L)
+            assertEquals("held: not one fetch", 0, api.fetches)
+
+            repo.identityConfirmed()
+            runCurrent()
+            assertEquals("confirmed: fetches at once", 1, api.fetches)
+        } finally {
+            repoScope.cancel()
+        }
+    }
+
+    @Test
+    fun anUnreadableMetaUserWithholdsTheSessionsCards() = runTest {
+        val store = FakeStore(ConnectionStore.Connection("", "key-a"))
+        val api = GatedApi()
+        CompletableDeferred(response("theirs")).also(api.answers::addLast)
+        val repoScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repo = DashboardRepository(store, { _, _ -> api }, repoScope, "https://example.invalid")
+        // The poll loop never ends: cancel it however the test ends, or
+        // runTest advances virtual time into an empty fake forever.
+        try {
+            repo.start()
+            runCurrent()
+            assertEquals(listOf("theirs"), repo.state.value.cards.map { it.id })
+
+            repo.identityUnconfirmed()
+            assertTrue(repo.state.value.cards.isEmpty())
+            assertTrue(repo.state.value.identityUnconfirmed)
+            // Still signed in: the credential waits for a confirmed check.
+            assertTrue(repo.state.value.isConfigured)
+
+            CompletableDeferred(response("theirs")).also(api.answers::addLast)
+            repo.identityConfirmed()
+            runCurrent()
+            assertFalse(repo.state.value.identityUnconfirmed)
+            assertEquals(listOf("theirs"), repo.state.value.cards.map { it.id })
+        } finally {
+            repoScope.cancel()
+        }
+    }
+
     /** Answers every fetch at once; counts them. */
     private class CountingApi : DashboardApi {
         var fetches = 0

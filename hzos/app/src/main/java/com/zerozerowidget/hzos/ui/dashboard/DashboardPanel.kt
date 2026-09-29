@@ -175,6 +175,18 @@ fun DashboardPanel(
                 sampleActivities.map { Sourced(it, isSample = true) }
             val nothingToShow = visible.isEmpty() && visibleActivities.isEmpty()
             when {
+                // Signed in, but whoever wears the headset can't be
+                // confirmed as the account's owner: say so rather than
+                // show the welcome screen, which would suggest signing in.
+                state.identityUnconfirmed && nothingToShow -> {
+                    Text(
+                        IDENTITY_UNCONFIRMED_TEXT,
+                        style = LocalTypography.current.body,
+                        color = LocalContentColors.current.secondary,
+                        modifier = Modifier.padding(top = spacing.large)
+                    )
+                }
+
                 // Not known yet whether there is anything: wait rather than
                 // flash the welcome screen at a signed-in user.
                 nothingToShow && (!samplesLoaded || state.awaitingFirstAnswer) -> {
@@ -207,6 +219,15 @@ fun DashboardPanel(
                 }
 
                 else -> {
+                    // Samples are this device's, not the account's, so they
+                    // still show; the account's cards wait.
+                    if (state.identityUnconfirmed) {
+                        Text(
+                            IDENTITY_UNCONFIRMED_TEXT,
+                            style = LocalTypography.current.body,
+                            color = LocalContentColors.current.secondary
+                        )
+                    }
                     state.error?.let {
                         Text(it, color = LocalColorScheme.current.negative.content, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
@@ -448,7 +469,11 @@ fun CardDetailPanel(
             Spacer(Modifier.height(spacing.small))
             if (card == null) {
                 Text(
-                    "This card is no longer on the dashboard.",
+                    if (!isSample && state.identityUnconfirmed) {
+                        IDENTITY_UNCONFIRMED_TEXT
+                    } else {
+                        "This card is no longer on the dashboard."
+                    },
                     style = LocalTypography.current.body
                 )
             } else {
@@ -809,3 +834,7 @@ private fun DashboardLoading() {
 }
 
 private const val LOADING_TEXT_DELAY_MS = 500L
+
+/** Shown while the headset's Meta user can't be confirmed as the owner. */
+private const val IDENTITY_UNCONFIRMED_TEXT =
+    "Checking which Meta account is using this headset. Your cards will appear once it's confirmed."

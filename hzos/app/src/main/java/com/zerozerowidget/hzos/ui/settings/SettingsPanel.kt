@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ZeroZeroWidgetApp
-import com.zerozerowidget.hzos.auth.ensureMetaUserMatches
 import com.zerozerowidget.hzos.data.ConnectionStore
 import com.zerozerowidget.hzos.ui.PanelBreakpoints
 import com.zerozerowidget.hzos.ui.PanelPrefs
@@ -212,7 +211,7 @@ internal fun SettingsRoot(
     // Same switch check as the dashboard foreground: opening Settings on a
     // switched account lands on sign-in instead of a stranger's session.
     LaunchedEffect(connection.apiKey) {
-        ensureMetaUserMatches(app)
+        app.verifyMetaUser()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(spacing.medium)) {

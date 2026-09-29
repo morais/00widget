@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,7 +26,13 @@ data class DashboardState(
     /** Last error, human-readable. Null when the last fetch succeeded. */
     val error: String? = null,
     val lastSyncEpochMs: Long? = null,
-    val isConfigured: Boolean = false
+    val isConfigured: Boolean = false,
+    /**
+     * The Meta user wearing the headset can't be confirmed as the session's
+     * owner yet, so server data is withheld (see [DashboardRepository.
+     * identityUnconfirmed]). Cleared by the next confirmed check.
+     */
+    val identityUnconfirmed: Boolean = false
 ) {
     /**
      * Signed in (or not yet known to be signed out) with no answer yet. The
@@ -90,6 +98,50 @@ class DashboardRepository(
         active.value = isActive
     }
 
+    /**
+     * Whether the Meta user wearing the headset has been confirmed as the
+     * session's owner since the app last came to the foreground. Polling
+     * waits for it, so a switched wearer's first sight is never a refresh
+     * of the previous one's data. True by default so a repository nobody
+     * drives behaves as it always did; the app holds it (see
+     * ZeroZeroWidgetApp).
+     */
+    private val identityChecked = MutableStateFlow(true)
+
+    /** Pauses polling until [identityConfirmed]; what is shown stays. */
+    fun holdForIdentityCheck() {
+        identityChecked.value = false
+    }
+
+    /**
+     * The wearer owns the session (or there is none): polling may run. Data
+     * withheld while unconfirmed is fetched again explicitly: the flags are
+     * conflated, so an unconfirmed-then-confirmed pair can reach the poll
+     * loop as no change at all, and it would never refetch.
+     */
+    fun identityConfirmed() {
+        identityChecked.value = true
+        if (_state.value.identityUnconfirmed) {
+            _state.value = _state.value.copy(identityUnconfirmed = false)
+            refresh()
+        }
+    }
+
+    /**
+     * The wearer can't be read: withhold everything fetched for the
+     * session, which may be someone else's, until a check can tell. The
+     * credential stays, so a confirmed check resumes without a sign-in.
+     */
+    fun identityUnconfirmed() {
+        identityChecked.value = false
+        generation++
+        _state.value = DashboardState(
+            isLoading = false,
+            isConfigured = _state.value.isConfigured,
+            identityUnconfirmed = true
+        )
+    }
+
     /** Bumped on every credential change and sign-out; stale results check it. */
     @Volatile
     private var generation = 0L
@@ -113,14 +165,16 @@ class DashboardRepository(
                 // restarted on every credential change and every time a
                 // panel comes back, which also refreshes immediately so a
                 // returning panel never shows a minutes-old dashboard.
-                active.collectLatest { isActive ->
-                    if (!isActive) return@collectLatest
-                    refreshNow(connection, background = true)
-                    while (true) {
-                        delay(POLL_MS)
+                combine(active, identityChecked) { isActive, checked -> isActive && checked }
+                    .distinctUntilChanged()
+                    .collectLatest { isActive ->
+                        if (!isActive) return@collectLatest
                         refreshNow(connection, background = true)
+                        while (true) {
+                            delay(POLL_MS)
+                            refreshNow(connection, background = true)
+                        }
                     }
-                }
             }
         }
     }

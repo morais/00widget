@@ -126,13 +126,34 @@ suspend fun runHorizonSignIn(
     return HorizonOutcome.Failed("Sign-in failed — try again.")
 }
 
+/** Whether the stored session belongs to whoever wears the headset now. */
+enum class MetaUserCheck {
+    /** Same Meta user, or a session with no Meta binding to check. */
+    MATCHES,
+
+    /** A different Meta user: the session must go. */
+    SWITCHED,
+
+    /**
+     * The current Meta user can't be read (the Platform SDK connects
+     * asynchronously, so briefly at launch, or longer if it fails). Not a
+     * match: the session is kept, but nothing it can fetch is shown until
+     * a later check can tell.
+     */
+    UNKNOWN
+}
+
 /**
- * True when the stored session belongs to a different Meta user than the
- * one wearing the headset now. Blank stored ids (legacy sessions) and
- * unreadable current ids never count — only a present-and-different pair
- * clears a token.
+ * Compares the session's Meta id with the one wearing the headset. A blank
+ * stored id is a legacy session with nothing to compare, so it matches; an
+ * unreadable current id is [MetaUserCheck.UNKNOWN], never a match.
  */
-fun isMetaUserSwitch(storedUserId: String, currentUserId: String?): Boolean = storedUserId.isNotBlank() && !currentUserId.isNullOrBlank() && storedUserId != currentUserId
+fun metaUserCheck(storedUserId: String, currentUserId: String?): MetaUserCheck = when {
+    storedUserId.isBlank() -> MetaUserCheck.MATCHES
+    currentUserId.isNullOrBlank() -> MetaUserCheck.UNKNOWN
+    storedUserId == currentUserId -> MetaUserCheck.MATCHES
+    else -> MetaUserCheck.SWITCHED
+}
 
 /** What Settings may offer for the account's login identities. */
 enum class AccountIdAction { NONE, DELETE, UNLINK }
