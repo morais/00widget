@@ -46,7 +46,16 @@ class ZeroZeroWidgetApp : Application() {
         val connection = connectionStore.current()
         if (connection.apiKey.isBlank()) return null
         val base = ConnectionStore.effectiveBaseUrl(connection.baseUrl) ?: return null
-        return ZeroWidgetApi(http, base, connection.apiKey)
+        return apiFor(base, connection.apiKey)
+    }
+
+    /** The client for the current connection, built once per connection (audit P4). */
+    @Volatile
+    private var cachedApi: Triple<String, String, ZeroWidgetApi>? = null
+
+    fun apiFor(baseUrl: String, apiKey: String): ZeroWidgetApi {
+        cachedApi?.let { (base, key, api) -> if (base == baseUrl && key == apiKey) return api }
+        return ZeroWidgetApi(http, baseUrl, apiKey).also { cachedApi = Triple(baseUrl, apiKey, it) }
     }
 
     /** Process-wide scope for work that outlives any one panel. */
@@ -60,10 +69,7 @@ class ZeroZeroWidgetApp : Application() {
         http = OkHttpClient.Builder().build()
         // The API client resolves base URL + key per call from the store, so
         // editing them in the settings panel takes effect without a restart.
-        val apiFactory = { baseUrl: String, apiKey: String ->
-            ZeroWidgetApi(http, baseUrl, apiKey)
-        }
-        repository = DashboardRepository(connectionStore, apiFactory)
+        repository = DashboardRepository(connectionStore, ::apiFor)
         horizonAuth = HorizonAuth(this, appScope, BuildConfig.PLATFORM_APP_ID)
         horizonAuth.connect()
         horizonIap = HorizonIap(appScope, BuildConfig.PLATFORM_APP_ID)

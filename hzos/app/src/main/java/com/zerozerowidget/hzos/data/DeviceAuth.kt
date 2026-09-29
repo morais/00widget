@@ -60,7 +60,7 @@ class DeviceFlowExpiredException : IOException("The sign-in code expired. Reques
 class DeviceAuthApi(http: OkHttpClient, baseUrl: String) {
     private val http: OkHttpClient = http
     private val base: String = baseUrl.trimEnd('/')
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = WireJson
 
     suspend fun pollToken(deviceCode: String): DeviceTokenResponse = post(
         "/v1/auth/device/token",

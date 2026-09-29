@@ -29,7 +29,7 @@ private val Context.sampleDataStore by preferencesDataStore(name = "samples")
 class SampleStore(context: Context) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = WireJson
 
     private val _cards = MutableStateFlow<List<DashboardCard>>(emptyList())
     val cards: StateFlow<List<DashboardCard>> = _cards.asStateFlow()
