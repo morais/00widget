@@ -98,6 +98,11 @@ if [ -f "$LAST_UPLOAD_FILE" ]; then
 fi
 
 echo "Uploading $APK to channel $CHANNEL..."
+# The secret goes on the command line, so while the upload runs any local
+# process that can list processes can read it. Tried keeping it out:
+# ovr-platform-util 208.0.0 rejects every --config file as "Invalid JSON
+# config file", even {"notes": "test"}, and --token is an argument too.
+# Revisit when a release reads the secret from a file or the environment.
 # ${VAR:+...} instead of an array: macOS bash 3.2 chokes on
 # "${EMPTY_ARRAY[@]}" under `set -u`, which is exactly this script.
 "$OVR_UTIL" upload-quest-build \
