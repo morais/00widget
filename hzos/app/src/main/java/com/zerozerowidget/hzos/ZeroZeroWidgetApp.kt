@@ -79,7 +79,12 @@ class ZeroZeroWidgetApp : Application() {
         horizonAuth.connect()
         horizonIap = HorizonIap(appScope, BuildConfig.PLATFORM_APP_ID)
         horizonSignIn = HorizonSignInController(this)
-        repository.start()
+        // An older build stored the key in plaintext: encrypt it, then start
+        // polling, so the repository never reads the key mid-move.
+        appScope.launch {
+            connectionStore.migrate()
+            repository.start()
+        }
         // Poll only while some panel is on screen (STARTED); see
         // DashboardRepository.setActive.
         ProcessLifecycleOwner.get().lifecycle.addObserver(

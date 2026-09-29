@@ -1,6 +1,8 @@
 package com.zerozerowidget.hzos.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -16,12 +18,17 @@ private val Context.connectionDataStore by preferencesDataStore(name = "connecti
  * saved alongside the token at sign-in so a later Meta account switch is
  * detectable: same headset, different operator, old token must go.
  *
- * The key is stored in DataStore (app-private); never log it, never put it
- * in a panel title, and never send it anywhere but the configured base URL.
+ * The key is stored in DataStore encrypted by [cipher] (a Keystore key by
+ * default, audit S2); never log it, never put it in a panel title, and
+ * never send it anywhere but the configured base URL.
  * The Meta user id is an opaque identity string, not a secret, but it is
  * still only ever sent to the configured base URL.
  */
-class ConnectionStore(private val context: Context) : ConnectionSource {
+class ConnectionStore(
+    private val dataStore: DataStore<Preferences>,
+    private val cipher: SecretCipher = KeystoreSecretCipher()
+) : ConnectionSource {
+    constructor(context: Context) : this(context.connectionDataStore)
 
     data class Connection(val baseUrl: String, val apiKey: String, val metaUserId: String = "") {
         val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
@@ -29,7 +36,10 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
 
     companion object {
         private val BASE_URL = stringPreferencesKey("base_url")
+
+        /** Legacy plaintext key; read once by [migrate], then removed. */
         private val API_KEY = stringPreferencesKey("api_key")
+        private val API_KEY_ENCRYPTED = stringPreferencesKey("api_key_enc")
         private val META_USER_ID = stringPreferencesKey("meta_user_id")
 
         /**
@@ -60,10 +70,11 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
     }
 
     override val connection: Flow<Connection> =
-        context.connectionDataStore.data.map { prefs ->
+        dataStore.data.map { prefs ->
             Connection(
                 baseUrl = prefs[BASE_URL].orEmpty(),
-                apiKey = prefs[API_KEY].orEmpty(),
+                // Undecryptable (the Keystore key is gone): signed out.
+                apiKey = prefs[API_KEY_ENCRYPTED]?.let(cipher::decrypt).orEmpty(),
                 metaUserId = prefs[META_USER_ID].orEmpty()
             )
         }
@@ -71,9 +82,10 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
     override suspend fun current(): Connection = connection.first()
 
     suspend fun save(baseUrl: String, apiKey: String, metaUserId: String = "") {
-        context.connectionDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[BASE_URL] = baseUrl.trim().trimEnd('/')
-            prefs[API_KEY] = apiKey.trim()
+            prefs[API_KEY_ENCRYPTED] = cipher.encrypt(apiKey.trim())
+            prefs.remove(API_KEY)
             if (metaUserId.isNotBlank()) {
                 prefs[META_USER_ID] = metaUserId.trim()
             } else {
@@ -83,10 +95,23 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
     }
 
     suspend fun clear() {
-        context.connectionDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(BASE_URL)
             prefs.remove(API_KEY)
+            prefs.remove(API_KEY_ENCRYPTED)
             prefs.remove(META_USER_ID)
+        }
+    }
+
+    /**
+     * Moves a plaintext key written by an older build into encrypted
+     * storage. Run once at startup; a no-op when there is nothing to move.
+     */
+    suspend fun migrate() {
+        dataStore.edit { prefs ->
+            val plain = prefs[API_KEY] ?: return@edit
+            if (plain.isNotBlank()) prefs[API_KEY_ENCRYPTED] = cipher.encrypt(plain)
+            prefs.remove(API_KEY)
         }
     }
 }
