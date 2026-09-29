@@ -77,8 +77,24 @@ describe("Horizon device authorization", () => {
       headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.2" },
       body: JSON.stringify({ device_code: code.device_code }),
     }), env);
-    const body = await exchanged.json() as { token: string };
+    const body = await exchanged.json() as { token: string; publisherCredential: string };
     expect(body.token).toMatch(/^zwa_[A-Za-z0-9_-]{43}$/);
+
+    // Agent config's token: a publisher credential, never the app one, so an
+    // agent given it cannot reach the app-only account routes.
+    expect(body.publisherCredential).toMatch(/^zw_/);
+    const agentStatus = await fetchWorker(new Request(`${ORIGIN}/v1/status`, {
+      headers: { authorization: `Bearer ${body.publisherCredential}` },
+    }), env);
+    expect((await agentStatus.json() as any).account).toMatchObject({
+      credentialKind: "publisher",
+      scopes: ["read", "publish", "webhook:manage"],
+    });
+    const agentDeletesAccount = await fetchWorker(new Request(`${ORIGIN}/v1/account`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${body.publisherCredential}` },
+    }), env);
+    expect(agentDeletesAccount.status).toBe(403);
 
     const status = await fetchWorker(new Request(`${ORIGIN}/v1/status`, {
       headers: { authorization: `Bearer ${body.token}` },

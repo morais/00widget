@@ -1,3 +1,4 @@
+import { issueAgentPublisherCredential } from "./appCredentials";
 import { ApiScopePresets, createApiKey, sha256Hex } from "./auth";
 import { parseJson } from "./cards";
 import { createVerifiedHorizonAuthorization } from "./deviceAuth";
@@ -174,7 +175,15 @@ async function issueHorizonCredential(
       .bind(new Date().toISOString(), created.apiKey.id).run();
     return json({ error: "Horizon identity was unlinked; sign in again" }, 409);
   }
-  return json({ status: "signed_in", token: created.token }, 201, { "cache-control": "no-store" });
+  // The headset's own token is an app credential (it can delete the account),
+  // so its Agent config needs a separate one to hand to agents, exactly as
+  // iOS sign-in issues. Minted after the unlink check: nothing to revoke.
+  const agent = await issueAgentPublisherCredential(env, { tenantId, label: "Horizon OS" });
+  return json(
+    { status: "signed_in", token: created.token, publisherCredential: agent.token },
+    201,
+    { "cache-control": "no-store" },
+  );
 }
 
 function changedRows(result: D1Result): number {

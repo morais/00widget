@@ -5,6 +5,25 @@ import {
 } from "./auth";
 import type { Env } from "./types";
 
+/// The account-level token an app's Agent config hands to an agent: publish
+/// and webhooks, never the app-only account routes. It deliberately has
+/// neither a session id nor a device id, so signing out one device cannot
+/// stop an agent that may be running somewhere else; rotating agent tokens
+/// is what revokes it.
+export async function issueAgentPublisherCredential(
+  env: Env,
+  input: { tenantId: string; ownerEmail?: string; label: string },
+): Promise<CreatedApiKey> {
+  return createApiKey(env, {
+    tenantId: input.tenantId,
+    ownerEmail: input.ownerEmail,
+    label: `${input.label} (agent publisher)`,
+    kind: "publisher",
+    purpose: "agent",
+    scopes: ApiScopePresets.producer,
+  });
+}
+
 export interface AppCredentialBundle extends CreatedApiKey {
   appCredential: string;
   publisherCredential?: string;
@@ -46,16 +65,10 @@ export async function issueAppCredentialBundle(
   });
   const publisherCredential = input.issuePublisherCredential === false
     ? null
-    : await createApiKey(env, {
+    : await issueAgentPublisherCredential(env, {
         tenantId: created.tenant.id,
         ownerEmail: created.tenant.ownerEmail ?? input.ownerEmail,
-        label: `${input.label} (agent publisher)`,
-        kind: "publisher",
-        purpose: "agent",
-        // An agent token belongs to the account. It deliberately has neither
-        // the phone's session id nor its device id, so signing out one device
-        // cannot stop an agent that may be running somewhere else.
-        scopes: ApiScopePresets.producer,
+        label: input.label,
       });
 
   return {

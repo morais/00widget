@@ -88,8 +88,22 @@ describe("Horizon identity", () => {
 
     const created = await login(env, "proof-create-12345678", "create");
     expect(created.status).toBe(201);
-    const token = (await created.json() as { token: string }).token;
+    const createdBody = await created.json() as { token: string; publisherCredential: string };
+    const token = createdBody.token;
     expect(token).toMatch(/^zwa_[A-Za-z0-9_-]{43}$/);
+
+    // Agent config's token: a publisher credential, never the app one, so an
+    // agent given it cannot reach the app-only account routes.
+    expect(createdBody.publisherCredential).toMatch(/^zw_/);
+    const agentStatus = await worker(authedRequest(`${ORIGIN}/v1/status`, {}, createdBody.publisherCredential), env);
+    expect((await agentStatus.json() as any).account).toMatchObject({
+      credentialKind: "publisher",
+      scopes: ["read", "publish", "webhook:manage"],
+    });
+    const agentDeletesAccount = await worker(authedRequest(`${ORIGIN}/v1/account`, {
+      method: "DELETE",
+    }, createdBody.publisherCredential), env);
+    expect(agentDeletesAccount.status).toBe(403);
 
     const statusResponse = await worker(authedRequest(`${ORIGIN}/v1/status`, {}, token), env);
     expect((await statusResponse.json() as any).account.scopes).toEqual([

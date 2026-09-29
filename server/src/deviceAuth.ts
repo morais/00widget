@@ -1,3 +1,4 @@
+import { issueAgentPublisherCredential } from "./appCredentials";
 import {
   ApiScopePresets,
   createApiKey,
@@ -178,6 +179,7 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
   if (changedRows(claimed) === 0) return deviceState("authorization_pending");
 
   let mintedApiKeyId: string | null = null;
+  let mintedAgentKeyId: string | null = null;
   try {
     const created = await createApiKey(env, {
       tenantId: row.tenant_id,
@@ -211,6 +213,13 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
         .bind(new Date().toISOString(), mintedApiKeyId).run();
       return deviceState("expired");
     }
+    // Agent config's token, separate from the app credential above (see
+    // horizonIdentity.ts). Revoked with it below if anything later fails.
+    const agent = await issueAgentPublisherCredential(env, {
+      tenantId: row.tenant_id,
+      label: "Horizon OS",
+    });
+    mintedAgentKeyId = agent.apiKey.id;
     await env.ZW_DB.prepare(
       `UPDATE device_authorizations
        SET status = 'consumed', consumed_at = ?
@@ -218,11 +227,16 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
     )
       .bind(new Date().toISOString(), row.id)
       .run();
-    return json({ token: created.token }, 200, { "cache-control": "no-store" });
+    return json(
+      { token: created.token, publisherCredential: agent.token },
+      200,
+      { "cache-control": "no-store" },
+    );
   } catch (error) {
-    if (mintedApiKeyId) {
+    for (const id of [mintedApiKeyId, mintedAgentKeyId]) {
+      if (!id) continue;
       await env.ZW_DB.prepare(`UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`)
-        .bind(new Date().toISOString(), mintedApiKeyId).run();
+        .bind(new Date().toISOString(), id).run();
     }
     try {
       await env.ZW_DB.prepare(
