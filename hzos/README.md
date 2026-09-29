@@ -201,3 +201,26 @@ per-developer files; env vars override the file for CI):
   introduced is in `app/lint-baseline.xml` and `app/detekt-baseline.xml`,
   to be burned down. Regenerate a baseline only after fixing entries.
 - `cd ../server && npm test` covers the device-code endpoints this app reads.
+
+### Look and Pinch on the Spatial Simulator
+
+Meta Spatial Simulator 207 (`metavr`) runs the app under Look and Pinch,
+the Meta VR Glasses input model, by default. Check each change to a
+panel's controls there:
+
+1. `./gradlew :app:assembleDebug`, then
+   `metavr -d emulator-5554 adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+2. The app should start without a "Switch to Controllers" prompt.
+3. Simulator **Settings** → **Show Interactive Elements** outlines every
+   element the system can target. Every button, card headline and chart
+   should be outlined, nothing decorative, and no two outlines should
+   overlap.
+4. `scripts/lookpinch-audit.py -d emulator-5554 480 1280` measures every
+   target in dp (one width per open window, topmost first; the widths are
+   in `metavr shell dumpsys activity activities`) and fails on any under
+   48dp or overlapping. Tap by label rather than coordinates:
+   `metavr ui tap --content-desc Settings`.
+
+For the Glasses' narrower field of view, `metavr device fov-sim enable`
+crops a Quest 3, 3S or Pro to 70° × 66° until reboot; judge it through
+the lenses, since captures before Horizon OS v209 don't show the crop.
