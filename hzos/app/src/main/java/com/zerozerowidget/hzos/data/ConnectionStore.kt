@@ -32,7 +32,12 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
         private val API_KEY = stringPreferencesKey("api_key")
         private val META_USER_ID = stringPreferencesKey("meta_user_id")
 
-        /** http:// is dev-only (emulator/host tunnel); release builds require https://. */
+        /**
+         * The Worker URL as stored: trimmed, https assumed when no scheme is
+         * given, and https only. Cleartext is blocked at runtime anyway
+         * (targetSdk 34, no network security config), so an http URL would
+         * save and then fail on every request.
+         */
         fun normalizeBaseUrl(raw: String): String? {
             val trimmed = raw.trim().trimEnd('/')
             if (trimmed.isEmpty()) return null
@@ -40,9 +45,7 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
             val scheme = withScheme.substringBefore("://").lowercase()
             val host = withScheme.substringAfter("://").substringBefore('/').substringBefore(':')
             if (host.isEmpty()) return null
-            if (scheme == "https") return withScheme
-            if (scheme == "http" && isLocalHost(host)) return withScheme
-            return null
+            return withScheme.takeIf { scheme == "https" }
         }
 
         /**
@@ -54,12 +57,6 @@ class ConnectionStore(private val context: Context) : ConnectionSource {
             stored: String,
             default: String = BuildConfig.DEFAULT_BASE_URL
         ): String? = normalizeBaseUrl(stored.ifBlank { default })
-
-        private fun isLocalHost(host: String): Boolean {
-            val h = host.lowercase()
-            return h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" ||
-                h.endsWith(".localhost")
-        }
     }
 
     override val connection: Flow<Connection> =

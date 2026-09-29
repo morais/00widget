@@ -92,7 +92,7 @@ internal fun DeveloperPanel(app: ZeroZeroWidgetApp) {
                         scope.launch {
                             val normalized = ConnectionStore.normalizeBaseUrl(serverUrl)
                             if (normalized == null) {
-                                savedNote = "URL must be https (http only for localhost)."
+                                savedNote = "URL must be https."
                                 return@launch
                             }
                             val current = app.connectionStore.current()
