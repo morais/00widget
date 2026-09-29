@@ -18,8 +18,11 @@
 # dashboard reopened afterwards. Card opacity stays at 100% afterwards; set
 # it back in Developer > Look if you want the glass look.
 #
-# Output: gitignored artifacts/screenshots/raw/hzos/ (see --out). The
-# simulator's display is 2064x2208, so crop for the store's 2560x1440.
+# Output: gitignored artifacts/screenshots/raw/hzos/ (see --out), at the
+# store's required 2560x1440 (16:9). The simulator's display is 2064x2208
+# and can't be made wider (`wm size` only letterboxes it), so
+# compose_store_shot.py keeps the panel whole and sharp and widens the frame
+# with a blurred copy of the room. Needs Pillow (scripts/requirements.txt).
 #
 # Usage:
 #   capture-sim-screenshots.sh [--device ID] [--out DIR] [--card TITLE]
@@ -96,10 +99,29 @@ wait_for() {
 
 focused() { m window list 2>/dev/null | grep -F "[FOCUS]" | head -1; }
 
+# Framing to the store's 2560x1440 is compose_store_shot.py's job (Pillow):
+# the first Python on PATH that can import it.
+PYTHON=""
+for candidate in python3.12 python3; do
+    if command -v "$candidate" >/dev/null && "$candidate" -c "import PIL" 2>/dev/null; then
+        PYTHON="$candidate"
+        break
+    fi
+done
+[ -n "$PYTHON" ] || { echo "Needs Pillow: python3.12 -m pip install -r scripts/requirements.txt (repo root)" >&2; exit 1; }
+SHOT_TMP="$(mktemp -d -t hzos-shots)"
+trap 'rm -rf "$SHOT_TMP"; [ -n "${NIGHT_BEFORE:-}" ] && m adb shell cmd uimode night "$NIGHT_BEFORE" >/dev/null 2>&1' EXIT
+
 shot() {
     FILE="$OUT/sim-$1-$(date +%Y%m%d-%H%M%S).png"
-    m capture screenshot --method screencap -o "$FILE" >/dev/null
-    echo "Captured $FILE"
+    m capture screenshot --method screencap -o "$SHOT_TMP/raw.png" >/dev/null
+    # The topmost app window (the first root in the dump), in screen pixels.
+    read -r WIN_TOP WIN_BOTTOM <<< "$(query "(els[0]['bounds'][1], els[0]['bounds'][3]) if els else None")"
+    [ -n "${WIN_TOP:-}" ] || { echo "No app window on screen for $1" >&2; exit 1; }
+    "$PYTHON" "$SCRIPT_DIR/compose_store_shot.py" "$SHOT_TMP/raw.png" "$FILE" "$WIN_TOP" "$WIN_BOTTOM"
+    GOT="$(sips -g pixelWidth -g pixelHeight "$FILE" | awk '/pixel(Width|Height)/ {printf "%sx", $2}')"
+    [ "${GOT%x}" = "2560x1440" ] || { echo "Got ${GOT%x}, wanted 2560x1440" >&2; exit 1; }
+    echo "Captured $FILE (2560x1440)"
 }
 
 # 1. Simulator up, current build installed and opened as the launcher does.
@@ -131,7 +153,6 @@ sleep 5
 # 2. Light mode, restored on exit; simulator overlay off (the toggle
 # reports `checked` only when on).
 NIGHT_BEFORE="$(m adb shell cmd uimode night 2>/dev/null | sed -n 's/^Night mode: //p' | tr -d '\r')"
-trap '[ -n "$NIGHT_BEFORE" ] && m adb shell cmd uimode night "$NIGHT_BEFORE" >/dev/null 2>&1' EXIT
 m adb shell cmd uimode night no >/dev/null
 m adb shell input tap 92 92   # the simulator's own settings gear: fixed chrome, and its id is only in the dump once its window has focus
 wait_for "any(n.get('resource_id') == 'settings_close_button' for n in els)" "simulator settings"
