@@ -5,12 +5,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -119,6 +121,9 @@ class DashboardRepositoryTest {
         var fetches = 0
         override suspend fun fetchDashboard(): DashboardResponse {
             fetches++
+            // Suspend like a real request, so a collector can observe
+            // whatever the repository emitted before the answer.
+            yield()
             return DashboardResponse()
         }
         override suspend fun runAction(actionId: String, cardId: String?) = Unit
@@ -154,6 +159,44 @@ class DashboardRepositoryTest {
             advanceTimeBy(5 * 60_000L)
             assertEquals("and stops again when hidden", 2, api.fetches)
         } finally {
+            repoScope.cancel()
+        }
+    }
+
+    @Test
+    fun unchangedCardsKeepTheirInstanceSoComposeSkipsThem() {
+        val a = card("a")
+        val b = card("b")
+        val old = listOf(a, b)
+        // Equal lists: the old list itself.
+        assertTrue(DashboardRepository.reuseUnchanged(old, listOf(card("a"), card("b"))) === old)
+        // One changed: the unchanged one is the old instance, the changed one new.
+        val changedB = card("b").copy(value = "2")
+        val merged = DashboardRepository.reuseUnchanged(old, listOf(card("a"), changedB))
+        assertTrue(merged[0] === a)
+        assertTrue(merged[1] === changedB)
+    }
+
+    @Test
+    fun aBackgroundPollEmitsAtMostOnceAndNeverFlickersLoading() = runTest {
+        val store = FakeStore(ConnectionStore.Connection("", "key-a"))
+        val api = CountingApi()
+        val repoScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repo = DashboardRepository(store, { _, _ -> api }, repoScope, "https://example.invalid")
+        val seen = mutableListOf<DashboardState>()
+        val collector = repoScope.launch { repo.state.collect { seen += it } }
+        try {
+            repo.start()
+            runCurrent()
+            seen.clear()
+            advanceTimeBy(60_000L + 1) // one background poll
+            assertEquals("the poll ran", 2, api.fetches)
+            // At most the result itself (StateFlow drops it if nothing
+            // differs), and never an isLoading flicker before it.
+            assertTrue(seen.size <= 1)
+            assertTrue(seen.none { it.isLoading })
+        } finally {
+            collector.cancel()
             repoScope.cancel()
         }
     }

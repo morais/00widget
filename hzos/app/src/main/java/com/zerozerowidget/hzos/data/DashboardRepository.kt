@@ -101,10 +101,10 @@ class DashboardRepository(
                 // returning panel never shows a minutes-old dashboard.
                 active.collectLatest { isActive ->
                     if (!isActive) return@collectLatest
-                    refreshNow(connection)
+                    refreshNow(connection, background = true)
                     while (true) {
                         delay(POLL_MS)
-                        refreshNow(connection)
+                        refreshNow(connection, background = true)
                     }
                 }
             }
@@ -177,7 +177,17 @@ class DashboardRepository(
         _state.value = DashboardState(isLoading = false, isConfigured = false)
     }
 
-    private suspend fun refreshNow(connection: ConnectionStore.Connection) = refreshMutex.withLock {
+    /**
+     * [background] polls leave isLoading alone and emit once, with the result;
+     * a user-triggered refresh (button, after an action or delete) shows it.
+     * Either way, an unchanged card or activity keeps its previous instance
+     * (see [reuseUnchanged]), so Compose skips it — a poll that changed
+     * nothing recomposes only what reads lastSyncEpochMs (audit P3).
+     */
+    private suspend fun refreshNow(
+        connection: ConnectionStore.Connection,
+        background: Boolean = false
+    ) = refreshMutex.withLock {
         // Callers guarantee resolvability; re-check defensively since the
         // stored values can change between guard and call.
         val base = effectiveBaseUrl(connection) ?: return@withLock
@@ -185,12 +195,13 @@ class DashboardRepository(
         // Queued behind another refresh while the credential changed: the
         // collector already owns the new one, so this one has nothing to say.
         if (!stillCurrent(connection, startedAt)) return@withLock
-        _state.value = _state.value.copy(isLoading = true, error = null)
+        if (!background) _state.value = _state.value.copy(isLoading = true, error = null)
         val next: DashboardState = try {
             val dashboard = apiFactory(base, connection.apiKey).fetchDashboard()
+            val current = _state.value
             DashboardState(
-                cards = dashboard.cards,
-                activities = dashboard.activities,
+                cards = reuseUnchanged(current.cards, dashboard.cards),
+                activities = reuseUnchanged(current.activities, dashboard.activities),
                 isLoading = false,
                 error = null,
                 lastSyncEpochMs = System.currentTimeMillis(),
@@ -228,6 +239,19 @@ class DashboardRepository(
     ): Boolean = generation == startedAt && store.current().apiKey == connection.apiKey
 
     companion object {
+        /**
+         * [fresh] with every element equal to one in [old] replaced by that
+         * old instance, and [old] itself when the lists are equal. Decoding
+         * builds new objects every poll, and Compose compares these
+         * parameters by instance, so without this every card recomposes
+         * every minute whether or not it changed.
+         */
+        internal fun <T> reuseUnchanged(old: List<T>, fresh: List<T>): List<T> = when {
+            old == fresh -> old
+            old.isEmpty() -> fresh
+            else -> old.associateBy { it }.let { byValue -> fresh.map { byValue[it] ?: it } }
+        }
+
         private const val POLL_MS = 60_000L
     }
 }
