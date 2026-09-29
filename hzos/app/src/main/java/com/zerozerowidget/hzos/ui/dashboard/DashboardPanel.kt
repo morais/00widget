@@ -26,6 +26,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -106,8 +107,10 @@ fun DashboardPanel(
     val cardAlpha by app.panelPrefs.cardAlphaState()
     val hideIndicators by app.panelPrefs.hideSampleIndicatorsState()
     var selectedId by remember { mutableStateOf<String?>(null) }
-    var runningId by remember { mutableStateOf<String?>(null) }
-    var runError by remember { mutableStateOf<String?>(null) }
+    // Per card, keyed by Sourced.key: a running action disables only its
+    // own card's buttons, and a failure shows under the card that failed.
+    val runningIds = remember { mutableStateMapOf<String, String>() }
+    val runErrors = remember { mutableStateMapOf<String, String>() }
     val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize().panelBackground().padding(spacing.twoXLarge)) {
@@ -212,17 +215,18 @@ fun DashboardPanel(
                                         )
                                     }
                                 } else {
+                                    val key = entry.key
                                     ActionButtons(
                                         card = card,
-                                        runningId = runningId,
-                                        runError = if (runningId != null) null else runError,
+                                        runningId = runningIds[key],
+                                        runError = runErrors[key],
                                         onRun = { action ->
                                             scope.launch {
-                                                runningId = action.id
-                                                runError = null
+                                                runningIds[key] = action.id
+                                                runErrors.remove(key)
                                                 val result = app.repository.runAction(action.id, card.id)
-                                                runningId = null
-                                                runError = result.exceptionOrNull()?.let(::describeRunError)
+                                                runningIds.remove(key)
+                                                result.exceptionOrNull()?.let { runErrors[key] = describeRunError(it) }
                                             }
                                         }
                                     )
