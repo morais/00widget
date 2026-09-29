@@ -1,14 +1,15 @@
 name: Horizon app
 
-# Builds and tests the Horizon OS panel app (hzos/). Path-filtered: the
-# server workflow never needs it, and it needs nothing from the server.
-# examples/ is included because WireDecodingTest decodes those payloads.
+# Builds and tests the Horizon OS panel app (hzos/). Path-filtered to what
+# the app is built from or decodes: examples/ because WireDecodingTest
+# decodes those payloads, and server/src/types.ts because it is the wire
+# contract those payloads follow. The rest of server/ cannot break it.
 on:
   push:
     branches: [main]
-    paths: ["hzos/**", "examples/**", ".github/workflows/hzos.yml"]
+    paths: ["hzos/**", "examples/**", "server/src/types.ts", ".github/workflows/hzos.yml"]
   pull_request:
-    paths: ["hzos/**", "examples/**", ".github/workflows/hzos.yml"]
+    paths: ["hzos/**", "examples/**", "server/src/types.ts", ".github/workflows/hzos.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,3 +38,12 @@ jobs:
       - name: Assemble, unit test, lint, detekt, formatting
         working-directory: hzos
         run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:detekt spotlessCheck --console=plain
+
+      # The store gets the release variant, which debug never exercises: R8
+      # shrinking and obfuscation, resource shrinking, and the keep rules in
+      # proguard-rules.pro. A missing keep rule builds a debug APK fine and
+      # fails here, or at runtime. Unsigned: CI holds no store keystore, and
+      # -PallowUnsigned is how a release build says that is intended.
+      - name: Assemble release (R8)
+        working-directory: hzos
+        run: ./gradlew :app:assembleRelease -PallowUnsigned --console=plain
