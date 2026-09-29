@@ -126,7 +126,16 @@ fun DashboardPanel(
     val runErrors = remember { mutableStateMapOf<String, String>() }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().panelBackground().padding(spacing.twoXLarge)) {
+    // No bottom padding: the widget list runs to the panel's bottom edge and
+    // scrolls under it, instead of stopping at an invisible line above it
+    // that cut the last visible card short. Its own content padding keeps
+    // the same room below the last card once scrolled to the end.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .panelBackground()
+            .padding(start = spacing.twoXLarge, top = spacing.twoXLarge, end = spacing.twoXLarge)
+    ) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -295,10 +304,10 @@ fun DashboardPanel(
                         LazyColumn(
                             state = listState,
                             verticalArrangement = Arrangement.spacedBy(spacing.medium),
-                            // Bottom breathing room: without it the last card
-                            // ends flush against the window edge when the list
-                            // is scrolled to the end.
-                            contentPadding = PaddingValues(bottom = spacing.medium)
+                            // The panel's bottom inset, taken over from the panel
+                            // (see above): the last card keeps its room from the
+                            // window edge once the list is scrolled to the end.
+                            contentPadding = PaddingValues(bottom = spacing.twoXLarge)
                         ) {
                             if (visibleActivities.isNotEmpty()) {
                                 item(key = "activities-title") {
