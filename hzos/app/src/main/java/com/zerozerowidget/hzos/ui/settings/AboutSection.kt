@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -12,6 +13,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.zerozerowidget.hzos.BuildConfig
 import com.zerozerowidget.hzos.ui.cards.GlassCard
 import com.zerozerowidget.hzos.ui.openDeepLink
@@ -55,12 +58,20 @@ internal fun AboutSection(cardAlpha: Float, onOpenDeveloper: () -> Unit) {
     }
 }
 
+/**
+ * Look and Pinch target floor. These rows are a line of small text; sized
+ * to it, each was about 20dp and the simulator's interactive-element
+ * overlay showed their outlines overlapping.
+ */
+private val MIN_ROW_HEIGHT = 48.dp
+
 @Composable
 internal fun LinkRow(label: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = MIN_ROW_HEIGHT),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -82,7 +93,8 @@ internal fun VersionRow(onOpenDeveloper: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpenDeveloper),
+            .clickable(role = Role.Button, onClick = onOpenDeveloper)
+            .heightIn(min = MIN_ROW_HEIGHT),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
