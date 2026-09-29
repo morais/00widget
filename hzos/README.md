@@ -221,6 +221,12 @@ panel's controls there:
    48dp or overlapping. Tap by label rather than coordinates:
    `metavr ui tap --content-desc Settings`.
 
+The simulator opens every new window on top of the last one: it shows
+one app in front and up to three behind, with no room to lay panels out
+side by side. On a headset the same panels open beside each other
+(`FLAG_ACTIVITY_LAUNCH_ADJACENT` in `ui/PanelLauncher.kt`), so judge
+window placement there, not on the simulator.
+
 For the Glasses' narrower field of view, `metavr device fov-sim enable`
 crops a Quest 3, 3S or Pro to 70° × 66° until reboot; judge it through
 the lenses, since captures before Horizon OS v209 don't show the crop.
