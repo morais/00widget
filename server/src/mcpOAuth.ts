@@ -254,7 +254,10 @@ export async function handleAuthorize(req: Request, env: Env): Promise<Response>
   const identity = await resolveWebTenantIdentity(env, session);
   if (!identity) return htmlResponse(renderNoTenantError(session), 409);
 
-  return consentResponse(renderConsentPage(request, session), request.redirectUri);
+  return consentResponse(
+    renderConsentPage(request, session, verifiedClientName(env, request.redirectUri)),
+    request.redirectUri,
+  );
 }
 
 export async function handleAuthorizeDecision(req: Request, env: Env): Promise<Response> {
@@ -414,11 +417,14 @@ export async function handleToken(req: Request, env: Env): Promise<Response> {
   }
 
   const client = await verifyClient(env, code.cid);
+  const verifiedName = verifiedClientName(env, code.ru);
   let created: Awaited<ReturnType<typeof createApiKey>>;
   try {
     created = await createApiKey(env, {
       tenantId: code.tid,
-      label: mcpCredentialLabel(client?.n, code.sub),
+      // A verified callback gets the server-owned canonical name. The
+      // self-asserted registration name is used only for unverified clients.
+      label: mcpCredentialLabel(verifiedName ?? client?.n, code.sub),
       purpose: "connector",
       scopes: code.sc,
     });
@@ -594,7 +600,14 @@ function consentResponse(html: string, redirectUri: string): Response {
 function renderConsentPage(
   request: AuthorizeRequest,
   session: WebPrincipal,
+  verifiedName?: string,
 ): string {
+  const clientName = verifiedName ?? request.client.n;
+  const trust = verifiedName
+    ? `<p><span class="status status-good">Verified client</span>
+       00Widget recognizes this exact callback address.</p>`
+    : `<p><span class="status status-warning">Unverified client</span>
+       This name was supplied by the client. Review the callback address before approving.</p>`;
   const hidden = [
     ["response_type", "code"],
     ["client_id", request.clientId],
@@ -612,8 +625,9 @@ function renderConsentPage(
     "00Widget · Connect an MCP client",
     `<header><h1>00Widget · Connect</h1><div class="meta">signed in as ${esc(session.email)}</div></header>
      <section>
-       <h2>${esc(request.client.n)} wants to publish to 00Widget</h2>
-       <p>${esc(request.client.n)} can <strong>read</strong> your cards and activities and
+       <h2>${esc(clientName)} wants to publish to 00Widget</h2>
+       ${trust}
+       <p>${esc(clientName)} can <strong>read</strong> your cards and activities and
        <strong>publish</strong> to them.</p>
        <div class="oauth-detail">
          <span class="oauth-detail-label">Redirects to</span>
@@ -674,6 +688,42 @@ function isAllowedRedirectUri(value: string): boolean {
   if (url.protocol === "https:") return true;
   return url.protocol === "http:"
     && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
+}
+
+/// Returns the server-owned display name for an exact, verified HTTPS
+/// callback. Dynamic registration metadata is self-asserted; neither
+/// `client_name` nor a lookalike/prefix URL can earn this result.
+///
+/// Invalid configuration fails closed to "unverified" so a typo can never
+/// confer trust. The registry is deliberately evaluated at authorization and
+/// token exchange time rather than baked into the signed client id, which
+/// makes removing an entry take effect immediately.
+function verifiedClientName(env: Env, redirectUri: string): string | undefined {
+  const raw = env.MCP_VERIFIED_CLIENTS?.trim();
+  if (!raw) return undefined;
+
+  let registry: unknown;
+  try {
+    registry = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!registry || typeof registry !== "object" || Array.isArray(registry)) return undefined;
+
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    return undefined;
+  }
+  if (redirect.protocol !== "https:" || redirect.hash || redirect.username || redirect.password) {
+    return undefined;
+  }
+
+  const name = (registry as Record<string, unknown>)[redirectUri];
+  if (typeof name !== "string") return undefined;
+  const canonical = name.trim();
+  return canonical ? canonical.slice(0, CLIENT_NAME_MAX_LENGTH) : undefined;
 }
 
 /// See the note on `loginIpKey` in webLogin.ts: only the header Cloudflare

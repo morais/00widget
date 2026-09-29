@@ -506,6 +506,32 @@ producer scopes, listed and revocable in `/admin` like any other. A caller that
 *already* holds a `zw_` token can skip all of this and send it to `/mcp`
 directly.
 
+Dynamic registration names are self-asserted. Set `MCP_VERIFIED_CLIENTS` to a
+JSON object mapping exact HTTPS callback URLs to canonical client names when a
+deployment wants to distinguish known clients on the consent screen:
+
+```toml
+MCP_VERIFIED_CLIENTS = "{\"https://client.example.com/oauth/callback\":\"Example client\"}"
+```
+
+Only an exact callback match receives the **Verified client** badge and the
+canonical configured name. Unknown callbacks remain supported but are labelled
+**Unverified client**. Do not add URL prefixes, lookalike domains, or localhost
+callbacks. Removing an entry takes effect immediately, including for client ids
+issued while it was present.
+
+The production registry currently recognizes these exact HTTPS callbacks:
+
+| Client | Callback |
+| --- | --- |
+| ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect` |
+| Claude | `https://claude.ai/api/mcp/auth_callback` |
+| Manus | `https://manus.im/api/webhook/mcp/callback` |
+
+OpenCode defaults to `http://127.0.0.1:19876/mcp/oauth/callback`. It remains
+supported but unverified: a loopback port identifies whichever local process
+can bind it, not a vendor-controlled client.
+
 ### MCP Apps preview channel
 
 `/mcp-preview` is an isolated test channel for the optional visual UI. It is

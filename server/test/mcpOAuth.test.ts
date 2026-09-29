@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import handler from "../src/index";
+import { listLiveMcpConnections } from "../src/auth";
 import { makeSessionCookie, readSessionCookie } from "../src/webSession";
 import type { Env } from "../src/types";
 import * as storage from "../src/storage";
@@ -246,6 +247,8 @@ describe("authorization", () => {
     const html = await res.text();
     expect(html).toContain("ChatGPT can <strong>read</strong> your cards and activities and");
     expect(html).toContain("<strong>publish</strong> to them.");
+    expect(html).toContain("Unverified client");
+    expect(html).toContain("This name was supplied by the client.");
     expect(html).not.toContain("<th>Client</th>");
     expect(html).not.toContain("<th>Account</th>");
     expect(html).not.toContain("<th>Scopes</th>");
@@ -265,10 +268,63 @@ describe("authorization", () => {
     expect(res.headers.get("referrer-policy")).toBe("same-origin");
   });
 
-  it("allows only the registered HTTP loopback origin for a local client's callback", async () => {
-    const env = oauthEnv();
+  it("uses a server-owned name and badge for an exact verified callback", async () => {
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [REDIRECT_URI]: "ChatGPT" }),
+    });
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "Self-asserted lookalike",
+      redirect_uris: [REDIRECT_URI],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId)}`, { headers: { cookie } }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("ChatGPT wants to publish to 00Widget");
+    expect(html).toContain("Verified client");
+    expect(html).toContain("recognizes this exact callback address");
+    expect(html).not.toContain("Self-asserted lookalike");
+  });
+
+  it("does not verify a callback by URL prefix", async () => {
+    const lookalike = `${REDIRECT_URI}.attacker`;
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [REDIRECT_URI]: "ChatGPT" }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "ChatGPT",
+      redirect_uris: [lookalike],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+        redirect_uri: lookalike,
+      })}`, { headers: { cookie } }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Unverified client");
+    expect(html).not.toContain("Verified client</span>");
+  });
+
+  it("allows only the registered HTTP loopback origin for a local client's callback", async () => {
     const redirectUri = "http://localhost:5173/callback";
+    const env = oauthEnv({
+      // A deployment typo must not bless a loopback address shared by any
+      // local process that can bind this port.
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [redirectUri]: "Local client" }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const clientId = ((await (await registerClient(env, {
       client_name: "Local MCP client",
       redirect_uris: [redirectUri],
@@ -286,6 +342,7 @@ describe("authorization", () => {
     expect(res.headers.get("content-security-policy")).toContain(
       "form-action 'self' https: http://localhost:5173",
     );
+    expect(await res.text()).toContain("Unverified client");
   });
 
   it("refuses a redirect_uri the client never registered", async () => {
@@ -563,6 +620,31 @@ describe("token exchange", () => {
       ctx,
     );
     expect(cards.status).toBe(200);
+  });
+
+  it("records the canonical name for a verified connector credential", async () => {
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [REDIRECT_URI]: "ChatGPT" }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "Attacker-selected name",
+      redirect_uris: [REDIRECT_URI],
+    })).json()) as { client_id: string }).client_id;
+    const code = new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
+
+    const res = await exchange(env, {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+    });
+    expect(res.status).toBe(200);
+
+    const connections = await listLiveMcpConnections(env, "test-tenant");
+    expect(connections).toHaveLength(1);
+    expect(connections[0].label).toBe(`MCP · ChatGPT · ${OWNER_EMAIL}`);
   });
 
   it("grants an MCP client no authority over devices, shares or confirmed actions", async () => {

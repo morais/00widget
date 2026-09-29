@@ -63,6 +63,12 @@ MCP_ENABLED = "false"
 # /mcp-preview.json only when MCP_ENABLED is also true; leave it false on the
 # connector URL currently under review.
 MCP_PREVIEW_ENABLED = "false"
+# Optional verified-client registry. Keys are exact HTTPS OAuth callback URLs;
+# values are canonical names owned by this deployment. A match adds a verified
+# badge and replaces the self-asserted client_name on the consent screen and in
+# the resulting credential label. Unknown clients remain usable but display as
+# unverified. Never use URL prefixes or localhost callbacks here.
+# MCP_VERIFIED_CLIENTS = "{\"https://chatgpt.com/connector_platform_oauth_redirect\":\"ChatGPT\",\"https://claude.ai/api/mcp/auth_callback\":\"Claude\",\"https://manus.im/api/webhook/mcp/callback\":\"Manus\"}"
 # Comma-separated stable tenant UUIDs allowed to use a zero-scope reviewer
 # access code in the MCP consent flow and hidden iOS Developer screen.
 # Empty or unset disables both entry points.

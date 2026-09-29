@@ -1667,6 +1667,10 @@ export interface Env {
   // and stays separate so deploying preview code cannot alter a reviewed
   // stable connector until the operator explicitly enables it.
   MCP_PREVIEW_ENABLED?: string;
+  // JSON object mapping exact HTTPS OAuth callback URLs to canonical client
+  // names. Matching callbacks receive a verified badge on the consent screen;
+  // every other dynamically registered client remains usable but unverified.
+  MCP_VERIFIED_CLIENTS?: string;
 
   // Comma-separated stable tenant ids that may use a zero-scope review access
   // code on the MCP connection page and the iOS Developer screen. Empty or
