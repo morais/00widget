@@ -132,11 +132,18 @@ suspend fun runHorizonSignIn(
 
 /** Whether the stored session belongs to whoever wears the headset now. */
 enum class MetaUserCheck {
-    /** Same Meta user, or a session with no Meta binding to check. */
+    /** Same Meta user. */
     MATCHES,
 
     /** A different Meta user: the session must go. */
     SWITCHED,
+
+    /**
+     * A session with no Meta id to compare, which only builds from before
+     * the Meta binding could save: nothing proves it belongs to whoever is
+     * wearing the headset, so it goes too, and the next sign-in binds it.
+     */
+    UNBOUND,
 
     /**
      * The current Meta user can't be read (the Platform SDK connects
@@ -149,11 +156,11 @@ enum class MetaUserCheck {
 
 /**
  * Compares the session's Meta id with the one wearing the headset. A blank
- * stored id is a legacy session with nothing to compare, so it matches; an
- * unreadable current id is [MetaUserCheck.UNKNOWN], never a match.
+ * stored id is [MetaUserCheck.UNBOUND], an unreadable current id is
+ * [MetaUserCheck.UNKNOWN]; neither is ever a match.
  */
 fun metaUserCheck(storedUserId: String, currentUserId: String?): MetaUserCheck = when {
-    storedUserId.isBlank() -> MetaUserCheck.MATCHES
+    storedUserId.isBlank() -> MetaUserCheck.UNBOUND
     currentUserId.isNullOrBlank() -> MetaUserCheck.UNKNOWN
     storedUserId == currentUserId -> MetaUserCheck.MATCHES
     else -> MetaUserCheck.SWITCHED

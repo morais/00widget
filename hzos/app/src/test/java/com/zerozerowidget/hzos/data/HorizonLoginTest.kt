@@ -176,9 +176,9 @@ class HorizonLoginTest {
 
     @Test
     fun `meta user check tells a switch from an unreadable user`() {
-        // A legacy session has no Meta binding to check.
-        assertEquals(MetaUserCheck.MATCHES, metaUserCheck("", "someone"))
-        assertEquals(MetaUserCheck.MATCHES, metaUserCheck("", null))
+        // No Meta id stored: nothing proves the session is the wearer's.
+        assertEquals(MetaUserCheck.UNBOUND, metaUserCheck("", "someone"))
+        assertEquals(MetaUserCheck.UNBOUND, metaUserCheck("", null))
         // Unreadable is not a match: the session's data must wait.
         assertEquals(MetaUserCheck.UNKNOWN, metaUserCheck("a", null))
         assertEquals(MetaUserCheck.UNKNOWN, metaUserCheck("a", ""))
