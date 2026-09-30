@@ -84,12 +84,7 @@ class ZeroZeroWidgetApp : Application() {
         horizonSignIn = HorizonSignInController(this)
         // No poll before the first Meta account check (see verifyMetaUser).
         repository.holdForIdentityCheck()
-        // An older build stored the key in plaintext: encrypt it, then start
-        // polling, so the repository never reads the key mid-move.
-        appScope.launch {
-            connectionStore.migrate()
-            repository.start()
-        }
+        repository.start()
         // Poll only while some panel is on screen (STARTED); see
         // DashboardRepository.setActive.
         ProcessLifecycleOwner.get().lifecycle.addObserver(

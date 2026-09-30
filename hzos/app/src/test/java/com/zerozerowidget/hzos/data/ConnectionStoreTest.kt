@@ -19,9 +19,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The API key at rest (audit S2): encrypted when saved, migrated from an
- * older build's plaintext, and read as signed out when it cannot be
- * decrypted. Plain JVM with a throwaway DataStore file; a reversible fake
+ * The API key at rest (audit S2): encrypted when saved, and read as
+ * signed out when it cannot be decrypted. Plain JVM with a throwaway DataStore file; a reversible fake
  * stands in for the Android Keystore cipher.
  */
 class ConnectionStoreTest {
@@ -53,16 +52,6 @@ class ConnectionStoreTest {
         store.save("https://worker.example", "zwa_secret", "meta-1")
         assertEquals("zwa_secret", store.current().apiKey)
         assertEquals("enc:terces_awz", raw("api_key_enc"))
-        assertNull(raw("api_key"))
-    }
-
-    @Test
-    fun aPlaintextKeyFromAnOlderBuildIsMigrated() = runBlocking {
-        dataStore.edit { it[stringPreferencesKey("api_key")] = "zwa_legacy" }
-        val store = ConnectionStore(dataStore, FakeCipher())
-        store.migrate()
-        assertEquals("zwa_legacy", store.current().apiKey)
-        assertNull(raw("api_key"))
     }
 
     @Test

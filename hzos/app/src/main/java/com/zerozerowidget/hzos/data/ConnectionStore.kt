@@ -49,8 +49,6 @@ class ConnectionStore(
     companion object {
         private val BASE_URL = stringPreferencesKey("base_url")
 
-        /** Legacy plaintext key; read once by [migrate], then removed. */
-        private val API_KEY = stringPreferencesKey("api_key")
         private val API_KEY_ENCRYPTED = stringPreferencesKey("api_key_enc")
         private val META_USER_ID = stringPreferencesKey("meta_user_id")
         private val AGENT_KEY_ENCRYPTED = stringPreferencesKey("agent_key_enc")
@@ -103,7 +101,6 @@ class ConnectionStore(
             } else {
                 prefs.remove(API_KEY_ENCRYPTED)
             }
-            prefs.remove(API_KEY)
             if (metaUserId.isNotBlank()) {
                 prefs[META_USER_ID] = metaUserId.trim()
             } else {
@@ -131,7 +128,6 @@ class ConnectionStore(
     suspend fun clear() {
         dataStore.edit { prefs ->
             prefs.remove(BASE_URL)
-            prefs.remove(API_KEY)
             prefs.remove(API_KEY_ENCRYPTED)
             prefs.remove(META_USER_ID)
             prefs.remove(AGENT_KEY_ENCRYPTED)
@@ -160,16 +156,4 @@ class ConnectionStore(
         val uri = java.net.URI(url)
         "${uri.scheme?.lowercase()}://${uri.host?.lowercase()}:${uri.port}"
     }.getOrNull()
-
-    /**
-     * Moves a plaintext key written by an older build into encrypted
-     * storage. Run once at startup; a no-op when there is nothing to move.
-     */
-    suspend fun migrate() {
-        dataStore.edit { prefs ->
-            val plain = prefs[API_KEY] ?: return@edit
-            if (plain.isNotBlank()) prefs[API_KEY_ENCRYPTED] = cipher.encrypt(plain)
-            prefs.remove(API_KEY)
-        }
-    }
 }
