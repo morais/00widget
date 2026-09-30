@@ -68,7 +68,8 @@ case "$OUT" in
     *) OUT="$PWD/$OUT" ;;
 esac
 
-command -v metavr >/dev/null || { echo "metavr not found on PATH" >&2; exit 1; }
+. "$SCRIPT_DIR/metavr-preflight.sh"
+metavr_preflight || exit 1
 mkdir -p "$OUT"
 
 # An asleep display captures at the panel's native size (or fails), ignoring

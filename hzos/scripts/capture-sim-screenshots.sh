@@ -58,7 +58,8 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-command -v metavr >/dev/null || { echo "metavr not found on PATH" >&2; exit 1; }
+. "$SCRIPT_DIR/metavr-preflight.sh"
+metavr_preflight || exit 1
 case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
 mkdir -p "$OUT"
 
