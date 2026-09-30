@@ -319,7 +319,12 @@ describe("tools/list", () => {
     const body = (await res.json()) as JsonRpcResult;
     const tools = body.result?.tools as {
       name: string;
-      annotations: { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean };
+      annotations: {
+        readOnlyHint: boolean;
+        destructiveHint: boolean;
+        idempotentHint: boolean;
+        openWorldHint: boolean;
+      };
     }[];
 
     const destructive = tools.filter((t) => t.annotations.destructiveHint).map((t) => t.name).sort();
@@ -331,6 +336,11 @@ describe("tools/list", () => {
       "upsert_card",
       "upsert_cards_batch",
     ]);
+
+    // Every publishing tool can deliver an APNs update to independently
+    // controlled devices, including devices holding an accepted share.
+    const openWorld = tools.filter((t) => t.annotations.openWorldHint).map((t) => t.name).sort();
+    expect(openWorld).toEqual(destructive);
 
     const readOnly = tools.filter((t) => t.annotations.readOnlyHint).map((t) => t.name).sort();
     expect(readOnly).toEqual([

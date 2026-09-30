@@ -508,6 +508,9 @@ interface McpTool {
   descriptorMeta?: Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
+  /// True when a call can send a push through APNs to registered devices,
+  /// including accepted share recipients outside the caller's account.
+  openWorld: boolean;
   /// Irreversible from the caller's side, in a way a person would want to
   /// confirm. Not merely "writes something" — see the note on TOOL_DESCRIPTORS.
   destructive: boolean;
@@ -538,6 +541,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: CardsOutput,
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (args, tools) =>
@@ -555,6 +559,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: CardOutput,
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (args, tools) =>
@@ -575,6 +580,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: CardOutput,
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: true,
     invoke: (args, tools) =>
@@ -599,6 +605,7 @@ const BASE_TOOLS: McpTool[] = [
     }),
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: true,
     invoke: (args, tools) =>
@@ -617,6 +624,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: OkOutput,
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: true,
     invoke: (args, tools) =>
@@ -655,6 +663,7 @@ const BASE_TOOLS: McpTool[] = [
     }),
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (args, tools) =>
@@ -685,6 +694,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: StartActivityOutput,
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: false,
     invoke: (args, tools) =>
@@ -704,6 +714,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: UpdateActivityOutput,
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: false,
     invoke: (args, tools) =>
@@ -724,6 +735,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: EndActivityOutput,
     scope: "publish",
     readOnly: false,
+    openWorld: true,
     destructive: true,
     idempotent: true,
     invoke: (args, tools) =>
@@ -744,6 +756,7 @@ const BASE_TOOLS: McpTool[] = [
     outputSchema: DashboardOutput,
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (_args, tools) =>
@@ -842,6 +855,7 @@ const BASE_TOOLS: McpTool[] = [
     }),
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (_args, tools) =>
@@ -891,6 +905,7 @@ const BASE_TOOLS: McpTool[] = [
     }),
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: async (args, tools) =>
@@ -939,6 +954,7 @@ const RENDER_TOOLS: McpTool[] = [
     },
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (args, tools) =>
@@ -969,6 +985,7 @@ const RENDER_TOOLS: McpTool[] = [
     },
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (args, tools) => renderRunningActivity(String(args.externalActivityId), tools),
@@ -994,6 +1011,7 @@ const RENDER_TOOLS: McpTool[] = [
     },
     scope: "read",
     readOnly: true,
+    openWorld: false,
     destructive: false,
     idempotent: true,
     invoke: (_args, tools) =>
@@ -1091,8 +1109,7 @@ function toolDescriptor(tool: McpTool) {
       // delete, or irreversibly replace existing user-visible state.
       destructiveHint: tool.destructive,
       idempotentHint: tool.idempotent,
-      // Nothing reaches outside the operator's own 00Widget account.
-      openWorldHint: false,
+      openWorldHint: tool.openWorld,
     },
   };
 }
