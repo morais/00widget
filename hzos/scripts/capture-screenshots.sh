@@ -125,6 +125,18 @@ image_kind() {
     esac
 }
 
+image_complete() {
+    # $1 = image file. metavr's pull can stop at a buffer boundary and
+    # still exit 0, leaving an image whose lower part decodes as flat
+    # gray. A whole file ends with its format's end marker: EOI for
+    # JPEG, the IEND chunk for PNG.
+    case "$(image_kind "$1")" in
+        jpeg) [ "$(tail -c 2 "$1" | od -An -tx1 | tr -d ' \n')" = "ffd9" ] ;;
+        png) [ "$(tail -c 8 "$1" | od -An -tx1 | tr -d ' \n')" = "49454e44ae426082" ] ;;
+        *) return 1 ;;
+    esac
+}
+
 copy_image_to_clipboard() {
     # $1 = image file. The clipboard holds one image, so callers pass
     # the shot they want pasted.
@@ -167,8 +179,26 @@ for i in $(seq 1 "$COUNT"); do
     else
         FILE="$OUT/${PREFIX}-${STAMP}.png"
     fi
-    echo "Capturing $i/$COUNT -> $FILE (${WIDTH}x${HEIGHT}, $METHOD)..."
-    capture_one "$FILE"
+    printf 'Capturing %s/%s -> %s (%sx%s, %s)... ' "$i" "$COUNT" "$FILE" "$WIDTH" "$HEIGHT" "$METHOD"
+    # metavr's own progress lines repeat what the line above says; keep
+    # them only for a failure, where they are the diagnosis.
+    ATTEMPT=1
+    while :; do
+        if ! CAPTURE_LOG="$(capture_one "$FILE" 2>&1)"; then
+            echo "FAILED"
+            printf '%s\n' "$CAPTURE_LOG" >&2
+            exit 1
+        fi
+        image_complete "$FILE" && break
+        if [ "$ATTEMPT" -ge 3 ]; then
+            echo "FAILED"
+            echo "ERROR: $FILE is truncated after $ATTEMPT attempts" >&2
+            exit 1
+        fi
+        ATTEMPT=$((ATTEMPT + 1))
+        printf 'truncated, retrying... '
+    done
+    echo "DONE"
     if [ -z "$CAPTURED" ]; then
         CAPTURED="$FILE"
     else
@@ -200,16 +230,23 @@ case "$CLIPBOARD" in
             *"
 "*) LAST="$(printf '%s\n' "$LAST" | tail -n 1)" ;;
         esac
-        copy_image_to_clipboard "$LAST" && echo "Copied image to clipboard: $LAST"
+        copy_image_to_clipboard "$LAST" && echo "Copied image to clipboard."
         # Prove the bytes actually landed: osascript exits 0 even when the
-        # class tag doesn't match the content, so report clipboard info.
+        # class tag doesn't match the content, so check clipboard info for
+        # the class we wrote and only speak up when it is missing.
         case "$(uname)" in
             Darwin)
+                case "$(image_kind "$LAST")" in
+                    png) WANT="«class PNGf»" ;;
+                    jpeg) WANT="JPEG picture" ;;
+                    *) WANT="" ;;
+                esac
                 INFO="$(osascript -e 'clipboard info' 2>/dev/null || true)"
-                echo "Clipboard now holds: $(printf '%s' "$INFO" | cut -c1-200)"
+                if [ -n "$WANT" ] && [ "${INFO#*"$WANT"}" = "$INFO" ]; then
+                    echo "WARNING: clipboard has no $WANT; it holds: $(printf '%s' "$INFO" | cut -c1-200)" >&2
+                fi
                 ;;
         esac
         ;;
 esac
 
-echo "Done: $COUNT screenshot(s) in $OUT"
