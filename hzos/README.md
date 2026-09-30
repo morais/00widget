@@ -112,6 +112,11 @@ nothing. "Generate sample widgets" works offline with no account, and
 
 1. Quest 3/3S/Pro with developer mode + USB debugging (Meta Horizon phone
    app → Devices → Developer Mode; headset Settings → System → Developer).
+   On the host, metavr needs two things it does not set up itself: an `adb`
+   binary for pulling files (captures fail without one) and a persistent
+   `~/.android/adbkey` (without one the headset re-asks for debugging
+   permission on every run). `scripts/metavr-preflight.sh` checks both and
+   prints the fix; the capture scripts run it first.
 2. `cd hzos && ./gradlew :app:assembleDebug` (wrapper is committed; needs a
    JDK 17+ and the Android SDK).
 3. `metavr adb install -r app/build/outputs/apk/debug/app-debug.apk`, launch
