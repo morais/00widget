@@ -127,14 +127,17 @@ a.k:hover{text-decoration:underline}
 .rank rect.c{fill:#ff3b30}.rank rect.r{fill:#0a84ff}
 .meta{color:var(--muted);font-size:.85rem;margin-top:1rem}
 .msg{color:var(--muted);text-align:center;padding:2rem 0}
+.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.75rem}
+.dashboard-grid .card{margin:0}
 a.cta{display:block;text-align:center;background:var(--accent);color:#04101f;text-decoration:none;font-weight:600;padding:.85rem;border-radius:12px}
 `.trim();
 
-export const WEB_PREVIEW_RUNTIME = `
+// The renderer every browser surface shares: guest links, the MCP App and the
+// signed-in /dashboard. It only defines globalThis.ZeroZeroPreview; each page
+// brings its own small boot script, so every inline script is static and a
+// page's CSP can pin it by hash.
+export const WEB_PREVIEW_RENDERER = `
 (function(){
-  var el=function(id){return document.getElementById(id)};
-  var out=el('out');
-  var token=location.hash.slice(1);
   var SEM_SIGNAL={favorable:'sig-favorable',neutral:'sig-neutral',caution:'sig-caution',unfavorable:'sig-unfavorable'};
   var SEM_FLOW={inbound:'flow-inbound',outbound:'flow-outbound'};
   var SEM_ROLE={forecast:'role-forecast',baseline:'role-baseline',target:'role-target',capacity:'role-capacity',remainder:'role-remainder'};
@@ -510,8 +513,15 @@ export const WEB_PREVIEW_RUNTIME = `
     var all=cards.concat(activities);
     return all.length?'<div class="dashboard-grid">'+all.join('')+'</div>':'<p class="msg">Nothing has been published yet.</p>';
   };
-  globalThis.ZeroZeroPreview={renderCard:renderCard,renderActivity:renderActivity,renderDashboard:renderDashboard};
-  if(globalThis.ZeroZeroPreviewMode==='mcp'){return}
+  globalThis.ZeroZeroPreview={renderCard:renderCard,renderActivity:renderActivity,renderDashboard:renderDashboard,esc:esc};
+})();
+`.trim();
+
+const GUEST_BOOT = `
+(function(){
+  var P=globalThis.ZeroZeroPreview,esc=P.esc;
+  var out=document.getElementById('out');
+  var token=location.hash.slice(1);
   if(!token){out.innerHTML='<p class="msg">This link is missing its code. Open the original link or scan the QR code again.</p>';return}
   fetch('/v1/guest/resource',{headers:{authorization:'Bearer '+token}}).then(function(r){
     if(r.status===401){throw new Error('This link has expired or been revoked.')}
@@ -520,9 +530,9 @@ export const WEB_PREVIEW_RUNTIME = `
   }).then(function(d){
     var h='';
     if(d.resourceKind==='card'){
-      h=renderCard(d.card);
+      h=P.renderCard(d.card);
     } else {
-      h=renderActivity(d.activity);
+      h=P.renderActivity(d.activity);
     }
     h+='<p class="meta">Shared with you. Read-only, and this link stops working on '+esc(new Date(d.expiresAt).toLocaleString())+'.</p>';
     out.innerHTML='<div class="card">'+h+'</div>';
@@ -565,15 +575,16 @@ function renderGuestHTML(ctaURL: string): string {
 <h1>00Widget</h1>
 <div id="out"><p class="msg">Loading…</p></div>
 <a class="cta" href="${esc(ctaURL)}">Get 00Widget</a>
-</main><script>${WEB_PREVIEW_RUNTIME}</script></body></html>`;
+</main><script>${WEB_PREVIEW_RENDERER}</script><script>${GUEST_BOOT}</script></body></html>`;
 }
 
 let cachedCsp: string | null = null;
 
 async function guestContentSecurityPolicy(): Promise<string> {
   if (cachedCsp) return cachedCsp;
-  const [scriptHash, styleHash] = await Promise.all([
-    sha256Base64(WEB_PREVIEW_RUNTIME),
+  const [rendererHash, bootHash, styleHash] = await Promise.all([
+    sha256Base64(WEB_PREVIEW_RENDERER),
+    sha256Base64(GUEST_BOOT),
     sha256Base64(WEB_PREVIEW_STYLES),
   ]);
   // connect-src 'self' is what lets the inline script call /v1/guest/resource
@@ -582,7 +593,7 @@ async function guestContentSecurityPolicy(): Promise<string> {
   cachedCsp = [
     "default-src 'none'",
     `style-src 'sha256-${styleHash}'`,
-    `script-src 'sha256-${scriptHash}'`,
+    `script-src 'sha256-${rendererHash}' 'sha256-${bootHash}'`,
     "connect-src 'self'",
     "base-uri 'none'",
     "form-action 'none'",
@@ -591,7 +602,7 @@ async function guestContentSecurityPolicy(): Promise<string> {
   return cachedCsp;
 }
 
-async function sha256Base64(input: string): Promise<string> {
+export async function sha256Base64(input: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   return btoa(String.fromCharCode(...new Uint8Array(digest)));
 }

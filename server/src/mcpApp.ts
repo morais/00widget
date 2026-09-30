@@ -1,4 +1,4 @@
-import { WEB_PREVIEW_RUNTIME, WEB_PREVIEW_STYLES } from "./guestPage";
+import { WEB_PREVIEW_RENDERER, WEB_PREVIEW_STYLES } from "./guestPage";
 
 /// Preview resource URI. The suffix is deliberately prerelease-shaped: MCP
 /// hosts cache resources by URI, so an incompatible UI change gets a new URI
@@ -18,8 +18,6 @@ main{max-width:none}
 .toolbar h1{margin:0;font-size:.85rem}
 .toolbar button{appearance:none;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;padding:.35rem .7rem;cursor:pointer}
 .toolbar button:disabled{cursor:wait;opacity:.55}
-.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.75rem}
-.dashboard-grid .card{margin:0}
 #out>.card{max-width:26rem;margin:0 auto}
 #out a.k{pointer-events:none;color:inherit;text-decoration:none}
 `.trim();
@@ -148,7 +146,7 @@ export function renderMcpAppHTML(): string {
 </head><body><main>
 <div class="toolbar"><h1>00Widget preview</h1><button id="refresh" type="button" disabled>Refresh</button></div>
 <div id="out"><p class="msg">Loading preview…</p></div>
-</main><script>globalThis.ZeroZeroPreviewMode='mcp';</script><script>${WEB_PREVIEW_RUNTIME}</script><script>${APP_SCRIPT}</script></body></html>`;
+</main><script>${WEB_PREVIEW_RENDERER}</script><script>${APP_SCRIPT}</script></body></html>`;
 }
 
 export function isMcpAppResourceUri(uri: string): boolean {

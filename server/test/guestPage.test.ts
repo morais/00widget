@@ -14,10 +14,9 @@ import { handleGuestPage } from "../src/guestPage";
 async function renderGuestCard(payload: unknown): Promise<string> {
   const res = await handleGuestPage(new Request("https://x/app/g"), {} as never);
   const page = await res.text();
-  const script = page.slice(
-    page.indexOf("<script>") + "<script>".length,
-    page.lastIndexOf("</script>"),
-  );
+  // The renderer and the guest boot are separate inline scripts; run them in
+  // order, as the browser would.
+  const script = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n;\n");
 
   let captured = "";
   const makeElement = () => {

@@ -177,7 +177,7 @@ describe("MCP Apps preview channel", () => {
     expect(resource.text).not.toMatch(/<script[^>]+src=/);
     const scripts = [...String(resource.text).matchAll(/<script>([\s\S]*?)<\/script>/g)]
       .map((match) => match[1]);
-    expect(scripts).toHaveLength(3);
+    expect(scripts).toHaveLength(2);
     for (const script of scripts) expect(() => new Function(script)).not.toThrow();
 
     for (const legacyUri of MCP_PREVIEW_LEGACY_RESOURCE_URIS) {
