@@ -105,7 +105,7 @@ export async function completeHorizonBrowserLogin(req: Request, env: Env): Promi
     tenantId: row.tenant_id,
   });
   const headers = new Headers({
-    location: safeNextPath(row.next_path) ?? "/",
+    location: safeNextPath(row.next_path) ?? "/dashboard",
     "cache-control": "no-store",
   });
   headers.append("set-cookie", session);

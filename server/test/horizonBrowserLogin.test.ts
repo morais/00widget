@@ -110,6 +110,21 @@ describe("Horizon browser sign-in", () => {
     }))).toBeNull();
   });
 
+  it("lands on the owner's dashboard when there is nowhere else to go", async () => {
+    const env = horizonEnv();
+    const { token } = await createHorizonAccount(env);
+    const { code, cookie } = await start(env, "https://evil.example/");
+    await worker(authedRequest(`${ORIGIN}/v1/auth/horizon/browser/approve`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }, token), env);
+    const consumed = await worker(new Request(`${ORIGIN}/login/horizon/complete`, {
+      headers: { cookie },
+    }), env);
+    expect(consumed.status).toBe(302);
+    expect(consumed.headers.get("location")).toBe("/dashboard");
+  });
+
   it("cannot approve from an unrelated account and supports explicit denial", async () => {
     const env = horizonEnv();
     const { token } = await createHorizonAccount(env);

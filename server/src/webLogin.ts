@@ -268,8 +268,11 @@ export async function handleAppleCallback(
   }
 
   const cookie = await makeSessionCookie(env, email, "apple", { appleSub: claims.sub });
+  // With nowhere else to go, an administrator lands on /admin and everyone
+  // else on their own dashboard. Reaching this line without being an admin
+  // means an account resolved (or was just created) above, so it has one.
   const headers = new Headers({
-    Location: safeNextPath(decodeCookieValue(cookies[NEXT_COOKIE])) ?? (admin ? "/admin" : "/"),
+    Location: safeNextPath(decodeCookieValue(cookies[NEXT_COOKIE])) ?? (admin ? "/admin" : "/dashboard"),
   });
   headers.append("Set-Cookie", cookie);
   for (const name of [STATE_COOKIE, NONCE_COOKIE, NEXT_COOKIE]) {

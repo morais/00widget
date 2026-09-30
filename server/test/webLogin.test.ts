@@ -236,11 +236,11 @@ describe("web session versus admin capability", () => {
     expect(await created.text()).toContain("not an administrator");
   });
 
-  it("sends an ordinary user to the site root, not the dashboard", async () => {
+  it("sends an ordinary user to their own dashboard, not the admin one", async () => {
     const env = webEnv();
     await seedApiKey(env, TEST_API_KEY, "known");
     const res = await signIn(env, { email: "known@example.com" });
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("location")).toBe("/dashboard");
   });
 
   it("returns to where the person was headed", async () => {
@@ -258,7 +258,7 @@ describe("web session versus admin capability", () => {
     await seedApiKey(env, TEST_API_KEY, "known");
     for (const next of ["https://evil.example.com", "//evil.example.com", "/v1/cards", "/"]) {
       const res = await signIn(env, { email: "known@example.com", next });
-      expect(res.headers.get("location"), next).toBe("/");
+      expect(res.headers.get("location"), next).toBe("/dashboard");
     }
   });
 });
