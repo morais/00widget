@@ -9,7 +9,7 @@
 #   capture-screenshots.sh [--out DIR] [--prefix NAME] [--count N]
 #                          [--interval SECS] [--width PX] [--height PX]
 #                          [--method metacam|screencap] [--device ID]
-#                          [--clipboard off|path|image]
+#                          [--clipboard off|path|image] [--open]
 #
 # --clipboard copies the result to the clipboard: `path` copies the file
 # path(s) as text (newline-separated when --count > 1), `image` copies the
@@ -18,12 +18,16 @@
 # AppleScript; on Linux, path needs xclip, xsel, or wl-copy and image
 # needs xclip.
 #
+# --open opens every shot from the run once it finishes: in Preview on
+# macOS, with xdg-open elsewhere.
+#
 # Examples:
 #   capture-screenshots.sh
 #   capture-screenshots.sh --prefix dashboard --count 3 --interval 5
 #   capture-screenshots.sh --out /tmp/shots --width 2560 --height 1440
 #   capture-screenshots.sh --clipboard image
 #   capture-screenshots.sh --clipboard path --count 3
+#   capture-screenshots.sh --open --count 2
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -37,6 +41,7 @@ HEIGHT=1440
 METHOD="metacam"
 DEVICE="${HZDB_DEVICE:-}"
 CLIPBOARD="off"
+OPEN=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -49,6 +54,7 @@ while [ $# -gt 0 ]; do
         --method) METHOD="$2"; shift 2 ;;
         --device|-d) DEVICE="$2"; shift 2 ;;
         --clipboard) CLIPBOARD="$2"; shift 2 ;;
+        --open) OPEN=1; shift ;;
         --help|-h)
             grep '^#' "$0" | cut -c3-
             exit 0
@@ -251,3 +257,16 @@ case "$CLIPBOARD" in
         ;;
 esac
 
+if [ -n "$OPEN" ]; then
+    # One Preview window for the whole run, so a --count series can be
+    # stepped through with the arrow keys.
+    OPEN_FILES=()
+    while IFS= read -r F; do OPEN_FILES+=("$F"); done <<< "$CAPTURED"
+    if [ "$(uname)" = "Darwin" ]; then
+        open -a Preview "${OPEN_FILES[@]}"
+    elif command -v xdg-open >/dev/null; then
+        for F in "${OPEN_FILES[@]}"; do xdg-open "$F" >/dev/null 2>&1 & done
+    else
+        echo "WARNING: --open needs xdg-open on Linux" >&2
+    fi
+fi
