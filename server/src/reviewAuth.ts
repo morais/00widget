@@ -36,8 +36,14 @@ export function isReviewTenant(env: Env, tenantId: string): boolean {
   return reviewTenantIds(env).includes(tenantId);
 }
 
-export function isMcpAuthorizeNext(next: string | undefined): boolean {
-  return next?.split("?", 1)[0] === "/connect/mcp/authorize";
+/// Where a review access code may sign someone in to: approving a connector,
+/// and then looking at what that connector published. Kept to an explicit
+/// list so the reviewer option never appears on an ordinary sign-in page.
+const REVIEW_LOGIN_DESTINATIONS = new Set(["/connect/mcp/authorize", "/dashboard"]);
+
+export function isReviewLoginDestination(next: string | undefined): boolean {
+  const path = next?.split("?", 1)[0].replace(/(.)\/$/, "$1");
+  return path !== undefined && REVIEW_LOGIN_DESTINATIONS.has(path);
 }
 
 /// A review access code is an ordinary, revocable API key with no API scopes.

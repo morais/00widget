@@ -20,7 +20,7 @@ import { incrementRateLimitBuckets, rateLimitResponse } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
 import {
   authenticateReviewAccessCode,
-  isMcpAuthorizeNext,
+  isReviewLoginDestination,
   reviewLoginEnabled,
 } from "./reviewAuth";
 import {
@@ -76,7 +76,7 @@ export async function handleLogin(req: Request, env: Env): Promise<Response> {
   const apple = webSignInConfigured(env);
   const apiToken = apiTokenLoginConfigured(env);
   const next = safeNextPath(new URL(req.url).searchParams.get("next"));
-  const review = reviewWebLoginConfigured(env) && isMcpAuthorizeNext(next);
+  const review = reviewWebLoginConfigured(env) && isReviewLoginDestination(next);
   const horizon = horizonIdentityEnabled(env)
     && Boolean(env.META_APP_ID?.trim())
     && isSecureAdminSecret(env.SESSION_SECRET);
@@ -145,7 +145,7 @@ export async function handleLoginReviewToken(req: Request, env: Env): Promise<Re
     return formErrorResponse(error);
   }
   const next = safeNextPath(typeof form.get("next") === "string" ? String(form.get("next")) : undefined);
-  if (!isMcpAuthorizeNext(next)) return htmlResponse(renderError("Invalid review destination."), 400);
+  if (!isReviewLoginDestination(next)) return htmlResponse(renderError("Invalid review destination."), 400);
   const accessCode = String(form.get("accessCode") ?? "").trim();
   if (!accessCode) return htmlResponse(renderError("Review access code is required."), 400);
 

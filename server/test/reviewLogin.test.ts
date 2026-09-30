@@ -90,7 +90,7 @@ describe("review login", () => {
     expect(res.status).toBe(401);
   });
 
-  it("shows the discreet web option only for MCP authorization and binds its session", async () => {
+  it("shows the discreet web option for MCP authorization and binds its session", async () => {
     const env = reviewEnv({ ADMIN_EMAILS: `${REVIEW_TENANT}@example.com` });
     await seedReviewCode(env);
     const next = "/connect/mcp/authorize?client_id=example";
@@ -126,6 +126,57 @@ describe("review login", () => {
     expect(session?.method).toBe("review-token");
     expect(session?.tenantId).toBe(REVIEW_TENANT);
     expect(session?.isAdmin).toBe(false);
+  });
+
+  it("offers the same reviewer option on the way to /dashboard", async () => {
+    const env = reviewEnv();
+    await seedReviewCode(env);
+
+    const login = await fetchWorker(new Request(`${ORIGIN}/login?next=%2Fdashboard`), env);
+    expect(await login.text()).toContain("Reviewer access");
+
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/login/review-token`, {
+        method: "POST",
+        headers: {
+          origin: ORIGIN,
+          "content-type": "application/x-www-form-urlencoded",
+          "cf-connecting-ip": "203.0.113.43",
+        },
+        body: new URLSearchParams({ next: "/dashboard", accessCode: REVIEW_CODE }),
+      }),
+      env,
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/dashboard");
+
+    const dashboard = await fetchWorker(
+      new Request(`${ORIGIN}/dashboard`, { headers: { cookie: sessionCookieFrom(res)! } }),
+      env,
+    );
+    expect(dashboard.status).toBe(200);
+  });
+
+  it("still refuses a review sign-in to anywhere else", async () => {
+    const env = reviewEnv();
+    await seedReviewCode(env);
+    for (const next of ["/admin", "/app/device", "/dashboard/x"]) {
+      const login = await fetchWorker(new Request(`${ORIGIN}/login?next=${encodeURIComponent(next)}`), env);
+      expect(await login.text(), next).not.toContain("Reviewer access");
+      const res = await fetchWorker(
+        new Request(`${ORIGIN}/login/review-token`, {
+          method: "POST",
+          headers: {
+            origin: ORIGIN,
+            "content-type": "application/x-www-form-urlencoded",
+            "cf-connecting-ip": "203.0.113.44",
+          },
+          body: new URLSearchParams({ next, accessCode: REVIEW_CODE }),
+        }),
+        env,
+      );
+      expect(res.status, next).toBe(400);
+    }
   });
 
   it("protects an allowlisted review tenant from account deletion", async () => {
