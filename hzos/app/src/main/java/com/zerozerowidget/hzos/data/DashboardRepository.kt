@@ -108,7 +108,24 @@ class DashboardRepository(
      */
     private val identityChecked = MutableStateFlow(true)
 
-    /** Pauses polling until [identityConfirmed]; what is shown stays. */
+    /**
+     * Pauses polling until [identityConfirmed]. What is already on screen
+     * deliberately stays up while the check runs; only an unreadable wearer
+     * ([identityUnconfirmed]) or a switch hides it.
+     *
+     * Hiding here as well was considered and declined. It would blank the
+     * dashboard for the length of the check on every return to the app,
+     * the owner's included, which is nearly always the only case. And the
+     * case it guards against, a different Meta account seeing this
+     * process's cards, looks unreachable on Quest: switching Meta accounts
+     * there switches the Android device user, and each user has its own
+     * app process and storage, so another account's wearer never shares
+     * this memory. (That is the platform's multi-user model, not something
+     * verified on a headset.) The exposure is at most the check's length:
+     * normally milliseconds, bounded by the 5-second read timeout in
+     * MetaUserGuard. If Quest ever lets two Meta accounts share one app
+     * process, hide the state here instead.
+     */
     fun holdForIdentityCheck() {
         identityChecked.value = false
     }

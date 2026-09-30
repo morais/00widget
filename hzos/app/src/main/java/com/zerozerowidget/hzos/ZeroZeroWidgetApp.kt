@@ -113,6 +113,8 @@ class ZeroZeroWidgetApp : Application() {
      * kept so a confirmed check resumes without a sign-in.
      */
     fun verifyMetaUser() {
+        // Pauses polling but leaves the cards up during the check, on
+        // purpose: see DashboardRepository.holdForIdentityCheck.
         repository.holdForIdentityCheck()
         metaUserJob?.cancel()
         metaUserJob = appScope.launch {
