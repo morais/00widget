@@ -281,8 +281,9 @@ export async function handleAppleCallback(
   return new Response(null, { status: 302, headers });
 }
 
-export async function handleLogout(_req: Request, _env: Env): Promise<Response> {
-  const headers = new Headers({ Location: "/login" });
+export async function handleLogout(req: Request, _env: Env): Promise<Response> {
+  const next = safeNextPath(new URL(req.url).searchParams.get("next"));
+  const headers = new Headers({ Location: next ? `/login?next=${enc(next)}` : "/login" });
   headers.append("Set-Cookie", clearSessionCookie());
   return new Response(null, { status: 302, headers });
 }
@@ -319,7 +320,7 @@ function renderLoginPage(opts: {
     : "";
 
   const reviewBlock = opts.review
-    ? `<details class="api-token-form">
+    ? `<details class="api-token-form reviewer-access">
          <summary>Reviewer access</summary>
          <form method="post" action="/login/review-token">
            ${nextField}

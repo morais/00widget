@@ -89,7 +89,7 @@ function renderDashboardHTML(email: string, data: unknown): string {
 <style>${WEB_PREVIEW_STYLES}</style>
 <style>${DASHBOARD_STYLES}</style>
 </head><body><main>
-<div class="toolbar"><h1>00Widget</h1><nav><span id="stamp"></span><a href="/dashboard">Refresh</a><a href="/logout">Sign out</a></nav></div>
+<div class="toolbar"><h1>00Widget</h1><nav><span id="stamp"></span><a href="/dashboard">Refresh</a><a href="/logout?next=%2Fdashboard">Sign out</a></nav></div>
 <p class="producer">${esc(email)}</p>
 <div id="out"><p class="msg">Loading…</p></div>
 </main><script type="application/json" id="data">${jsonForScriptBlock(data)}</script><script>${WEB_PREVIEW_RENDERER}</script><script>${DASHBOARD_BOOT}</script></body></html>`;
@@ -103,7 +103,7 @@ function renderNoAccount(session: WebPrincipal): string {
        with this Apple ID first, then come back.</p>`;
   return baseHTML(
     "00Widget · Dashboard",
-    `<header><h1>00Widget · Dashboard</h1><span class="meta"><a href="/logout">Sign out</a></span></header>
+    `<header><h1>00Widget · Dashboard</h1><span class="meta"><a href="/logout?next=%2Fdashboard">Sign out</a></span></header>
      <section><h2>No dashboard to show</h2>${body}</section>`,
   );
 }

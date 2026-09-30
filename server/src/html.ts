@@ -111,6 +111,7 @@ export function baseHTML(title: string, body: string): string {
   .button-apple { background: var(--fg); color: var(--bg); }
   .api-token-form { display: flex; flex-direction: column; gap: 4px; }
   .api-token-form .button { align-self: stretch; text-align: center; }
+  .reviewer-access { margin-top: 12px; }
   .api-key-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 16px; }
   .api-key-form label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
   .api-key-form input, .api-key-form select { padding: 9px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; text-transform: none; letter-spacing: normal; }

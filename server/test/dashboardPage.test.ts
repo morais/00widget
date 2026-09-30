@@ -52,7 +52,9 @@ describe("GET /dashboard", () => {
     const res = await get(e, await cookieFor(e, OWNER_EMAIL));
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    const data = dataBlock(await res.text()) as { cards: { id: string }[]; activities: unknown[] };
+    const page = await res.text();
+    expect(page).toContain('href="/logout?next=%2Fdashboard">Sign out</a>');
+    const data = dataBlock(page) as { cards: { id: string }[]; activities: unknown[] };
     expect(data.cards.map((c) => c.id)).toEqual(["mine"]);
     expect(data.activities).toEqual([]);
   });

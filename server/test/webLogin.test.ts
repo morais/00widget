@@ -313,6 +313,16 @@ describe("web sign-in surface", () => {
     expect(res.headers.getSetCookie().join("; ")).toContain("zw_session=;");
   });
 
+  it("keeps a safe destination through logout and discards unsafe ones", async () => {
+    const env = webEnv();
+    const dashboard = await fetchWorker(new Request(`${ORIGIN}/logout?next=%2Fdashboard`), env, ctx);
+    expect(dashboard.headers.get("location")).toBe("/login?next=%2Fdashboard");
+    expect(dashboard.headers.getSetCookie().join("; ")).toContain("zw_session=;");
+
+    const external = await fetchWorker(new Request(`${ORIGIN}/logout?next=https%3A%2F%2Fevil.example`), env, ctx);
+    expect(external.headers.get("location")).toBe("/login");
+  });
+
   it("scopes the session cookie to the whole site, since the web surface is not one directory", async () => {
     const env = webEnv();
     await seedApiKey(env, TEST_API_KEY, "known");

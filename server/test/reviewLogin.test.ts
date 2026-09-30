@@ -101,7 +101,10 @@ describe("review login", () => {
       new Request(`${ORIGIN}/login?next=${encodeURIComponent(next)}`),
       env,
     );
-    expect(await login.text()).toContain("Reviewer access");
+    const loginPage = await login.text();
+    expect(loginPage).toContain("Reviewer access");
+    expect(loginPage).toContain(".reviewer-access { margin-top: 12px; }");
+    expect(loginPage).toContain('<details class="api-token-form reviewer-access">');
 
     const res = await fetchWorker(
       new Request(`${ORIGIN}/login/review-token`, {
