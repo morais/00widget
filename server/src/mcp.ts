@@ -12,6 +12,7 @@ import * as dashboard from "./dashboard";
 import * as liveActivities from "./liveActivities";
 import * as status from "./status";
 import { json } from "./http";
+import { readTextUpTo } from "./requestBody";
 import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
@@ -1279,7 +1280,7 @@ export async function handleMcp(
 
   let body: string;
   try {
-    body = await readBodyUpTo(req, RequestBodyLimits.mcpRpc);
+    body = await readTextUpTo(req, RequestBodyLimits.mcpRpc);
   } catch {
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "request body is too large"), 413);
   }
@@ -1671,14 +1672,4 @@ function postRequest(origin: string, path: string, body: unknown): Request {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-}
-
-async function readBodyUpTo(req: Request, maxBytes: number): Promise<string> {
-  const contentLength = req.headers.get("content-length")?.trim();
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
-    throw new Error("body too large");
-  }
-  const text = await req.text();
-  if (text.length > maxBytes) throw new Error("body too large");
-  return text;
 }

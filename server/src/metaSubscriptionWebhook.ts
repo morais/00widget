@@ -1,4 +1,5 @@
 import { json } from "./http";
+import { readTextUpTo } from "./requestBody";
 import {
   configuredMetaSubscriptionSku,
   isMetaSubscriptionsEnabled,
@@ -54,7 +55,7 @@ export async function handleMetaSubscriptionWebhook(req: Request, env: Env): Pro
 
   let raw: string;
   try {
-    raw = await readBodyUpTo(req, RequestBodyLimits.metaWebhook);
+    raw = await readTextUpTo(req, RequestBodyLimits.metaWebhook);
   } catch {
     return json({ error: "request body is too large" }, 413);
   }
@@ -196,14 +197,4 @@ function eventTimestamp(value: unknown): number | null {
   const seconds = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   return seconds < 10_000_000_000 ? Math.round(seconds * 1_000) : Math.round(seconds);
-}
-
-async function readBodyUpTo(req: Request, maxBytes: number): Promise<string> {
-  const contentLength = req.headers.get("content-length")?.trim();
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
-    throw new Error("body too large");
-  }
-  const text = await req.text();
-  if (new TextEncoder().encode(text).byteLength > maxBytes) throw new Error("body too large");
-  return text;
 }

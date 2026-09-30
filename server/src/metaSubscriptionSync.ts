@@ -81,10 +81,12 @@ export async function syncMetaSubscription(
   if (userId && !isConfiguredMetaSku(body.sku, sku)) {
     return badRequest("sku is not a configured Meta subscription product");
   }
-  // Once native Horizon identity is enabled, an app-kind bearer credential
-  // alone cannot choose which Meta user's purchase to claim. The verified
-  // identity bound to its tenant is the owner of this subscription lookup.
-  if (userId && horizonIdentityEnabled(env)) {
+  // An app credential cannot choose another Meta user's purchase. The
+  // supplied id must be the verified Horizon identity bound to this tenant.
+  if (userId) {
+    if (!horizonIdentityEnabled(env)) {
+      return json({ error: "verified Horizon identity is required" }, 403);
+    }
     const boundUserId = await getHorizonUserForTenant(env, auth.tenantId);
     if (boundUserId !== userId) {
       return json({ error: "Meta user is not linked to this account" }, 403);

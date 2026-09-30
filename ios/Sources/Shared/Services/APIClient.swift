@@ -58,6 +58,18 @@ public struct APIClientConfig {
         return nil
     }
 
+    public static func hasSameOrigin(_ first: String, _ second: String) -> Bool {
+        guard let lhs = validatedBaseURL(from: first),
+              let rhs = validatedBaseURL(from: second) else { return false }
+        func origin(_ url: URL) -> (String, String, Int)? {
+            guard let scheme = url.scheme?.lowercased(),
+                  let host = url.host?.lowercased() else { return nil }
+            return (scheme, host, url.port ?? (scheme == "https" ? 443 : 80))
+        }
+        guard let left = origin(lhs), let right = origin(rhs) else { return false }
+        return left.0 == right.0 && left.1 == right.1 && left.2 == right.2
+    }
+
     private static func isLocalDevelopmentHost(_ host: String) -> Bool {
         host == "localhost" || host == "127.0.0.1" || host == "::1" || host.hasSuffix(".localhost")
     }

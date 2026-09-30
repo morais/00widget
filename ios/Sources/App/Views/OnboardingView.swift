@@ -10,6 +10,8 @@ struct OnboardingView: View {
     @EnvironmentObject var subscriptions: SubscriptionController
     #endif
     @State private var healthCheckTask: Task<Void, Never>?
+    @State private var serverURLDraft = ""
+    @State private var serverURLError = false
     @State private var copiedAgentConfig = false
     @State private var copyResetTask: Task<Void, Never>?
     @State private var showScanner = false
@@ -82,11 +84,26 @@ struct OnboardingView: View {
                     // Under Apple login it is fixed at build time, and the
                     // agent config above already names it.
                     if !ZeroZeroWidgetConstants.appleLoginEnabled {
-                        TextField("https://example.workers.dev", text: $env.serverBaseURL)
+                        TextField("https://example.workers.dev", text: $serverURLDraft)
                             .keyboardType(.URL)
                             .textContentType(.URL)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                        Button("Save server URL") {
+                            let proposed = serverURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard APIClientConfig.validatedBaseURL(from: proposed) != nil else {
+                                serverURLError = true
+                                return
+                            }
+                            serverURLError = false
+                            env.serverBaseURL = proposed
+                        }
+                        .disabled(serverURLDraft == env.serverBaseURL)
+                        if serverURLError {
+                            Text("Enter an HTTPS URL (or localhost for development).")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
                     if ZeroZeroWidgetConstants.appleLoginEnabled {
                         appleLoginControls
@@ -248,6 +265,7 @@ struct OnboardingView: View {
                 GuestLinkScannerSheet().environmentObject(env)
             }
             .task {
+                serverURLDraft = env.serverBaseURL
                 await env.refreshNotificationAuthorization()
                 await env.refreshConnectionHealth()
                 // Only when it is missing: launch already asked, and this is

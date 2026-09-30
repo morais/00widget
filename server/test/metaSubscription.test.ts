@@ -93,8 +93,11 @@ describe("POST /v1/meta/subscription/sync", () => {
   });
 
   it("accepts the Horizon app's app-scoped user id and virtual term SKU", async () => {
-    const env = metaEnv();
+    const env = metaEnv({ HORIZON_IDENTITY_ENABLED: "true" });
     await seedApiKey(env, "meta-app-key", "test-tenant", "app", "", "", "2099-01-01T00:00:00.000Z", ["read"]);
+    await env.ZW_DB.prepare(
+      "INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at) VALUES (?, ?, ?, ?)",
+    ).bind("meta-app-123", "meta-owner-1", "test-tenant", "2026-09-30T00:00:00.000Z").run();
     const calls: URL[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       calls.push(new URL(String(input)));
@@ -112,6 +115,33 @@ describe("POST /v1/meta/subscription/sync", () => {
     expect(calls[0].searchParams.get("access_token")).toBe("OC|meta-app-123|meta-secret");
     expect(calls[0].searchParams.get("owner_id")).toBe("meta-owner-1");
     expect(calls[0].searchParams.get("skus")).toBe(SKU);
+  });
+
+  it("rejects a client-supplied Meta user id when Horizon identity is disabled", async () => {
+    const env = metaEnv();
+    await seedApiKey(env, "meta-app-key", "test-tenant", "app", "", "", "2099-01-01T00:00:00.000Z", ["read"]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await syncByUserId(env);
+
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Meta user id different from the tenant's verified Horizon identity", async () => {
+    const env = metaEnv({ HORIZON_IDENTITY_ENABLED: "true" });
+    await seedApiKey(env, "meta-app-key", "test-tenant", "app", "", "", "2099-01-01T00:00:00.000Z", ["read"]);
+    await env.ZW_DB.prepare(
+      "INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at) VALUES (?, ?, ?, ?)",
+    ).bind("meta-app-123", "another-owner", "test-tenant", "2026-09-30T00:00:00.000Z").run();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await syncByUserId(env);
+
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("requires an app credential for the client-supplied Meta user id", async () => {

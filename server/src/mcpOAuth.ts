@@ -10,6 +10,7 @@ import {
   type WebPrincipal,
 } from "./webSession";
 import { json } from "./http";
+import { readTextUpTo } from "./requestBody";
 import { enforceRateLimits } from "./rateLimit";
 import { MCP_PATH, MCP_PREVIEW_PATH } from "./mcp";
 import { FieldLimits, type Env } from "./types";
@@ -752,11 +753,5 @@ async function readFormBody(req: Request): Promise<FormData> {
 }
 
 async function readBodyText(req: Request): Promise<string> {
-  const contentLength = req.headers.get("content-length")?.trim();
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > OAUTH_BODY_MAX_BYTES) {
-    throw new Error("body too large");
-  }
-  const text = await req.text();
-  if (text.length > OAUTH_BODY_MAX_BYTES) throw new Error("body too large");
-  return text;
+  return readTextUpTo(req, OAUTH_BODY_MAX_BYTES);
 }

@@ -37,6 +37,9 @@ public final class AppEnvironment: ObservableObject {
 
     @Published public var serverBaseURL: String {
         didSet {
+            if !APIClientConfig.hasSameOrigin(oldValue, serverBaseURL) {
+                clearLocalCredentials()
+            }
             UserDefaults.standard.set(serverBaseURL, forKey: ZeroZeroWidgetConstants.UserDefaultsKeys.serverBaseURL)
             if SharedSettings.serverBaseURL != serverBaseURL {
                 SharedSettings.setServerBaseURL(serverBaseURL)
