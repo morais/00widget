@@ -31,6 +31,7 @@ import * as mcpConnections from "./mcpConnections";
 import * as openAIAppsChallenge from "./openAIAppsChallenge";
 import * as shares from "./shares";
 import * as dashboard from "./dashboard";
+import * as dashboardPage from "./dashboardPage";
 import * as sessions from "./sessions";
 import * as status from "./status";
 import { sweepExpiredActivityHistory } from "./storage";
@@ -324,6 +325,9 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/connect\/mcp\/authorize\/?$/, handler: (req, env) =>
     mcpOAuth.handleAuthorizeDecision(req, env),
   },
+  // The signed-in owner's own dashboard. Like /connect, any signed-in person
+  // with an account may reach it, so it is not an /admin route.
+  { method: "GET", pattern: /^\/dashboard\/?$/, handler: (req, env) => dashboardPage.handleDashboardPage(req, env) },
   { method: "GET", pattern: /^\/admin\/?$/, handler: (req, env) => admin.handleAdminDashboard(req, env) },
 ];
 
@@ -499,6 +503,8 @@ function preventSensitiveResponseCaching(pathname: string, response: Response): 
     || pathname === "/mcp-preview/"
     || pathname.startsWith("/oauth/")
     || pathname.startsWith("/connect/")
+    || pathname === "/dashboard"
+    || pathname === "/dashboard/"
     || pathname.startsWith("/login")
     || pathname.startsWith("/auth/");
   if (sensitive) {
