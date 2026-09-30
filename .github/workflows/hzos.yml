@@ -35,9 +35,17 @@ jobs:
       # Layout screenshots render here but are not compared: the committed
       # baselines come from macOS, and font rasterisation differs on Linux.
       # verifyRoborazziDebug stays a local check (see hzos/README.md).
-      - name: Assemble, unit test, lint, detekt, formatting
+      - name: Assemble, unit test, lint, detekt
         working-directory: hzos
-        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:detekt spotlessCheck --console=plain
+        run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:detekt --console=plain
+
+      # Its own invocation, not alongside detekt: both load Kotlin's compiler
+      # and analysis internals in the same Gradle JVM, and run in parallel
+      # they occasionally collide, failing detekt within milliseconds with
+      # only "There was a problem running detekt" (81b976e, passed on re-run).
+      - name: Formatting
+        working-directory: hzos
+        run: ./gradlew spotlessCheck --console=plain
 
       # The store gets the release variant, which debug never exercises: R8
       # shrinking and obfuscation, resource shrinking, and the keep rules in
