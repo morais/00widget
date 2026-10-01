@@ -9,11 +9,13 @@
 #   META_APP_ID       Defaults to platformAppId in hzos/local.properties.
 #
 # Usage:
-#   upload-store.sh --channel ALPHA --age-group MIXED_AGES [--notes "..."] [--draft] [--skip-build]
+#   upload-store.sh --channel ALPHA --age-group TEENS_AND_ADULTS [--notes "..."] [--draft] [--skip-build]
 #
 # Channels: ALPHA / BETA / RC for testing, STORE for production. Age group is
 # a self-certification (TEENS_AND_ADULTS | MIXED_AGES | CHILDREN) — no silent
-# default, pass it explicitly.
+# default, pass it explicitly. 00Widget is TEENS_AND_ADULTS: the privacy
+# policy (00widget.com/privacy) says it is not directed to children under
+# 13, and MIXED_AGES would bring in Meta's preteen requirements.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

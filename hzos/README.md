@@ -190,7 +190,7 @@ per-developer files; env vars override the file for CI):
 
 1. `keytool -genkeypair -keystore ~/secure/00widget.jks -alias upload -keyalg RSA -keysize 2048 -validity 9125` (outside the repo, back it up — losing it means a new app listing) and record the paths/passwords plus `META_APP_SECRET` (Dashboard → app → API tab) in `store.properties`.
 2. Nothing to bump: `versionCode` is the build's UTC hour (`yyyyMMddHH`), so it rises on its own. `upload-store.sh` refuses a second upload within the same hour, which the store would otherwise reject after the upload.
-3. `scripts/upload-store.sh --channel ALPHA --age-group MIXED_AGES --notes "…"` — builds the signed release and uploads it. Channels `ALPHA`/`BETA`/`RC` test; `STORE` is production.
+3. `scripts/upload-store.sh --channel ALPHA --age-group TEENS_AND_ADULTS --notes "…"` — builds the signed release and uploads it. The age group must stay `TEENS_AND_ADULTS` to match the privacy policy (not directed to under-13s). Channels `ALPHA`/`BETA`/`RC` test; `STORE` is production.
 4. Developer portal: listing copy + screenshots, content-rating
    questionnaire, privacy policy URL (kept in gitignored `store.properties`
    as `PRIVACY_URL`), review access notes (sample deck works offline; hand
