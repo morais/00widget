@@ -17,9 +17,9 @@ function horizonEnv(overrides: Partial<Env> = {}): Env {
   });
 }
 
-function worker(req: Request, env: Env): Promise<Response> {
+function worker(req: Request, env: Env, context: ExecutionContext = ctx): Promise<Response> {
   return (handler.fetch as (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>)(
-    req, env, ctx,
+    req, env, context,
   );
 }
 
@@ -28,12 +28,13 @@ function login(
   userProof: string,
   choice?: "create" | "join_apple",
   userId = "123456789",
+  context: ExecutionContext = ctx,
 ): Promise<Response> {
   return worker(new Request(`${ORIGIN}/v1/auth/horizon`, {
     method: "POST",
     headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.17" },
     body: JSON.stringify({ userId, userProof, ...(choice ? { choice } : {}) }),
-  }), env);
+  }), env, context);
 }
 
 function verifiedMeta(): ReturnType<typeof vi.fn> {
@@ -137,6 +138,31 @@ describe("Horizon identity", () => {
     }, token), env);
     expect(deleted.status).toBe(200);
     expect((await login(env, "proof-after-delete-12345678")).status).toBe(200);
+  });
+
+  it("queues a signup alert only when a Meta user creates a new tenant", async () => {
+    verifiedMeta();
+    const env = horizonEnv({
+      SIGNUP_ALERTS: { send: async () => {} } as any,
+      SIGNUP_ALERT_TO: "ops@example.com",
+    });
+    const waitUntil = vi.fn();
+    const alerting = { waitUntil } as unknown as ExecutionContext;
+
+    // Asking for the create/join choice creates nothing.
+    expect((await login(env, "proof-alert-1", undefined, "alert-user", alerting)).status).toBe(200);
+    expect(waitUntil).not.toHaveBeenCalled();
+
+    expect((await login(env, "proof-alert-2", "create", "alert-user", alerting)).status).toBe(201);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+
+    // A returning Meta user reuses its tenant.
+    expect((await login(env, "proof-alert-3", undefined, "alert-user", alerting)).status).toBe(201);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+
+    // Joining an Apple account links to a tenant that already exists.
+    expect((await login(env, "proof-alert-4", "join_apple", "joining-user", alerting)).status).toBeLessThan(300);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
   });
 
   it("links a verified Meta identity only after explicit Apple account approval", async () => {

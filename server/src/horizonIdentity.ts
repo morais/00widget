@@ -4,6 +4,7 @@ import { parseJson } from "./cards";
 import { createVerifiedHorizonAuthorization } from "./deviceAuth";
 import { badRequest, json, notFound } from "./http";
 import { enforceRateLimits } from "./rateLimit";
+import { sendNewTenantAlert } from "./signupAlert";
 import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
 const META_USER_PROOF_URL = "https://graph.oculus.com/user_nonce_validate";
@@ -28,7 +29,11 @@ export function horizonIdentityEnabled(env: Env): boolean {
 /// POST /v1/auth/horizon — prove the Meta identity, then either sign in to its
 /// existing tenant or ask the client to make an explicit create/join choice.
 /// A new UserProof is needed for each attempt; verified nonces are single-use.
-export async function signInWithHorizon(req: Request, env: Env): Promise<Response> {
+export async function signInWithHorizon(
+  req: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
   if (!horizonIdentityEnabled(env)) return notFound();
   const appId = env.META_APP_ID?.trim();
   const appSecret = env.META_APP_SECRET?.trim();
@@ -127,6 +132,10 @@ export async function signInWithHorizon(req: Request, env: Env): Promise<Respons
     if (!winner) throw error;
     return issueHorizonCredential(env, winner.tenant_id, deviceId, appId, userId);
   }
+  // Only the request whose insert committed alerts; a concurrent loser above
+  // joined the winner's tenant and created nothing.
+  const alert = sendNewTenantAlert(env, { source: "horizon", tenantId, createdAt });
+  if (typeof ctx?.waitUntil === "function") ctx.waitUntil(alert); else await alert;
   return issueHorizonCredential(env, tenantId, deviceId, appId, userId);
 }
 

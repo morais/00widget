@@ -6,18 +6,26 @@ import type { Env } from "./types";
 /// `SIGNUP_ALERT_TO` are configured, so a default deployment — which has
 /// neither — sends nothing and needs no Email Routing setup at all. This exists
 /// because `APPLE_APP_LOGIN_ENABLED=true` lets anyone with a verified Apple ID
-/// create a tenant, and an operator running that open should find out when it
+/// create a tenant, and `HORIZON_IDENTITY_ENABLED=true` does the same for any
+/// Meta account, and an operator running either open should find out when it
 /// happens rather than discovering it in a bill.
 export function signupAlertsConfigured(env: Env): boolean {
   return Boolean(env.SIGNUP_ALERTS && env.SIGNUP_ALERT_TO?.trim());
 }
 
 export interface NewTenantAlert {
-  source: "app" | "web";
+  source: "app" | "web" | "horizon";
   tenantId: string;
-  ownerEmail: string;
+  /// Absent for Horizon signups: a Meta identity carries no email address.
+  ownerEmail?: string;
   createdAt: string;
 }
+
+const SIGNUP_SURFACES: Record<NewTenantAlert["source"], { via: string; surface: string; flag: string }> = {
+  app: { via: "Sign in with Apple", surface: "native app", flag: "APPLE_APP_LOGIN_ENABLED" },
+  web: { via: "Sign in with Apple", surface: "web OAuth", flag: "WEB_SIGNUP_ENABLED" },
+  horizon: { via: "a Meta account", surface: "Horizon OS app", flag: "HORIZON_IDENTITY_ENABLED" },
+};
 
 /// Never throws and never rejects. A signup must not fail, or even slow down,
 /// because an alert could not be delivered — callers pass this to
@@ -41,18 +49,17 @@ export async function sendNewTenantAlert(env: Env, alert: NewTenantAlert): Promi
     // CRLF-delimited message, and a header built from a value that turns out to
     // carry a newline is an injected Bcc. Rejecting at the boundary is the real
     // control; this is what makes the sink safe regardless of what reaches it.
-    const subject = headerSafe(`00Widget: new tenant ${alert.ownerEmail}`);
-    const signupFlag = alert.source === "web" ? "WEB_SIGNUP_ENABLED" : "APPLE_APP_LOGIN_ENABLED";
-    const signupSurface = alert.source === "web" ? "web OAuth" : "native app";
+    const { via, surface, flag } = SIGNUP_SURFACES[alert.source];
+    const subject = headerSafe(`00Widget: new tenant ${alert.ownerEmail ?? `via ${surface}`}`);
     const body = [
-      "A new tenant was created through Sign in with Apple.",
+      `A new tenant was created through ${via}.`,
       "",
-      `Signup surface: ${signupSurface}`,
-      `Owner email: ${alert.ownerEmail}`,
+      `Signup surface: ${surface}`,
+      `Owner email: ${alert.ownerEmail ?? "(none)"}`,
       `Tenant id:   ${alert.tenantId}`,
       `Created at:  ${alert.createdAt}`,
       "",
-      `Self-service signup is controlled by ${signupFlag}.`,
+      `Self-service signup is controlled by ${flag}.`,
       "Set it to anything other than \"true\" to close it.",
     ].join("\n");
 

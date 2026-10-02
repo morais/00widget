@@ -234,8 +234,8 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/v1\/auth\/apple\/token\/?$/, handler: (req, env, _match, ctx) =>
     appLogin.createTokenFromApple(req, env, ctx),
   },
-  { method: "POST", pattern: /^\/v1\/auth\/horizon\/?$/, handler: (req, env) =>
-    horizonIdentity.signInWithHorizon(req, env),
+  { method: "POST", pattern: /^\/v1\/auth\/horizon\/?$/, handler: (req, env, _match, ctx) =>
+    horizonIdentity.signInWithHorizon(req, env, ctx),
   },
   authed("POST", /^\/v1\/auth\/horizon\/browser\/approve\/?$/, null, (req, env, auth) =>
     horizonBrowserLogin.approveHorizonBrowserLogin(req, env, auth), { credentialKind: "app" }),
