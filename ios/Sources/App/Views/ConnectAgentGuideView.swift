@@ -69,8 +69,13 @@ struct ConnectAgentGuideView: View {
             }
 
             Section {
-                Step(1, "Tap Connect Claude below. It opens claude.ai in Safari with the connector details already filled in.")
-                Step(2, "Sign in to claude.ai if it asks, then tap Add.")
+                if usesClaudeDirectoryListing {
+                    Step(1, "Tap Connect Claude below. It opens 00Widget in the Claude connector directory.")
+                    Step(2, "Sign in to claude.ai if it asks, then tap Connect.")
+                } else {
+                    Step(1, "Tap Connect Claude below. It opens claude.ai in Safari with the connector details already filled in.")
+                    Step(2, "Sign in to claude.ai if it asks, then tap Add.")
+                }
                 Step(3, "Approve the permission screen. It publishes to whichever 00Widget account you are signed in as there.")
 
                 if let url = claudeConnectorURL {
@@ -356,6 +361,17 @@ struct ConnectAgentGuideView: View {
         return base.appendingPathComponent("mcp").absoluteString
     }
 
+    /// The Claude directory listing is registered against the hosted server
+    /// only. A self-hosted deployment would connect Claude to someone else's
+    /// backend through it, so anything else keeps the custom-connector link.
+    private var usesClaudeDirectoryListing: Bool {
+        guard let endpoint = mcpEndpoint else { return false }
+        return URL(string: endpoint)?.host?.lowercased() == Self.claudeDirectoryHost
+    }
+
+    private static let claudeDirectoryHost = "api.00widget.com"
+    private static let claudeDirectoryURL = URL(string: "https://claude.ai/directory/00widget")!
+
     /// claude.ai opens its add-connector sheet prefilled from these query
     /// items. The path is not one the Claude app claims, so this stays in
     /// Safari, which is where the flow actually works.
@@ -364,6 +380,7 @@ struct ConnectAgentGuideView: View {
     /// which leaves `:` and `/` bare. Both spellings are legal, but only the
     /// fully escaped one has been confirmed against claude.ai.
     private var claudeConnectorURL: URL? {
+        if usesClaudeDirectoryListing { return Self.claudeDirectoryURL }
         guard
             let endpoint = mcpEndpoint,
             let escaped = endpoint.addingPercentEncoding(withAllowedCharacters: Self.queryValueAllowed)
