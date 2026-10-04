@@ -140,6 +140,11 @@ grants full administrative control rather than read-only visibility. An
 `API_KEYS` bootstrap login (`ADMIN_API_TOKEN_LOGIN=true`, off by default) covers
 a deployment that has no accounts yet.
 
+Administration is enabled by default. Set `ADMIN_ENABLED = "false"` under
+`[vars]` in `server/wrangler.toml` and redeploy to make `/admin` and all its
+mutation endpoints return `404` before session or database access. Web sign-in,
+the account dashboard, MCP authorization, and the public API remain available.
+
 Create least-privilege tenant API tokens from `/admin` using the tenant owner email and a permission preset; those generated credentials are what apps and agents use for `/v1/*`.
 
 Setup walkthrough: `server/README.md` → "Web sign-in".

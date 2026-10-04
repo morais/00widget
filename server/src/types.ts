@@ -1631,6 +1631,9 @@ export interface Env {
   APPLE_SIGN_IN_CLIENT_ID?: string;       // Services ID, e.g. com.example.zerozerowidget.signin
   APPLE_SIGN_IN_REDIRECT_URI?: string;    // full URL of /auth/apple/callback
   ADMIN_EMAILS?: string;                  // comma-separated addresses holding admin capabilities
+  // Defaults to enabled. Set to "false" to make /admin and /admin/* return
+  // 404 before authentication or D1 access, without disabling web sign-in.
+  ADMIN_ENABLED?: string;
   SESSION_SECRET?: string;                // HMAC secret for the admin session cookie
   // Set to "true" to enable the API-token login fallback. It is opt-in so
   // production deployments default to Sign in with Apple only.

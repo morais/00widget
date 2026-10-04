@@ -272,6 +272,14 @@ If someone chose "Hide My Email" on first sign-in, Apple returns a relay address
 
 An HTML dashboard at **`/admin`** creates tenant API tokens, stores each tenant owner email, and lists every card, device, push token, Live Activity, pending activity, and push-to-start token in D1 — across all tenants. It requires a web session whose email is in `ADMIN_EMAILS`, or a bootstrap session.
 
+The admin interface defaults to enabled. Set `ADMIN_ENABLED = "false"` in
+`wrangler.toml` under `[vars]` and redeploy to disable `/admin` and every
+`/admin/*` endpoint, including mutations. They return `404` with
+`Cache-Control: no-store` before reading a session or accessing D1, even for
+an existing administrator session. Web sign-in, the account dashboard, MCP
+authorization, and the public API keep working. Restore `"true"` (or remove
+the setting) and redeploy to enable administration again.
+
 ## iOS app login
 
 The iOS app can optionally use native Sign in with Apple instead of asking the user to paste a tenant API token. When enabled, the app posts Apple's `identityToken` to `POST /v1/auth/apple/token`; the Worker validates the token against Apple's JWKS and creates three 90-day credentials in one revocable session: a widget-visible device credential (`read`, `device:register`, `actions:run`), an app-only credential (`actions:confirm`, `shares:manage`), and an app-only stored publisher credential (`read`, `publish`) that the user can copy for agents. Signing out calls `DELETE /v1/auth/token`, revokes all three, and removes that device's APNs, widget, and Live Activity registrations.

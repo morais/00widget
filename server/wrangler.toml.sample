@@ -17,6 +17,11 @@ custom_domain = true
 [vars]
 APNS_ENV = "sandbox"
 
+# Admin interface and all /admin/* mutations. Enabled when unset; set to
+# "false" to return 404 before authentication or D1 access. Web sign-in,
+# the account dashboard, and MCP authorization remain available.
+ADMIN_ENABLED = "true"
+
 # Persist the latest final WidgetKit APNs result per push token. Off by
 # default because every attempted widget reload adds one D1 row write. Enable
 # temporarily while diagnosing delivery, then turn it back off.

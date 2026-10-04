@@ -133,6 +133,68 @@ describe("randomToken", () => {
 });
 
 describe("admin routes (no Apple call required)", () => {
+  it.each([undefined, "true"])("keeps admin enabled with ADMIN_ENABLED=%s", async (ADMIN_ENABLED) => {
+    const env = adminEnv({ ADMIN_ENABLED });
+    const res = await (handler.fetch as any)(new Request("https://x/admin"), env, ctx);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?next=%2Fadmin");
+  });
+
+  it("disables the entire admin route tree before session or database access", async () => {
+    const env = adminEnv({ ADMIN_ENABLED: "false" });
+    const { cookie, csrf } = await adminCookie(env);
+    const prepare = vi.spyOn(env.ZW_DB, "prepare").mockImplementation(() => {
+      throw new Error("disabled admin must not access D1");
+    });
+    const requests = [
+      ["GET", "/admin"],
+      ["GET", "/admin/"],
+      ["GET", "/admin?tenant=tenant-1"],
+      ["HEAD", "/admin"],
+      ["POST", "/admin/api-keys"],
+      ["POST", "/admin/api-keys/key-1/revoke"],
+      ["POST", "/admin/tenants/tenant-1/cards/card-1/delete"],
+      ["POST", "/admin/tenants/tenant-1/widget-tokens/device-1/token-1/delete"],
+      ["POST", "/admin/tenants/tenant-1/live-activities/activity-1/delete"],
+      ["POST", "/admin/tenants/tenant-1/pending-live-activities/activity-1/delete"],
+      ["POST", "/admin/tenants/tenant-1/start-tokens/device-1/token-1/delete"],
+      ["GET", "/admin/future-route"],
+    ];
+    for (const headers of [{}, { cookie }] as HeadersInit[]) {
+      for (const [method, path] of requests) {
+        const res = await (handler.fetch as any)(new Request(`https://x${path}`, {
+          method,
+          headers,
+          ...(method === "POST" ? { body: new URLSearchParams({ csrf }) } : {}),
+        }), env, ctx);
+        expect(res.status, `${method} ${path}`).toBe(404);
+        expect(await res.json()).toEqual({ error: "not found" });
+        expect(res.headers.get("cache-control")).toBe("no-store");
+        expect(res.headers.has("location")).toBe(false);
+        expect(res.headers.has("set-cookie")).toBe(false);
+      }
+    }
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when disabled even without admin configuration", async () => {
+    const res = await (handler.fetch as any)(new Request("https://x/admin"),
+      makeEnv({ ADMIN_ENABLED: "false" }), ctx);
+    expect(res.status).toBe(404);
+  });
+
+  it("keeps shared sign-in and the API available when admin is disabled", async () => {
+    const env = adminEnv({ ADMIN_ENABLED: "false" });
+    const login = await (handler.fetch as any)(new Request("https://x/login"), env, ctx);
+    expect(login.status).toBe(200);
+    expect(await login.text()).toContain("Sign in with Apple");
+    const health = await (handler.fetch as any)(new Request("https://x/health"), env, ctx);
+    expect(health.status).toBe(200);
+    const cards = await (handler.fetch as any)(authedRequest("https://x/v1/cards"), env, ctx);
+    expect(cards.status).toBe(200);
+    expect(await cards.json()).toEqual({ cards: [] });
+  });
+
   it("/admin without session sends the visitor to sign in, and back afterwards", async () => {
     const env = adminEnv();
     const res = await (handler.fetch as any)(new Request("https://x/admin"), env, ctx);

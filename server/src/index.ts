@@ -413,6 +413,13 @@ function authed(
 const handler: ExportedHandler<Env, WidgetReloadQueueMessage> = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    // Keep the entire admin surface inert, including mutations and existing
+    // sessions, before any authentication or database work. Unset stays enabled
+    // for existing deployments; only an explicit "false" disables it.
+    if (env.ADMIN_ENABLED === "false"
+      && (url.pathname === "/admin" || url.pathname.startsWith("/admin/"))) {
+      return preventSensitiveResponseCaching(url.pathname, notFound());
+    }
     // RFC 9110: HEAD is GET without a body. Dispatch it against the GET routes
     // and let the HTTP layer drop the body — otherwise every endpoint 404s for
     // the uptime monitors and `curl -I` habits that reach for HEAD first.
