@@ -89,6 +89,49 @@ partial run look complete. App Store publishing requires this provenance by
 default. `--allow-unprovenanced` exists only for an intentional one-time
 migration of older assets.
 
+## iPhone Duo — prepared landscape pages
+
+The Duo supplement uses Xcode 27.1 and manually prepared Home Screen layouts.
+Keep the simulator UI and every `xcodebuild`/`xcrun` invocation on the same
+toolchain by setting `DEVELOPER_DIR` to that Xcode's `Contents/Developer`.
+
+Capture the unfolded landscape display explicitly with `simctl io screenshot
+--display=3` (2853×2007). The folded portrait display is `--display=1`
+(1398×2034). The default display can be inactive and produce a black image.
+Check the IDs with `simctl io enumerate` if the runtime changes.
+
+The prepared unfolded hero combines Production, Open PRs, Launch, Support,
+Trials Wide, Trials Large, Agent runs, and a second Support widget on one
+page. The second page combines Trials Large, Support, Agent runs, and Four
+Metrics Large. The folded pages independently show the three-widget Insights
+layout and Four Metrics Large. Preserve these pages: the ordinary full capture
+test replaces widgets and is not the entry point for this prepared run.
+
+Raw captures live in `artifacts/screenshots/raw/iphone-duo-open-landscape/`
+and `artifacts/screenshots/raw/iphone-duo-closed-portrait/`. Their manifests
+record `mode: manual-prepared`, the explicit display, file capture times,
+dimensions, and checksums. Capture the Lock Screen through Device Hub's Lock
+command, dismiss any ActivityKit consent prompt, and visually verify both
+accessories before saving. Capture the App Clip with the same marketing guest
+fixture as the other iPhone sets and remove that temporary clip afterwards.
+
+Generate and verify the optional Duo compositions separately from the four
+canonical sets:
+
+```sh
+python3 marketing/screenshots/generate-promotional.py --set duo \
+  --output-root artifacts/screenshots/duo/promotional
+python3 marketing/screenshots/generate-promotional.py --set duo \
+  --output-root artifacts/screenshots/duo/promotional --verify-only
+```
+
+The supplement has eleven raw sources and ten promotional frames. The
+unfolded hero already carries the Insights widgets, so it needs no duplicate
+Home Screen Insights frame. The share frame pairs its QR with the real
+read-only App Clip. Omitting the website-only Activities frame leaves nine
+App Store images across the unfolded and folded presentations. The four-set
+`capture-all.sh` workflow and its counts remain unchanged.
+
 ## Apple TV
 
 Apple TV has a separate, native 1920×1080 suite using the **Apple TV 4K (3rd generation) (at 1080p)** simulator. Run it with:

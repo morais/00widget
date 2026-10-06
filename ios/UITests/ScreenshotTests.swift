@@ -436,7 +436,7 @@ final class ScreenshotTests: XCTestCase {
         capture(named: "screenshot-approve")
 
         app.alerts.buttons["Cancel"].tap()
-        let back = app.navigationBars.buttons.element(boundBy: 0)
+        let back = navigationBackButton(in: app)
         XCTAssertTrue(back.waitForExistence(timeout: 5), "No way back from the card screen.")
         back.tap()
         XCTAssertTrue(
@@ -483,7 +483,7 @@ final class ScreenshotTests: XCTestCase {
         capture(named: "screenshot-share")
 
         app.buttons["Done"].firstMatch.tap()
-        let back = app.navigationBars.buttons.element(boundBy: 0)
+        let back = navigationBackButton(in: app)
         XCTAssertTrue(back.waitForExistence(timeout: 5), "No way back from the card screen.")
         back.tap()
         XCTAssertTrue(
@@ -860,6 +860,13 @@ final class ScreenshotTests: XCTestCase {
         app.buttons.matching(identifier: name).firstMatch
     }
 
+    private func navigationBackButton(in app: XCUIApplication) -> XCUIElement {
+        // iOS 27.1 exposes this as a back-button element rather than a Button.
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch
+        if back.waitForExistence(timeout: 1) { return back }
+        return app.navigationBars.buttons.element(boundBy: 0)
+    }
+
     private func isEarlierOnHomeScreen(_ lhs: XCUIElement, _ rhs: XCUIElement) -> Bool {
         if abs(lhs.frame.minY - rhs.frame.minY) > 1 {
             return lhs.frame.minY < rhs.frame.minY
@@ -946,7 +953,7 @@ final class ScreenshotTests: XCTestCase {
         let toggle = app.switches["Hide sample indicators"]
         XCTAssertTrue(scrollTo(toggle, in: app), "'Hide sample indicators' toggle not found.")
         XCTAssertTrue(switchOn(toggle), "'Hide sample indicators' did not switch on.")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        navigationBackButton(in: app).tap()
     }
 
     /// Switches a toggle on and waits for the change to land.

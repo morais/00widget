@@ -25,11 +25,14 @@ FONT_REGULAR = Path("/System/Library/Fonts/SFNS.ttf")
 FONT_BOLD = Path("/System/Library/Fonts/SFNS.ttf")
 
 DEVICE_SETS = ("iphone-6.3", "iphone-6.5", "ipad", "tvos")
+DUO_SETS = ("iphone-duo-open-landscape", "iphone-duo-closed-portrait")
 EXPECTED_DIMENSIONS = {
     "iphone-6.3": (1206, 2622),
     "iphone-6.5": (1284, 2778),
     "ipad": (2064, 2752),
     "tvos": (1920, 1080),
+    "iphone-duo-open-landscape": (2853, 2007),
+    "iphone-duo-closed-portrait": (1398, 2034),
 }
 
 
@@ -150,6 +153,16 @@ ISLAND_FRAME = "screenshot-island-expanded.png"
 
 
 def promotions_for(device_set: str) -> tuple[Promotion, ...]:
+    if device_set == "iphone-duo-open-landscape":
+        # The prepared landscape hero already contains the Insights widgets.
+        return tuple(p for p in PROMOTIONS if p.filename not in {
+            ISLAND_FRAME, "screenshot-home-insights.png",
+        })
+    if device_set == "iphone-duo-closed-portrait":
+        return tuple(p for p in PROMOTIONS if p.filename in {
+            "screenshot-home-insights.png", "screenshot-home-metrics.png",
+            "screenshot-lock-activity.png",
+        })
     if device_set == "tvos":
         return TV_PROMOTIONS
     if device_set == "iphone-6.3":
@@ -395,7 +408,7 @@ def draw_device(
     draw = ImageDraw.Draw(canvas)
     # Physical controls sit outside the case and make the silhouette read as
     # hardware rather than a rounded screenshot card.
-    if not is_ipad:
+    if not is_ipad and device_set not in DUO_SETS:
         control_width = max(7, round(width * 0.006))
         control_x = outer_x - control_width + 2
         for start, length in ((0.16, 0.035), (0.225, 0.058), (0.305, 0.058)):
@@ -599,7 +612,8 @@ def compose(
     side = round(width * 0.073)
     copy_width = width - side * 2
     top_padding = round(height * 0.040)
-    device_top = round(height * 0.205)
+    is_duo = device_set in DUO_SETS
+    device_top = round(height * (0.16 if device_set == DUO_SETS[0] else 0.205))
 
     headline_font = font(round(height * 0.038), bold=True)
     supporting_font = font(round(height * 0.0155))
@@ -634,13 +648,20 @@ def compose(
 
     if promotion.filename == ISLAND_FRAME:
         draw_island_expanded(canvas, source)
+    elif companion is not None and is_duo:
+        # Two unfolded landscape screens need narrower frames to remain
+        # separate. Keep both complete so the QR and its read-only result agree.
+        for screen, center in ((source, 0.255), (companion, 0.745)):
+            draw_device(canvas, screen, device_set, round(height * 0.34),
+                        width_fraction=0.445, center_fraction=center)
     elif companion is not None:
         # A pair is about half the height of a single device, so it starts
         # lower: the header's own top padding is unchanged and the slack is
         # shared between the two edges instead of falling to the bottom.
         draw_pair(canvas, source, companion, device_set, round(height * 0.315))
     else:
-        draw_device(canvas, source, device_set, device_top)
+        fraction = 0.79 if device_set == DUO_SETS[0] else 0.74 if is_duo else 0.88
+        draw_device(canvas, source, device_set, device_top, width_fraction=fraction)
 
     record: dict[str, object] = {
         "filename": promotion.filename,
@@ -901,7 +922,7 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument(
         "--set",
-        choices=("all", *DEVICE_SETS),
+        choices=("all", "duo", *DEVICE_SETS, *DUO_SETS),
         default="all",
         help="device set to generate (default: all)",
     )
@@ -919,7 +940,7 @@ def main() -> None:
     if not FONT_REGULAR.is_file():
         raise SystemExit(f"Missing system font: {FONT_REGULAR}")
 
-    selected_sets = DEVICE_SETS if args.set == "all" else (args.set,)
+    selected_sets = DEVICE_SETS if args.set == "all" else DUO_SETS if args.set == "duo" else (args.set,)
     generated_after = None
     if args.generated_after:
         try:
@@ -976,7 +997,8 @@ def main() -> None:
         "outputRoot": str(args.output_root.resolve()),
         "style": (
             "off-white editorial header, green accent rule, physical device frame, "
-            "intentional bottom crop"
+            + ("complete Duo screens" if all(s in DUO_SETS for s in selected_sets)
+               else "intentional bottom crop")
         ),
         "sets": generated_sets,
     }

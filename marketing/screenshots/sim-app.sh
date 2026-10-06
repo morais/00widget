@@ -38,7 +38,20 @@ resolve_sim_app() {
 # Opens the simulator UI host, optionally with extra `open` arguments (e.g.
 # --args -CurrentDeviceUDID <udid>). Sets SIM_APP to the app that launched.
 open_sim_app() {
-  local err
+  local err app_path
+  # An explicit toolchain must also select its UI host. Opening by name can
+  # launch another Xcode's Device Hub when multiple versions are installed.
+  if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    for SIM_APP in Simulator DeviceHub; do
+      for app_path in "$DEVELOPER_DIR/Applications/$SIM_APP.app" \
+        "$DEVELOPER_DIR/../Applications/$SIM_APP.app"; do
+        if [[ -d "$app_path" ]]; then
+          open -a "$app_path" "$@"
+          return $?
+        fi
+      done
+    done
+  fi
   for SIM_APP in Simulator DeviceHub; do
     if err="$(open -a "$SIM_APP" "$@" 2>&1)"; then
       return 0

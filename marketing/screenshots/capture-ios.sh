@@ -401,7 +401,15 @@ PLIST
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$EXT" >/dev/null 2>&1
 codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP" >/dev/null 2>&1
 
-XCTESTRUN="$(ls "$DERIVED/Build/Products/"*.xctestrun | head -1)"
+SDK_VERSION="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+shopt -s nullglob
+XCTESTRUN_FILES=("$DERIVED/Build/Products/ZeroZeroWidgetScreenshots_iphonesimulator${SDK_VERSION}-"*.xctestrun)
+shopt -u nullglob
+if [[ ${#XCTESTRUN_FILES[@]} -ne 1 ]]; then
+  echo "✗ expected one screenshot test configuration for iOS SDK $SDK_VERSION" >&2
+  exit 1
+fi
+XCTESTRUN="${XCTESTRUN_FILES[0]}"
 /usr/libexec/PlistBuddy \
   -c "Delete :ZeroZeroWidgetUITests:EnvironmentVariables:ZW_SCREENSHOT_DEVICE_CLASS" \
   "$XCTESTRUN" 2>/dev/null || true
