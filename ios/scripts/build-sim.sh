@@ -49,6 +49,10 @@ done
 
 cd "$(dirname "$0")/.."
 
+# Simulator.app on Xcode 26, DeviceHub.app on Xcode 27.
+# shellcheck source=../../marketing/screenshots/sim-app.sh
+source ../marketing/screenshots/sim-app.sh
+
 if [[ ! -f project.yml ]]; then
   echo "ios/project.yml not found — copy from the committed template:"
   echo "  cp ios/project.yml.sample ios/project.yml"
@@ -61,7 +65,7 @@ xcodegen >/dev/null
 
 echo "→ booting simulator: $DEVICE"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
-open -a Simulator
+open_sim_app
 
 echo "→ building"
 xcodebuild \
