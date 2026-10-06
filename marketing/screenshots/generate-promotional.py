@@ -11,8 +11,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -358,6 +361,9 @@ def draw_device(
     width_fraction: float = 0.88,
     center_fraction: float = 0.5,
 ) -> None:
+    if device_set in DUO_SETS:
+        draw_duo_device(canvas, source, device_set, top, width_fraction, center_fraction)
+        return
     width, height = canvas.size
     is_ipad = device_set == "ipad"
     outer_width = round(width * width_fraction)
@@ -466,6 +472,106 @@ def draw_device(
         outline=(0, 0, 0, 210),
         width=max(2, chrome // 3) if is_ipad else max(3, bezel // 2),
     )
+
+
+@lru_cache(maxsize=2)
+def duo_device_assets(device_set: str) -> tuple[Image.Image, Image.Image, dict, dict]:
+    """Read the same installed vector chrome and mask as Device Hub.
+
+    No Apple artwork is copied into the repository. Fail if the matching
+    runtime assets are absent rather than silently substituting a phone shell.
+    """
+    opened = device_set == DUO_SETS[0]
+    chrome_id = "phone14" if opened else "phone15"
+    mask_id = ("BF0DC480-5EE2-4EC1-B02B-C75E94759832" if opened
+               else "1C896A2B-F0D7-405C-8D0F-66E4B80AD044")
+    root = Path("/Library/Developer/DeviceKit")
+    resources = root / "Chrome" / f"{chrome_id}.devicechrome" / "Contents" / "Resources"
+    configuration = json.loads((resources / "chrome.json").read_text())
+    paths = {"shell": resources / "PhoneComposite.pdf",
+             "mask": root / "FramebufferMasks" / f"{mask_id}.pdf"}
+    paths.update({control["name"]: resources / f'{control["image"]}.pdf'
+                  for control in configuration["inputs"]})
+    configuration["assetChecksums"] = {str(path): file_hash(path) for path in paths.values()}
+    configuration["assetChecksums"][str(resources / "chrome.json")] = file_hash(resources / "chrome.json")
+    with tempfile.TemporaryDirectory(prefix="00widget-duo-assets-") as directory:
+        temporary = Path(directory)
+        modules = REPO_ROOT / "ios" / "build" / "DuoAssetModuleCache"
+        modules.mkdir(parents=True, exist_ok=True)
+        command = ["xcrun", "swift", "-module-cache-path", str(modules),
+                   str(Path(__file__).with_name("render-device-assets.swift"))]
+        for name, path in paths.items():
+            if not path.is_file():
+                raise SystemExit(f"Missing native Duo asset: {path}; install the iOS 27.1 runtime")
+            # Open mask is authored at twice the chrome's screen coordinates.
+            scale = 1.5 if name == "mask" and opened else 3
+            command.extend((str(path), str(temporary / f"{name}.png"), str(scale)))
+        subprocess.run(command, check=True)
+        images = {name: Image.open(temporary / f"{name}.png").convert("RGBA")
+                  for name in paths}
+    return images.pop("shell"), images.pop("mask").getchannel("A"), images, configuration
+
+
+def draw_duo_device(
+    canvas: Image.Image, source: Image.Image, device_set: str, top: int,
+    width_fraction: float, center_fraction: float,
+) -> None:
+    shell_asset, mask_asset, buttons, configuration = duo_device_assets(device_set)
+    opened = device_set == DUO_SETS[0]
+    # Native PDF screen apertures in portrait chrome coordinates. Open chrome
+    # is authored for a 626x890 screen; closed is the exact 466x678-point screen.
+    aperture = (17, 17, 626, 890) if opened else (25, 14, 466, 678)
+    x, y, screen_width, screen_height = aperture
+    portrait_size = (source.height, source.width) if opened else source.size
+    scale_x, scale_y = portrait_size[0] / screen_width, portrait_size[1] / screen_height
+    shell = shell_asset.resize(
+        (round(shell_asset.width / 3 * scale_x), round(shell_asset.height / 3 * scale_y)),
+        Image.Resampling.LANCZOS,
+    )
+    # Keep a small transparent margin for controls that protrude from the case.
+    margin = round(20 * max(scale_x, scale_y))
+    device = Image.new("RGBA", (shell.width + margin * 2, shell.height + margin * 2))
+    for control in configuration["inputs"]:
+        button = buttons[control["name"]]
+        anchor = control["anchor"]
+        if anchor == "left" or (anchor == "top" and button.height > button.width):
+            button = button.transpose(Image.Transpose.ROTATE_90)
+        offset = control["offsets"]["normal"]
+        bx, by = offset["x"], offset["y"]
+        # Offsets are relative to Device Hub's padded chrome view. Most of a
+        # button sits behind the case; only its cap protrudes from the edge.
+        if anchor == "left":
+            bx -= configuration["images"]["padding"]["width"]
+        if anchor == "top":
+            by -= configuration["images"]["padding"]["height"]
+        if anchor == "right":
+            bx += shell_asset.width / 3 - configuration["images"]["devicePadding"]["right"]
+        button = button.resize((round(button.width / 3 * scale_x),
+                                round(button.height / 3 * scale_y)), Image.Resampling.LANCZOS)
+        device.alpha_composite(button, (margin + round(bx * scale_x), margin + round(by * scale_y)))
+    device.alpha_composite(shell, (margin, margin))
+    screen = source.transpose(Image.Transpose.ROTATE_90) if opened else source.copy()
+    screen = screen.convert("RGBA")
+    if not opened:
+        # Device Hub overlays the folded display's camera after the framebuffer
+        # capture. Measured in its native 466x678-point screen: 37-point diameter,
+        # centred 47 points from the upper/right edges. No open-screen cutout.
+        ImageDraw.Draw(screen).ellipse((1201.5, 85.5, 1312.5, 196.5), fill=(0, 0, 0, 255))
+    screen.putalpha(mask_asset.resize(portrait_size, Image.Resampling.LANCZOS))
+    device.alpha_composite(screen, (margin + round(x * scale_x), margin + round(y * scale_y)))
+    if opened:
+        device = device.transpose(Image.Transpose.ROTATE_270)
+    # Trim unused transparent asset padding, retaining every physical control.
+    device = device.crop(device.getbbox())
+    width = round(canvas.width * width_fraction)
+    device = device.resize((width, round(device.height * width / device.width)), Image.Resampling.LANCZOS)
+    left = round(canvas.width * center_fraction) - width // 2
+    shadow = Image.new("RGBA", canvas.size)
+    silhouette = Image.new("RGBA", device.size, (6, 21, 42, 122))
+    silhouette.putalpha(device.getchannel("A").point(lambda a: round(a * 122 / 255)))
+    shadow.alpha_composite(silhouette, (left, top + round(canvas.height * 0.009)))
+    canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(max(14, round(canvas.width * 0.018)))))
+    canvas.alpha_composite(device, (left, top))
 
 
 
@@ -814,6 +920,7 @@ def verify_promotional_screenshots(
         errors.append("promotional manifest sets value is invalid")
         manifest_sets = []
     by_set: dict[str, list[dict[str, object]]] = {}
+    frames: dict[str, dict] = {}
     for entry in manifest_sets:
         if not isinstance(entry, dict) or not isinstance(entry.get("deviceSet"), str):
             errors.append("promotional manifest contains an invalid device set")
@@ -826,6 +933,7 @@ def verify_promotional_screenshots(
             errors.append(f"{device_set}: promotional manifest files value is invalid")
         else:
             by_set[device_set] = files
+            frames[device_set] = entry.get("deviceFrame", {})
 
     if selected_sets == DEVICE_SETS and set(by_set) != set(DEVICE_SETS):
         errors.append(
@@ -833,6 +941,21 @@ def verify_promotional_screenshots(
         )
 
     for device_set in selected_sets:
+        if device_set in DUO_SETS:
+            frame = frames.get(device_set, {})
+            expected_chrome = "phone14" if device_set == DUO_SETS[0] else "phone15"
+            if not isinstance(frame, dict) or frame.get("chromeIdentifier") != f"com.apple.dt.devicekit.chrome.{expected_chrome}":
+                errors.append(f"{device_set}: missing native Duo frame provenance")
+            else:
+                checksums = frame.get("assetSha256")
+                # Volume up/down share one vector asset: five distinct files.
+                if not isinstance(checksums, dict) or len(checksums) != 5:
+                    errors.append(f"{device_set}: incomplete native frame asset checksums")
+                else:
+                    for path, checksum in checksums.items():
+                        asset = Path(path)
+                        if not asset.is_file() or file_hash(asset) != checksum:
+                            errors.append(f"{device_set}: native frame asset changed: {path}")
         expected_promotions = {
             promotion.filename: promotion for promotion in promotions_for(device_set)
         }
@@ -989,7 +1112,16 @@ def main() -> None:
                          **({"companion_path": source_paths[1]} if len(source_paths) > 1 else {}))
             )
             print(f"✓ {device_set}/{promotion.filename}")
-        generated_sets.append({"deviceSet": device_set, "files": items})
+        set_entry = {"deviceSet": device_set, "files": items}
+        if device_set in DUO_SETS:
+            configuration = duo_device_assets(device_set)[3]
+            set_entry["deviceFrame"] = {
+                "source": "installed Device Hub vector chrome and framebuffer mask",
+                "chromeIdentifier": configuration["identifier"],
+                "assetSha256": configuration["assetChecksums"],
+                "foldedCamera": "37pt diameter, centre (419pt, 47pt)" if device_set == DUO_SETS[1] else None,
+            }
+        generated_sets.append(set_entry)
 
     manifest = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),

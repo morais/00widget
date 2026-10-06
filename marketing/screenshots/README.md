@@ -125,6 +125,17 @@ python3 marketing/screenshots/generate-promotional.py --set duo \
   --output-root artifacts/screenshots/duo/promotional --verify-only
 ```
 
+Duo framing reads the installed Device Hub `phone14` (open) and `phone15`
+(closed) vector chrome, controls, and their matching framebuffer masks from
+`/Library/Developer/DeviceKit`. The folded frame keeps its hinge-side slab and
+asymmetric screen corners; the open frame retains its hinge seams and physical
+buttons. `render-device-assets.swift` rasterizes those local PDFs with the
+selected Xcode. Apple artwork is not vendored into the repository. The
+promotional manifest records the asset checksums. The folded camera overlay is
+also restored at the position measured in Device Hub; it is absent from raw
+framebuffer screenshots. Neither composition crops the source screen or applies
+generic iPhone corner rounding. Regeneration changes only the promo tree.
+
 The supplement has eleven raw sources and ten promotional frames. The
 unfolded hero already carries the Insights widgets, so it needs no duplicate
 Home Screen Insights frame. The share frame pairs its QR with the real
