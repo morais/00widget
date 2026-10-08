@@ -25,3 +25,16 @@ updates:
       - morais
     commit-message:
       prefix: deps
+
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Lisbon
+    open-pull-requests-limit: 5
+    assignees:
+      - morais
+    commit-message:
+      prefix: deps
