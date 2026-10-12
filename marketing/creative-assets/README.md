@@ -9,9 +9,17 @@ This directory builds 00Widget's optional iOS 27 / iPadOS 27 creative assets:
 
 The dimensions and safe areas come from Apple's official Photoshop templates.
 The output is intentionally not one universal crop. The header makes one
-brand-led promise — U2 keeping a launch in sight — while Search pairs the exact
-brand lockup with the real expanded Dynamic Island and Home Screen widgets so
-the product's purpose is obvious at a smaller size.
+brand-led promise — U2 keeping a launch in sight — while Search stacks the exact
+brand lockup, a large real expanded Dynamic Island, and two complete Home Screen
+widgets so the product's purpose is obvious at search-card size.
+
+Search keeps the focal Live Activity inside Apple's guaranteed rectangle.
+Supporting branding and widgets extend into the surrounding canvas: fitting
+every element inside the smallest safe area left most of the actual iPhone
+placement empty. The widgets come from the intact second row of the same real
+capture; the expanded Island covers the titles in its first row. The build
+checks the source dimensions so a different device capture cannot silently
+invalidate these cutouts.
 
 The generated background plates in `sources/` provide atmosphere only; their
 exact built-in ImageGen prompts are recorded in [`PROMPTS.md`](PROMPTS.md). Exact
@@ -27,8 +35,10 @@ python3.12 marketing/creative-assets/build.py
 ```
 
 Upload-ready PNGs, safe-area review images, and a checksum manifest are written
-to `artifacts/app-store/creative-assets/`. Review the two files in
+to `artifacts/app-store/creative-assets/`. Review the named asset files in
 `previews/` first: everything outside Apple's guaranteed rectangle is dimmed.
+Also inspect `previews/search-card-526x351.png` at its native size for legibility
+and spacing, and `previews/search-focal-crop.png` for the smallest safe crop.
 
 Before submission, use App Store Connect's product-page preview tool for both
 iPhone and iPad crops. These assets are version-independent and may be

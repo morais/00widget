@@ -169,14 +169,15 @@ def build_header() -> Image.Image:
 
 def build_search() -> Image.Image:
     canvas = background(SEARCH)
+    canvas_bounds = (0, 0, *SEARCH.size)
 
     mark = contain(trim_alpha(Image.open(MARK)), (440, 440))
-    mark_xy = (1120, 805)
-    inside((mark_xy[0], mark_xy[1], mark_xy[0] + mark.width, mark_xy[1] + mark.height), SEARCH.safe_area)
+    mark_xy = (900, 210)
+    inside((mark_xy[0], mark_xy[1], mark_xy[0] + mark.width, mark_xy[1] + mark.height), canvas_bounds)
     composite_with_shadow(canvas, mark, mark_xy, blur=28, opacity=125, offset=(0, 18))
 
-    wordmark = contain(trim_alpha(Image.open(WORDMARK)), (1000, 350))
-    wordmark_xy = (875, 1320)
+    wordmark = contain(trim_alpha(Image.open(WORDMARK)), (1600, 500))
+    wordmark_xy = (1390, 285)
     inside(
         (
             wordmark_xy[0],
@@ -184,31 +185,50 @@ def build_search() -> Image.Image:
             wordmark_xy[0] + wordmark.width,
             wordmark_xy[1] + wordmark.height,
         ),
-        SEARCH.safe_area,
+        canvas_bounds,
     )
     composite_with_shadow(canvas, wordmark, wordmark_xy, blur=18, opacity=90, offset=(0, 10))
 
-    # The crop is a real system-hosted Dynamic Island plus real Home Screen
-    # widgets, not a redrawn phone mockup. It shows the firsthand experience
-    # Apple asks Search creative to make obvious at a glance.
-    # End immediately after the first widget row and its labels. A taller crop
-    # would cut the Launch and Agent runs widgets in half, which reads as a
-    # layout bug once Search renders this placement at thumbnail scale.
-    capture = Image.open(ISLAND_CAPTURE).convert("RGB").crop((0, 0, 1206, 850))
-    capture = ImageOps.contain(capture, (930, 850), Image.Resampling.LANCZOS)
-    capture = rounded(capture, radius=82)
-    capture = add_outline(capture, 5, (248, 251, 255, 80))
-    capture_xy = (1980, 953)
+    # Only the focal activity needs to survive the smallest Apple crop. Keeping
+    # the entire composition in that rectangle made Search mostly background.
+    # Branding and complete supporting widgets use the rest of the 3:2 canvas.
+    capture = Image.open(ISLAND_CAPTURE).convert("RGBA")
+    if capture.size != (1206, 2622):
+        raise AssertionError(f"Search cutouts require the 6.3-inch capture, got {capture.size}")
+
+    # Extract the actual system silhouette, including its continuous corners.
+    # A circular mask leaves slivers of the wallpaper around this black pill.
+    activity = capture.crop((36, 36, 1170, 394))
+    mask = Image.new("L", activity.size, 0)
+    draw = ImageDraw.Draw(mask)
+    pixels = activity.load()
+    for y in range(activity.height):
+        dark = [x for x in range(activity.width) if max(pixels[x, y][:3]) < 12]
+        if dark:
+            draw.line((dark[0], y, dark[-1], y), fill=255)
+    activity.putalpha(mask)
+    activity = contain(trim_alpha(activity), (2100, 700))
+    activity_xy = (870, 800)
     inside(
         (
-            capture_xy[0],
-            capture_xy[1],
-            capture_xy[0] + capture.width,
-            capture_xy[1] + capture.height,
+            activity_xy[0],
+            activity_xy[1],
+            activity_xy[0] + activity.width,
+            activity_xy[1] + activity.height,
         ),
         SEARCH.safe_area,
     )
-    composite_with_shadow(canvas, capture, capture_xy, blur=42, opacity=170, offset=(0, 28))
+    composite_with_shadow(canvas, activity, activity_xy, blur=42, opacity=170, offset=(0, 28))
+
+    # The expanded Island obscures the first row. Use the two intact widgets
+    # below it, removing only their surrounding wallpaper and app-name labels.
+    for box, xy in (
+        ((80, 873, 572, 1365), (720, 1480)),
+        ((635, 873, 1127, 1365), (2050, 1480)),
+    ):
+        widget = contain(rounded(capture.crop(box), radius=112), (1000, 1000))
+        inside((xy[0], xy[1], xy[0] + widget.width, xy[1] + widget.height), canvas_bounds)
+        composite_with_shadow(canvas, widget, xy, blur=42, opacity=170, offset=(0, 28))
     return canvas.convert("RGB")
 
 
@@ -243,6 +263,17 @@ def main() -> None:
         preview = DEFAULT_OUTPUT_DIR / "previews" / spec.name
         save(image, output)
         save(safe_area_preview(image, spec), preview)
+        if spec == SEARCH:
+            # Match the placement in the storefront reference, not a zoomed
+            # desktop review that hides unreadable text and wasted space.
+            save(
+                image.resize((526, 351), Image.Resampling.LANCZOS),
+                DEFAULT_OUTPUT_DIR / "previews" / "search-card-526x351.png",
+            )
+            save(
+                image.crop(spec.safe_area),
+                DEFAULT_OUTPUT_DIR / "previews" / "search-focal-crop.png",
+            )
         records.append(
             {
                 "filename": spec.name,
