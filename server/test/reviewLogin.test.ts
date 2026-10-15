@@ -96,7 +96,9 @@ describe("review login", () => {
     const next = "/connect/mcp/authorize?client_id=example";
 
     const ordinary = await fetchWorker(new Request(`${ORIGIN}/login`), env);
-    expect(await ordinary.text()).not.toContain("Reviewer access");
+    const ordinaryPage = await ordinary.text();
+    expect(ordinaryPage).toContain("Reviewer access");
+    expect(ordinaryPage).toContain('<input type="hidden" name="next" value="/dashboard">');
     const login = await fetchWorker(
       new Request(`${ORIGIN}/login?next=${encodeURIComponent(next)}`),
       env,
@@ -160,10 +162,31 @@ describe("review login", () => {
     expect(dashboard.status).toBe(200);
   });
 
+  it("sends a reviewer to the dashboard when the login form has no next field", async () => {
+    const env = reviewEnv();
+    await seedReviewCode(env);
+
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/login/review-token`, {
+        method: "POST",
+        headers: {
+          origin: ORIGIN,
+          "content-type": "application/x-www-form-urlencoded",
+          "cf-connecting-ip": "203.0.113.45",
+        },
+        body: new URLSearchParams({ accessCode: REVIEW_CODE }),
+      }),
+      env,
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/dashboard");
+    expect(sessionCookieFrom(res)).toBeDefined();
+  });
+
   it("still refuses a review sign-in to anywhere else", async () => {
     const env = reviewEnv();
     await seedReviewCode(env);
-    for (const next of ["/admin", "/app/device", "/dashboard/x"]) {
+    for (const next of ["/admin", "/app/device", "/dashboard/x", "https://evil.example.com"]) {
       const login = await fetchWorker(new Request(`${ORIGIN}/login?next=${encodeURIComponent(next)}`), env);
       expect(await login.text(), next).not.toContain("Reviewer access");
       const res = await fetchWorker(

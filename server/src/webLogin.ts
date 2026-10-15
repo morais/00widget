@@ -75,13 +75,15 @@ export function webSignupEnabled(env: Env): boolean {
 export async function handleLogin(req: Request, env: Env): Promise<Response> {
   const apple = webSignInConfigured(env);
   const apiToken = apiTokenLoginConfigured(env);
-  const next = safeNextPath(new URL(req.url).searchParams.get("next"));
-  const review = reviewWebLoginConfigured(env) && isReviewLoginDestination(next);
+  const requestedNext = new URL(req.url).searchParams.get("next");
+  const next = safeNextPath(requestedNext);
+  const reviewNext = requestedNext === null ? "/dashboard" : next;
+  const review = reviewWebLoginConfigured(env) && isReviewLoginDestination(reviewNext);
   const horizon = horizonIdentityEnabled(env)
     && Boolean(env.META_APP_ID?.trim())
     && isSecureAdminSecret(env.SESSION_SECRET);
   if (!apple && !apiToken && !review && !horizon) return htmlResponse(renderConfigError(env), 500);
-  return htmlResponse(renderLoginPage({ apple, apiToken, review, horizon, next }));
+  return htmlResponse(renderLoginPage({ apple, apiToken, review, horizon, next, reviewNext }));
 }
 
 export async function handleLoginApple(req: Request, env: Env): Promise<Response> {
@@ -144,7 +146,10 @@ export async function handleLoginReviewToken(req: Request, env: Env): Promise<Re
   } catch (error) {
     return formErrorResponse(error);
   }
-  const next = safeNextPath(typeof form.get("next") === "string" ? String(form.get("next")) : undefined);
+  const requestedNext = form.get("next");
+  const next = requestedNext === null
+    ? "/dashboard"
+    : safeNextPath(typeof requestedNext === "string" ? requestedNext : undefined);
   if (!isReviewLoginDestination(next)) return htmlResponse(renderError("Invalid review destination."), 400);
   const accessCode = String(form.get("accessCode") ?? "").trim();
   if (!accessCode) return htmlResponse(renderError("Review access code is required."), 400);
@@ -296,6 +301,7 @@ function renderLoginPage(opts: {
   review: boolean;
   horizon: boolean;
   next?: string;
+  reviewNext?: string;
 }): string {
   const appleHref = opts.next ? `/login/apple?next=${enc(opts.next)}` : "/login/apple";
   const appleBlock = opts.apple
@@ -308,6 +314,9 @@ function renderLoginPage(opts: {
 
   const nextField = opts.next
     ? `<input type="hidden" name="next" value="${esc(opts.next)}">`
+    : "";
+  const reviewNextField = opts.reviewNext
+    ? `<input type="hidden" name="next" value="${esc(opts.reviewNext)}">`
     : "";
   const apiTokenBlock = opts.apiToken
     ? `<form method="post" action="/login/api-token" class="api-token-form">
@@ -323,7 +332,7 @@ function renderLoginPage(opts: {
     ? `<details class="api-token-form reviewer-access">
          <summary>Reviewer access</summary>
          <form method="post" action="/login/review-token">
-           ${nextField}
+           ${reviewNextField}
            <label for="reviewAccessCode">Review access code</label>
            <input id="reviewAccessCode" type="password" name="accessCode" autocomplete="off" required>
            <button type="submit" class="button">Continue as reviewer</button>

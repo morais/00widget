@@ -38,7 +38,7 @@ export function isReviewTenant(env: Env, tenantId: string): boolean {
 
 /// Where a review access code may sign someone in to: approving a connector,
 /// and then looking at what that connector published. Kept to an explicit
-/// list so the reviewer option never appears on an ordinary sign-in page.
+/// list so a reviewer code cannot sign in to unrelated web surfaces.
 const REVIEW_LOGIN_DESTINATIONS = new Set(["/connect/mcp/authorize", "/dashboard"]);
 
 export function isReviewLoginDestination(next: string | undefined): boolean {
