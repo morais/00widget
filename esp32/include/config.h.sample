@@ -1,0 +1,61 @@
+#pragma once
+
+// Copy this file to include/config.h (which is gitignored) and fill it in.
+// Nothing here is ever sent anywhere except ZW_API_TOKEN, to ZW_BASE_URL.
+
+#define ZW_WIFI_SSID "your-network"
+#define ZW_WIFI_PASSWORD "your-password"
+
+#define ZW_BASE_URL "https://api.00widget.com"
+
+// Any 00Widget credential with the `read` scope. The agent token from the app
+// (Settings -> Agent token) works. Card actions additionally need
+// `actions:run`; without it the device is read-only and says so on cards that
+// have buttons.
+#define ZW_API_TOKEN "zw_..."
+
+// Card ids to show, in this order. An empty list, `{}`, shows every card on
+// the dashboard in the server's order. Find ids with `GET /v1/cards`.
+#define ZW_CARD_IDS { "solar", "washer" }
+
+// How often to fetch cards. Card state changes no faster than producers
+// publish it, so a minute is plenty for almost everything.
+#define ZW_POLL_SECONDS 60
+
+// Advance to the next card on its own every N seconds. 0 = only the button
+// changes screens.
+#define ZW_AUTO_ROTATE_SECONDS 20
+
+// Backlight, 0-255.
+#define ZW_BRIGHTNESS 180
+
+// Quiet period, in local time (ZW_TIMEZONE). Between these times the screen is
+// off and the device stops polling; a press of either button turns it on for
+// ZW_QUIET_WAKE_SECONDS, and it stays on while buttons keep being pressed. The
+// press that wakes it only wakes it. The window may span midnight. Leave both
+// commented out to keep the screen on all the time.
+// #define ZW_QUIET_START "23:00"
+// #define ZW_QUIET_END "07:00"
+// #define ZW_QUIET_WAKE_SECONDS 30
+
+// Local control: plain HTTP on your network so another device can put the
+// screen to sleep and wake it (presence detection, Home Assistant, a script).
+// Off unless ZW_LOCAL_TOKEN is set. Every request must carry the token, as
+// `Authorization: Bearer <token>` or `?token=<token>`:
+//   POST /sleep  screen off, polling stops (a button still wakes it briefly)
+//   POST /wake   screen on, even in the quiet period
+//   POST /auto   back to the quiet-period schedule
+//   GET  /state  {"screen":"on","mode":"auto","quietPeriod":false}
+// The device also answers as <ZW_HOSTNAME>.local. Use a long random token,
+// e.g. `openssl rand -hex 16`; it travels unencrypted on your LAN.
+// #define ZW_LOCAL_TOKEN "replace-with-a-long-random-string"
+// #define ZW_LOCAL_PORT 80
+// #define ZW_HOSTNAME "00widget"
+
+// POSIX TZ string for the clock in the header. This one is Europe/Lisbon and
+// London; e.g. "CET-1CEST,M3.5.0,M10.5.0/3" for Central Europe,
+// "EST5EDT,M3.2.0,M11.1.0" for US Eastern, "UTC0" for UTC.
+#define ZW_TIMEZONE "WET0WEST,M3.5.0/1,M10.5.0"
+
+// Swap which physical button does what, if you prefer the other way round.
+// #define ZW_SWAP_BUTTONS 1
