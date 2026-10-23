@@ -126,18 +126,6 @@ def isolate_mark(image: Image.Image, *, seal: int = 10, floor: int = 25, ceiling
     return rgba
 
 
-def remove_light_background(image: Image.Image) -> Image.Image:
-    """Remove the identity sheet's light backdrop from text-only artwork."""
-    rgba = image.convert("RGBA")
-    result: list[tuple[int, int, int, int]] = []
-    for red, green, blue, _ in rgba.getdata():
-        distance = ((red - 249) ** 2 + (green - 249) ** 2 + (blue - 249) ** 2) ** 0.5
-        alpha = max(0, min(255, round((distance - 2) * 255 / 28)))
-        result.append((red, green, blue, alpha))
-    rgba.putdata(result)
-    return rgba
-
-
 def trim(image: Image.Image) -> Image.Image:
     """Crop a master down to its visible art.
 
@@ -209,11 +197,8 @@ def save(image: Image.Image, path: Path, *, opaque: bool = False) -> None:
     image.save(path, optimize=True)
 
 
-def exact_wordmark(*, transparent: bool) -> Image.Image:
-    source = crop(WORDMARK_BOX)
-    if transparent:
-        source = remove_light_background(source)
-    return source.resize((2400, 840), Image.Resampling.LANCZOS)
+def exact_wordmark() -> Image.Image:
+    return crop(WORDMARK_BOX).resize((2400, 840), Image.Resampling.LANCZOS)
 
 
 def clean_wordmark(size: tuple[int, int], *, dark_surface: bool) -> Image.Image:
@@ -343,7 +328,7 @@ def generate() -> None:
     app_icon_master = Image.open(APP_ICON_MASTER).convert("RGB")
     mark = isolate_mark(app_icon_master)
     app_icon = app_icon_master.resize((1024, 1024), Image.Resampling.LANCZOS)
-    wordmark_opaque = exact_wordmark(transparent=False).convert("RGB")
+    wordmark_opaque = exact_wordmark().convert("RGB")
     wordmark_transparent = clean_wordmark((2400, 840), dark_surface=True)
 
     save(mark, MARK_MASTER)
