@@ -9,7 +9,7 @@ import UIKit
 /// credential, so nothing is pasted anywhere and no secret is on screen.
 ///
 /// Mirrors the "Choose your platform" section on 00Widget.com — Claude,
-/// ChatGPT, Manus, OpenCode, Codex, and any other Streamable-HTTP client.
+/// ChatGPT, Manus, Claude Code, Codex, OpenCode, and any other Streamable-HTTP client.
 /// Keep the steps, commands, and doc links here in sync with the site.
 struct ConnectAgentGuideView: View {
     @EnvironmentObject var env: AppEnvironment
@@ -69,14 +69,13 @@ struct ConnectAgentGuideView: View {
             }
 
             Section {
-                if usesClaudeDirectoryListing {
+                if usesHostedConnectorListings {
                     Step(1, "Tap Connect Claude below. It opens 00Widget in the Claude connector directory.")
-                    Step(2, "Sign in to claude.ai if it asks, then tap Connect.")
+                    Step(2, "Sign in to Claude if asked, then connect 00Widget and approve access.")
                 } else {
                     Step(1, "Tap Connect Claude below. It opens claude.ai in Safari with the connector details already filled in.")
-                    Step(2, "Sign in to claude.ai if it asks, then tap Add.")
+                    Step(2, "Sign in to claude.ai if asked, tap Add, then approve 00Widget access.")
                 }
-                Step(3, "Approve the permission screen. It publishes to whichever 00Widget account you are signed in as there.")
 
                 if let url = claudeConnectorURL {
                     Button {
@@ -85,52 +84,51 @@ struct ConnectAgentGuideView: View {
                         Label("Connect Claude", systemImage: "arrow.up.forward.app")
                     }
                 }
-
-                if let command = claudeCodeCommand {
-                    Text("Using Claude Code? Run this command, then open /mcp in Claude Code to complete OAuth.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy Claude Code command")
-                }
             } header: {
                 Text("Claude")
-            } footer: {
-                Text("You only do this once. A connector belongs to your Claude account rather than to a device, so it is there afterwards wherever you use Claude — web, desktop, iPhone, and iPad.")
             }
 
             Section {
-                Step(1, "In ChatGPT on the web, enable Developer mode from Settings → Apps → Advanced settings, or your workspace's Apps settings.")
-                Step(2, "Create a custom app and paste the MCP address below as the MCP server URL.")
-                Step(3, "Connect it, then sign in to 00Widget and approve access.")
+                if usesHostedConnectorListings {
+                    Step(1, "Tap Connect ChatGPT below to open the 00Widget plugin in ChatGPT.")
+                    Step(2, "Sign in to ChatGPT if asked, then connect 00Widget and approve access.")
 
-                Link(
-                    destination: URL(string: "https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt")!
-                ) {
-                    Label("Developer mode and MCP apps in ChatGPT", systemImage: "arrow.up.forward.app")
-                }
-                if let endpoint = mcpEndpoint {
-                    // Same shape as the agent config row in Settings: the
-                    // control sits on the text it copies, and acknowledges the
-                    // tap rather than latching.
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(endpoint)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button {
-                            copyEndpoint(endpoint)
-                        } label: {
-                            Image(systemName: copiedEndpoint ? "checkmark" : "doc.on.doc")
-                                .imageScale(.large)
+                    Link(destination: Self.chatGPTPluginURL) {
+                        Label("Connect ChatGPT", systemImage: "arrow.up.forward.app")
+                    }
+                } else {
+                    Step(1, "In ChatGPT on the web, enable Developer mode from Settings → Apps → Advanced settings, or your workspace's Apps settings.")
+                    Step(2, "Create a custom app and paste the MCP address below as the MCP server URL.")
+                    Step(3, "Connect it, then sign in to 00Widget and approve access.")
+
+                    Link(
+                        destination: URL(string: "https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt")!
+                    ) {
+                        Label("Developer mode and MCP apps in ChatGPT", systemImage: "arrow.up.forward.app")
+                    }
+                    if let endpoint = mcpEndpoint {
+                        // Same shape as the agent config row in Settings: the
+                        // control sits on the text it copies, and acknowledges the
+                        // tap rather than latching.
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(endpoint)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button {
+                                copyEndpoint(endpoint)
+                            } label: {
+                                Image(systemName: copiedEndpoint ? "checkmark" : "doc.on.doc")
+                                    .imageScale(.large)
+                            }
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            // Borderless, or the whole row becomes one tap target
+                            // and selecting the text triggers a copy instead.
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(copiedEndpoint ? "MCP address copied" : "Copy MCP address")
                         }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                        // Borderless, or the whole row becomes one tap target
-                        // and selecting the text triggers a copy instead.
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel(copiedEndpoint ? "MCP address copied" : "Copy MCP address")
                     }
                 }
             } header: {
@@ -154,13 +152,13 @@ struct ConnectAgentGuideView: View {
 
             Section {
                 Step(1, "Run this command once.")
-                Step(2, "Approve the 00Widget sign-in in the browser window that opens.")
+                Step(2, "Open /mcp in Claude Code, then sign in to 00Widget and approve access.")
 
-                if let command = openCodeCommand {
-                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy OpenCode command")
+                if let command = claudeCodeCommand {
+                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy Claude Code command")
                 }
             } header: {
-                Text("OpenCode")
+                Text("Claude Code")
             }
 
             Section {
@@ -183,6 +181,17 @@ struct ConnectAgentGuideView: View {
                 }
             } header: {
                 Text("Codex")
+            }
+
+            Section {
+                Step(1, "Run this command once.")
+                Step(2, "Approve the 00Widget sign-in in the browser window that opens.")
+
+                if let command = openCodeCommand {
+                    CopyableCodeBlock(text: command, accessibilityLabel: "Copy OpenCode command")
+                }
+            } header: {
+                Text("OpenCode")
             }
 
             Section {
@@ -361,15 +370,17 @@ struct ConnectAgentGuideView: View {
         return base.appendingPathComponent("mcp").absoluteString
     }
 
-    /// The Claude directory listing is registered against the hosted server
-    /// only. A self-hosted deployment would connect Claude to someone else's
-    /// backend through it, so anything else keeps the custom-connector link.
-    private var usesClaudeDirectoryListing: Bool {
+    /// Directory listings connect to the hosted server. Self-hosted setups
+    /// need the custom-connector instructions for their own backend.
+    private var usesHostedConnectorListings: Bool {
         guard let endpoint = mcpEndpoint else { return false }
-        return URL(string: endpoint)?.host?.lowercased() == Self.claudeDirectoryHost
+        return URL(string: endpoint)?.host?.lowercased() == Self.hostedConnectorHost
     }
 
-    private static let claudeDirectoryHost = "api.00widget.com"
+    private static let hostedConnectorHost = "api.00widget.com"
+    private static let chatGPTPluginURL = URL(
+        string: "https://chatgpt.com/plugins/plugin_asdk_app_6abce96d412c8191a0e658f4bd2bb5de"
+    )!
     private static let claudeDirectoryURL = URL(string: "https://claude.ai/directory/00widget")!
 
     /// claude.ai opens its add-connector sheet prefilled from these query
@@ -380,7 +391,7 @@ struct ConnectAgentGuideView: View {
     /// which leaves `:` and `/` bare. Both spellings are legal, but only the
     /// fully escaped one has been confirmed against claude.ai.
     private var claudeConnectorURL: URL? {
-        if usesClaudeDirectoryListing { return Self.claudeDirectoryURL }
+        if usesHostedConnectorListings { return Self.claudeDirectoryURL }
         guard
             let endpoint = mcpEndpoint,
             let escaped = endpoint.addingPercentEncoding(withAllowedCharacters: Self.queryValueAllowed)
