@@ -55,6 +55,7 @@ const CLIENT_NAME_MAX_LENGTH = 120;
 const REDIRECT_URI_MAX_LENGTH = 512;
 const MAX_REDIRECT_URIS = 5;
 const OAUTH_BODY_MAX_BYTES = 8 * 1024;
+const CHATGPT_CALLBACK_PATTERN = "https://chatgpt.com/connector/oauth/*";
 
 // Domain separation. A client_id blob and an authorization code are both
 // "<payload>.<hmac of payload>" under the same key; without a purpose tag, one
@@ -606,7 +607,7 @@ function renderConsentPage(
   const clientName = verifiedName ?? request.client.n;
   const trust = verifiedName
     ? `<p><span class="status status-good">Verified client</span>
-       00Widget recognizes this exact callback address.</p>`
+       00Widget recognizes this callback address.</p>`
     : `<p><span class="status status-warning">Unverified client</span>
        This name was supplied by the client. Review the callback address before approving.</p>`;
   const hidden = [
@@ -691,8 +692,9 @@ function isAllowedRedirectUri(value: string): boolean {
     && (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]");
 }
 
-/// Returns the server-owned display name for an exact, verified HTTPS
-/// callback. Dynamic registration metadata is self-asserted; neither
+/// Returns the server-owned display name for a verified HTTPS callback.
+/// The only pattern supported is ChatGPT's documented callback-ID route.
+/// Dynamic registration metadata is self-asserted; neither
 /// `client_name` nor a lookalike/prefix URL can earn this result.
 ///
 /// Invalid configuration fails closed to "unverified" so a typo can never
@@ -721,7 +723,18 @@ function verifiedClientName(env: Env, redirectUri: string): string | undefined {
     return undefined;
   }
 
-  const name = (registry as Record<string, unknown>)[redirectUri];
+  const clients = registry as Record<string, unknown>;
+  let name: unknown;
+  if (redirectUri !== CHATGPT_CALLBACK_PATTERN && Object.hasOwn(clients, redirectUri)) {
+    name = clients[redirectUri];
+  } else if (
+    // Compare the raw spelling too: URL parsing normalizes whitespace,
+    // dot segments and default ports that this narrow rule must not accept.
+    redirect.href === redirectUri
+    && /^https:\/\/chatgpt\.com\/connector\/oauth\/[A-Za-z0-9_-]+$/.test(redirectUri)
+  ) {
+    name = clients[CHATGPT_CALLBACK_PATTERN];
+  }
   if (typeof name !== "string") return undefined;
   const canonical = name.trim();
   return canonical ? canonical.slice(0, CLIENT_NAME_MAX_LENGTH) : undefined;

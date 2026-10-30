@@ -522,17 +522,30 @@ deployment wants to distinguish known clients on the consent screen:
 MCP_VERIFIED_CLIENTS = "{\"https://client.example.com/oauth/callback\":\"Example client\"}"
 ```
 
-Only an exact callback match receives the **Verified client** badge and the
-canonical configured name. Unknown callbacks remain supported but are labelled
-**Unverified client**. Do not add URL prefixes, lookalike domains, or localhost
-callbacks. Removing an entry takes effect immediately, including for client ids
-issued while it was present.
+Matching callbacks receive the **Verified client** badge and the canonical
+configured name. Unknown callbacks remain supported but are labelled
+**Unverified client**. Removing an entry takes effect immediately, including for
+client ids issued while it was present.
 
-The production registry currently recognizes these exact HTTPS callbacks:
+ChatGPT also uses [callback-ID-specific URLs](https://developers.openai.com/plugins/build/auth#redirect-url).
+To recognize those, add `"https://chatgpt.com/connector/oauth/*":"ChatGPT"`
+to the same registry. This is the only supported pattern: it matches exactly
+`https://chatgpt.com/connector/oauth/` followed by one nonempty callback ID
+containing ASCII letters, digits, underscores or hyphens. Queries, fragments,
+credentials, explicit ports, encoded characters and additional path segments
+do not match. Exact entries take precedence. No general URL prefix or hostname
+wildcards are supported, and localhost callbacks cannot be verified.
+
+This rule controls the display name and badge only. Authorization and token
+exchange still require the exact redirect URI registered by that client; two
+different callback IDs are never interchangeable.
+
+The deployment registry example recognizes these HTTPS callbacks:
 
 | Client | Callback |
 | --- | --- |
 | ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect` |
+| ChatGPT | `https://chatgpt.com/connector/oauth/*` (the constrained pattern above) |
 | Claude | `https://claude.ai/api/mcp/auth_callback` |
 | Claude | `https://claude.com/api/mcp/auth_callback` |
 | Cursor | `https://www.cursor.com/agents/mcp/oauth/callback` |

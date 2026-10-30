@@ -1671,7 +1671,9 @@ export interface Env {
   // stable connector until the operator explicitly enables it.
   MCP_PREVIEW_ENABLED?: string;
   // JSON object mapping exact HTTPS OAuth callback URLs to canonical client
-  // names. Matching callbacks receive a verified badge on the consent screen;
+  // names. Also accepts the single supported pattern
+  // https://chatgpt.com/connector/oauth/* for one callback-ID path segment.
+  // Matching callbacks receive a verified badge on the consent screen;
   // every other dynamically registered client remains usable but unverified.
   MCP_VERIFIED_CLIENTS?: string;
 

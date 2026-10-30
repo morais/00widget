@@ -20,6 +20,8 @@ function fetchWorker(req: Request, env: Env, executionCtx: ExecutionContext): Pr
 const ORIGIN = "https://api.example.com";
 const SESSION_SECRET = "test-session-secret-0123456789abcdef";
 const REDIRECT_URI = "https://chatgpt.com/connector_platform_oauth_redirect";
+const CHATGPT_CALLBACK_PATTERN = "https://chatgpt.com/connector/oauth/*";
+const CHATGPT_CALLBACK_URI = "https://chatgpt.com/connector/oauth/2VJ3gtaoWc4W";
 const VERIFIER = "verifier-0123456789-0123456789-0123456789-abcdef";
 
 afterEach(() => {
@@ -288,7 +290,7 @@ describe("authorization", () => {
     const html = await res.text();
     expect(html).toContain("ChatGPT wants to publish to 00Widget");
     expect(html).toContain("Verified client");
-    expect(html).toContain("recognizes this exact callback address");
+    expect(html).toContain("recognizes this callback address");
     expect(html).not.toContain("Self-asserted lookalike");
   });
 
@@ -315,6 +317,167 @@ describe("authorization", () => {
     const html = await res.text();
     expect(html).toContain("Unverified client");
     expect(html).not.toContain("Verified client</span>");
+  });
+
+  it.each([CHATGPT_CALLBACK_URI, "https://chatgpt.com/connector/oauth/abc_DEF-123"])(
+    "verifies ChatGPT's callback-ID route when explicitly configured: %s",
+    async (redirectUri) => {
+      const env = oauthEnv({
+        MCP_VERIFIED_CLIENTS: JSON.stringify({ [CHATGPT_CALLBACK_PATTERN]: "ChatGPT" }),
+      });
+      await seedApiKey(env, TEST_API_KEY, "test-tenant");
+      const clientId = ((await (await registerClient(env, {
+        client_name: "Self-asserted name",
+        redirect_uris: [redirectUri],
+      })).json()) as { client_id: string }).client_id;
+      const { cookie } = await webSession(env);
+      const res = await fetchWorker(
+        new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+          redirect_uri: redirectUri,
+        })}`, { headers: { cookie } }),
+        env,
+        ctx,
+      );
+
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain("ChatGPT wants to publish to 00Widget");
+      expect(html).toContain("Verified client</span>");
+      expect(html).toContain(`<code>${redirectUri}</code>`);
+      expect(html).not.toContain("Self-asserted name");
+    },
+  );
+
+  it.each([
+    "https://chatgpt.com.evil.test/connector/oauth/abc",
+    "https://evilchatgpt.com/connector/oauth/abc",
+    "https://chatgpt.com@evil.test/connector/oauth/abc",
+    "https://evil.test@chatgpt.com/connector/oauth/abc",
+    "https://chatgpt.com:8443/connector/oauth/abc",
+    "https://chatgpt.com:443/connector/oauth/abc",
+    "https://chatgpt.com./connector/oauth/abc",
+    "https://chatgpt.com/connector/oauth/",
+    CHATGPT_CALLBACK_PATTERN,
+    "https://chatgpt.com/connector/oauth/abc/extra",
+    "https://chatgpt.com/connector/oauth/abc/",
+    "https://chatgpt.com/connector/oauth/abc?next=https://evil.test",
+    "https://chatgpt.com/connector/oauth/abc?",
+    "https://chatgpt.com/connector/oauth/%61bc",
+    "https://chatgpt.com/connector/oauth/abc%2fextra",
+    "https://chatgpt.com/connector/oauth/../oauth/abc",
+    "https://chatgpt.com/connector/oauth/abc.evil",
+    "https://chatgpt.com/other/abc",
+    REDIRECT_URI,
+  ])("does not extend the ChatGPT pattern to other URLs: %s", async (redirectUri) => {
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [CHATGPT_CALLBACK_PATTERN]: "ChatGPT" }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "ChatGPT",
+      redirect_uris: [redirectUri],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+        redirect_uri: redirectUri,
+      })}`, { headers: { cookie } }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("Unverified client");
+  });
+
+  it.each([
+    undefined,
+    "{",
+    "[]",
+    JSON.stringify({ [REDIRECT_URI]: "ChatGPT" }),
+    JSON.stringify({ "https://chatgpt.com/*": "ChatGPT" }),
+    JSON.stringify({ [CHATGPT_CALLBACK_PATTERN]: " " }),
+    JSON.stringify({ [CHATGPT_CALLBACK_PATTERN]: 42 }),
+  ])("does not verify a callback-ID URL without a valid pattern entry: %s", async (registry) => {
+    const env = oauthEnv({ MCP_VERIFIED_CLIENTS: registry });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "ChatGPT",
+      redirect_uris: [CHATGPT_CALLBACK_URI],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const res = await fetchWorker(
+      new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+        redirect_uri: CHATGPT_CALLBACK_URI,
+      })}`, { headers: { cookie } }),
+      env,
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("Unverified client");
+  });
+
+  it("prefers an exact entry over the ChatGPT pattern and rechecks the registry", async () => {
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({
+        [CHATGPT_CALLBACK_PATTERN]: "ChatGPT",
+        [CHATGPT_CALLBACK_URI]: "Configured client",
+      }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const clientId = ((await (await registerClient(env, {
+      client_name: "Submitted name",
+      redirect_uris: [CHATGPT_CALLBACK_URI],
+    })).json()) as { client_id: string }).client_id;
+    const { cookie } = await webSession(env);
+    const req = new Request(`${ORIGIN}/connect/mcp/authorize?${await authorizeQuery(clientId, {
+      redirect_uri: CHATGPT_CALLBACK_URI,
+    })}`, { headers: { cookie } });
+    const html = await (await fetchWorker(req, env, ctx)).text();
+    expect(html).toContain("Configured client wants to publish");
+    expect(html).toContain("Verified client</span>");
+
+    const code = new URL((await approve(env, clientId, {
+      redirect_uri: CHATGPT_CALLBACK_URI,
+    })).headers.get("location")!).searchParams.get("code")!;
+    env.MCP_VERIFIED_CLIENTS = "{}";
+    expect(await (await fetchWorker(req, env, ctx)).text()).toContain("Unverified client");
+    const res = await exchange(env, {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: CHATGPT_CALLBACK_URI,
+      code_verifier: VERIFIER,
+    });
+    expect(res.status).toBe(200);
+    expect((await listLiveMcpConnections(env, "test-tenant"))[0].label)
+      .toBe(`MCP · Submitted name · ${OWNER_EMAIL}`);
+  });
+
+  it("keeps redirect matching exact when both callbacks match the verified pattern", async () => {
+    const env = oauthEnv({
+      MCP_VERIFIED_CLIENTS: JSON.stringify({ [CHATGPT_CALLBACK_PATTERN]: "ChatGPT" }),
+    });
+    await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const otherCallback = "https://chatgpt.com/connector/oauth/other-id";
+    const clientId = ((await (await registerClient(env, {
+      client_name: "ChatGPT",
+      redirect_uris: [CHATGPT_CALLBACK_URI],
+    })).json()) as { client_id: string }).client_id;
+    expect((await approve(env, clientId, { redirect_uri: otherCallback })).status).toBe(400);
+    const code = new URL((await approve(env, clientId, {
+      redirect_uri: CHATGPT_CALLBACK_URI,
+    })).headers.get("location")!).searchParams.get("code")!;
+    const params = {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: otherCallback,
+      code_verifier: VERIFIER,
+    };
+    expect((await exchange(env, params)).status).toBe(400);
+    expect((await exchange(env, { ...params, redirect_uri: CHATGPT_CALLBACK_URI })).status).toBe(200);
   });
 
   it("allows only the registered HTTP loopback origin for a local client's callback", async () => {
@@ -622,22 +785,27 @@ describe("token exchange", () => {
     expect(cards.status).toBe(200);
   });
 
-  it("records the canonical name for a verified connector credential", async () => {
+  it.each([REDIRECT_URI, CHATGPT_CALLBACK_URI])("records the canonical name for a verified connector credential: %s", async (redirectUri) => {
     const env = oauthEnv({
-      MCP_VERIFIED_CLIENTS: JSON.stringify({ [REDIRECT_URI]: "ChatGPT" }),
+      MCP_VERIFIED_CLIENTS: JSON.stringify({
+        [REDIRECT_URI]: "ChatGPT",
+        [CHATGPT_CALLBACK_PATTERN]: "ChatGPT",
+      }),
     });
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const clientId = ((await (await registerClient(env, {
       client_name: "Attacker-selected name",
-      redirect_uris: [REDIRECT_URI],
+      redirect_uris: [redirectUri],
     })).json()) as { client_id: string }).client_id;
-    const code = new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
+    const code = new URL((await approve(env, clientId, {
+      redirect_uri: redirectUri,
+    })).headers.get("location")!).searchParams.get("code")!;
 
     const res = await exchange(env, {
       grant_type: "authorization_code",
       code,
       client_id: clientId,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: redirectUri,
       code_verifier: VERIFIER,
     });
     expect(res.status).toBe(200);
