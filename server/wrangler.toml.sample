@@ -75,7 +75,10 @@ MCP_PREVIEW_ENABLED = "false"
 # badge and replaces the self-asserted client_name on the consent screen and in
 # the resulting credential label. Unknown clients remain usable but display as
 # unverified. Never use URL prefixes or localhost callbacks here.
-# MCP_VERIFIED_CLIENTS = "{\"https://chatgpt.com/connector_platform_oauth_redirect\":\"ChatGPT\",\"https://chatgpt.com/connector/oauth/*\":\"ChatGPT\",\"https://claude.ai/api/mcp/auth_callback\":\"Claude\",\"https://claude.com/api/mcp/auth_callback\":\"Claude\",\"https://www.cursor.com/agents/mcp/oauth/callback\":\"Cursor\",\"https://vscode.dev/redirect\":\"VS Code\",\"https://insiders.vscode.dev/redirect\":\"VS Code Insiders\",\"https://callback.mistral.ai/v1/integrations_auth/oauth2_callback\":\"Mistral\",\"https://api.devin.ai/mcp/oauth/callback\":\"Windsurf\",\"https://manus.im/api/webhook/mcp/callback\":\"Manus\"}"
+# Muse callbacks are exact entries, documented by connector implementers:
+# https://corebee.ai/docs/mcp and https://www.joinmetric.com/muse
+# https://museaiconnectors.com/guides/how-to-get-your-app-on-muse
+# MCP_VERIFIED_CLIENTS = "{\"https://chatgpt.com/connector_platform_oauth_redirect\":\"ChatGPT\",\"https://chatgpt.com/connector/oauth/*\":\"ChatGPT\",\"https://claude.ai/api/mcp/auth_callback\":\"Claude\",\"https://claude.com/api/mcp/auth_callback\":\"Claude\",\"https://www.cursor.com/agents/mcp/oauth/callback\":\"Cursor\",\"https://vscode.dev/redirect\":\"VS Code\",\"https://insiders.vscode.dev/redirect\":\"VS Code Insiders\",\"https://callback.mistral.ai/v1/integrations_auth/oauth2_callback\":\"Mistral\",\"https://api.devin.ai/mcp/oauth/callback\":\"Windsurf\",\"https://manus.im/api/webhook/mcp/callback\":\"Manus\",\"https://platform.muse.ai/oauth/credential-test/callback\":\"Muse\",\"https://agent.meta.ai/api/hatch/oauth/callback\":\"Muse\",\"https://muse.ai/api/hatch/oauth/callback\":\"Muse\",\"https://muse.ai/connect/oauth-callback\":\"Muse\",\"https://muse.ai/connect/ac-oauth-callback\":\"Muse\"}"
 # Comma-separated stable tenant UUIDs allowed to use a zero-scope reviewer
 # access code in the MCP consent flow and hidden iOS Developer screen.
 # Empty or unset disables both entry points.
