@@ -94,6 +94,13 @@ struct CardStatusIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        #if canImport(AppIntents, _version: 301.2)
+        if #available(iOS 27.3, *) {
+            let current = try await SiriDashboardService.card(id: card.id)
+            let answer = CardStatusReport.summary(for: current)
+            return .result(value: answer, dialog: IntentDialog("\(answer)"))
+        }
+        #endif
         let answer = CardStatusReport.answer(forCardWithId: card.id, fallbackTitle: card.title)
         return .result(value: answer, dialog: IntentDialog("\(answer)"))
     }
@@ -161,6 +168,10 @@ enum IntentLanding {
         } else {
             pending = request
         }
+    }
+
+    static func refreshPublishedState() async {
+        await environment?.fetchCards()
     }
 
     private static func apply(_ request: Request, to env: AppEnvironment) {

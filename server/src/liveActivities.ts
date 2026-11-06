@@ -546,14 +546,22 @@ export async function activeActivities(
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  const activities = await listActiveActivitySessions(env, auth.tenantId);
+  const ownedOnly = new URL(req.url).searchParams.get("ownedOnly") === "true";
+  const activities = ownedOnly
+    ? (await listVisibleActivities(env, auth.tenantId))
+      .filter((entry) => entry.ownerTenantId === auth.tenantId)
+      .map((entry) => entry.session)
+    : await listActiveActivitySessions(env, auth.tenantId);
+  // Echo the filter so clients managing activities can fail closed against an
+  // older deployment that ignored it. External ids aren't unique across owners.
+  const ownership = ownedOnly ? { ownedOnly: true } : {};
   // `?include=ended` adds a bounded window of recently finished activities.
   // Opt-in rather than always present: the common call is "what is running",
   // and a producer polling that should not pay for history it ignores.
   if (new URL(req.url).searchParams.get("include") !== "ended") {
-    return json({ activities });
+    return json({ activities, ...ownership });
   }
-  return json({ activities, ended: await storage.listEndedActivities(env, auth.tenantId) });
+  return json({ activities, ...ownership, ended: await storage.listEndedActivities(env, auth.tenantId) });
 }
 
 export async function listActiveActivitySessions(

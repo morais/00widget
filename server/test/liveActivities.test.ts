@@ -15,6 +15,34 @@ OF/2NxApJCzGCEDdfSp6VQO30hyhRANCAAQRWz+jn65BtOMvdyHKcvjBeBSDZH2r
 -----END PRIVATE KEY-----`;
 
 describe("live activities", () => {
+  it("filters owned activities without confusing shared external ids", async () => {
+    const env = makeEnv();
+    for (const [instance, owner] of [["own-instance", "test-tenant"], ["shared-instance", "other-tenant"]]) {
+      await storage.putActivityInstance(env, owner, "test-hash", {
+        activityInstanceId: instance,
+        externalActivityId: "same-external-id",
+        kind: "job",
+        title: instance,
+        state: "running",
+        updatedAt: new Date().toISOString(),
+      });
+      await storage.putActivityTarget(env, instance, owner, "test-tenant");
+    }
+    const list = async (query: string) => {
+      const response = await (handler.fetch as any)(
+        authedRequest(`https://x/v1/live-activities${query}`, { method: "GET" }), env, executionCtx,
+      );
+      expect(response.status).toBe(200);
+      return await response.json() as { ownedOnly?: boolean; activities: Array<{ activityInstanceId: string }> };
+    };
+    expect((await list("")).activities).toHaveLength(2);
+    const owned = await list("?ownedOnly=true");
+    expect(owned.ownedOnly).toBe(true);
+    expect(owned.activities.map((activity) => activity.activityInstanceId)).toEqual(["own-instance"]);
+    // Only an explicit opt-in changes the long-standing visible-activities API.
+    expect((await list("?ownedOnly=false")).activities).toHaveLength(2);
+  });
+
   it("rejects live activity text beyond published limits", () => {
     expect(
       StartLiveActivitySchema.safeParse({

@@ -315,6 +315,7 @@ struct DashboardView: View {
                             path.append(card.id)
                         } label: {
                             CardView(card: card, context: .app, density: .compact, growsToFill: true)
+                                    .siriCardContext(card)
                         }
                         .buttonStyle(.plain)
                         // Row heights settle on the tallest card; the button
@@ -360,6 +361,7 @@ struct DashboardView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 CardView(card: card, context: .app, density: .compact, growsToFill: true)
+                                    .siriCardContext(card)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         }
@@ -392,6 +394,7 @@ struct DashboardView: View {
                                     .font(.caption.weight(.medium))
                                     .foregroundStyle(.secondary)
                                 CardView(card: card, context: .app, density: .compact, growsToFill: true)
+                                    .siriCardContext(card)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         }

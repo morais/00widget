@@ -34,11 +34,16 @@ settings:
 # as a bundle resource for no reason.
 fileGroups:
   - Resources/ZeroZeroWidget.storekit
+  - Resources/Siri/Skills.skillsbundle
 
 targets:
   ZeroZeroWidgetApp:
     type: application
     platform: iOS
+    postBuildScripts:
+      - name: Compile Siri app skills when supported
+        script: '"${SRCROOT}/scripts/compile-siri-skills.sh"'
+        basedOnDependencyAnalysis: false
     sources:
       - path: Sources/App
       - path: Sources/Shared

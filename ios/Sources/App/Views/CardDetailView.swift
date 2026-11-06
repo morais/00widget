@@ -63,6 +63,7 @@ struct CardDetailView: View {
                             run(action)
                         }
                     }
+                    .siriCardContext(currentCard)
 
                     if let chart = currentCard.chart, chart.isRenderable {
                         // The flexible child on a viewport-filling screen: the

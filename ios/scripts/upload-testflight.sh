@@ -54,6 +54,7 @@
 #   ios/scripts/upload-testflight.sh --ios-only
 #   ios/scripts/upload-testflight.sh --tvos-only
 #   ios/scripts/upload-testflight.sh --verify-only       # build + gates, no upload
+#   ios/scripts/upload-testflight.sh --ios-only --internal-only # Siri developer preview
 #   ios/scripts/upload-testflight.sh --build 202601011200
 
 set -euo pipefail
@@ -61,6 +62,7 @@ set -euo pipefail
 DO_IOS=1
 DO_TVOS=1
 UPLOAD=1
+INTERNAL_ONLY=0
 BUILD_NUMBER="$(date +%Y%m%d%H%M)"
 
 while [[ $# -gt 0 ]]; do
@@ -68,6 +70,7 @@ while [[ $# -gt 0 ]]; do
     --ios-only) DO_TVOS=0; shift ;;
     --tvos-only) DO_IOS=0; shift ;;
     --verify-only) UPLOAD=0; shift ;;
+    --internal-only) INTERNAL_ONLY=1; shift ;;
     --build) BUILD_NUMBER="$2"; shift 2 ;;
     *) echo "unknown arg: $1"; exit 1 ;;
   esac
@@ -162,6 +165,9 @@ export_options() { # <path> <destination> <bundle-id> <profile-name-or-empty>
     echo '  <key>manageAppVersionAndBuildNumber</key><false/>'
     echo '  <key>stripSwiftSymbols</key><true/>'
     echo '  <key>uploadSymbols</key><true/>'
+    if [[ "$INTERNAL_ONLY" == "1" ]]; then
+      echo '  <key>testFlightInternalTestingOnly</key><true/>'
+    fi
     echo "  <key>teamID</key><string>$TEAM_ID</string>"
     if [[ -n "$4" ]]; then
       echo '  <key>signingStyle</key><string>manual</string>'

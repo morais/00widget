@@ -965,6 +965,18 @@ Source-of-truth for the logo, colors, and tagline lives in `docs/brand/`. Taglin
 
 ## Adding things
 
+- **Siri creation and update tools need direct inputs for ordinary requests.**
+  The first Siri prototype gave card creation structured input and Live
+  Activity creation only a JSON string. An explicit "create a live activity
+  tracking my lunch break" request executed the card tool instead. Keep the
+  requested surface explicit in tool titles/descriptions and skill examples,
+  offer simple typed parameters before advanced JSON tools, and make receipts
+  name the actual surface. Build/metadata checks prove exposure, not Siri's
+  natural-language selection: confirm the server resource created by a real
+  prompt before claiming the routing works. A known device-driven countdown
+  remains valid until its end; don't expire it after the generic 15-minute
+  freshness fallback.
+
 - **New widget kind:** add a `*.swift` in `ios/Sources/Widgets/`, register it in `WidgetBundle.swift`, and (if it should appear in the bundle from `WidgetCenter.reloadTimelines`) add its kind string to `Constants.WidgetKinds.all`.
 - **New endpoint:** add the handler module in `server/src/`, wire a route in `server/src/index.ts`, add a zod schema in `types.ts`, add a test file in `server/test/`. If iOS needs to call it, add a method to `ios/Sources/App/Services/APIClient.swift`.
 - **New tenant-scoped table:** add it to the deletion batch in `server/src/account.ts` in the same change, and to `FakeD1.tableRows` so the sweep can be tested. A table that is not on that list survives account deletion, silently and forever.

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public struct APIClientError: Error, LocalizedError {
     public let status: Int
@@ -82,6 +83,7 @@ public struct CardsListResponse: Codable {
 
 public struct LiveActivitiesListResponse: Codable {
     public let activities: [LiveActivitySession]
+    public let ownedOnly: Bool?
 }
 
 public struct DashboardResponse: Codable {
@@ -405,11 +407,14 @@ public final class APIClient {
         return (resp.cards, resp.shared ?? [])
     }
 
-    public func fetchLiveActivities() async throws -> [LiveActivitySession] {
+    public func fetchLiveActivities(ownedOnly: Bool = false) async throws -> [LiveActivitySession] {
         let resp: LiveActivitiesListResponse = try await request(
             "GET",
-            path: "/v1/live-activities"
+            path: "/v1/live-activities" + (ownedOnly ? "?ownedOnly=true" : "")
         )
+        if ownedOnly, resp.ownedOnly != true {
+            throw APIClientError(status: 0, message: "Update the 00Widget server before managing activities with Siri.")
+        }
         return resp.activities
     }
 
@@ -470,6 +475,31 @@ public final class APIClient {
 
     public func upsertCard(_ card: DashboardCard) async throws {
         let _: EmptyBody = try await request("POST", path: "/v1/cards/upsert", body: card)
+    }
+
+    public enum PublishingOperation: String {
+        case card = "/v1/cards/upsert"
+        case startActivity = "/v1/live-activities/start"
+        case updateActivity = "/v1/live-activities/update"
+        case endActivity = "/v1/live-activities/end"
+    }
+
+    /// The server remains the schema, authorization, and push-delivery gate.
+    /// Returning its receipt prevents an accepted publication being reported
+    /// as proof that an iPhone displayed it.
+    public func publish(_ document: PublishingDocument, operation: PublishingOperation) async throws -> PublishingDocument {
+        let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "00Widget", category: "Publishing")
+        logger.info("Publication requested: \(operation.rawValue, privacy: .public)")
+        do {
+            let receipt: PublishingDocument = try await request("POST", path: operation.rawValue, body: document)
+            logger.info("Publication accepted: \(operation.rawValue, privacy: .public)")
+            return receipt
+        } catch {
+            // Log only the route, never content, credentials, or server errors
+            // that could echo private request fields.
+            logger.error("Publication failed: \(operation.rawValue, privacy: .public)")
+            throw error
+        }
     }
 
     public func deleteCard(id: String) async throws {

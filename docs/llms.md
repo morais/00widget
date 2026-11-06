@@ -1673,8 +1673,8 @@ curl "$00WIDGET_BASE_URL/v1/live-activities" \
   -H "Authorization: Bearer $00WIDGET_API_KEY"
 ```
 
-The response is always a JSON object with a single `activities` key holding an
-array — never a bare array, and never any other key. An empty result is
+The default response is a JSON object with an `activities` key holding an
+array — never a bare array. An empty result is
 `{"activities":[]}` with status 200, so there is no shape to fall back to and
 no need for defensive parsing:
 
@@ -1695,6 +1695,12 @@ no need for defensive parsing:
   ]
 }
 ```
+
+The default list includes activities shared with this account. Clients that
+will update or end an activity should request `?ownedOnly=true` to list only
+activities owned by the authenticated tenant. That response also includes
+`"ownedOnly": true`; require the marker before managing an activity, because
+older servers ignore the filter and external ids can collide across owners.
 
 Add `?include=ended` for a bounded window of activities that have finished:
 
