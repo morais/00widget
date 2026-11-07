@@ -19,6 +19,7 @@ import {
   resolveWebTenantIdentity,
 } from "./webSession";
 import { RequestBodyLimits, type Env } from "./types";
+import { nativeSignInStatement } from "./setup";
 
 const DEVICE_CODE_TTL_SECONDS = 10 * 60;
 const POLL_INTERVAL_SECONDS = 5;
@@ -220,13 +221,14 @@ export async function exchangeDeviceAuthorization(req: Request, env: Env): Promi
       label: "Horizon OS",
     });
     mintedAgentKeyId = agent.apiKey.id;
-    await env.ZW_DB.prepare(
-      `UPDATE device_authorizations
-       SET status = 'consumed', consumed_at = ?
-       WHERE id = ? AND status = 'consuming'`,
-    )
-      .bind(new Date().toISOString(), row.id)
-      .run();
+    await env.ZW_DB.batch([
+      env.ZW_DB.prepare(
+        `UPDATE device_authorizations
+         SET status = 'consumed', consumed_at = ?
+         WHERE id = ? AND status = 'consuming'`,
+      ).bind(new Date().toISOString(), row.id),
+      nativeSignInStatement(env, row.tenant_id),
+    ]);
     return json(
       { token: created.token, publisherCredential: agent.token },
       200,

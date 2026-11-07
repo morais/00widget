@@ -111,40 +111,40 @@ applies: the tool arguments *are* the JSON bodies documented here, validated by
 the same schemas, and every field carries its description into the tool's JSON
 Schema.
 
-Call `get_status` once before publishing for the first time: if
-`delivery.canPushWidgets` is false, nothing you publish will be seen by anyone,
-and the operator has to install the app and allow notifications.
+Call `get_status` before the first publish and check `setup`. A false
+`delivery.canPushWidgets` means no widget can receive pushes; a configured
+Horizon app can still read the dashboard directly.
 
 Existing reads (`list_cards`, `get_card`, `list_live_activities`,
 `get_dashboard`, `get_status`, and `get_integration_guide`) also return an
 advisory `setup` object alongside their existing data. `setup.status` is:
 
-- `ready`: native sign-in is recorded and at least one iPhone delivery path
-  is registered (a widget push token or a Live Activity start token refreshed
-  within 30 days), with an active entitlement if publishing requires one.
+- `ready`: native sign-in is recorded with a widget push token, a Live Activity
+  start token refreshed within 30 days, or an active native Horizon app credential.
+  An active entitlement is needed only if publishing requires one.
   Explicitly prepared reviewer accounts also return `ready`.
 - `finish_setup`: native sign-in is recorded, but delivery or a required
   entitlement is incomplete.
 - `unknown`: native sign-in evidence is missing. Ask whether the app is already
   configured; do not assume it is uninstalled or unconfigured.
 
-This is optional setup help, never an access gate. When present, offer the
-App Store link and instructions in `setup`: open or install 00Widget, sign in
-with the same Apple account used for the chat connection, complete the app's
-setup, then return to chat. Keep the plugin or connector connected and recheck
-with the **same tool and arguments**. Installation alone cannot display this
-guidance; it arrives only on an existing tool call. Setup reports iPhone
-delivery readiness, not whether a television or headset can poll the dashboard,
-and cannot confirm widget placement or the device's current permission UI.
+This is optional help, never an access gate. Offer the instructions in `setup`:
+Apple setup uses the App Store and the same Apple account; Horizon setup uses
+the headset and its Meta account or linked Apple account. Complete setup in
+the app, return to chat, keep the connector connected, and recheck with the
+**same tool and arguments**. Installation alone cannot display this guidance;
+it arrives only on an existing tool call. A headset polls directly and needs
+no iPhone push permissions. Widget placement and current on-device permission
+settings cannot be confirmed by the server.
 
 The corresponding card, activity, dashboard and status HTTP reads carry the
 same advisory. It includes no profile details, sign-in timestamps or identity
-provider identifiers. Native Apple and native reviewer sign-ins record their
-first successful exchange on the account. Browser, dashboard and connector
-sign-ins never set it. Historical backfill uses only paired, session-bound
-native device/app credential records, including revoked or expired sessions;
-the timestamp is the earliest surviving evidence. Apple identity rows,
-subscriptions, credential labels and push registrations alone are insufficient.
+provider identifiers. Native Apple, Horizon and reviewer sign-ins record their
+first successful exchange; browser, dashboard and connector sign-ins never do.
+Backfill uses paired Apple device/app sessions or previously used native
+Horizon credentials with a current Horizon binding. Revoked/expired records
+remain historical evidence, with the earliest surviving timestamp retained.
+Identity rows, subscriptions, labels and push registrations alone are insufficient.
 
 `get_integration_guide` returns this document trimmed for a tool caller — the
 rules the argument schemas cannot carry, without the credential setup, curl

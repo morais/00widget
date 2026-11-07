@@ -1404,6 +1404,17 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized === "SELECT EXISTS ( SELECT 1 FROM api_keys WHERE tenant_id = ? AND kind = 'app' AND purpose = 'device' AND revoked_at IS NULL AND expires_at > ? ) AS configured, (EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?) OR EXISTS (SELECT 1 FROM api_keys WHERE tenant_id = ? AND kind = 'app' AND purpose = 'device')) AS horizon") {
+      const [tenant, now, horizonTenant, credentialTenant] = values.map(String);
+      const nativeKeys = [...this.apiKeys.values()].filter((row) =>
+        row.tenant_id === tenant && row.kind === "app" && row.purpose === "device");
+      return [{
+        configured: Number(nativeKeys.some((row) => !row.revoked_at && String(row.expires_at) > now)),
+        horizon: Number([...this.horizonAccounts.values()].some((row) => row.tenant_id === horizonTenant)
+          || [...this.apiKeys.values()].some((row) => row.tenant_id === credentialTenant
+            && row.kind === "app" && row.purpose === "device")),
+      }];
+    }
     if (normalized === "SELECT first_native_sign_in_at FROM tenants WHERE id = ?") {
       const row = this.tenants.get(String(values[0]));
       return row ? [{ first_native_sign_in_at: row.first_native_sign_in_at ?? null }] : [];

@@ -120,6 +120,12 @@ describe("Horizon identity", () => {
     expect(account).toMatchObject({ ownerEmail: null, displayName: "Horizon account" });
     expect(account.identities).toEqual([{ provider: "horizon" }]);
     expect(account.tenantId).toBeTruthy();
+    const marker = () => env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind(account.tenantId).first<{ first_native_sign_in_at: string | null }>();
+    const firstSignIn = await marker();
+    expect(firstSignIn?.first_native_sign_in_at).toBeTruthy();
+    const setupResponse = await worker(authedRequest(`${ORIGIN}/v1/status`, {}, createdBody.publisherCredential), env);
+    expect((await setupResponse.json() as any).setup).toEqual({ status: "ready", optional: true });
 
     const cannotUnlink = await worker(authedRequest(`${ORIGIN}/v1/account/horizon`, {
       method: "DELETE",
@@ -131,6 +137,7 @@ describe("Horizon identity", () => {
     const secondToken = (await signedIn.json() as { token: string }).token;
     const secondAccount = await worker(authedRequest(`${ORIGIN}/v1/account`, {}, secondToken), env);
     expect((await secondAccount.json() as any).account.tenantId).toBe(account.tenantId);
+    expect(await marker()).toEqual(firstSignIn);
     expect(fetchMock).toHaveBeenCalledTimes(4);
 
     const deleted = await worker(authedRequest(`${ORIGIN}/v1/account`, {

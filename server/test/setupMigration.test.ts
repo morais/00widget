@@ -4,6 +4,45 @@ import { URL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("native sign-in backfill (real SQLite)", () => {
+  it("backfills only used native Horizon credentials and preserves known timestamps", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      const migrations = new URL("../migrations/", import.meta.url);
+      for (const file of readdirSync(migrations).sort()) {
+        if (file.endsWith(".sql") && file < "0040") db.exec(readFileSync(new URL(file, migrations), "utf8"));
+      }
+      const tenant = db.prepare("INSERT INTO tenants (id, name, created_at, first_native_sign_in_at) VALUES (?, ?, '2026-01-01', ?)");
+      const identity = db.prepare("INSERT INTO horizon_accounts (app_id, user_id, tenant_id, created_at) VALUES ('app', ?, ?, '2026-01-01')");
+      for (const id of ["native", "existing", "unused", "browser", "connector", "foreign", "revoked"]) {
+        tenant.run(id, id, id === "existing" ? "2025-12-01" : null);
+        if (id !== "foreign") identity.run(id, id);
+      }
+      const key = db.prepare(`INSERT INTO api_keys
+        (id, tenant_id, token_hash, label, kind, purpose, created_at, last_used_at, scopes_json, expires_at, revoked_at)
+        VALUES (?, ?, ?, 'Horizon OS', ?, ?, ?, ?, '[]', '2026-02-01', ?)`);
+      const insert = (id: string, account: string, kind: string, purpose: string, at: string, used: string | null, revoked: string | null = null) =>
+        key.run(id, account, id, kind, purpose, at, used, revoked);
+      insert("native-key", "native", "app", "device", "2026-01-03", "2026-01-04");
+      insert("newer-key", "native", "app", "device", "2026-01-05", "2026-01-06");
+      insert("existing-key", "existing", "app", "device", "2026-01-03", "2026-01-04");
+      insert("unused-key", "unused", "app", "device", "2026-01-03", null);
+      insert("connector-key", "connector", "publisher", "connector", "2026-01-03", "2026-01-04");
+      insert("foreign-key", "foreign", "app", "device", "2026-01-03", "2026-01-04");
+      insert("revoked-key", "revoked", "app", "device", "2026-01-03", "2026-01-04", "2026-01-05");
+      const migration = readFileSync(new URL("0040_horizon_native_sign_in.sql", migrations), "utf8");
+      db.exec(migration);
+      const rows = db.prepare("SELECT id, first_native_sign_in_at FROM tenants ORDER BY id").all();
+      expect(Object.fromEntries(rows.map((row) => [row.id, row.first_native_sign_in_at]))).toEqual({
+        native: "2026-01-03", existing: "2025-12-01", unused: null, browser: null,
+        connector: null, foreign: null, revoked: "2026-01-03",
+      });
+      db.exec(migration);
+      expect(db.prepare("SELECT id, first_native_sign_in_at FROM tenants ORDER BY id").all()).toEqual(rows);
+    } finally {
+      db.close();
+    }
+  });
+
   it("backfills only paired native sessions within the same tenant and retains historical evidence", () => {
     const db = new DatabaseSync(":memory:");
     try {

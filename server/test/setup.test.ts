@@ -3,7 +3,7 @@ import handler from "../src/index";
 import { __resetAppleJwksCache } from "../src/appleAuth";
 import { issueAppCredentialBundle } from "../src/appCredentials";
 import { putAppleAccount } from "../src/identity";
-import { sha256Hex } from "../src/auth";
+import { ApiScopePresets, createApiKey, revokeApiKey, sha256Hex } from "../src/auth";
 import { APP_STORE_URL, readSetup, recordNativeSignIn, SetupSchema } from "../src/setup";
 import * as storage from "../src/storage";
 import type { Env } from "../src/types";
@@ -84,6 +84,48 @@ describe("native sign-in evidence", () => {
 });
 
 describe("advisory setup state", () => {
+  it("recognises a native Horizon reader without requiring iPhone push registration", async () => {
+    const env = makeEnv({ MCP_ENABLED: "true", SESSION_SECRET: "setup-test-secret-0123456789abcdef" });
+    await createApiKey(env, { tenantId: TENANT, kind: "app", purpose: "device", scopes: ApiScopePresets.horizonApp });
+    // Issuance alone cannot turn an unrecorded sign-in into completed setup.
+    expect((await readSetup(env, TENANT)).status).toBe("unknown");
+    await recordNativeSignIn(env, TENANT);
+    expect(await readSetup(env, TENANT)).toEqual({ status: "ready", optional: true });
+    for (const name of ["get_dashboard", "get_status"]) {
+      const { result } = await rpc(env, "tools/call", { name, arguments: {} });
+      expect(result.structuredContent.setup).toEqual({ status: "ready", optional: true });
+    }
+  });
+
+  it.each(["revoked", "expired"])("offers Horizon guidance when its native credential is %s", async (state) => {
+    const env = makeEnv();
+    const native = await createApiKey(env, { tenantId: TENANT, kind: "app", purpose: "device", scopes: ApiScopePresets.horizonApp });
+    await recordNativeSignIn(env, TENANT);
+    if (state === "revoked") await revokeApiKey(env, native.apiKey.id);
+    else {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2099-01-01T00:00:00Z"));
+    }
+    const setup = await readSetup(env, TENANT);
+    expect(setup.status).toBe("finish_setup");
+    expect(setup.appStoreUrl).toBeUndefined();
+    expect(setup.instructions?.join(" ")).toContain("same Meta account");
+    expect(setup.instructions?.join(" ")).not.toContain("same Apple account used to connect");
+  });
+
+  it("requires the configured entitlement for Horizon and never borrows another account's reader", async () => {
+    const env = makeEnv({ SUBSCRIPTIONS_ENABLED: "true", SUBSCRIPTION_REQUIRED: "true" });
+    await createApiKey(env, { tenantId: TENANT, kind: "app", purpose: "device", scopes: ApiScopePresets.horizonApp });
+    await recordNativeSignIn(env, TENANT);
+    expect((await readSetup(env, TENANT)).status).toBe("finish_setup");
+    expect((await readSetup(env, TENANT)).instructions?.join(" ")).toContain("activate or restore");
+    env.SUBSCRIPTION_REQUIRED = "false";
+    expect((await readSetup(env, TENANT)).status).toBe("ready");
+    await seedApiKey(env, "other", "other");
+    await recordNativeSignIn(env, "other");
+    expect((await readSetup(env, "other")).status).toBe("finish_setup");
+  });
+
   it("transitions unknown → finish_setup → ready through the same existing tool", async () => {
     const env = makeEnv({ MCP_ENABLED: "true", SESSION_SECRET: "setup-test-secret-0123456789abcdef" });
     const call = async () => (await rpc(env, "tools/call", { name: "get_dashboard", arguments: {} })).result;

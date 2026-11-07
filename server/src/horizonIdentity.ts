@@ -5,6 +5,7 @@ import { createVerifiedHorizonAuthorization } from "./deviceAuth";
 import { badRequest, json, notFound } from "./http";
 import { enforceRateLimits } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
+import { recordNativeSignIn } from "./setup";
 import { FieldLimits, RequestBodyLimits, type Env } from "./types";
 
 const META_USER_PROOF_URL = "https://graph.oculus.com/user_nonce_validate";
@@ -188,6 +189,7 @@ async function issueHorizonCredential(
   // so its Agent config needs a separate one to hand to agents, exactly as
   // iOS sign-in issues. Minted after the unlink check: nothing to revoke.
   const agent = await issueAgentPublisherCredential(env, { tenantId, label: "Horizon OS" });
+  await recordNativeSignIn(env, tenantId);
   return json(
     { status: "signed_in", token: created.token, publisherCredential: agent.token },
     201,

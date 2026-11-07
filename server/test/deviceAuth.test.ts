@@ -71,6 +71,8 @@ describe("Horizon device authorization", () => {
     }, "phone-app"), env);
     expect(approved.status).toBe(200);
     expect(await approved.json()).toEqual({ ok: true });
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind("owner").first()).toEqual({ first_native_sign_in_at: null });
 
     const exchanged = await fetchWorker(new Request(`${ORIGIN}/v1/auth/device/token`, {
       method: "POST",
@@ -79,6 +81,8 @@ describe("Horizon device authorization", () => {
     }), env);
     const body = await exchanged.json() as { token: string; publisherCredential: string };
     expect(body.token).toMatch(/^zwa_[A-Za-z0-9_-]{43}$/);
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind("owner").first()).toMatchObject({ first_native_sign_in_at: expect.any(String) });
 
     // Agent config's token: a publisher credential, never the app one, so an
     // agent given it cannot reach the app-only account routes.
@@ -86,7 +90,9 @@ describe("Horizon device authorization", () => {
     const agentStatus = await fetchWorker(new Request(`${ORIGIN}/v1/status`, {
       headers: { authorization: `Bearer ${body.publisherCredential}` },
     }), env);
-    expect((await agentStatus.json() as any).account).toMatchObject({
+    const agentStatusBody = await agentStatus.json() as any;
+    expect(agentStatusBody.setup).toEqual({ status: "ready", optional: true });
+    expect(agentStatusBody.account).toMatchObject({
       credentialKind: "publisher",
       scopes: ["read", "publish", "webhook:manage"],
     });
