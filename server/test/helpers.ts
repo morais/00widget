@@ -238,6 +238,13 @@ export class FakeD1 {
 
   run(sql: string, values: unknown[]): number {
     const normalized = normalizeSql(sql);
+    if (normalized === "UPDATE tenants SET first_native_sign_in_at = ? WHERE id = ? AND first_native_sign_in_at IS NULL") {
+      const [timestamp, id] = values.map(String);
+      const row = this.tenants.get(id);
+      if (!row || row.first_native_sign_in_at) return 0;
+      row.first_native_sign_in_at = timestamp;
+      return 1;
+    }
     if (normalized === "DELETE FROM horizon_browser_logins WHERE tenant_id = ? AND EXISTS (SELECT 1 FROM horizon_accounts WHERE tenant_id = ?) AND EXISTS (SELECT 1 FROM apple_accounts WHERE tenant_id = ?)") {
       const [tenant_id] = values.map(String);
       if (![...this.horizonAccounts.values()].some((row) => row.tenant_id === tenant_id)
@@ -1397,6 +1404,10 @@ export class FakeD1 {
 
   all(sql: string, values: unknown[]): FakeApiKeyRow[] {
     const normalized = normalizeSql(sql);
+    if (normalized === "SELECT first_native_sign_in_at FROM tenants WHERE id = ?") {
+      const row = this.tenants.get(String(values[0]));
+      return row ? [{ first_native_sign_in_at: row.first_native_sign_in_at ?? null }] : [];
+    }
     if (normalized === "SELECT id, status, tenant_id, expires_at, horizon_app_id, horizon_user_id FROM device_authorizations WHERE device_code_hash = ?") {
       const [hash] = values.map(String);
       const row = [...this.deviceAuthorizations.values()]

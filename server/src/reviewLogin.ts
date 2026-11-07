@@ -2,6 +2,7 @@ import { AuthError, AuthRateLimitError } from "./auth";
 import { issueAppCredentialBundle } from "./appCredentials";
 import { parseJson } from "./cards";
 import { json } from "./http";
+import { recordNativeSignIn } from "./setup";
 import {
   authenticateReviewAccessCode,
   reviewLoginEnabled,
@@ -67,5 +68,6 @@ export async function createTokenFromReviewAccessCode(
     deviceId: input.deviceId?.trim() || undefined,
     issuePublisherCredential: input.issuePublisherCredential,
   });
+  await recordNativeSignIn(env, created.tenant.id);
   return json(created, 201);
 }

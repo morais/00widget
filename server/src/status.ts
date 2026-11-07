@@ -12,6 +12,7 @@ import {
 } from "./subscription";
 import { listVisibleActivities } from "./liveActivities";
 import { partitionStartTokens } from "./startTokenFreshness";
+import { readSetup } from "./setup";
 import {
   WIDGET_PUSH_BURST,
   WIDGET_PUSH_MIN_SPACING_SECONDS,
@@ -74,6 +75,11 @@ export async function getStatus(
     : { enabled: false, required: false };
 
   return json({
+    setup: await readSetup(env, auth.tenantId, {
+      widgetTokens,
+      startTokens,
+      subscriptionActive: subscription.state?.active ?? false,
+    }),
     account: {
       tenantId: auth.tenantId,
       // The same id that arrives as `accountId` on a webhook delivery, so the

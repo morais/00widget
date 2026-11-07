@@ -491,7 +491,7 @@ describe("live activities", () => {
 
   // Pinned because a client that cannot rely on one envelope writes speculative
   // fallback parsing for a bare array or a differently named key.
-  it("always answers GET /v1/live-activities with exactly one `activities` key", async () => {
+  it("preserves the activities envelope alongside setup guidance", async () => {
     const env = makeEnv();
 
     const empty = await (handler.fetch as any)(
@@ -501,7 +501,7 @@ describe("live activities", () => {
     );
     expect(empty.status).toBe(200);
     const emptyBody = (await empty.json()) as Record<string, unknown>;
-    expect(Object.keys(emptyBody)).toEqual(["activities"]);
+    expect(Object.keys(emptyBody)).toEqual(["activities", "setup"]);
     expect(emptyBody.activities).toEqual([]);
 
     await (handler.fetch as any)(
@@ -525,7 +525,7 @@ describe("live activities", () => {
     );
     expect(populated.status).toBe(200);
     const body = (await populated.json()) as Record<string, unknown>;
-    expect(Object.keys(body)).toEqual(["activities"]);
+    expect(Object.keys(body)).toEqual(["activities", "setup"]);
     expect(Array.isArray(body.activities)).toBe(true);
     expect((body.activities as unknown[]).length).toBe(1);
   });
@@ -889,7 +889,7 @@ describe("live activities", () => {
       env,
       executionCtx,
     );
-    expect((await ended.json()) as { activities: unknown[] }).toEqual({ activities: [] });
+    expect(await ended.json()).toMatchObject({ activities: [], setup: { status: "unknown" } });
   });
 
   it("ends an activity whose push token APNs reports as expired", async () => {
@@ -955,7 +955,7 @@ describe("live activities", () => {
       env,
       executionCtx,
     );
-    expect((await after.json()) as { activities: unknown[] }).toEqual({ activities: [] });
+    expect(await after.json()).toMatchObject({ activities: [], setup: { status: "unknown" } });
   });
 
   it("treats any 410 from APNs as a dead token, whatever reason it names", async () => {

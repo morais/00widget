@@ -3,13 +3,18 @@ import { json } from "./http";
 import * as storage from "./storage";
 import type { Env } from "./types";
 import { listActiveActivitySessions } from "./liveActivities";
+import { readSetup } from "./setup";
 
 export async function getDashboard(
   _req: Request,
   env: Env,
   auth: AuthContext,
 ): Promise<Response> {
-  return json(await loadDashboard(env, auth.tenantId));
+  const [dashboard, setup] = await Promise.all([
+    loadDashboard(env, auth.tenantId),
+    readSetup(env, auth.tenantId),
+  ]);
+  return json({ ...dashboard, setup });
 }
 
 /// Shared with the signed-in web page, which resolves the tenant from a

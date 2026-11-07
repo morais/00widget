@@ -27,12 +27,14 @@ describe("MCP integration guide", () => {
   /// Raised again for the timeline template: its lane/series/event contract,
   /// fixed-window semantics, clipping rules, and compatibility guidance add
   /// about 2.6k characters to every card-bearing section.
+  /// Native setup guidance adds ~2k to the HTTP/MCP connection documentation,
+  /// carried only by everything; the focused publishing guides stay unchanged.
   const BUDGETS: Record<McpGuideSection, number> = {
     essentials: 73_000,
     cards: 41_000,
     "live-activities": 34_000,
     actions: 9_000,
-    everything: 108_000,
+    everything: 110_000,
   };
 
   it.each(sections)("%s stays inside its context budget", (section) => {

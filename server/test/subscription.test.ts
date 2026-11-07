@@ -2,6 +2,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mintChain, signJws, type TestChain } from "./appleCertFixtures";
 import { authedRequest, makeEnv, FakeD1 } from "./helpers";
 import type { Env } from "../src/types";
+import { readSetup, recordNativeSignIn } from "../src/setup";
+import { putStartToken } from "../src/storage";
 
 // Apple's private key is not available to sign fixtures, so the pinned root is
 // swapped for one the tests can mint chains under. Mocking the module rather
@@ -90,6 +92,15 @@ async function notify(env: Env, signedPayload: unknown): Promise<Response> {
 }
 
 describe("POST /v1/subscription/verify", () => {
+  it("completes setup after an account's own subscription is verified", async () => {
+    const env = subscriptionEnv({ SUBSCRIPTION_REQUIRED: "true" });
+    await recordNativeSignIn(env, "test-tenant");
+    await putStartToken(env, "test-tenant", "hash", "phone", "ZeroZeroWidgetActivityAttributes", "start");
+    expect((await readSetup(env, "test-tenant")).status).toBe("finish_setup");
+    expect((await verify(env, [await signedTransaction()])).status).toBe(200);
+    expect((await readSetup(env, "test-tenant")).status).toBe("ready");
+  });
+
   it("records a valid transaction and reports the entitlement", async () => {
     const env = subscriptionEnv();
 

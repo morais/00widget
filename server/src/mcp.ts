@@ -23,6 +23,7 @@ import {
   mcpAppResourceDescriptor,
 } from "./mcpApp";
 import { subscriptionGate, subscriptionRequiredMessage } from "./subscription";
+import { readSetup } from "./setup";
 import {
   BatchUpsertCardsSchema,
   DashboardCardInputSchema,
@@ -1550,6 +1551,11 @@ async function callTool(
         text,
         parsed.data as Record<string, unknown>,
       );
+    }
+    if (tool.name === "get_integration_guide") {
+      const setup = await readSetup(authed.env, authed.auth.tenantId);
+      result.structuredContent = { ...(result.structuredContent as object), setup };
+      result.content = [{ type: "text", text }, { type: "text", text: JSON.stringify({ setup }) }];
     }
     return ok(result);
   }

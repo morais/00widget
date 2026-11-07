@@ -74,6 +74,8 @@ describe("review login", () => {
     expect(body.token).toMatch(/^zw_/);
     expect(body.appCredential).toMatch(/^zwa_/);
     expect(body.publisherCredential).toMatch(/^zw_/);
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind(REVIEW_TENANT).first()).toMatchObject({ first_native_sign_in_at: expect.any(String) });
   });
 
   it("rejects an ordinary scoped API token, even for an allowlisted tenant", async () => {

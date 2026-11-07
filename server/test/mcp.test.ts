@@ -5,6 +5,7 @@ import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY, testApiKey } from "./helpers";
 import { llmsMarkdown } from "../src/generated/llmsDoc";
 import { MAX_BATCH_LENGTH, STRICT_TOOL_OUTPUT_SCHEMAS } from "../src/mcp";
+import { SetupSchema } from "../src/setup";
 
 const ctx = {} as ExecutionContext;
 
@@ -683,11 +684,12 @@ describe("tool input schemas", () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const result = await call(env, "get_integration_guide", { section: "cards" });
-    const markdown = toolText(result);
+    const markdown = (result.result?.content as { text: string }[])[0].text;
     const structured = result.result?.structuredContent as Record<string, unknown>;
 
     expect(markdown).toContain("# 00Widget — cards");
-    expect(structured).toEqual({ section: "cards", markdown });
+    expect(structured).toEqual({ section: "cards", markdown, setup: expect.any(Object) });
+    SetupSchema.parse(structured.setup);
   });
 
   it("describes every argument a tool accepts", async () => {
@@ -866,7 +868,11 @@ describe("tool output schemas match what the handlers return", () => {
       // A tool that errored says nothing about its success shape.
       if (!structured || result.result?.isError) continue;
       exercised += 1;
-      const found = violations(structured, schemas.get(name) ?? {});
+      // Setup is an intentional additive advisory under the already-open
+      // contract. Validate it separately without revising published schemas.
+      const { setup, ...data } = structured;
+      if (setup !== undefined) SetupSchema.parse(setup);
+      const found = violations(data, schemas.get(name) ?? {});
       if (found.length) drifted.push(`${name}: ${found.join(", ")}`);
     }
     // Guards the guard: a harness that silently stopped calling anything would

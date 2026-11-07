@@ -192,7 +192,7 @@ describe("admin routes (no Apple call required)", () => {
     expect(health.status).toBe(200);
     const cards = await (handler.fetch as any)(authedRequest("https://x/v1/cards"), env, ctx);
     expect(cards.status).toBe(200);
-    expect(await cards.json()).toEqual({ cards: [] });
+    expect(await cards.json()).toMatchObject({ cards: [], setup: { status: "unknown" } });
   });
 
   it("/admin without session sends the visitor to sign in, and back afterwards", async () => {

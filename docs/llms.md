@@ -115,6 +115,37 @@ Call `get_status` once before publishing for the first time: if
 `delivery.canPushWidgets` is false, nothing you publish will be seen by anyone,
 and the operator has to install the app and allow notifications.
 
+Existing reads (`list_cards`, `get_card`, `list_live_activities`,
+`get_dashboard`, `get_status`, and `get_integration_guide`) also return an
+advisory `setup` object alongside their existing data. `setup.status` is:
+
+- `ready`: native sign-in is recorded and at least one iPhone delivery path
+  is registered (a widget push token or a Live Activity start token refreshed
+  within 30 days), with an active entitlement if publishing requires one.
+  Explicitly prepared reviewer accounts also return `ready`.
+- `finish_setup`: native sign-in is recorded, but delivery or a required
+  entitlement is incomplete.
+- `unknown`: native sign-in evidence is missing. Ask whether the app is already
+  configured; do not assume it is uninstalled or unconfigured.
+
+This is optional setup help, never an access gate. When present, offer the
+App Store link and instructions in `setup`: open or install 00Widget, sign in
+with the same Apple account used for the chat connection, complete the app's
+setup, then return to chat. Keep the plugin or connector connected and recheck
+with the **same tool and arguments**. Installation alone cannot display this
+guidance; it arrives only on an existing tool call. Setup reports iPhone
+delivery readiness, not whether a television or headset can poll the dashboard,
+and cannot confirm widget placement or the device's current permission UI.
+
+The corresponding card, activity, dashboard and status HTTP reads carry the
+same advisory. It includes no profile details, sign-in timestamps or identity
+provider identifiers. Native Apple and native reviewer sign-ins record their
+first successful exchange on the account. Browser, dashboard and connector
+sign-ins never set it. Historical backfill uses only paired, session-bound
+native device/app credential records, including revoked or expired sessions;
+the timestamp is the earliest surviving evidence. Apple identity rows,
+subscriptions, credential labels and push registrations alone are insufficient.
+
 `get_integration_guide` returns this document trimmed for a tool caller — the
 rules the argument schemas cannot carry, without the credential setup, curl
 invocations, and language snippets an MCP client has no use for. Pass

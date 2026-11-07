@@ -108,6 +108,8 @@ describe("signing in does not sign you up", () => {
     const res = await signIn(env, { email: "known@example.com" });
 
     expect(res.status).toBe(302);
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind("known").first()).toEqual({ first_native_sign_in_at: null });
     expect(sessionCookieFrom(res)).toBeDefined();
     // Signing in must not fork a second tenant for a person who has one.
     expect(await tenantCount(env)).toBe(before);
@@ -122,6 +124,12 @@ describe("signing in does not sign you up", () => {
     expect(res.status).toBe(302);
     expect(sessionCookieFrom(res)).toBeDefined();
     expect(await tenantCount(env)).toBe(before + 1);
+    const accounts = await env.ZW_DB.prepare(
+      `SELECT id, owner_email, created_at, disabled_at FROM tenants ORDER BY created_at DESC, owner_email`,
+    ).all<{ id: string; owner_email: string }>();
+    const account = accounts.results.find((row) => row.owner_email === "newcomer@example.com")!;
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind(account.id).first()).toEqual({ first_native_sign_in_at: null });
   });
 
   it("schedules an operator alert when web signup creates a tenant", async () => {

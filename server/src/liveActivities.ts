@@ -23,6 +23,7 @@ import {
 } from "./apns";
 import { json, badRequest, notFound } from "./http";
 import type { AuthContext } from "./auth";
+import { readSetup } from "./setup";
 import { parseJson } from "./cards";
 import { isSharingEnabled, listAcceptedShares } from "./shares";
 import { enforceTenantRateLimits, tenantKey, tenantResourceKey } from "./rateLimit";
@@ -555,13 +556,14 @@ export async function activeActivities(
   // Echo the filter so clients managing activities can fail closed against an
   // older deployment that ignored it. External ids aren't unique across owners.
   const ownership = ownedOnly ? { ownedOnly: true } : {};
+  const setup = await readSetup(env, auth.tenantId);
   // `?include=ended` adds a bounded window of recently finished activities.
   // Opt-in rather than always present: the common call is "what is running",
   // and a producer polling that should not pay for history it ignores.
   if (new URL(req.url).searchParams.get("include") !== "ended") {
-    return json({ activities, ...ownership });
+    return json({ activities, ...ownership, setup });
   }
-  return json({ activities, ...ownership, ended: await storage.listEndedActivities(env, auth.tenantId) });
+  return json({ activities, ...ownership, ended: await storage.listEndedActivities(env, auth.tenantId), setup });
 }
 
 export async function listActiveActivitySessions(

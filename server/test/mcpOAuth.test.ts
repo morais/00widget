@@ -770,6 +770,8 @@ describe("token exchange", () => {
     const body = (await res.json()) as { access_token: string; token_type: string; scope: string };
     expect(body.token_type).toBe("Bearer");
     expect(body.access_token.startsWith("zw_")).toBe(true);
+    expect(await env.ZW_DB.prepare(`SELECT first_native_sign_in_at FROM tenants WHERE id = ?`)
+      .bind("test-tenant").first()).toEqual({ first_native_sign_in_at: null });
     // Publishing, and nothing that administers the account. `webhook:manage` is
     // deliberately absent: the webhook is a URL the operator runs and a signing
     // secret handed back once, neither of which belongs to a connector approved

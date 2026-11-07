@@ -9,6 +9,7 @@ import * as storage from "./storage";
 import { json, badRequest } from "./http";
 import { readTextUpTo } from "./requestBody";
 import type { AuthContext } from "./auth";
+import { readSetup } from "./setup";
 import {
   isSharingEnabled,
   listAcceptedIncomingByKind,
@@ -115,11 +116,14 @@ export async function upsertCardsBatch(
 }
 
 export async function listCards(req: Request, env: Env, auth: AuthContext): Promise<Response> {
-  const own = await storage.listCards(env, auth.tenantId);
+  const [own, setup] = await Promise.all([
+    storage.listCards(env, auth.tenantId),
+    readSetup(env, auth.tenantId),
+  ]);
   const url = new URL(req.url);
   const includeShared =
     url.searchParams.get("include") === "shared" && isSharingEnabled(env);
-  if (!includeShared) return json({ cards: own }, 200);
+  if (!includeShared) return json({ cards: own, setup }, 200);
 
   const incoming = await listAcceptedIncomingByKind(env, auth.tenantId, "card");
   const shared: DashboardCard[] = [];
@@ -133,7 +137,7 @@ export async function listCards(req: Request, env: Env, auth: AuthContext): Prom
   }
   // Shared cards are collected in share order; give them the same ordering the
   // tenant's own cards get, so one rule explains every list this API returns.
-  return json({ cards: own, shared: shared.sort(storage.byPriorityThenId) }, 200);
+  return json({ cards: own, shared: shared.sort(storage.byPriorityThenId), setup }, 200);
 }
 
 export async function getCard(
@@ -144,11 +148,9 @@ export async function getCard(
 ): Promise<Response> {
   const card = await storage.getCard(env, auth.tenantId, id);
   if (!card) return json({ error: "not found" }, 404);
-  // `{ card }`, not the bare object. Every other read on this API answers with
-  // a single-key envelope, and the argument the Live Activity list makes for it
-  // — there is no shape to fall back to and nothing to parse defensively — is
-  // not weaker for one card than for a list of them.
-  return json({ card }, 200);
+  // Keep the card envelope, with setup alongside it rather than inside the
+  // published card; all native renderers continue to read the same card model.
+  return json({ card, setup: await readSetup(env, auth.tenantId) }, 200);
 }
 
 export async function deleteCard(

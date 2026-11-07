@@ -10,6 +10,7 @@ import { getAppleAccount, getTenantByOwnerEmail, putAppleAccount } from "./ident
 import { json } from "./http";
 import { appleSubKey, enforceRateLimits } from "./rateLimit";
 import { sendNewTenantAlert } from "./signupAlert";
+import { recordNativeSignIn } from "./setup";
 import { FieldLimits, RequestBodyLimits, isValidEmail, type Env } from "./types";
 
 // Caller-supplied nonce — bounded length, anything else lets the client be
@@ -134,6 +135,7 @@ export async function createTokenFromApple(
     tenantId: created.tenant.id,
     email: email ?? existingAccount!.email,
   });
+  await recordNativeSignIn(env, created.tenant.id);
   if (isNewTenant) {
     const alert = sendNewTenantAlert(env, {
       source: "app",
