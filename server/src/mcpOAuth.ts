@@ -111,12 +111,6 @@ function resourceConfigured(env: Env, resourcePath: string): boolean {
     && (resourcePath === MCP_PATH || (resourcePath === MCP_PREVIEW_PATH && env.MCP_PREVIEW_ENABLED === "true"));
 }
 
-function protectedResourceMetadataPath(resourcePath: string): string {
-  return resourcePath === MCP_PATH
-    ? "/.well-known/oauth-protected-resource"
-    : `/.well-known/oauth-protected-resource${resourcePath}`;
-}
-
 // ---------- Discovery ----------
 
 export async function handleProtectedResourceMetadata(
@@ -177,7 +171,7 @@ export function mcpUnauthorized(
   const params = [
     `error="invalid_token"`,
     `error_description="${message.replace(/["\\]/g, "")}"`,
-    `resource_metadata="${origin}${protectedResourceMetadataPath(resourcePath)}"`,
+    `resource_metadata="${origin}/.well-known/oauth-protected-resource${resourcePath}"`,
   ].join(", ");
   return json({ error: message }, 401, { "www-authenticate": `Bearer ${params}` });
 }

@@ -92,7 +92,7 @@ describe("MCP authentication", () => {
     const challenge = res.headers.get("www-authenticate") ?? "";
     expect(challenge).toContain("Bearer");
     expect(challenge).toContain(
-      'resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"',
+      'resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/mcp"',
     );
   });
 

@@ -152,13 +152,16 @@ describe("OAuth discovery documents", () => {
     expect(body.authorization_servers).toEqual(["https://staging.example.org"]);
   });
 
-  it("is also served at the resource-suffixed path RFC 9728 allows", async () => {
+  it("identifies the MCP resource at the path advertised in the challenge", async () => {
     const res = await fetchWorker(
       new Request(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
       oauthEnv(),
       ctx,
     );
     expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.resource).toBe(`${ORIGIN}/mcp`);
+    expect(body.authorization_servers).toEqual([ORIGIN]);
   });
 
   it("advertises PKCE-only, public-client authorization", async () => {
