@@ -388,7 +388,7 @@ export async function startLiveActivity(
       env,
       auth.tenantId,
       d.externalActivityId,
-      { finalContentState: { state: "restarted" } },
+      { finalContentState: activityKitContentState({ state: "restarted", updatedAt: now }) },
       { deleteOnDeliveryFailure: true },
     );
   }
@@ -450,12 +450,12 @@ export async function startLiveActivity(
     );
   }
 
-  const startTokens: StartTokenEntry[] = [];
-  let pushToStartRecentlyActive = 0;
+  const startTokens = new Map<string, StartTokenEntry>();
+  const tokenSnapshotTime = Date.parse(now);
   let pushToStartPrunedStale = 0;
   for (const target of targets) {
     const rows = await storage.listStartTokens(env, target.tenantId, DEFAULT_ATTRIBUTES_TYPE);
-    const { live, stale, recentlyActive, staleCutoff } = partitionStartTokens(rows);
+    const { live, stale, staleCutoff } = partitionStartTokens(rows, tokenSnapshotTime);
     // A device that has not run the app in a month is not sent the start, and
     // its row goes. The delete costs a write only when there is something to
     // remove, which is once per abandoned device rather than once per start.
@@ -468,11 +468,20 @@ export async function startLiveActivity(
       );
       pushToStartPrunedStale += stale.length;
     }
-    pushToStartRecentlyActive += recentlyActive;
-    for (const row of live) startTokens.push({ token: row.token, tenantId: target.tenantId });
+    for (const row of live) {
+      // Multiple device registrations can point to the same ActivityKit token.
+      // A second start to that token creates another Lock Screen activity.
+      const entry = startTokens.get(row.token);
+      if (entry) {
+        entry.tenantIds.add(target.tenantId);
+        if (row.updatedAt > entry.row.updatedAt) entry.row = row;
+      } else {
+        startTokens.set(row.token, { row, tenantIds: new Set([target.tenantId]) });
+      }
+    }
   }
   const apnsResults: unknown[] = [];
-  if (startTokens.length > 0) {
+  if (startTokens.size > 0) {
     const attributes: Record<string, unknown> = {
       activityInstanceId,
       externalActivityId: d.externalActivityId,
@@ -484,8 +493,8 @@ export async function startLiveActivity(
 
     const contentState = initialState;
 
-    for (const entry of startTokens) {
-      const result = await sendLiveActivityStart(env, entry.token, {
+    for (const [token, { tenantIds }] of startTokens) {
+      const result = await sendLiveActivityStart(env, token, {
         attributesType: DEFAULT_ATTRIBUTES_TYPE,
         attributes,
         contentState: activityKitContentState(contentState),
@@ -498,18 +507,18 @@ export async function startLiveActivity(
       });
       if (result.status !== 200) {
         console.log("live activity push-to-start failed", {
-          tenantId: entry.tenantId,
+          tenantIds: [...tenantIds],
           externalActivityId: d.externalActivityId,
           status: result.status,
           reason: result.reason,
           apnsId: result.apnsId,
         });
-        if (isDeadTokenReason(result.reason)) {
+        for (const tenantId of isDeadTokenReason(result.reason) ? tenantIds : []) {
           await storage.deleteStartTokenByValue(
             env,
-            entry.tenantId,
+            tenantId,
             DEFAULT_ATTRIBUTES_TYPE,
-            entry.token,
+            token,
           );
         }
       }
@@ -522,11 +531,14 @@ export async function startLiveActivity(
     activityInstanceId,
     restarted: existing !== null,
     pending: true,
-    pushToStartAttempted: startTokens.length,
+    pushToStartAttempted: startTokens.size,
     // Of those, how many belong to a device that has run the app this week. A
     // gap between the two is a device that is sent every start and will likely
     // never register one, which is what `pendingUpdated` later reports.
-    pushToStartRecentlyActive,
+    pushToStartRecentlyActive: partitionStartTokens(
+      Array.from(startTokens.values(), (entry) => entry.row),
+      tokenSnapshotTime,
+    ).recentlyActive,
     pushToStartPrunedStale,
     apnsResults,
     warnings: liveActivityWarnings(session, { isStart: true, staleAtPushed: d.staleAt }),
@@ -584,8 +596,8 @@ export async function listVisibleActivities(
 }
 
 interface StartTokenEntry {
-  token: string;
-  tenantId: string;
+  row: storage.StartTokenRow;
+  tenantIds: Set<string>;
 }
 
 // APNs reasons that mean "this token is permanently dead, drop it." See:

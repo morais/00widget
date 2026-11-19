@@ -1931,7 +1931,7 @@ async function post(env: ReturnType<typeof makeEnv>, path: string, body: unknown
 const ATTRIBUTES_TYPE = "ZeroZeroWidgetActivityAttributes";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-describe("a device that registers after the activity has moved on", () => {
+describe("Live Activity push delivery", () => {
   afterEach(() => vi.useRealTimers());
 
   function apnsEnv() {
@@ -1966,6 +1966,77 @@ describe("a device that registers after the activity has moved on", () => {
       kind: "appliance",
       pushToken,
     });
+
+  it("sends one start per push token when device registrations overlap", async () => {
+    const env = apnsEnv();
+    const now = Date.now();
+    await capturingApns(async (sent) => {
+      for (const [deviceId, pushToken, ageDays] of [
+        ["old-device-id", "feedfacefeedface", 10],
+        ["new-device-id", "feedfacefeedface", 0],
+        ["other-device", "cafef00dcafef00d", 0],
+      ] as const) {
+        atTime(now - ageDays * DAY_MS);
+        const response = await post(env, "/v1/live-activities/register-start-token", {
+          deviceId,
+          attributesType: ATTRIBUTES_TYPE,
+          pushToken,
+        });
+        expect(response.status).toBe(200);
+      }
+
+      const started = await post(env, "/v1/live-activities/start", {
+        externalActivityId: "washer-on-two-devices",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+      });
+      expect(await started.json()).toMatchObject({
+        pushToStartAttempted: 2,
+        pushToStartRecentlyActive: 2,
+        pushToStartPrunedStale: 0,
+      });
+      expect(sent).toHaveLength(2);
+      expect(sent.map((push) => new URL(push.url).pathname.split("/").at(-1)).sort())
+        .toEqual(["cafef00dcafef00d", "feedfacefeedface"]);
+      expect(sent.every((push) => push.aps.event === "start")).toBe(true);
+    });
+  });
+
+  it("sends a decodable end before starting a replacement", async () => {
+    const env = apnsEnv();
+    const now = Date.now();
+    await capturingApns(async (sent) => {
+      atTime(now);
+      await post(env, "/v1/live-activities/register-start-token", {
+        deviceId: "dev-late",
+        attributesType: ATTRIBUTES_TYPE,
+        pushToken: "cafef00dcafef00d",
+      });
+      const session = {
+        externalActivityId: "washer-late",
+        kind: "appliance",
+        title: "Washer",
+        state: "running",
+      };
+      await post(env, "/v1/live-activities/start", session);
+      expect((await register(env, "feedfacefeedface")).status).toBe(200);
+
+      const restartTime = now + 1000;
+      atTime(restartTime);
+      const restarted = await post(env, "/v1/live-activities/start", { ...session, title: "Second load" });
+      expect(await restarted.json()).toMatchObject({ restarted: true });
+      expect(sent.map((push) => push.aps.event)).toEqual(["start", "end", "start"]);
+      expect(sent[1].url).toContain("feedfacefeedface");
+      expect(sent[1].aps).toMatchObject({
+        "dismissal-date": Math.floor(restartTime / 1000) - 1,
+        "content-state": {
+          state: "restarted",
+          updatedAt: Math.floor(restartTime / 1000) - 978_307_200,
+        },
+      });
+    });
+  });
 
   it("is sent the current state as soon as it registers", async () => {
     // The failure this closes: an update stored while no device held a token
