@@ -327,6 +327,14 @@ const SERVER_INSTRUCTIONS =
 // 2026-07-28 revision reads these fields; older ones ignore them.
 const TOOL_LIST_TTL_MS = 60 * 60 * 1000;
 
+const ANONYMOUS_MCP_METHODS = new Set([
+  "initialize",
+  "notifications/initialized",
+  "ping",
+  "server/discover",
+  "tools/list",
+]);
+
 const JSON_RPC_PARSE_ERROR = -32700;
 const JSON_RPC_INVALID_REQUEST = -32600;
 const JSON_RPC_METHOD_NOT_FOUND = -32601;
@@ -505,7 +513,6 @@ interface McpTool {
     structured: Record<string, unknown>,
     args: Record<string, unknown>,
   ): string;
-  securitySchemes?: Array<{ type: "oauth2"; scopes: ApiScope[] }>;
   descriptorMeta?: Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
@@ -947,7 +954,6 @@ const RENDER_TOOLS: McpTool[] = [
       const card = structured.card as { title?: unknown } | undefined;
       return `Rendered ${typeof card?.title === "string" ? card.title : "the card"}.`;
     },
-    securitySchemes: PREVIEW_SECURITY_SCHEMES,
     descriptorMeta: {
       ...PREVIEW_TOOL_META,
       "openai/toolInvocation/invoking": "Loading card…",
@@ -978,7 +984,6 @@ const RENDER_TOOLS: McpTool[] = [
       const activity = structured.activity as { title?: unknown } | undefined;
       return `Rendered ${typeof activity?.title === "string" ? activity.title : "the running Live Activity"}.`;
     },
-    securitySchemes: PREVIEW_SECURITY_SCHEMES,
     descriptorMeta: {
       ...PREVIEW_TOOL_META,
       "openai/toolInvocation/invoking": "Loading activity…",
@@ -1004,7 +1009,6 @@ const RENDER_TOOLS: McpTool[] = [
       const activities = Array.isArray(structured.activities) ? structured.activities.length : 0;
       return `Rendered the dashboard with ${cards} card${cards === 1 ? "" : "s"} and ${activities} running activit${activities === 1 ? "y" : "ies"}.`;
     },
-    securitySchemes: PREVIEW_SECURITY_SCHEMES,
     descriptorMeta: {
       ...PREVIEW_TOOL_META,
       "openai/toolInvocation/invoking": "Loading dashboard…",
@@ -1101,7 +1105,7 @@ function toolDescriptor(tool: McpTool) {
     inputSchema: toolInputSchema(tool.schema),
     // Text-first tools satisfy the same promise through structuredTextOutput.
     outputSchema: toolOutputSchema(tool.outputSchema),
-    ...(tool.securitySchemes ? { securitySchemes: tool.securitySchemes } : {}),
+    securitySchemes: [{ type: "oauth2", scopes: [tool.scope] }],
     ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta } : {}),
     annotations: {
       title: tool.title,
@@ -1271,13 +1275,7 @@ export async function handleMcp(
 ): Promise<Response> {
   if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
 
-  // Every JSON-RPC message needs a credential. The one thing that does not is
-  // the empty probe below, which carries no message at all.
-  //
-  // ChatGPT authenticates server/discover, tools/list and tools/call alike, so
-  // there is nothing to gain by opening the tool list up — an earlier version
-  // did, on the mistaken reading that the unauthenticated requests in the logs
-  // were tool listings. They were the probe.
+  // Validate any supplied credential, including on public discovery requests.
   let auth: AuthContext | null = null;
   if (req.headers.has("authorization")) {
     try {
@@ -1329,7 +1327,24 @@ export async function handleMcp(
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
-  if (!auth) {
+  const batch = Array.isArray(payload) ? payload : null;
+  // Bound batch work before checking the methods or dispatching any entries.
+  if (batch && batch.length > MAX_BATCH_LENGTH) {
+    return json(
+      errorResponse(
+        null,
+        JSON_RPC_INVALID_REQUEST,
+        `batch holds ${batch.length} requests; the limit is ${MAX_BATCH_LENGTH}`,
+      ),
+      400,
+    );
+  }
+
+  // Discovery exposes only static metadata. Challenge the entire request if
+  // any entry requires authorization, so no part of a batch runs before OAuth.
+  if (!auth && !(batch
+    ? batch.length > 0 && batch.every(allowsAnonymousMcpRequest)
+    : allowsAnonymousMcpRequest(payload))) {
     console.warn("mcp request rejected", {
       userAgent: req.headers.get("user-agent") ?? "(none)",
       hasAuthorizationHeader: false,
@@ -1348,28 +1363,12 @@ export async function handleMcp(
     channel,
   };
 
-  if (Array.isArray(payload)) {
-    if (payload.length === 0) {
+  if (batch) {
+    if (batch.length === 0) {
       return json(errorResponse(null, JSON_RPC_INVALID_REQUEST, "empty batch"), 400);
     }
-    // The body cap alone is not a cap on work: 160 KiB holds thousands of
-    // minimal tools/call envelopes, and each one dispatches and does its own D1
-    // round trips. The per-tenant limiter still stops the writes, so this is
-    // amplification rather than a way past the gate — but requireAuth's source
-    // and token limiters run once for the whole request, so one authenticated
-    // call bought thousands of dispatches.
-    if (payload.length > MAX_BATCH_LENGTH) {
-      return json(
-        errorResponse(
-          null,
-          JSON_RPC_INVALID_REQUEST,
-          `batch holds ${payload.length} requests; the limit is ${MAX_BATCH_LENGTH}`,
-        ),
-        400,
-      );
-    }
     const responses = [];
-    for (const entry of payload) {
+    for (const entry of batch) {
       const result = await dispatch(entry as JsonRpcRequest, tools);
       if (result) responses.push(result);
     }
@@ -1380,6 +1379,11 @@ export async function handleMcp(
   const result = await dispatch(payload as JsonRpcRequest, tools);
   if (!result) return new Response(null, { status: 202 });
   return json(result);
+}
+
+function allowsAnonymousMcpRequest(request: unknown): boolean {
+  return typeof request === "object" && request !== null && "method" in request
+    && typeof request.method === "string" && ANONYMOUS_MCP_METHODS.has(request.method);
 }
 
 /// Returns null for notifications, which JSON-RPC answers with no body at all.

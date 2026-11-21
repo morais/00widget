@@ -505,6 +505,11 @@ schemas as arguments, converted to JSON Schema at startup — there is no second
 implementation to keep in sync. The transport is stateless: one POST, one JSON
 response, no SSE and no session id.
 
+Clients can discover the server and inspect the tool catalog without signing
+in using `server/discover` or legacy `initialize`, followed by `tools/list`.
+Every tool advertises its OAuth scope. A tool call without a valid credential
+receives an HTTP 401 challenge pointing to the protected-resource metadata.
+
 Authorization is OAuth 2.1 because ChatGPT connectors cannot present a custom
 API key or header — the only credentials they carry are OAuth tokens. The flow
 is: the client registers itself (`/oauth/register`), sends the person to
@@ -596,9 +601,8 @@ URI before promoting its additive contract to `/mcp`.
 
 Its client is `openai-mcp/1.0.0`, speaking the **2026-07-28** revision. In order:
 an empty `POST /mcp` probe (answered 202), `server/discover`, `tools/list`, then
-`tools/call`. All three JSON-RPC calls carry a credential, so all three require
-one. The probe carries no message at all, which is why it is answered rather
-than challenged.
+`tools/call`. The discovery calls can run before OAuth. The probe carries no
+JSON-RPC message and needs no credential.
 
 `server/discover` must return `supportedVersions` as a list, `capabilities`, and
 `serverInfo` under `_meta["io.modelcontextprotocol/serverInfo"]`. The legacy

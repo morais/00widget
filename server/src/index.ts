@@ -88,9 +88,8 @@ const routes: Route[] = [
     openAIAppsChallenge.handleOpenAIAppsChallenge(req, env),
   },
   { method: "GET", pattern: /^\/llms\.txt\/?$/, handler: (req, env) => landing.handleLlmsTxt(req, env) },
-  // MCP. The endpoint authenticates itself (it must answer an anonymous
-  // request with the WWW-Authenticate challenge that starts the OAuth flow),
-  // so it is not wrapped in `authed`.
+  // MCP serves public discovery and challenges unauthenticated tool calls
+  // with the WWW-Authenticate header that starts the OAuth flow.
   { method: "POST", pattern: /^\/mcp\/?$/, handler: (req, env, _match, ctx) => mcp.handleMcp(req, env, ctx) },
   { method: "GET", pattern: /^\/mcp\/?$/, handler: (req, env) => mcp.handleMcpMethodNotAllowed(req, env) },
   { method: "GET", pattern: /^\/mcp\.json\/?$/, handler: (req, env) => mcp.handleMcpConfig(req, env) },

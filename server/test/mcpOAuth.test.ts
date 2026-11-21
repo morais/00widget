@@ -755,9 +755,25 @@ describe("token exchange", () => {
     }
   });
 
-  it("mints a working producer credential", async () => {
+  it("completes OAuth after an anonymous tool call and retries with the minted credential", async () => {
     const env = oauthEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
+    const listCards = (token?: string) => {
+      const headers = new Headers({ "content-type": "application/json" });
+      if (token) headers.set("authorization", `Bearer ${token}`);
+      return fetchWorker(new Request(`${ORIGIN}/mcp`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_cards" } }),
+      }), env, ctx);
+    };
+
+    const challenge = await listCards();
+    expect(challenge.status).toBe(401);
+    expect(challenge.headers.get("www-authenticate")).toContain(
+      `resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`,
+    );
+
     const clientId = ((await (await registerClient(env)).json()) as { client_id: string }).client_id;
     const code = new URL((await approve(env, clientId)).headers.get("location")!).searchParams.get("code")!;
 
@@ -780,6 +796,10 @@ describe("token exchange", () => {
     // secret handed back once, neither of which belongs to a connector approved
     // in a browser.
     expect(body.scope.split(" ").sort()).toEqual(["publish", "read"]);
+
+    const retry = await listCards(body.access_token);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ result: { structuredContent: { cards: [] } } });
 
     // The point of the whole flow: the token is an ordinary API credential.
     const cards = await fetchWorker(

@@ -96,30 +96,47 @@ describe("MCP authentication", () => {
     );
   });
 
-  it("requires a credential for every method, discovery included", async () => {
-    // ChatGPT authenticates server/discover, tools/list and tools/call alike,
-    // so none of them is served anonymously. Only the empty probe is.
-    for (const method of ["initialize", "server/discover", "ping", "tools/list"]) {
+  it("allows discovery and the legacy handshake without a credential", async () => {
+    const env = mcpEnv();
+    const initialized = await rpc(env, {
+      jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" },
+    }, null);
+    expect(initialized.status).toBe(200);
+    expect(await initialized.json()).toMatchObject({ result: { protocolVersion: "2025-06-18" } });
+
+    const notification = await rpc(env, { jsonrpc: "2.0", method: "notifications/initialized" }, null);
+    expect(notification.status).toBe(202);
+
+    const discovered = await rpc(env, { jsonrpc: "2.0", id: 1, method: "server/discover" }, null);
+    expect(discovered.status).toBe(200);
+    expect(await discovered.json()).toMatchObject({
+      result: { supportedVersions: expect.arrayContaining(["2026-07-28"]), capabilities: { tools: {} } },
+    });
+
+    const ping = await rpc(env, { jsonrpc: "2.0", id: 1, method: "ping" }, null);
+    expect(ping.status).toBe(200);
+  });
+
+  it("requires a credential for resource methods", async () => {
+    for (const method of ["resources/list", "resources/read"]) {
       const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method }, null);
       expect(res.status, method).toBe(401);
       expect(res.headers.get("www-authenticate"), method).toContain("resource_metadata=");
     }
   });
 
-  it("never runs a tool for an anonymous caller", async () => {
+  it.each([false, true])("rejects an anonymous write before dispatch (batched: %s)", async (batched) => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
-    const res = await rpc(
-      env,
-      {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name: "upsert_card", arguments: { id: "sneak", template: "summary", title: "X" } },
-      },
-      null,
-    );
+    const write = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "upsert_card", arguments: { id: "sneak", template: "summary", title: "X" } },
+    };
+    const res = await rpc(env, batched ? [{ jsonrpc: "2.0", id: 2, method: "tools/list" }, write] : write, null);
     expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toContain("resource_metadata=");
     expect(await storage.getCard(env, "test-tenant", "sneak")).toBeNull();
   });
 
@@ -294,12 +311,16 @@ describe("MCP handshake", () => {
 });
 
 describe("tools/list", () => {
-  it("advertises a valid JSON Schema for every tool", async () => {
-    const env = mcpEnv();
-    await seedApiKey(env, TEST_API_KEY, "test-tenant");
-    const res = await rpc(env, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+  it("advertises schemas and OAuth scopes for every tool before sign-in", async () => {
+    const res = await rpc(mcpEnv(), { jsonrpc: "2.0", id: 1, method: "tools/list" }, null);
+    expect(res.status).toBe(200);
     const body = (await res.json()) as JsonRpcResult;
-    const tools = body.result?.tools as { name: string; inputSchema: Record<string, unknown> }[];
+    const tools = body.result?.tools as {
+      name: string;
+      inputSchema: Record<string, unknown>;
+      annotations: { readOnlyHint: boolean };
+      securitySchemes: unknown;
+    }[];
     expect(tools.length).toBeGreaterThan(0);
     for (const tool of tools) {
       // The schemas are converted from the same zod objects the REST routes
@@ -307,6 +328,9 @@ describe("tools/list", () => {
       // a tool the model cannot call correctly.
       expect(tool.inputSchema.type, tool.name).toBe("object");
       expect(tool.inputSchema.$schema, tool.name).toBeUndefined();
+      expect(tool.securitySchemes, tool.name).toEqual([
+        { type: "oauth2", scopes: [tool.annotations.readOnlyHint ? "read" : "publish"] },
+      ]);
     }
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining(["upsert_card", "upsert_cards_batch", "start_live_activity", "get_integration_guide"]),
@@ -1013,13 +1037,13 @@ describe("tools/call", () => {
 });
 
 describe("JSON-RPC framing", () => {
-  it("handles a batch, dropping the notifications from the response", async () => {
+  it("handles a discovery batch without credentials, dropping notifications from the response", async () => {
     const env = mcpEnv();
-    await seedApiKey(env, TEST_API_KEY, "test-tenant");
     const res = await rpc(env, [
       { jsonrpc: "2.0", method: "notifications/initialized" },
       { jsonrpc: "2.0", id: 1, method: "tools/list" },
-    ]);
+    ], null);
+    expect(res.status).toBe(200);
     const body = (await res.json()) as JsonRpcResult[];
     expect(Array.isArray(body)).toBe(true);
     expect(body).toHaveLength(1);

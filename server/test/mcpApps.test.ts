@@ -267,10 +267,21 @@ describe("MCP Apps preview channel", () => {
 
   it("uses preview-specific OAuth discovery and generated config", async () => {
     const currentEnv = env();
-    const challenge = await rpc(currentEnv, "/mcp-preview", {
+    const catalog = await rpc(currentEnv, "/mcp-preview", {
       jsonrpc: "2.0",
       id: 1,
       method: "tools/list",
+    }, false);
+    expect(catalog.status).toBe(200);
+    expect(await catalog.json()).toMatchObject({
+      result: { tools: expect.arrayContaining([expect.objectContaining({ name: "render_dashboard" })]) },
+    });
+
+    const challenge = await rpc(currentEnv, "/mcp-preview", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "render_dashboard", arguments: {} },
     }, false);
     expect(challenge.status).toBe(401);
     expect(challenge.headers.get("www-authenticate")).toContain(

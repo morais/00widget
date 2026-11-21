@@ -1,5 +1,5 @@
 import { it, expect } from "vitest";
-import { handleMcp as current } from "../src/mcp";
+import { handleMcp } from "../src/mcp";
 import { authedRequest, makeEnv } from "./helpers";
 import { sha256Hex } from "../src/auth";
 
@@ -13,13 +13,19 @@ const PRE_SETUP_DESCRIPTOR_HASHES = {
 it("keeps all published tool descriptors unchanged by setup guidance", async () => {
   const env = makeEnv({ MCP_ENABLED: "true", MCP_PREVIEW_ENABLED: "true", SESSION_SECRET: "contract-probe-secret-0123456789abcdef" });
   for (const channel of ["stable", "preview"] as const) {
-    const read = async (implementation: typeof current) => {
-      const res = await implementation(authedRequest("https://x/mcp", {
-        method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-      }), env, {} as ExecutionContext, channel);
-      return (await res.json() as { result: { tools: unknown[] } }).result.tools;
-    };
-    const after = await read(current);
-    expect(await sha256Hex(JSON.stringify(after)), channel).toBe(PRE_SETUP_DESCRIPTOR_HASHES[channel]);
+    const res = await handleMcp(authedRequest("https://x/mcp", {
+      method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    }), env, {} as ExecutionContext, channel);
+    const { result: { tools } } = await res.json() as { result: { tools: Array<{
+      securitySchemes: unknown;
+      _meta?: { securitySchemes?: unknown };
+    }> } };
+    const baselineFields = tools.map((tool) => {
+      // The preview render tools already advertised OAuth in the baseline.
+      if (tool._meta?.securitySchemes) return tool;
+      const { securitySchemes: _addedForPublicDiscovery, ...descriptor } = tool;
+      return descriptor;
+    });
+    expect(await sha256Hex(JSON.stringify(baselineFields)), channel).toBe(PRE_SETUP_DESCRIPTOR_HASHES[channel]);
   }
 });
