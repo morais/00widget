@@ -1672,9 +1672,7 @@ items independently.
 
 #### Keeping one honest
 
-A Live Activity is a commitment to keep reporting. It sits on the operator's
-Lock Screen showing whatever you last sent, indefinitely, and there is no
-timeout that retires it. So the cadence matters as much as the content:
+The Lock Screen shows the last state you sent.
 
 - **Update at every meaningful step of the work it describes.** An activity
   that stops moving while the work continues is worse than one you never
@@ -1688,11 +1686,17 @@ timeout that retires it. So the cadence matters as much as the content:
   visible one.
 - **Always end it**, even when the run failed or was abandoned.
 
-This is the one failure on this API with no error surface. A bad card is a 400,
-a missing webhook is a 409, a dead push token shows up in `apnsResult` — but the
-updates you never send return nothing at all, and every call you *did* make
-answered `200`. Nothing will tell you an activity has gone stale; the guard is
-`staleAt` and your own cadence.
+Missed updates generate no API error. Set `staleAt` so iOS can show when the
+last state is out of date.
+
+#### Long-lived activities
+
+If the activity still needs to run, call `start` with the same
+`externalActivityId` and the current state at **7 hours 45 minutes from
+`startedAt`**. Start earlier if your schedule or push delivery needs more time.
+00Widget requests immediate dismissal of the old activity before starting the
+replacement. If iOS ends it at eight hours first, the old banner can stay on
+the Lock Screen for up to four more hours.
 
 ### List
 
