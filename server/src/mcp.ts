@@ -17,7 +17,7 @@ import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
 import {
-  MCP_PREVIEW_RESOURCE_URI,
+  MCP_APP_RESOURCE_URIS,
   isMcpAppResourceUri,
   mcpAppResource,
   mcpAppResourceDescriptor,
@@ -358,8 +358,7 @@ interface ToolContext {
   /// What the client says it speaks, from the MCP-Protocol-Version header or
   /// an initialize request. Decides whether results carry 2026-07-28 fields.
   protocolVersion: string;
-  /// Stable intentionally exposes only the pre-existing contract. Preview is
-  /// the opt-in Apps surface and may advertise resources and render tools.
+  /// Selects the versioned UI resource for this endpoint.
   channel: McpChannel;
 }
 
@@ -513,7 +512,7 @@ interface McpTool {
     structured: Record<string, unknown>,
     args: Record<string, unknown>,
   ): string;
-  descriptorMeta?: Record<string, unknown>;
+  descriptorMeta?: (resourceUri: string) => Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
   /// True when a call can send a push through APNs to registered devices,
@@ -924,21 +923,20 @@ const BASE_TOOLS: McpTool[] = [
   },
 ];
 
-const PREVIEW_SECURITY_SCHEMES = [{ type: "oauth2" as const, scopes: ["read" as const] }];
-const PREVIEW_TOOL_META = {
-  securitySchemes: PREVIEW_SECURITY_SCHEMES,
-  ui: {
-    resourceUri: MCP_PREVIEW_RESOURCE_URI,
-    visibility: ["model", "app"],
-  },
-  // The MCP Apps helper publishes both forms. The flat key is deprecated but
-  // remains necessary for hosts shipping against the pre-GA extension while
-  // the nested `ui.resourceUri` above is the standards-first form.
-  "ui/resourceUri": MCP_PREVIEW_RESOURCE_URI,
-  "openai/outputTemplate": MCP_PREVIEW_RESOURCE_URI,
-  "openai/widgetAccessible": true,
-  "openai/visibility": "public",
-};
+function renderToolMeta(resourceUri: string) {
+  return {
+    securitySchemes: [{ type: "oauth2", scopes: ["read"] }],
+    ui: {
+      resourceUri,
+      visibility: ["model", "app"],
+    },
+    // The flat key remains necessary for hosts on the pre-GA extension.
+    "ui/resourceUri": resourceUri,
+    "openai/outputTemplate": resourceUri,
+    "openai/widgetAccessible": true,
+    "openai/visibility": "public",
+  };
+}
 
 const RENDER_TOOLS: McpTool[] = [
   {
@@ -954,11 +952,11 @@ const RENDER_TOOLS: McpTool[] = [
       const card = structured.card as { title?: unknown } | undefined;
       return `Rendered ${typeof card?.title === "string" ? card.title : "the card"}.`;
     },
-    descriptorMeta: {
-      ...PREVIEW_TOOL_META,
+    descriptorMeta: (resourceUri) => ({
+      ...renderToolMeta(resourceUri),
       "openai/toolInvocation/invoking": "Loading card…",
       "openai/toolInvocation/invoked": "Card ready",
-    },
+    }),
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -984,11 +982,11 @@ const RENDER_TOOLS: McpTool[] = [
       const activity = structured.activity as { title?: unknown } | undefined;
       return `Rendered ${typeof activity?.title === "string" ? activity.title : "the running Live Activity"}.`;
     },
-    descriptorMeta: {
-      ...PREVIEW_TOOL_META,
+    descriptorMeta: (resourceUri) => ({
+      ...renderToolMeta(resourceUri),
       "openai/toolInvocation/invoking": "Loading activity…",
       "openai/toolInvocation/invoked": "Activity ready",
-    },
+    }),
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -1009,11 +1007,11 @@ const RENDER_TOOLS: McpTool[] = [
       const activities = Array.isArray(structured.activities) ? structured.activities.length : 0;
       return `Rendered the dashboard with ${cards} card${cards === 1 ? "" : "s"} and ${activities} running activit${activities === 1 ? "y" : "ies"}.`;
     },
-    descriptorMeta: {
-      ...PREVIEW_TOOL_META,
+    descriptorMeta: (resourceUri) => ({
+      ...renderToolMeta(resourceUri),
       "openai/toolInvocation/invoking": "Loading dashboard…",
       "openai/toolInvocation/invoked": "Dashboard ready",
-    },
+    }),
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -1048,10 +1046,6 @@ async function renderRunningActivity(
 }
 
 const ALL_TOOLS = [...BASE_TOOLS, ...RENDER_TOOLS];
-
-function toolsFor(channel: McpChannel): McpTool[] {
-  return channel === "preview" ? ALL_TOOLS : BASE_TOOLS;
-}
 
 // Converted once per isolate. `io: "input"` describes what a caller may send —
 // fields carrying a zod default are optional here even though they are always
@@ -1097,7 +1091,7 @@ export const STRICT_TOOL_OUTPUT_SCHEMAS: Record<string, unknown> = Object.fromEn
   }),
 );
 
-function toolDescriptor(tool: McpTool) {
+function toolDescriptor(tool: McpTool, resourceUri: string) {
   return {
     name: tool.name,
     title: tool.title,
@@ -1106,7 +1100,7 @@ function toolDescriptor(tool: McpTool) {
     // Text-first tools satisfy the same promise through structuredTextOutput.
     outputSchema: toolOutputSchema(tool.outputSchema),
     securitySchemes: [{ type: "oauth2", scopes: [tool.scope] }],
-    ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta } : {}),
+    ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta(resourceUri) } : {}),
     annotations: {
       title: tool.title,
       readOnlyHint: tool.readOnly,
@@ -1119,8 +1113,10 @@ function toolDescriptor(tool: McpTool) {
   };
 }
 
-const BASE_TOOL_DESCRIPTORS = BASE_TOOLS.map(toolDescriptor);
-const PREVIEW_TOOL_DESCRIPTORS = ALL_TOOLS.map(toolDescriptor);
+const TOOL_DESCRIPTORS = {
+  stable: ALL_TOOLS.map((tool) => toolDescriptor(tool, MCP_APP_RESOURCE_URIS.stable)),
+  preview: ALL_TOOLS.map((tool) => toolDescriptor(tool, MCP_APP_RESOURCE_URIS.preview)),
+};
 
 function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "input" }) as Record<string, unknown>;
@@ -1404,9 +1400,7 @@ async function dispatch(
     case "initialize":
       return ok({
         protocolVersion: negotiatedProtocolVersion(request.params),
-        capabilities: tools.channel === "preview"
-          ? { tools: { listChanged: false }, resources: { listChanged: false } }
-          : { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
         instructions: SERVER_INSTRUCTIONS,
       });
@@ -1419,9 +1413,7 @@ async function dispatch(
     case "server/discover":
       return ok({
         supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
-        capabilities: tools.channel === "preview"
-          ? { tools: {}, resources: {} }
-          : { tools: {} },
+        capabilities: { tools: {}, resources: {} },
         instructions: SERVER_INSTRUCTIONS,
         ttlMs: TOOL_LIST_TTL_MS,
         cacheScope: "public",
@@ -1437,28 +1429,18 @@ async function dispatch(
       return null;
     case "ping":
       return isNotification ? null : ok({});
-    // Answered with empty lists rather than -32601. `initialize` advertises only
-    // `tools`, so a client that respects capabilities never asks — but clients
-    // probe anyway, and a JSON-RPC error reads as a broken server where "there
-    // are none of those here" is both true and harmless. Cheap interop
-    // insurance on a method that cannot do anything.
     case "resources/list":
-      return ok(tools.channel === "preview"
-        ? {
-            resources: [mcpAppResourceDescriptor()],
-            ttlMs: TOOL_LIST_TTL_MS,
-            cacheScope: "public",
-          }
-        : emptyList("resources"));
+      return ok({
+        resources: [mcpAppResourceDescriptor(MCP_APP_RESOURCE_URIS[tools.channel])],
+        ttlMs: TOOL_LIST_TTL_MS,
+        cacheScope: "public",
+      });
     case "resources/read": {
-      if (tools.channel !== "preview") {
-        return errorResponse(id, JSON_RPC_METHOD_NOT_FOUND, `unknown method '${request.method}'`);
-      }
       const uri = (request.params as { uri?: unknown } | undefined)?.uri;
       if (typeof uri !== "string") {
         return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.uri is required");
       }
-      if (!isMcpAppResourceUri(uri)) {
+      if (!isMcpAppResourceUri(uri, tools.channel)) {
         return errorResponse(id, MCP_RESOURCE_NOT_FOUND, `resource '${uri}' was not found`);
       }
       return ok({ contents: [mcpAppResource(tools.origin, uri)] });
@@ -1469,7 +1451,7 @@ async function dispatch(
       return ok(emptyList("prompts"));
     case "tools/list":
       return ok({
-        tools: tools.channel === "preview" ? PREVIEW_TOOL_DESCRIPTORS : BASE_TOOL_DESCRIPTORS,
+        tools: TOOL_DESCRIPTORS[tools.channel],
         ttlMs: TOOL_LIST_TTL_MS,
         cacheScope: "public",
       });
@@ -1492,7 +1474,7 @@ async function callTool(
   if (typeof call.name !== "string") {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.name is required");
   }
-  const tool = toolsFor(tools.channel).find((candidate) => candidate.name === call.name);
+  const tool = ALL_TOOLS.find((candidate) => candidate.name === call.name);
   if (!tool) {
     return errorResponse(id, JSON_RPC_INVALID_PARAMS, `unknown tool '${call.name}'`);
   }

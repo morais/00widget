@@ -110,7 +110,7 @@ describe("MCP authentication", () => {
     const discovered = await rpc(env, { jsonrpc: "2.0", id: 1, method: "server/discover" }, null);
     expect(discovered.status).toBe(200);
     expect(await discovered.json()).toMatchObject({
-      result: { supportedVersions: expect.arrayContaining(["2026-07-28"]), capabilities: { tools: {} } },
+      result: { supportedVersions: expect.arrayContaining(["2026-07-28"]), capabilities: { tools: {}, resources: {} } },
     });
 
     const ping = await rpc(env, { jsonrpc: "2.0", id: 1, method: "ping" }, null);
@@ -220,7 +220,7 @@ describe("MCP handshake", () => {
     // unparseable to a client, which then never asks for the tools.
     expect(body.result?.supportedVersions).toContain("2026-07-28");
     expect(body.result?.protocolVersion).toBeUndefined();
-    expect(body.result?.capabilities).toEqual({ tools: {} });
+    expect(body.result?.capabilities).toEqual({ tools: {}, resources: {} });
     // serverInfo lives under its namespaced _meta key, not at the top level.
     expect(body.result?.serverInfo).toBeUndefined();
     const meta = body.result?._meta as Record<string, unknown>;
@@ -288,7 +288,6 @@ describe("MCP handshake", () => {
     const env = mcpEnv();
     await seedApiKey(env, TEST_API_KEY, "test-tenant");
     for (const [method, key] of [
-      ["resources/list", "resources"],
       ["resources/templates/list", "resourceTemplates"],
       ["prompts/list", "prompts"],
     ]) {
@@ -375,6 +374,9 @@ describe("tools/list", () => {
       "get_status",
       "list_cards",
       "list_live_activities",
+      "render_activity",
+      "render_card",
+      "render_dashboard",
     ]);
     // A read-only tool must never claim to be destructive.
     for (const tool of tools) {
@@ -812,8 +814,10 @@ describe("tool output schemas match what the handlers return", () => {
     ["upsert_card", CARD],
     ["upsert_cards_batch", { cards: [{ ...CARD, id: "ns.a" }, { ...CARD, id: "ns.b" }] }],
     ["get_card", { id: "solar" }],
+    ["render_card", { id: "solar" }],
     ["list_cards", {}],
     ["get_dashboard", {}],
+    ["render_dashboard", {}],
     ["get_status", {}],
     ["get_integration_guide", { section: "cards" }],
     ["start_live_activity", {
@@ -821,6 +825,7 @@ describe("tool output schemas match what the handlers return", () => {
     }],
     ["update_live_activity", { externalActivityId: "wash-1", state: "running", value: "5" }],
     ["list_live_activities", {}],
+    ["render_activity", { externalActivityId: "wash-1" }],
     ["end_live_activity", { externalActivityId: "wash-1" }],
     ["delete_card", { id: "solar" }],
   ];
@@ -1008,6 +1013,19 @@ describe("tools/call", () => {
     expect(result.result).toBeUndefined();
     expect(result.error?.message).toContain("publish");
     expect(await storage.getCard(env, "test-tenant", "x")).toBeNull();
+  });
+
+  it("requires read scope for all three visual tools", async () => {
+    const env = mcpEnv();
+    await seedApiKey(env, "publishonly", "test-tenant", "publisher", "", "", "2099-01-01T00:00:00.000Z", [
+      "publish",
+    ]);
+    const credential = testApiKey("publishonly");
+    for (const name of ["render_card", "render_activity", "render_dashboard"]) {
+      const result = await call(env, name, {}, credential);
+      expect(result.result, name).toBeUndefined();
+      expect(result.error?.message, name).toBe("API scope 'read' required");
+    }
   });
 
   it("rejects an unknown tool name", async () => {

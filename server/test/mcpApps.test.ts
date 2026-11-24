@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "../src/auth";
 import handler from "../src/index";
 import {
+  MCP_APP_RESOURCE_URIS,
   MCP_PREVIEW_LEGACY_RESOURCE_URIS,
-  MCP_PREVIEW_RESOURCE_URI,
 } from "../src/mcpApp";
 import type { Env } from "../src/types";
 import { authedRequest, makeEnv, seedApiKey, TEST_API_KEY } from "./helpers";
@@ -53,7 +54,7 @@ async function result(
   return await res.json() as Record<string, any>;
 }
 
-describe("MCP Apps preview channel", () => {
+describe("MCP Apps", () => {
   it("is absent until its own switch is enabled", async () => {
     const disabled = env({ MCP_PREVIEW_ENABLED: "false" });
     const post = await rpc(disabled, "/mcp-preview", {
@@ -72,38 +73,29 @@ describe("MCP Apps preview channel", () => {
     expect(metadata.status).toBe(404);
   });
 
-  it("does not alter stable discovery even when preview is enabled", async () => {
+  it("preserves the ordered pre-promotion stable and preview descriptors", async () => {
     const currentEnv = env();
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
 
-    const stableTools = (await result(currentEnv, "/mcp", "tools/list")).result.tools as Array<{
-      name: string;
-      _meta?: unknown;
-    }>;
-    expect(stableTools.some((tool) => tool.name === "render_card")).toBe(false);
-    expect(stableTools.some((tool) => tool.name === "render_activity")).toBe(false);
-    expect(stableTools.some((tool) => tool.name === "render_dashboard")).toBe(false);
-    expect(stableTools.every((tool) => tool._meta === undefined)).toBe(true);
-
-    const stableResources = await result(currentEnv, "/mcp", "resources/list");
-    expect(stableResources.result.resources).toEqual([]);
-    const stableDiscover = await result(currentEnv, "/mcp", "server/discover");
-    expect(stableDiscover.result.capabilities).toEqual({ tools: {} });
-
-    const stableCall = await result(currentEnv, "/mcp", "tools/call", {
-      name: "render_card",
-      arguments: { id: "anything" },
-    });
-    expect(stableCall.error.code).toBe(-32602);
+    // Captured from tools/list before promotion, including OAuth metadata.
+    const stable = (await result(currentEnv, "/mcp", "tools/list")).result.tools;
+    expect(stable).toHaveLength(15);
+    expect(await sha256Hex(JSON.stringify(stable.slice(0, 12)))).toBe(
+      "54e3aceeb058d491b8d4ec20abf5a61c3e6690cb5c72a25742db96b0d112a3b8",
+    );
+    const preview = (await result(currentEnv, "/mcp-preview", "tools/list")).result.tools;
+    expect(await sha256Hex(JSON.stringify(preview))).toBe(
+      "0a3977ed559dc94f3816a0c4cd7a5717fd247b61ccbb8e75c06617403d621bfd",
+    );
   });
 
-  it("advertises resources and only three additive render tools", async () => {
-    const currentEnv = env();
+  it("advertises resources and three additive render tools on /mcp with preview disabled", async () => {
+    const currentEnv = env({ MCP_PREVIEW_ENABLED: "false" });
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
 
-    const preview = await result(currentEnv, "/mcp-preview", "tools/list");
-    const tools = preview.result.tools as Array<Record<string, any>>;
-    const renderTools = tools.filter((tool) => tool.name.startsWith("render_"));
+    const stable = await result(currentEnv, "/mcp", "tools/list");
+    const tools = stable.result.tools as Array<Record<string, any>>;
+    const renderTools = tools.slice(-3);
     expect(renderTools.map((tool) => tool.name)).toEqual([
       "render_card",
       "render_activity",
@@ -119,22 +111,22 @@ describe("MCP Apps preview channel", () => {
       });
       expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: ["read"] }]);
       expect(tool._meta.ui).toEqual({
-        resourceUri: MCP_PREVIEW_RESOURCE_URI,
+        resourceUri: MCP_APP_RESOURCE_URIS.stable,
         visibility: ["model", "app"],
       });
-      expect(tool._meta["ui/resourceUri"]).toBe(MCP_PREVIEW_RESOURCE_URI);
-      expect(tool._meta["openai/outputTemplate"]).toBe(MCP_PREVIEW_RESOURCE_URI);
+      expect(tool._meta["ui/resourceUri"]).toBe(MCP_APP_RESOURCE_URIS.stable);
+      expect(tool._meta["openai/outputTemplate"]).toBe(MCP_APP_RESOURCE_URIS.stable);
       expect(tool.outputSchema.type).toBe("object");
     }
 
-    const initialized = await result(currentEnv, "/mcp-preview", "initialize", {
+    const initialized = await result(currentEnv, "/mcp", "initialize", {
       protocolVersion: "2025-06-18",
     });
     expect(initialized.result.capabilities).toEqual({
       tools: { listChanged: false },
       resources: { listChanged: false },
     });
-    const discovered = await result(currentEnv, "/mcp-preview", "server/discover");
+    const discovered = await result(currentEnv, "/mcp", "server/discover");
     expect(discovered.result.capabilities).toEqual({ tools: {}, resources: {} });
   });
 
@@ -142,10 +134,10 @@ describe("MCP Apps preview channel", () => {
     const currentEnv = env();
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
 
-    const listed = await result(currentEnv, "/mcp-preview", "resources/list");
+    const listed = await result(currentEnv, "/mcp", "resources/list");
     expect(listed.result.resources).toEqual([
       expect.objectContaining({
-        uri: MCP_PREVIEW_RESOURCE_URI,
+        uri: MCP_APP_RESOURCE_URIS.stable,
         mimeType: "text/html;profile=mcp-app",
         _meta: {
           ui: {
@@ -156,11 +148,11 @@ describe("MCP Apps preview channel", () => {
       }),
     ]);
 
-    const read = await result(currentEnv, "/mcp-preview", "resources/read", {
-      uri: MCP_PREVIEW_RESOURCE_URI,
+    const read = await result(currentEnv, "/mcp", "resources/read", {
+      uri: MCP_APP_RESOURCE_URIS.stable,
     });
     const resource = read.result.contents[0];
-    expect(resource.uri).toBe(MCP_PREVIEW_RESOURCE_URI);
+    expect(resource.uri).toBe(MCP_APP_RESOURCE_URIS.stable);
     expect(resource.mimeType).toBe("text/html;profile=mcp-app");
     expect(resource._meta.ui).toEqual({
       prefersBorder: false,
@@ -180,23 +172,20 @@ describe("MCP Apps preview channel", () => {
     expect(scripts).toHaveLength(2);
     for (const script of scripts) expect(() => new Function(script)).not.toThrow();
 
-    for (const legacyUri of MCP_PREVIEW_LEGACY_RESOURCE_URIS) {
-      const legacy = await result(currentEnv, "/mcp-preview", "resources/read", {
-        uri: legacyUri,
-      });
-      expect(legacy.result.contents[0]).toMatchObject({
-        uri: legacyUri,
-        mimeType: "text/html;profile=mcp-app",
-      });
+    const previewResources = await result(currentEnv, "/mcp-preview", "resources/list");
+    expect(previewResources.result.resources.map(({ uri }: { uri: string }) => uri)).toEqual([
+      MCP_APP_RESOURCE_URIS.preview,
+    ]);
+    for (const uri of [MCP_APP_RESOURCE_URIS.preview, ...MCP_PREVIEW_LEGACY_RESOURCE_URIS]) {
+      const preview = await result(currentEnv, "/mcp-preview", "resources/read", { uri });
+      expect(preview.result.contents[0]).toEqual({ ...resource, uri });
     }
 
-    const missing = await result(currentEnv, "/mcp-preview", "resources/read", {
-      uri: "ui://00widget/preview/not-there.html",
-    });
+    const missing = await result(currentEnv, "/mcp", "resources/read", { uri: MCP_APP_RESOURCE_URIS.preview });
     expect(missing.error.code).toBe(-32002);
   });
 
-  it("renders one card, one running activity, and the dashboard on demand", async () => {
+  it.each(["/mcp", "/mcp-preview"] as const)("renders each view on %s", async (path) => {
     const currentEnv = env();
     await seedApiKey(currentEnv, TEST_API_KEY, "test-tenant");
     await result(currentEnv, "/mcp", "tools/call", {
@@ -210,7 +199,7 @@ describe("MCP Apps preview channel", () => {
       },
     });
 
-    const card = await result(currentEnv, "/mcp-preview", "tools/call", {
+    const card = await result(currentEnv, path, "tools/call", {
       name: "render_card",
       arguments: { id: "solar" },
     });
@@ -229,7 +218,7 @@ describe("MCP Apps preview channel", () => {
       },
     });
 
-    const activity = await result(currentEnv, "/mcp-preview", "tools/call", {
+    const activity = await result(currentEnv, path, "tools/call", {
       name: "render_activity",
       arguments: { externalActivityId: "washer-cycle" },
     });
@@ -241,7 +230,7 @@ describe("MCP Apps preview channel", () => {
     });
     expect(activity.result.content[0].text).toBe("Rendered Washer cycle.");
 
-    const dashboard = await result(currentEnv, "/mcp-preview", "tools/call", {
+    const dashboard = await result(currentEnv, path, "tools/call", {
       name: "render_dashboard",
       arguments: {},
     });
@@ -253,7 +242,7 @@ describe("MCP Apps preview channel", () => {
       name: "end_live_activity",
       arguments: { externalActivityId: "washer-cycle" },
     });
-    const ended = await result(currentEnv, "/mcp-preview", "tools/call", {
+    const ended = await result(currentEnv, path, "tools/call", {
       name: "render_activity",
       arguments: { externalActivityId: "washer-cycle" },
     });

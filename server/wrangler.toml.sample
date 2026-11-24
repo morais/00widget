@@ -65,8 +65,7 @@ HORIZON_IDENTITY_ENABLED = "false"
 # ordinary tenant API token, revocable from /admin like any other.
 MCP_ENABLED = "false"
 # Separate opt-in channel for MCP Apps UI testing. It exposes /mcp-preview and
-# /mcp-preview.json only when MCP_ENABLED is also true; leave it false on the
-# connector URL currently under review.
+# /mcp-preview.json only when MCP_ENABLED is also true.
 MCP_PREVIEW_ENABLED = "false"
 # Optional verified-client registry. Keys are exact HTTPS OAuth callback URLs,
 # plus https://chatgpt.com/connector/oauth/* for one callback-ID segment only

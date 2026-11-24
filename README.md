@@ -26,12 +26,11 @@ scoped to the approver's own account, revocable from `/admin`.
 
 Details: `server/README.md` → "MCP".
 
-An additive MCP Apps UI can be tested without touching that connector: deploy
-the same Worker with `MCP_PREVIEW_ENABLED = "true"`, then add
-`<BASE_URL>/mcp-preview` as a separate Developer Mode connection. It adds
-read-only `render_card`, `render_activity`, and `render_dashboard` tools backed
-by a versioned HTML resource; `/mcp` keeps its existing discovery and tool
-contract.
+`/mcp` offers optional visuals through the read-only `render_card`,
+`render_activity`, and `render_dashboard` tools. MCP Apps hosts can display
+their results using a shared HTML resource. The Worker can also serve
+`<BASE_URL>/mcp-preview` as a separate Developer Mode connection when
+`MCP_PREVIEW_ENABLED = "true"`.
 
 ### Apps, scripts, automations, and coding agents
 

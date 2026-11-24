@@ -17,10 +17,13 @@ it("keeps all published tool descriptors unchanged by setup guidance", async () 
       method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     }), env, {} as ExecutionContext, channel);
     const { result: { tools } } = await res.json() as { result: { tools: Array<{
+      name: string;
       securitySchemes: unknown;
       _meta?: { securitySchemes?: unknown };
     }> } };
-    const baselineFields = tools.map((tool) => {
+    // The original stable baseline predates the promotion of the render tools.
+    const baselineTools = channel === "stable" ? tools.filter((tool) => !tool.name.startsWith("render_")) : tools;
+    const baselineFields = baselineTools.map((tool) => {
       // The preview render tools already advertised OAuth in the baseline.
       if (tool._meta?.securitySchemes) return tool;
       const { securitySchemes: _addedForPublicDiscovery, ...descriptor } = tool;

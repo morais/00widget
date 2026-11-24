@@ -111,6 +111,8 @@ applies: the tool arguments *are* the JSON bodies documented here, validated by
 the same schemas, and every field carries its description into the tool's JSON
 Schema.
 
+For visuals, use the read-only `render_card`, `render_activity`, or `render_dashboard` tools.
+
 Call `get_status` before the first publish and check `setup`. A false
 `delivery.canPushWidgets` means no widget can receive pushes; a configured
 Horizon app can still read the dashboard directly.

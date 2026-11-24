@@ -1,9 +1,11 @@
 import { WEB_PREVIEW_RENDERER, WEB_PREVIEW_STYLES } from "./guestPage";
 
-/// Preview resource URI. The suffix is deliberately prerelease-shaped: MCP
-/// hosts cache resources by URI, so an incompatible UI change gets a new URI
-/// without changing either the stable or preview HTTP endpoint.
-export const MCP_PREVIEW_RESOURCE_URI = "ui://00widget/preview/v1-preview.3.html";
+/// MCP hosts cache resources by URI. Keep the promoted URI distinct from
+/// preview so the preview can move independently of the published contract.
+export const MCP_APP_RESOURCE_URIS = {
+  stable: "ui://00widget/preview/v1.html",
+  preview: "ui://00widget/preview/v1-preview.3.html",
+} as const;
 export const MCP_PREVIEW_LEGACY_RESOURCE_URIS = [
   "ui://00widget/preview/v1-preview.1.html",
   "ui://00widget/preview/v1-preview.2.html",
@@ -149,12 +151,12 @@ export function renderMcpAppHTML(): string {
 </main><script>${WEB_PREVIEW_RENDERER}</script><script>${APP_SCRIPT}</script></body></html>`;
 }
 
-export function isMcpAppResourceUri(uri: string): boolean {
-  return uri === MCP_PREVIEW_RESOURCE_URI
-    || MCP_PREVIEW_LEGACY_RESOURCE_URIS.some((legacyUri) => legacyUri === uri);
+export function isMcpAppResourceUri(uri: string, channel: keyof typeof MCP_APP_RESOURCE_URIS): boolean {
+  return uri === MCP_APP_RESOURCE_URIS[channel]
+    || (channel === "preview" && MCP_PREVIEW_LEGACY_RESOURCE_URIS.some((legacyUri) => legacyUri === uri));
 }
 
-export function mcpAppResource(origin: string, uri = MCP_PREVIEW_RESOURCE_URI) {
+export function mcpAppResource(origin: string, uri: string) {
   const ui = mcpAppUiMeta();
   return {
     uri,
@@ -180,9 +182,9 @@ export function mcpAppResource(origin: string, uri = MCP_PREVIEW_RESOURCE_URI) {
   };
 }
 
-export function mcpAppResourceDescriptor() {
+export function mcpAppResourceDescriptor(uri: string) {
   return {
-    uri: MCP_PREVIEW_RESOURCE_URI,
+    uri,
     name: "00Widget preview",
     title: "00Widget preview",
     description: "Read-only preview of one card, one running Live Activity, or the full dashboard.",

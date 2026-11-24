@@ -564,18 +564,9 @@ OpenCode defaults to `http://127.0.0.1:19876/mcp/oauth/callback`. It remains
 supported but unverified: a loopback port identifies whichever local process
 can bind it, not a vendor-controlled client.
 
-### MCP Apps preview channel
+### MCP Apps
 
-`/mcp-preview` is an isolated test channel for the optional visual UI. It is
-available only when both `MCP_ENABLED = "true"` and
-`MCP_PREVIEW_ENABLED = "true"`; otherwise its endpoint, generated config, and
-protected-resource metadata all return 404. Connect it separately in Developer
-Mode. It uses the same tenant data and OAuth server as `/mcp`, but its OAuth
-metadata identifies `/mcp-preview` as the protected resource so a client cannot
-silently reconnect to the stable endpoint.
-
-The preview begins with the complete stable tool set and adds three read-only
-tools:
+`/mcp` offers three read-only tools for visual requests.
 
 - `render_card { id }` previews one card and is the preferred visual tool.
 - `render_activity { externalActivityId }` previews one currently running Live
@@ -585,17 +576,18 @@ tools:
 
 The tools return the same structured state as the corresponding read endpoints,
 so they remain useful in hosts without UI. MCP Apps hosts also load the
-versioned `ui://00widget/preview/v1-preview.3.html` resource. It is a
+versioned `ui://00widget/preview/v1.html` resource. It is a
 self-contained HTML document using the guest page's existing browser renderer,
 the standard `ui/*` postMessage bridge, and no external network or asset
-permissions. Previously advertised `.1` and `.2` preview resource URIs remain
-readable so connected clients can age out cached tool descriptors safely.
+permissions.
 
-The stable `/mcp` response is intentionally unchanged while this channel is in
-preview: it still advertises no resources and does not list any render tool.
-Changing `MCP_PREVIEW_ENABLED` therefore does not change the connector under
-review. When the preview is accepted, freeze it at a non-prerelease resource
-URI before promoting its additive contract to `/mcp`.
+Connect `/mcp-preview` separately in Developer Mode to use the preview channel.
+It is available when both `MCP_ENABLED = "true"` and
+`MCP_PREVIEW_ENABLED = "true"`. Otherwise its endpoint, generated config, and
+protected-resource metadata all return 404. It shares tenant data and the OAuth
+server with `/mcp` and identifies itself as a separate OAuth protected resource.
+The preview advertises `ui://00widget/preview/v1-preview.3.html` and still serves
+the `.1` and `.2` URIs for clients with cached descriptors.
 
 ### What ChatGPT actually calls
 

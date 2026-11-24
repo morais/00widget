@@ -93,9 +93,8 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/mcp\/?$/, handler: (req, env, _match, ctx) => mcp.handleMcp(req, env, ctx) },
   { method: "GET", pattern: /^\/mcp\/?$/, handler: (req, env) => mcp.handleMcpMethodNotAllowed(req, env) },
   { method: "GET", pattern: /^\/mcp\.json\/?$/, handler: (req, env) => mcp.handleMcpConfig(req, env) },
-  // Isolated MCP Apps test channel. It shares auth and data with /mcp, but is
-  // invisible unless its second switch is enabled and never changes stable
-  // discovery, tools or cached resource metadata.
+  // The opt-in MCP Apps test channel shares auth and data with /mcp and
+  // advertises its own UI resource URI.
   { method: "POST", pattern: /^\/mcp-preview\/?$/, handler: (req, env, _match, ctx) =>
     mcp.handleMcp(req, env, ctx, "preview") },
   { method: "GET", pattern: /^\/mcp-preview\/?$/, handler: (req, env) =>
