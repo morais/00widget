@@ -446,9 +446,6 @@ something to integrate against:
 | POST   | `/mcp`                                       | MCP endpoint (Streamable HTTP, JSON-RPC). Off unless `MCP_ENABLED=true`. |
 | GET    | `/mcp.json`                                  | Generated MCP client config for this deployment. |
 | GET    | `/.well-known/oauth-protected-resource`      | RFC 9728 metadata for `/mcp`.          |
-| POST   | `/mcp-preview`                               | Opt-in MCP Apps test channel. Also requires `MCP_PREVIEW_ENABLED=true`. |
-| GET    | `/mcp-preview.json`                          | Generated client config for the preview channel. |
-| GET    | `/.well-known/oauth-protected-resource/mcp-preview` | RFC 9728 metadata for `/mcp-preview`. |
 | GET    | `/.well-known/oauth-authorization-server`    | RFC 8414 metadata.                     |
 | POST   | `/oauth/register`                            | Dynamic client registration (RFC 7591). |
 | GET    | `/connect/mcp/authorize`                     | Consent screen; needs any web session. |
@@ -580,14 +577,6 @@ versioned `ui://00widget/preview/v1.html` resource. It is a
 self-contained HTML document using the guest page's existing browser renderer,
 the standard `ui/*` postMessage bridge, and no external network or asset
 permissions.
-
-Connect `/mcp-preview` separately in Developer Mode to use the preview channel.
-It is available when both `MCP_ENABLED = "true"` and
-`MCP_PREVIEW_ENABLED = "true"`. Otherwise its endpoint, generated config, and
-protected-resource metadata all return 404. It shares tenant data and the OAuth
-server with `/mcp` and identifies itself as a separate OAuth protected resource.
-The preview advertises `ui://00widget/preview/v1-preview.3.html` and still serves
-the `.1` and `.2` URIs for clients with cached descriptors.
 
 ### What ChatGPT actually calls
 

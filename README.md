@@ -28,9 +28,7 @@ Details: `server/README.md` → "MCP".
 
 `/mcp` offers optional visuals through the read-only `render_card`,
 `render_activity`, and `render_dashboard` tools. MCP Apps hosts can display
-their results using a shared HTML resource. The Worker can also serve
-`<BASE_URL>/mcp-preview` as a separate Developer Mode connection when
-`MCP_PREVIEW_ENABLED = "true"`.
+their results using a shared HTML resource.
 
 ### Apps, scripts, automations, and coding agents
 

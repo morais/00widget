@@ -12,7 +12,7 @@ import {
 import { json } from "./http";
 import { readTextUpTo } from "./requestBody";
 import { enforceRateLimits } from "./rateLimit";
-import { MCP_PATH, MCP_PREVIEW_PATH } from "./mcp";
+import { MCP_PATH } from "./mcp";
 import { FieldLimits, type Env } from "./types";
 
 // OAuth 2.1 authorization server for the MCP endpoint.
@@ -106,22 +106,16 @@ export function mcpConfigured(env: Env): boolean {
   return mcpEnabled(env) && isSecureAdminSecret(env.SESSION_SECRET);
 }
 
-function resourceConfigured(env: Env, resourcePath: string): boolean {
-  return mcpConfigured(env)
-    && (resourcePath === MCP_PATH || (resourcePath === MCP_PREVIEW_PATH && env.MCP_PREVIEW_ENABLED === "true"));
-}
-
 // ---------- Discovery ----------
 
 export async function handleProtectedResourceMetadata(
   req: Request,
   env: Env,
-  resourcePath: string = MCP_PATH,
 ): Promise<Response> {
-  if (!resourceConfigured(env, resourcePath)) return json({ error: "not found" }, 404);
+  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
   const origin = new URL(req.url).origin;
   return metadataResponse({
-    resource: `${origin}${resourcePath}`,
+    resource: `${origin}${MCP_PATH}`,
     authorization_servers: [origin],
     scopes_supported: GRANTABLE_SCOPES,
     bearer_methods_supported: ["header"],
@@ -165,13 +159,12 @@ function metadataResponse(body: unknown): Response {
 export function mcpUnauthorized(
   req: Request,
   message: string,
-  resourcePath: string = MCP_PATH,
 ): Response {
   const origin = new URL(req.url).origin;
   const params = [
     `error="invalid_token"`,
     `error_description="${message.replace(/["\\]/g, "")}"`,
-    `resource_metadata="${origin}/.well-known/oauth-protected-resource${resourcePath}"`,
+    `resource_metadata="${origin}/.well-known/oauth-protected-resource${MCP_PATH}"`,
   ].join(", ");
   return json({ error: message }, 401, { "www-authenticate": `Bearer ${params}` });
 }

@@ -1,5 +1,8 @@
 # MCP Apps support for the 00Widget MCP server
 
+The render tools now ship on `/mcp`, and the preview endpoint has been retired.
+This plan records the original rollout. See the [current MCP Apps documentation](../server/README.md#mcp-apps).
+
 Spec written 2026-09-24, revised 2026-09-25. Target: add optional focused-card,
 focused-running-activity, and dashboard views without changing the behavior or
 wire contract of the MCP endpoint currently under OpenAI review.

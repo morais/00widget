@@ -5,30 +5,20 @@ import { sha256Hex } from "../src/auth";
 
 // Captured from the pre-setup implementation and compared against it in full
 // during development. Setup must not require connector/plugin resubmission.
-const PRE_SETUP_DESCRIPTOR_HASHES = {
-  stable: "410e19b22cc0f77ce599e130e72f9fbd8746a55d6e790bf6ef571fda112d890e",
-  preview: "c4e95ad4056380af2b44fd2fb7b06ef9606decba155ba4b2f9e5415862bf6728",
-};
+const PRE_SETUP_DESCRIPTOR_HASH = "410e19b22cc0f77ce599e130e72f9fbd8746a55d6e790bf6ef571fda112d890e";
 
-it("keeps all published tool descriptors unchanged by setup guidance", async () => {
-  const env = makeEnv({ MCP_ENABLED: "true", MCP_PREVIEW_ENABLED: "true", SESSION_SECRET: "contract-probe-secret-0123456789abcdef" });
-  for (const channel of ["stable", "preview"] as const) {
-    const res = await handleMcp(authedRequest("https://x/mcp", {
-      method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-    }), env, {} as ExecutionContext, channel);
-    const { result: { tools } } = await res.json() as { result: { tools: Array<{
-      name: string;
-      securitySchemes: unknown;
-      _meta?: { securitySchemes?: unknown };
-    }> } };
-    // The original stable baseline predates the promotion of the render tools.
-    const baselineTools = channel === "stable" ? tools.filter((tool) => !tool.name.startsWith("render_")) : tools;
-    const baselineFields = baselineTools.map((tool) => {
-      // The preview render tools already advertised OAuth in the baseline.
-      if (tool._meta?.securitySchemes) return tool;
-      const { securitySchemes: _addedForPublicDiscovery, ...descriptor } = tool;
-      return descriptor;
-    });
-    expect(await sha256Hex(JSON.stringify(baselineFields)), channel).toBe(PRE_SETUP_DESCRIPTOR_HASHES[channel]);
-  }
+it("keeps the original tool descriptors unchanged by setup guidance", async () => {
+  const env = makeEnv({ MCP_ENABLED: "true", SESSION_SECRET: "contract-probe-secret-0123456789abcdef" });
+  const res = await handleMcp(authedRequest("https://x/mcp", {
+    method: "POST", body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  }), env, {} as ExecutionContext);
+  const { result: { tools } } = await res.json() as { result: { tools: Array<{
+    name: string;
+    securitySchemes: unknown;
+  }> } };
+  // This baseline predates the additive render tools and public OAuth discovery.
+  const baselineFields = tools
+    .filter((tool) => !tool.name.startsWith("render_"))
+    .map(({ securitySchemes: _addedForPublicDiscovery, ...descriptor }) => descriptor);
+  expect(await sha256Hex(JSON.stringify(baselineFields))).toBe(PRE_SETUP_DESCRIPTOR_HASH);
 });

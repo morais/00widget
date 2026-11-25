@@ -1666,8 +1666,6 @@ export interface Env {
   // SESSION_SECRET: MCP OAuth signs its client ids and authorization codes with
   // it, and identifies the operator through the admin session cookie.
   MCP_ENABLED?: string;
-  // Opt-in MCP Apps test channel at /mcp-preview. This depends on MCP_ENABLED.
-  MCP_PREVIEW_ENABLED?: string;
   // JSON object mapping exact HTTPS OAuth callback URLs to canonical client
   // names. Also accepts the single supported pattern
   // https://chatgpt.com/connector/oauth/* for one callback-ID path segment.

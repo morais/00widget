@@ -17,8 +17,7 @@ import { llmsMarkdown } from "./generated/llmsDoc";
 import { renderHostedLlmsMarkdown } from "./landing";
 import { mcpConfigured, mcpUnauthorized } from "./mcpOAuth";
 import {
-  MCP_APP_RESOURCE_URIS,
-  isMcpAppResourceUri,
+  MCP_APP_RESOURCE_URI,
   mcpAppResource,
   mcpAppResourceDescriptor,
 } from "./mcpApp";
@@ -261,8 +260,6 @@ function stripShellExamples(markdown: string): string {
 }
 
 export const MCP_PATH = "/mcp";
-export const MCP_PREVIEW_PATH = "/mcp-preview";
-export type McpChannel = "stable" | "preview";
 
 /// Most JSON-RPC requests here arrive one to a body. The cap matches
 /// `FieldLimits.cardBatchCount`, which is the largest number of things any
@@ -357,8 +354,6 @@ interface ToolContext {
   /// What the client says it speaks, from the MCP-Protocol-Version header or
   /// an initialize request. Decides whether results carry 2026-07-28 fields.
   protocolVersion: string;
-  /// Selects the versioned UI resource for this endpoint.
-  channel: McpChannel;
 }
 
 /// A tool always runs with a credential; `handleMcp` refuses `tools/call`
@@ -511,7 +506,7 @@ interface McpTool {
     structured: Record<string, unknown>,
     args: Record<string, unknown>,
   ): string;
-  descriptorMeta?: (resourceUri: string) => Record<string, unknown>;
+  descriptorMeta?: Record<string, unknown>;
   scope: ApiScope;
   readOnly: boolean;
   /// True when a call can send a push through APNs to registered devices,
@@ -922,20 +917,18 @@ const BASE_TOOLS: McpTool[] = [
   },
 ];
 
-function renderToolMeta(resourceUri: string) {
-  return {
-    securitySchemes: [{ type: "oauth2", scopes: ["read"] }],
-    ui: {
-      resourceUri,
-      visibility: ["model", "app"],
-    },
-    // The flat key remains necessary for hosts on the pre-GA extension.
-    "ui/resourceUri": resourceUri,
-    "openai/outputTemplate": resourceUri,
-    "openai/widgetAccessible": true,
-    "openai/visibility": "public",
-  };
-}
+const RENDER_TOOL_META = {
+  securitySchemes: [{ type: "oauth2", scopes: ["read"] }],
+  ui: {
+    resourceUri: MCP_APP_RESOURCE_URI,
+    visibility: ["model", "app"],
+  },
+  // The flat key remains necessary for hosts on the pre-GA extension.
+  "ui/resourceUri": MCP_APP_RESOURCE_URI,
+  "openai/outputTemplate": MCP_APP_RESOURCE_URI,
+  "openai/widgetAccessible": true,
+  "openai/visibility": "public",
+};
 
 const RENDER_TOOLS: McpTool[] = [
   {
@@ -951,11 +944,11 @@ const RENDER_TOOLS: McpTool[] = [
       const card = structured.card as { title?: unknown } | undefined;
       return `Rendered ${typeof card?.title === "string" ? card.title : "the card"}.`;
     },
-    descriptorMeta: (resourceUri) => ({
-      ...renderToolMeta(resourceUri),
+    descriptorMeta: {
+      ...RENDER_TOOL_META,
       "openai/toolInvocation/invoking": "Loading card…",
       "openai/toolInvocation/invoked": "Card ready",
-    }),
+    },
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -981,11 +974,11 @@ const RENDER_TOOLS: McpTool[] = [
       const activity = structured.activity as { title?: unknown } | undefined;
       return `Rendered ${typeof activity?.title === "string" ? activity.title : "the running Live Activity"}.`;
     },
-    descriptorMeta: (resourceUri) => ({
-      ...renderToolMeta(resourceUri),
+    descriptorMeta: {
+      ...RENDER_TOOL_META,
       "openai/toolInvocation/invoking": "Loading activity…",
       "openai/toolInvocation/invoked": "Activity ready",
-    }),
+    },
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -1006,11 +999,11 @@ const RENDER_TOOLS: McpTool[] = [
       const activities = Array.isArray(structured.activities) ? structured.activities.length : 0;
       return `Rendered the dashboard with ${cards} card${cards === 1 ? "" : "s"} and ${activities} running activit${activities === 1 ? "y" : "ies"}.`;
     },
-    descriptorMeta: (resourceUri) => ({
-      ...renderToolMeta(resourceUri),
+    descriptorMeta: {
+      ...RENDER_TOOL_META,
       "openai/toolInvocation/invoking": "Loading dashboard…",
       "openai/toolInvocation/invoked": "Dashboard ready",
-    }),
+    },
     scope: "read",
     readOnly: true,
     openWorld: false,
@@ -1090,7 +1083,7 @@ export const STRICT_TOOL_OUTPUT_SCHEMAS: Record<string, unknown> = Object.fromEn
   }),
 );
 
-function toolDescriptor(tool: McpTool, resourceUri: string) {
+function toolDescriptor(tool: McpTool) {
   return {
     name: tool.name,
     title: tool.title,
@@ -1099,7 +1092,7 @@ function toolDescriptor(tool: McpTool, resourceUri: string) {
     // Text-first tools satisfy the same promise through structuredTextOutput.
     outputSchema: toolOutputSchema(tool.outputSchema),
     securitySchemes: [{ type: "oauth2", scopes: [tool.scope] }],
-    ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta(resourceUri) } : {}),
+    ...(tool.descriptorMeta ? { _meta: tool.descriptorMeta } : {}),
     annotations: {
       title: tool.title,
       readOnlyHint: tool.readOnly,
@@ -1112,10 +1105,7 @@ function toolDescriptor(tool: McpTool, resourceUri: string) {
   };
 }
 
-const TOOL_DESCRIPTORS = {
-  stable: ALL_TOOLS.map((tool) => toolDescriptor(tool, MCP_APP_RESOURCE_URIS.stable)),
-  preview: ALL_TOOLS.map((tool) => toolDescriptor(tool, MCP_APP_RESOURCE_URIS.preview)),
-};
+const TOOL_DESCRIPTORS = ALL_TOOLS.map(toolDescriptor);
 
 function toolInputSchema(schema: z.ZodType): Record<string, unknown> {
   const converted = z.toJSONSchema(schema, { io: "input" }) as Record<string, unknown>;
@@ -1211,14 +1201,6 @@ function openObjects(node: unknown): Record<string, unknown> {
 
 // ---------- Discovery for humans and non-ChatGPT clients ----------
 
-function channelPath(channel: McpChannel): string {
-  return channel === "preview" ? MCP_PREVIEW_PATH : MCP_PATH;
-}
-
-function channelConfigured(env: Env, channel: McpChannel): boolean {
-  return mcpConfigured(env) && (channel === "stable" || env.MCP_PREVIEW_ENABLED === "true");
-}
-
 /// A ready-to-paste MCP client config for whatever host is serving it. Clients
 /// that take a config file (Claude Code, editors) want this shape; ChatGPT is
 /// pointed at the URL directly. Generated per request so a fork or a staging
@@ -1226,16 +1208,15 @@ function channelConfigured(env: Env, channel: McpChannel): boolean {
 export async function handleMcpConfig(
   req: Request,
   env: Env,
-  channel: McpChannel = "stable",
 ): Promise<Response> {
-  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
+  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
   const origin = new URL(req.url).origin;
   return json(
     {
       mcpServers: {
-        [channel === "preview" ? "00widget-preview" : "00widget"]: {
+        "00widget": {
           type: "http",
-          url: `${origin}${channelPath(channel)}`,
+          url: `${origin}${MCP_PATH}`,
         },
       },
     },
@@ -1250,9 +1231,8 @@ export async function handleMcpConfig(
 export async function handleMcpMethodNotAllowed(
   _req: Request,
   env: Env,
-  channel: McpChannel = "stable",
 ): Promise<Response> {
-  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
+  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
   return json(
     { error: "the MCP endpoint accepts POST only; this server has no SSE stream" },
     405,
@@ -1266,9 +1246,8 @@ export async function handleMcp(
   req: Request,
   env: Env,
   ctx: ExecutionContext,
-  channel: McpChannel = "stable",
 ): Promise<Response> {
-  if (!channelConfigured(env, channel)) return json({ error: "not found" }, 404);
+  if (!mcpConfigured(env)) return json({ error: "not found" }, 404);
 
   // Validate any supplied credential, including on public discovery requests.
   let auth: AuthContext | null = null;
@@ -1285,7 +1264,7 @@ export async function handleMcp(
         hasAuthorizationHeader: true,
         reason: err.message,
       });
-      return mcpUnauthorized(req, err.message, channelPath(channel));
+      return mcpUnauthorized(req, err.message);
     }
   }
 
@@ -1318,7 +1297,7 @@ export async function handleMcp(
     // An anonymous caller gets the challenge rather than a bare parse error:
     // it may simply not know yet that this endpoint wants a credential, and a
     // 400 gives it nothing to act on.
-    if (!auth) return mcpUnauthorized(req, "authentication required", channelPath(channel));
+    if (!auth) return mcpUnauthorized(req, "authentication required");
     return json(errorResponse(null, JSON_RPC_PARSE_ERROR, "invalid JSON body"), 400);
   }
 
@@ -1345,7 +1324,7 @@ export async function handleMcp(
       hasAuthorizationHeader: false,
       reason: "missing or malformed Authorization header",
     });
-    return mcpUnauthorized(req, "missing or malformed Authorization header", channelPath(channel));
+    return mcpUnauthorized(req, "missing or malformed Authorization header");
   }
 
   const origin = new URL(req.url).origin;
@@ -1355,7 +1334,6 @@ export async function handleMcp(
     ctx,
     origin,
     protocolVersion: declaredProtocolVersion(req, payload),
-    channel,
   };
 
   if (batch) {
@@ -1430,7 +1408,7 @@ async function dispatch(
       return isNotification ? null : ok({});
     case "resources/list":
       return ok({
-        resources: [mcpAppResourceDescriptor(MCP_APP_RESOURCE_URIS[tools.channel])],
+        resources: [mcpAppResourceDescriptor()],
         ttlMs: MCP_CACHE_TTL_MS,
         cacheScope: "public",
       });
@@ -1439,11 +1417,11 @@ async function dispatch(
       if (typeof uri !== "string") {
         return errorResponse(id, JSON_RPC_INVALID_PARAMS, "params.uri is required");
       }
-      if (!isMcpAppResourceUri(uri, tools.channel)) {
+      if (uri !== MCP_APP_RESOURCE_URI) {
         return errorResponse(id, MCP_RESOURCE_NOT_FOUND, `resource '${uri}' was not found`);
       }
       return ok({
-        contents: [mcpAppResource(tools.origin, uri)],
+        contents: [mcpAppResource(tools.origin)],
         // The 2026-07-28 schema requires cache metadata on resource reads.
         ...(tools.protocolVersion === LATEST_PROTOCOL_VERSION
           ? { ttlMs: MCP_CACHE_TTL_MS, cacheScope: "public" }
@@ -1456,7 +1434,7 @@ async function dispatch(
       return ok(emptyList("prompts"));
     case "tools/list":
       return ok({
-        tools: TOOL_DESCRIPTORS[tools.channel],
+        tools: TOOL_DESCRIPTORS,
         ttlMs: MCP_CACHE_TTL_MS,
         cacheScope: "public",
       });

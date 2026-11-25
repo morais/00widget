@@ -1,15 +1,7 @@
 import { WEB_PREVIEW_RENDERER, WEB_PREVIEW_STYLES } from "./guestPage";
 
-/// MCP hosts cache resources by URI. Keep the promoted URI distinct from
-/// preview so the preview can move independently of the published contract.
-export const MCP_APP_RESOURCE_URIS = {
-  stable: "ui://00widget/preview/v1.html",
-  preview: "ui://00widget/preview/v1-preview.3.html",
-} as const;
-export const MCP_PREVIEW_LEGACY_RESOURCE_URIS = [
-  "ui://00widget/preview/v1-preview.1.html",
-  "ui://00widget/preview/v1-preview.2.html",
-] as const;
+/// Hosts cache the resource by URI, so keep the published identifier readable.
+export const MCP_APP_RESOURCE_URI = "ui://00widget/preview/v1.html";
 export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
 
 const APP_STYLES = `
@@ -151,15 +143,10 @@ export function renderMcpAppHTML(): string {
 </main><script>${WEB_PREVIEW_RENDERER}</script><script>${APP_SCRIPT}</script></body></html>`;
 }
 
-export function isMcpAppResourceUri(uri: string, channel: keyof typeof MCP_APP_RESOURCE_URIS): boolean {
-  return uri === MCP_APP_RESOURCE_URIS[channel]
-    || (channel === "preview" && MCP_PREVIEW_LEGACY_RESOURCE_URIS.some((legacyUri) => legacyUri === uri));
-}
-
-export function mcpAppResource(origin: string, uri: string) {
+export function mcpAppResource(origin: string) {
   const ui = mcpAppUiMeta();
   return {
-    uri,
+    uri: MCP_APP_RESOURCE_URI,
     mimeType: MCP_APP_MIME_TYPE,
     text: renderMcpAppHTML(),
     _meta: {
@@ -182,9 +169,9 @@ export function mcpAppResource(origin: string, uri: string) {
   };
 }
 
-export function mcpAppResourceDescriptor(uri: string) {
+export function mcpAppResourceDescriptor() {
   return {
-    uri,
+    uri: MCP_APP_RESOURCE_URI,
     name: "00Widget preview",
     title: "00Widget preview",
     description: "Read-only preview of one card, one running Live Activity, or the full dashboard.",

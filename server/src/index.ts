@@ -93,22 +93,11 @@ const routes: Route[] = [
   { method: "POST", pattern: /^\/mcp\/?$/, handler: (req, env, _match, ctx) => mcp.handleMcp(req, env, ctx) },
   { method: "GET", pattern: /^\/mcp\/?$/, handler: (req, env) => mcp.handleMcpMethodNotAllowed(req, env) },
   { method: "GET", pattern: /^\/mcp\.json\/?$/, handler: (req, env) => mcp.handleMcpConfig(req, env) },
-  // The opt-in MCP Apps test channel shares auth and data with /mcp and
-  // advertises its own UI resource URI.
-  { method: "POST", pattern: /^\/mcp-preview\/?$/, handler: (req, env, _match, ctx) =>
-    mcp.handleMcp(req, env, ctx, "preview") },
-  { method: "GET", pattern: /^\/mcp-preview\/?$/, handler: (req, env) =>
-    mcp.handleMcpMethodNotAllowed(req, env, "preview") },
-  { method: "GET", pattern: /^\/mcp-preview\.json\/?$/, handler: (req, env) =>
-    mcp.handleMcpConfig(req, env, "preview") },
   // OAuth discovery. RFC 9728 lets a client look for the protected-resource
   // document either at the bare well-known path or with the resource's own path
   // appended, and clients differ on which they try first.
   { method: "GET", pattern: /^\/\.well-known\/oauth-protected-resource(?:\/mcp)?\/?$/, handler: (req, env) =>
     mcpOAuth.handleProtectedResourceMetadata(req, env),
-  },
-  { method: "GET", pattern: /^\/\.well-known\/oauth-protected-resource\/mcp-preview\/?$/, handler: (req, env) =>
-    mcpOAuth.handleProtectedResourceMetadata(req, env, mcp.MCP_PREVIEW_PATH),
   },
   { method: "GET", pattern: /^\/\.well-known\/oauth-authorization-server(?:\/mcp)?\/?$/, handler: (req, env) =>
     mcpOAuth.handleAuthorizationServerMetadata(req, env),
@@ -504,8 +493,6 @@ function preventSensitiveResponseCaching(pathname: string, response: Response): 
     || pathname.startsWith("/admin/")
     || pathname === "/mcp"
     || pathname === "/mcp/"
-    || pathname === "/mcp-preview"
-    || pathname === "/mcp-preview/"
     || pathname.startsWith("/oauth/")
     || pathname.startsWith("/connect/")
     || pathname === "/dashboard"
