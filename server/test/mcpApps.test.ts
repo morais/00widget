@@ -151,6 +151,17 @@ describe("MCP Apps", () => {
     const read = await result(currentEnv, "/mcp", "resources/read", {
       uri: MCP_APP_RESOURCE_URIS.stable,
     });
+    expect(Object.keys(read.result)).toEqual(["contents"]);
+    const modern = await result(currentEnv, "/mcp", "resources/read", {
+      uri: MCP_APP_RESOURCE_URIS.stable,
+      _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" },
+    });
+    expect(modern.result).toEqual({
+      contents: read.result.contents,
+      resultType: "complete",
+      ttlMs: 3600000,
+      cacheScope: "public",
+    });
     const resource = read.result.contents[0];
     expect(resource.uri).toBe(MCP_APP_RESOURCE_URIS.stable);
     expect(resource.mimeType).toBe("text/html;profile=mcp-app");

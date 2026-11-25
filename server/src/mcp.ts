@@ -323,9 +323,8 @@ const SERVER_INSTRUCTIONS =
   + "stop, and always end it. Going quiet is the one failure here that returns "
   + "200 on every call and still misleads.";
 
-// tools/list is a pure function of this file, so clients may cache it. The
-// 2026-07-28 revision reads these fields; older ones ignore them.
-const TOOL_LIST_TTL_MS = 60 * 60 * 1000;
+// Discovery metadata and UI HTML are static and may be cached by clients.
+const MCP_CACHE_TTL_MS = 60 * 60 * 1000;
 
 const ANONYMOUS_MCP_METHODS = new Set([
   "initialize",
@@ -1415,7 +1414,7 @@ async function dispatch(
         supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
         capabilities: { tools: {}, resources: {} },
         instructions: SERVER_INSTRUCTIONS,
-        ttlMs: TOOL_LIST_TTL_MS,
+        ttlMs: MCP_CACHE_TTL_MS,
         cacheScope: "public",
         _meta: {
           "io.modelcontextprotocol/serverInfo": {
@@ -1432,7 +1431,7 @@ async function dispatch(
     case "resources/list":
       return ok({
         resources: [mcpAppResourceDescriptor(MCP_APP_RESOURCE_URIS[tools.channel])],
-        ttlMs: TOOL_LIST_TTL_MS,
+        ttlMs: MCP_CACHE_TTL_MS,
         cacheScope: "public",
       });
     case "resources/read": {
@@ -1443,7 +1442,13 @@ async function dispatch(
       if (!isMcpAppResourceUri(uri, tools.channel)) {
         return errorResponse(id, MCP_RESOURCE_NOT_FOUND, `resource '${uri}' was not found`);
       }
-      return ok({ contents: [mcpAppResource(tools.origin, uri)] });
+      return ok({
+        contents: [mcpAppResource(tools.origin, uri)],
+        // The 2026-07-28 schema requires cache metadata on resource reads.
+        ...(tools.protocolVersion === LATEST_PROTOCOL_VERSION
+          ? { ttlMs: MCP_CACHE_TTL_MS, cacheScope: "public" }
+          : {}),
+      });
     }
     case "resources/templates/list":
       return ok(emptyList("resourceTemplates"));
@@ -1452,7 +1457,7 @@ async function dispatch(
     case "tools/list":
       return ok({
         tools: TOOL_DESCRIPTORS[tools.channel],
-        ttlMs: TOOL_LIST_TTL_MS,
+        ttlMs: MCP_CACHE_TTL_MS,
         cacheScope: "public",
       });
     case "tools/call":
@@ -1565,7 +1570,7 @@ async function callTool(
 }
 
 function emptyList(key: string): Record<string, unknown> {
-  return { [key]: [], ttlMs: TOOL_LIST_TTL_MS, cacheScope: "public" };
+  return { [key]: [], ttlMs: MCP_CACHE_TTL_MS, cacheScope: "public" };
 }
 
 /// Every tool error carries the same structured detail, whichever layer
